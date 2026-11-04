@@ -8,8 +8,8 @@ import { parseExtraBody } from '@shared/models/utils/extra-body'
 import platform from '@/platform'
 
 type Service = Pick<VeniceMediaService, 'list' | 'subscribe' | 'catalog' | 'quote' | 'start' | 'resume' | 'pause' | 'remove' | 'cleanup' | 'content' | 'isActive'> & Partial<Pick<VeniceMediaService, 'cachedCatalog'>>
-const names: Record<MediaKind, string> = { speech: 'Voce', transcription: 'Trascrivi', video: 'Video', music: 'Musica e suoni' }
-const titles: Record<MediaKind, string> = { speech: 'Dai voce alle tue parole', transcription: 'Trasforma un audio in testo', video: 'Crea un video dalla tua idea', music: 'Crea la tua colonna sonora' }
+const names: Record<MediaKind, string> = { speech: 'Voce', transcription: 'Trascrivi', video: 'Video', music: 'Musica' }
+const titles: Record<MediaKind, string> = { speech: 'Dai voce alle tue parole', transcription: 'Trasforma un audio in testo', video: 'Crea un video dalla tua idea', music: 'Crea musica e suoni' }
 const actions: Record<MediaKind, string> = { speech: 'Genera voce', transcription: 'Trascrivi file', video: 'Crea video', music: 'Crea musica' }
 const icons = { speech: IconWaveSine, transcription: IconMicrophone, video: IconVideo, music: IconMusic }
 const languages = [{ value: 'auto', label: 'Rileva automaticamente' }, { value: 'it', label: 'Italiano' }, { value: 'en', label: 'Inglese' }, { value: 'es', label: 'Spagnolo' }, { value: 'fr', label: 'Francese' }, { value: 'de', label: 'Tedesco' }, { value: 'pt', label: 'Portoghese' }, { value: 'ja', label: 'Giapponese' }, { value: 'zh', label: 'Cinese' }, { value: 'hi', label: 'Hindi' }]
@@ -19,7 +19,7 @@ async function imageDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('Impossibile leggere l’immagine')); reader.readAsDataURL(file) })
 }
 export function VeniceStudio({ service, options, openSettings }: { service: Service; options: VeniceOptions; openSettings?: () => void }) {
-  const [kind, setKind] = useState<MediaKind>('speech')
+  const [kind, setKind] = useState<MediaKind>(() => options.audioEnabled ? 'speech' : options.videoEnabled ? 'video' : options.musicEnabled ? 'music' : 'speech')
   const [model, setModel] = useState(''); const [prompt, setPrompt] = useState(''); const [voice, setVoice] = useState('')
   const [format, setFormat] = useState('auto'); const [speed, setSpeed] = useState(1); const [language, setLanguage] = useState('auto')
   const [duration, setDuration] = useState('5s'); const [seconds, setSeconds] = useState<number | string>(30)
@@ -78,7 +78,7 @@ export function VeniceStudio({ service, options, openSettings }: { service: Serv
         <SimpleGrid cols={{ base: 1, sm: 2 }}><Select label="Voce da usare" placeholder={model ? 'Voce predefinita del modello' : 'Scegli prima un modello'} description={voices.length ? `${voices.length} voci disponibili per questo modello` : 'Se il catalogo non indica delle voci, viene usata quella predefinita.'} searchable clearable value={voice || null} data={[...voices, ...(!voices.some(item => item.value === voice) && voice ? [{ value: voice, label: 'Voce personalizzata' }] : [])]} disabled={!model || !voices.length} onChange={value => setVoice(value || '')} />
           <Select label="Formato audio" allowDeselect={false} value={format} data={[{ value: 'auto', label: selected?.model_spec?.default_format ? `Consigliato (${selected.model_spec.default_format.toUpperCase()})` : 'Consigliato dal modello' }, ...formats.map(value => ({ value, label: value.toUpperCase() }))]} onChange={value => setFormat(value || 'auto')} /></SimpleGrid>
         {!model.includes('kokoro') && <Select label="Lingua" value={language} allowDeselect={false} data={languages} onChange={value => setLanguage(value || 'auto')} />}
-        <Stack gap={5}><Text size="sm" fw={500}>Velocità di lettura</Text><Slider aria-label="Velocità di lettura" value={speed} onChange={setSpeed} min={0.25} max={4} step={0.05} label={value => `${value.toFixed(2)}×`} marks={[{ value: 0.5, label: 'Più lenta' }, { value: 1, label: 'Normale' }, { value: 2, label: 'Più veloce' }]} mb="md" /></Stack>
+        <Stack gap={5}><Group justify="space-between"><Text size="sm" fw={500}>Velocità di lettura</Text><Text size="sm" c="dimmed">{speed === 1 ? 'Normale' : `${speed.toLocaleString('it-IT', { maximumFractionDigits: 2 })}×`}</Text></Group><Slider aria-label="Velocità di lettura" value={speed} onChange={setSpeed} min={0.25} max={4} step={0.05} label={value => `${value.toFixed(2)}×`} /><Group justify="space-between"><Text size="xs" c="dimmed">Più lenta</Text><Text size="xs" c="dimmed">Più veloce</Text></Group></Stack>
         <Group><Button leftSection={<IconPlayerPlay size={15} />} variant="light" size="xs" disabled={!enabled || !model || busy} onClick={() => void run(async () => { await service.start({ kind: 'speech', model, prompt: 'Ciao! Questa è una breve prova della voce che hai scelto.', options: speechOptions() }) })}>Genera una breve prova</Button><Text size="xs" c="dimmed">La prova usa una breve generazione e può avere un costo.</Text></Group>
       </>}
       {kind === 'transcription' && <Select label="Lingua dell’audio" value={language} allowDeselect={false} data={languages} onChange={value => setLanguage(value || 'auto')} />}
