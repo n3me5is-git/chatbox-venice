@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths-ignore: ['README.md', 'README.it.md', 'CHANGELOG.md', 'docs/**', 'doc/**', 'LICENSE']
+    paths-ignore: ['README.md', 'README.it.md', 'CHANGELOG.md', 'docs/**', 'doc/**', 'LICENSE', '.github/workflows/publish-release.yml', '.github/workflows/release-checks.yml', 'scripts/publish-fork-release.mjs', 'scripts/publish-release-workflow.test.mjs']
   workflow_dispatch:
     inputs:
       target:
