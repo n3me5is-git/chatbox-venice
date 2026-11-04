@@ -648,6 +648,11 @@ When you create a Git commit that includes code changes, append this exact trail
     tools = { ...tools, ...memoryToolSet.tools }
   }
 
+  if (includeAgentTools && model.name === 'Venice' && options.sessionId && globalSettingsForTools.providers?.venice?.venice?.chatToolsEnabled && globalSettingsForTools.providers.venice.venice.enabled !== false) {
+    const { veniceChatTools } = await import('@/packages/venice/tools')
+    tools = { ...tools, ...veniceChatTools(options.sessionId) }
+  }
+
   if (Object.keys(tools).length > 0) {
     instructions = buildToolUseCommunicationInstruction() + instructions
   }

@@ -2,6 +2,9 @@ import NiceModal, { useModal } from '@ebay/nice-modal-react'
 import { Button, Checkbox, Flex, Loader, NumberInput, Stack, Text, TextInput, Textarea, UnstyledButton } from '@mantine/core'
 import { TestId } from '@shared/automation/testids'
 import type { ProviderModelInfo } from '@shared/types'
+import { VeniceProfileEditor } from '@/components/settings/provider/VeniceProfiles'
+import { useProviderSettings } from '@/stores/settingsStore'
+import type { VeniceProfile } from '@shared/providers/definitions/models/venice/options'
 import { parseExtraBody } from '@shared/models/utils/extra-body'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +20,8 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
   const modal = useModal()
   const { t } = useTranslation()
 
+  const { providerSettings: veniceSettings } = useProviderSettings('venice')
+  const [veniceProfile, setVeniceProfile] = useState<VeniceProfile>(props.model?.veniceProfile || {})
   const isNew = !props.model
   const canEditExtraBody = props.providerId === 'venice' || settingsStore.getState().customProviders?.some((p) => p.id === props.providerId)
   const [extraBodyText, setExtraBodyText] = useState(props.model?.extraBody ? JSON.stringify(props.model.extraBody, null, 2) : '')
@@ -40,6 +45,7 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
   ]
 
   useEffect(() => {
+    setVeniceProfile(props.model?.veniceProfile || {})
     setModelId(props.model?.modelId || '')
     setNickname(props.model?.nickname || '')
     setCapabilities(props.model?.capabilities || [])
@@ -101,6 +107,7 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
       capabilities,
       contextWindow,
       maxOutput,
+      ...(props.providerId === 'venice' ? { veniceProfile } : {}),
       ...(canEditExtraBody ? { extraBody: parseExtraBody(extraBodyText), nativeWebSearch } : {}),
     })
 
@@ -219,6 +226,7 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
           </Stack>
         )}
 
+        {props.providerId === 'venice' && <VeniceProfileEditor options={veniceSettings?.venice || {}} value={veniceProfile} onChange={setVeniceProfile} />}
         {/* Context Window and Max Output */}
         <Stack gap="xs">
           <Text fw="600">{t('Advanced Settings')}</Text>

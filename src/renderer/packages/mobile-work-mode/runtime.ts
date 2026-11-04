@@ -96,6 +96,8 @@ export async function prepareCapacitorWorkMode(
   })
   const web = buildMobileWebTools(request.model, request.webBrowsing)
   const images = capacitorImageTools(request.model, request.session.id, request.signal)
+  const veniceTools = request.model.name === 'Venice' && request.globalSettings.providers?.venice?.venice?.chatToolsEnabled && request.globalSettings.providers.venice.venice.enabled !== false
+    ? (await import('@/packages/venice/tools')).veniceChatTools(request.session.id) : {}
   const { tools, active } = await capacitorWorkMode.createTools(
     {
       sessionId: request.session.id,
@@ -104,7 +106,7 @@ export async function prepareCapacitorWorkMode(
       ...workModelDisclosure(request.settings, request.globalSettings),
       signal: request.signal,
     },
-    { ...web.tools, ...images?.tools, ...memory.tools, ...mcp.tools }
+    { ...web.tools, ...images?.tools, ...memory.tools, ...mcp.tools, ...veniceTools }
   )
   const prepared = await new BasicGenerationPreparation<ModelDependencies>({
     attachmentPolicy: { workspacePath: workspaceInputPath },

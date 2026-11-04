@@ -40,7 +40,7 @@ import { buildChatboxUrl } from './packages/remote'
 import platform from './platform'
 import { getSidebarModalSx } from './sidebar-drawer'
 import icon from './static/icon.png'
-import { useLanguage } from './stores/settingsStore'
+import { useLanguage, useProviderSettings } from './stores/settingsStore'
 import { useUIStore } from './stores/uiStore'
 import { installUpdate, useUpdateStore } from './stores/updateStore'
 import { CHATBOX_BUILD_PLATFORM, CHATBOX_BUILD_TARGET } from './variables'
@@ -65,6 +65,9 @@ export default function Sidebar() {
   const { t } = useTranslation()
   const versionHook = useVersion()
   const language = useLanguage()
+  const { providerSettings: veniceSettings } = useProviderSettings('venice')
+  const veniceOptions = veniceSettings?.venice || {}
+  const showVeniceStudio = veniceOptions.enabled !== false && (veniceOptions.audioEnabled || veniceOptions.videoEnabled || veniceOptions.musicEnabled)
   const navigate = useNavigate()
   const showSidebar = useUIStore((s) => s.showSidebar)
   const hasOverlay = useAtomValue(overlayStackAtom).length > 0
@@ -261,6 +264,7 @@ export default function Sidebar() {
             icon={IconPhotoPlus}
             onClick={handleCreateNewPictureSession}
           />
+          {showVeniceStudio && <SidebarNavRow label="Venice Studio" icon={IconPhotoPlus} onClick={() => { navigate({ to: '/venice/' }); closeOnSmallScreen() }} />}
           <SidebarNavRow
             label={t('My Copilots')}
             icon={IconMessageChatbot}

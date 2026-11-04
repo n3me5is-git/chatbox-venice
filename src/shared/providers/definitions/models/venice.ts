@@ -1,4 +1,5 @@
 import OpenAICompatible, { type OpenAICompatibleSettings } from '../../../models/openai-compatible'
+import { assertVeniceEnabled } from './venice/options'
 import { ApiError } from '../../../models/errors'
 import { createFetchWithProxy } from '../../../models/utils/fetch-proxy'
 import { mergeExtraBody } from '../../../models/utils/extra-body'
@@ -24,8 +25,9 @@ interface VeniceCatalogModel {
 }
 
 export async function fetchVeniceModels(
-  options: { apiKey: string; apiHost?: string }, dependencies: ModelDependencies
+  options: { apiKey: string; apiHost?: string; venice?: VeniceSettings }, dependencies: ModelDependencies
 ): Promise<ProviderModelInfo[]> {
+  assertVeniceEnabled(options.venice || {})
   const response = await dependencies.request.apiRequest({
     url: `${(options.apiHost || 'https://api.venice.ai/api/v1').replace(/\/+$/, '')}/models?type=all`,
     method: 'GET', headers: { Authorization: `Bearer ${options.apiKey}` }, useProxy: false,
@@ -79,6 +81,7 @@ export function getVeniceParameters(settings: VeniceSettings = {}) {
 // Add vendor options after SDK serialization, for both chat transports and tool calls.
 export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: VeniceSettings, extra?: ProviderModelInfo['extraBody']): typeof globalThis.fetch {
   return async (url, init) => {
+    assertVeniceEnabled(settings || {})
     const endpoint = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
     if (new URL(endpoint).pathname.endsWith('/chat/completions') && typeof init?.body === 'string') {
       const body = mergeExtraBody({ ...JSON.parse(init.body), venice_parameters: getVeniceParameters(settings) }, extra || {})
@@ -95,6 +98,7 @@ export default class Venice extends OpenAICompatible {
   public override get usesNativeWebSearch() { return true }
 
   constructor(options: VeniceOptions, dependencies: ModelDependencies) {
+    assertVeniceEnabled(options.venice || {})
     if (options.model.modelId.toLowerCase().includes('e2ee')) throw new ApiError('This model requires Venice E2EE, which this client has not implemented')
     const resolved = { ...options, apiHost: options.apiHost.replace(/\/+$/, ''), useProxy: false,
       customFetch: createVeniceFetch(options.customFetch || createFetchWithProxy(false, dependencies), options.venice, options.model.extraBody),

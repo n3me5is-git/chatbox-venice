@@ -41,9 +41,47 @@ export const AgentModeEntrySchema = z.object({
   lockReason: z.enum(['file_upload', 'load_skill', 'message_sent']).nullable(),
 })
 
+export const VeniceProfileSchema = z.object({
+    profileId: z.string().optional(),
+    webSearch: z.enum(['off', 'auto', 'on']).optional().catch(undefined),
+    searchProvider: z.enum(['native', 'brave', 'google', 'exa']).optional().catch(undefined),
+    webScraping: z.boolean().optional().catch(undefined),
+    webCitations: z.boolean().optional().catch(undefined),
+    xSearch: z.boolean().optional().catch(undefined),
+    includeSystemPrompt: z.boolean().optional().catch(undefined),
+    imageSafeMode: z.boolean().optional().catch(undefined),
+    imageWebSearch: z.boolean().optional().catch(undefined),
+    image: z.object({
+      negative_prompt: z.string().optional(),
+      format: z.enum(['png', 'jpeg', 'webp']).optional(),
+      resolution: z.string().optional(),
+      quality: z.enum(['low', 'medium', 'high']).optional(),
+      width: z.number().int().positive().optional(),
+      height: z.number().int().positive().optional(),
+      steps: z.number().int().positive().optional(),
+      cfg_scale: z.number().positive().optional(),
+      seed: z.number().int().optional(),
+      style_preset: z.string().optional(),
+      enhance_prompt: z.boolean().optional(),
+      hide_watermark: z.boolean().optional(),
+      embed_exif_metadata: z.boolean().optional(),
+    }).optional().catch(undefined),
+  })
+
+export const VeniceSettingsSchema = VeniceProfileSchema.extend({
+  enabled: z.boolean().optional(),
+  audioEnabled: z.boolean().optional(),
+  videoEnabled: z.boolean().optional(),
+  musicEnabled: z.boolean().optional(),
+  chatToolsEnabled: z.boolean().optional(),
+  confirmMediaTools: z.boolean().optional(),
+  profiles: z.array(z.object({ id: z.string(), name: z.string(), options: VeniceProfileSchema })).optional(),
+})
+
 export const ProviderModelInfoSchema = z.object({
   modelId: z.string(),
   extraBody: z.record(z.string(), z.unknown()).optional().catch(undefined),
+  veniceProfile: VeniceProfileSchema.optional().catch(undefined),
   nativeWebSearch: z.boolean().optional().catch(undefined),
   vendorMetadata: z.record(z.string(), z.unknown()).optional().catch(undefined),
   // The provider id this model was resolved under (e.g. 'chatbox-ai', 'qwen').
@@ -82,31 +120,7 @@ export const ProviderSettingsSchema = z.object({
   modelGroups: z.array(ProviderModelGroupSchema).optional().catch(undefined),
   excludedModels: z.array(z.string()).optional().catch(undefined),
   useProxy: z.boolean().optional().catch(undefined),
-  venice: z.object({
-    webSearch: z.enum(['off', 'auto', 'on']).optional().catch(undefined),
-    searchProvider: z.enum(['native', 'brave', 'google', 'exa']).optional().catch(undefined),
-    webScraping: z.boolean().optional().catch(undefined),
-    webCitations: z.boolean().optional().catch(undefined),
-    xSearch: z.boolean().optional().catch(undefined),
-    includeSystemPrompt: z.boolean().optional().catch(undefined),
-    imageSafeMode: z.boolean().optional().catch(undefined),
-    imageWebSearch: z.boolean().optional().catch(undefined),
-    image: z.object({
-      negative_prompt: z.string().optional(),
-      format: z.enum(['png', 'jpeg', 'webp']).optional(),
-      resolution: z.string().optional(),
-      quality: z.enum(['low', 'medium', 'high']).optional(),
-      width: z.number().int().positive().optional(),
-      height: z.number().int().positive().optional(),
-      steps: z.number().int().positive().optional(),
-      cfg_scale: z.number().positive().optional(),
-      seed: z.number().int().optional(),
-      style_preset: z.string().optional(),
-      enhance_prompt: z.boolean().optional(),
-      hide_watermark: z.boolean().optional(),
-      embed_exif_metadata: z.boolean().optional(),
-    }).optional().catch(undefined),
-  }).optional().catch(undefined),
+  venice: VeniceSettingsSchema.optional().catch(undefined),
 
   // oauth
   oauth: OAuthCredentialsSchema.optional().catch(undefined),
@@ -231,6 +245,7 @@ export const GlobalSessionSettingsSchema = z.object({
 })
 
 export const SessionSettingsSchema = GlobalSessionSettingsSchema.extend({
+  veniceProfile: VeniceProfileSchema.optional().catch(undefined),
   provider: z.string().optional().catch(undefined),
   modelId: z.string().optional().catch(undefined),
   // Claude prompt caching uses the provider default when omitted. Persist only

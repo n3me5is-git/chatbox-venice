@@ -1,3 +1,4 @@
+import { VeniceProfiles } from './VeniceProfiles'
 import { Accordion, NumberInput, Select, SimpleGrid, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
 import type { ProviderSettings } from '@shared/types'
 import { useTranslation } from 'react-i18next'
@@ -59,4 +60,21 @@ export function VeniceImageSettings() {
       </Stack></Accordion.Panel>
     </Accordion.Item>
   </Accordion>
+}
+
+export function VeniceModuleSettings() {
+  const { providerSettings, setProviderSettings } = useProviderSettings('venice')
+  const options = providerSettings?.venice || {}
+  const update = (value: Partial<Options>) => setProviderSettings({ venice: { ...options, ...value } })
+  return <Stack gap="sm" p="sm">
+    <Switch label="Abilita supporto Venice" checked={options.enabled !== false} onChange={e => update({ enabled: e.currentTarget.checked })} />
+    <Text size="xs" c="dimmed">La disattivazione blocca le nuove richieste Venice e interrompe l'attesa dei media. Non cancella cronologia o chiavi e non annulla eventuali lavori già in corso sul server.</Text>
+    <Switch label="Audio e trascrizione" disabled={options.enabled === false} checked={options.audioEnabled === true} onChange={e => update({ audioEnabled: e.currentTarget.checked })} />
+    <Switch label="Generazione video" disabled={options.enabled === false} checked={options.videoEnabled === true} onChange={e => update({ videoEnabled: e.currentTarget.checked })} />
+    <Switch label="Musica ed effetti sonori" disabled={options.enabled === false} checked={options.musicEnabled === true} onChange={e => update({ musicEnabled: e.currentTarget.checked })} />
+    <Switch label="Tool Venice nelle chat in modalità Lavoro" disabled={options.enabled === false} checked={options.chatToolsEnabled === true} onChange={e => update({ chatToolsEnabled: e.currentTarget.checked })} />
+    <Switch label="Conferma prima delle generazioni richieste dai tool" disabled={!options.chatToolsEnabled} checked={options.confirmMediaTools !== false} onChange={e => update({ confirmMediaTools: e.currentTarget.checked })} />
+    <Text size="xs" c="dimmed">I nuovi moduli sono facoltativi. Usa Venice Studio dal menu laterale dopo averne abilitato almeno uno. Le funzioni locali e gli altri provider mantengono le loro impostazioni.</Text>
+    <VeniceProfiles />
+  </Stack>
 }

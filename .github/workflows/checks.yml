@@ -6,7 +6,7 @@ on:
       test_scope:
         description: Test suite
         type: choice
-        options: [focused, unit]
+        options: [focused, unit, ui]
         default: focused
   workflow_call:
     inputs:
@@ -32,10 +32,37 @@ jobs:
       - name: Validate Windows packaging configuration
         run: node scripts/package-fork.cjs --check-config
       - name: Test vendor options, Venice, references and privacy
-        if: inputs.test_scope != 'unit'
-        run: pnpm exec vitest run src/shared/models/utils/extra-body.test.ts src/shared/providers/definitions/models/venice.test.ts packages/chatbox-core/src/application/image-generation/catalog.test.ts packages/chatbox-core/src/application/image-generation/ImageGenerationService.test.ts packages/chatbox-core/src/domain/settings/fork-privacy-defaults.test.ts src/renderer/packages/context-management/summary-generator.test.ts src/renderer/components/Markdown.ssr.test.tsx src/renderer/components/message-parts/ToolCallPartUI.search-results.test.tsx packages/chatbox-core/src/domain/settings/settings-migrations.test.ts packages/chatbox-core/src/application/settings/SettingsService.test.ts packages/chatbox-core/src/backup-host/settings.test.ts src/renderer/stores/settingsStore.persist.test.ts src/renderer/adapters/RendererSettingsStorage.test.ts
+        if: inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        run: pnpm exec vitest run src/shared/providers/definitions/models/venice/media.test.ts src/shared/providers/definitions/models/venice/options.test.ts src/shared/providers/definitions/models/venice/tools.test.ts src/shared/models/utils/extra-body.test.ts src/shared/providers/definitions/models/venice.test.ts packages/chatbox-core/src/application/image-generation/catalog.test.ts packages/chatbox-core/src/application/image-generation/ImageGenerationService.test.ts packages/chatbox-core/src/domain/settings/fork-privacy-defaults.test.ts src/renderer/packages/context-management/summary-generator.test.ts src/renderer/components/Markdown.ssr.test.tsx src/renderer/components/message-parts/ToolCallPartUI.search-results.test.tsx packages/chatbox-core/src/domain/settings/settings-migrations.test.ts packages/chatbox-core/src/application/settings/SettingsService.test.ts packages/chatbox-core/src/backup-host/settings.test.ts src/renderer/stores/settingsStore.persist.test.ts src/renderer/adapters/RendererSettingsStorage.test.ts
       - name: Full unit test suite (optional)
         if: inputs.test_scope == 'unit'
         run: pnpm test:unit
       - run: pnpm check
 
+
+  ui:
+    name: Simulated UI and browser checks
+    if: inputs.test_scope != 'unit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Simulated UI interactions and reference links
+        run: pnpm exec vitest run src/renderer/components/venice/VeniceStudio.test.tsx src/renderer/components/Markdown.ssr.test.tsx src/renderer/components/message-parts/ToolCallPartUI.search-results.test.tsx
+      - name: Browser simulation with desktop and phone screenshots
+        run: node scripts/ui-simulation/run.mjs
+      - name: Save UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Venice-UI-simulation
+          path: test-results/venice-ui/
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true

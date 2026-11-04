@@ -62,7 +62,8 @@ import * as toastActions from '@/stores/toastActions'
 import { useUIStore } from '@/stores/uiStore'
 import { featureFlags } from '@/utils/feature-flags'
 import { ScalableIcon } from '../common/ScalableIcon'
-import { VeniceSearchSettings } from '@/components/settings/provider/VeniceSettings'
+import { VeniceProfileEditor } from '@/components/settings/provider/VeniceProfiles'
+import { resolveVeniceSettings } from '@shared/providers/definitions/models/venice/options'
 import MCPStatus from '../mcp/MCPStatus'
 import { CommandApprovalOptions, WorkingDirectoryContent } from './AgentModeSettingsContent'
 import { AgentMemorySettingsContent, useAgentMemorySettings } from './AgentMemorySettings'
@@ -218,9 +219,10 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
   const workModeCapabilitiesDisabled = agentModeUIState.capabilitiesDisabled
 
   const providerOptions = useSettingsStore((s) => providerId ? s.providers?.[providerId] : undefined)
+  const resolvedVenice = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, currentSession?.settings?.veniceProfile)
   const usesNativeSearch = providerId === 'venice' || Boolean(providerOptions?.models?.find((m) => m.modelId === modelId)?.nativeWebSearch)
   const nativeSearchEnabled = providerId === 'venice'
-    ? Boolean((providerOptions?.venice?.webSearch ?? 'off') !== 'off' || providerOptions?.venice?.xSearch || providerOptions?.venice?.webScraping)
+    ? Boolean((resolvedVenice.webSearch ?? 'off') !== 'off' || resolvedVenice.xSearch || resolvedVenice.webScraping)
     : usesNativeSearch
   // Web Search state
   const webSearchProvider = useSettingsStore((s) => s.extension.webSearch.provider)
@@ -770,7 +772,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
     if (page === 'web-search' && usesNativeSearch) {
       return <>
         <SubPanelHeader title={t('Provider native search')} />
-        {providerId === 'venice' ? <VeniceSearchSettings /> : <Text size="sm" p="sm">{t('Search is configured in the selected model extra request JSON.')}</Text>}
+        {providerId === 'venice' ? <Stack p="sm">{isNewSession ? <Text size="sm">Crea la chat per impostare un profilo dedicato. Per ora si applicano le impostazioni del provider e del modello.</Text> : <VeniceProfileEditor options={providerOptions?.venice || {}} value={currentSession?.settings?.veniceProfile || {}} onChange={value => { void rendererApplication.sessions.updateSessionHeader(sessionId, current => ({ ...current, settings: { ...current.settings, veniceProfile: value } })) }} />}</Stack> : <Text size="sm" p="sm">{t('Search is configured in the selected model extra request JSON.')}</Text>}
       </>
     }
     if (page === 'web-search') {
@@ -1118,7 +1120,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
               }
               label={usesNativeSearch ? t('Provider native search') : t('Web Search')}
               subtitle={
-                usesNativeSearch ? (providerId === 'venice' ? `Venice · ${providerOptions?.venice?.webSearch ?? 'off'}` : String(t('Model request JSON'))) : webSearchConfigurationIssue === 'chatbox-ai-sign-in'
+                usesNativeSearch ? (providerId === 'venice' ? `Venice · ${resolvedVenice.webSearch ?? 'off'}` : String(t('Model request JSON'))) : webSearchConfigurationIssue === 'chatbox-ai-sign-in'
                   ? (t('Sign in required') ?? undefined)
                   : webSearchConfigurationIssue
                     ? (t('Setup required') ?? undefined)

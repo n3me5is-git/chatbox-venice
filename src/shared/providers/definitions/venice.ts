@@ -1,6 +1,7 @@
 import { ModelProviderEnum, ModelProviderType } from '../../types'
 import { defineProvider } from '../registry'
 import Venice from './models/venice'
+import { resolveVeniceSettings } from './models/venice/options'
 
 export const veniceProvider = defineProvider({
   id: ModelProviderEnum.Venice,
@@ -25,6 +26,6 @@ export const veniceProvider = defineProvider({
     maxOutputTokens: config.settings.maxTokens,
     stream: config.settings.stream,
     useProxy: config.providerSetting.useProxy,
-    venice: config.providerSetting.venice,
+    venice: resolveVeniceSettings(config.providerSetting.venice, config.model.veniceProfile, config.settings.veniceProfile),
   }, config.dependencies),
 })
