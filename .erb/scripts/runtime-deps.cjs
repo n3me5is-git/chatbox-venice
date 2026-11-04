@@ -103,7 +103,7 @@ function ensureNodeModulesDir(dir) {
 }
 
 function ensureUnpackedRuntimeDeps(context) {
-  const appDir = path.join(__dirname, '..', '..', 'release', 'app')
+  const appDir = context.packager?.appDir || context.appDir || path.join(__dirname, '..', '..', 'release', 'app')
   const sourceNodeModulesDir = path.join(appDir, 'node_modules')
   const requiredPackages = getRequiredRuntimePackages(sourceNodeModulesDir)
   const nodeModulesDirs = findUnpackedNodeModulesDirs(context)
