@@ -1,5 +1,7 @@
 import type { ImageModelOption } from '@chatbox/core/application/image-generation'
 import { fetchOpenRouterImageModels } from '@shared/providers/definitions/models/openrouter-image-api'
+import { settingsStore } from '@/stores/settingsStore'
+import type { ProviderSettings } from '@shared/types'
 import { ModelProviderEnum } from '@shared/types'
 import { fetchVeniceModels, getVeniceImageCapabilities } from '@shared/providers/definitions/models/venice'
 
@@ -8,6 +10,8 @@ export type { ImageModelOption } from '@chatbox/core/application/image-generatio
 import { createModelDependencies } from '@/adapters'
 import { getModelManifest } from '@/packages/remote'
 export interface ImageModelCatalogOptions {
+  apiHost?: string
+  venice?: ProviderSettings['venice']
   apiKey?: string
   licenseKey?: string
   language?: string
@@ -18,8 +22,8 @@ export async function loadProviderImageModels(
   options: ImageModelCatalogOptions = {}
 ): Promise<ImageModelOption[]> {
   if (provider === ModelProviderEnum.Venice) {
-    if (!options.apiKey) return []
-    const models = await fetchVeniceModels({ apiKey: options.apiKey }, await createModelDependencies())
+    if (!options.apiKey || options.venice?.enabled === false || settingsStore.getState().providers?.venice?.venice?.enabled === false) return []
+    const models = await fetchVeniceModels({ apiKey: options.apiKey, apiHost: options.apiHost, venice: options.venice }, await createModelDependencies())
     return models.filter((m) => m.type === 'image').map((m) => ({ modelId: m.modelId, displayName: m.nickname || m.modelId, capabilities: getVeniceImageCapabilities(m) }))
   }
   if (provider === ModelProviderEnum.OpenRouter && options.apiKey) {

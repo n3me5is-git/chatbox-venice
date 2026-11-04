@@ -264,7 +264,7 @@ export default function Sidebar() {
             icon={IconPhotoPlus}
             onClick={handleCreateNewPictureSession}
           />
-          {showVeniceStudio && <SidebarNavRow label="Venice Studio" icon={IconPhotoPlus} onClick={() => { navigate({ to: '/venice/' }); closeOnSmallScreen() }} />}
+          {showVeniceStudio && <SidebarNavRow label="Venice Studio" icon={IconPhotoPlus} onClick={() => { navigate({ to: '/venice' }); closeOnSmallScreen() }} />}
           <SidebarNavRow
             label={t('My Copilots')}
             icon={IconMessageChatbot}

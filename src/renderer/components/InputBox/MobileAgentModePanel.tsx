@@ -12,6 +12,8 @@ import { IconBook, IconChevronLeft, IconChevronRight, IconDeviceMobile, IconNote
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { rendererApplication } from '@/app/renderer-application'
+import { VeniceProfileEditor } from '@/components/settings/provider/VeniceProfiles'
+import { resolveVeniceSettings } from '@shared/providers/definitions/models/venice/options'
 import { MCPConnectionSummary } from '@/components/mcp/MCPConnectionSummary'
 import { useSessionLockState } from '@/hooks/useSessionLockState'
 import { useSessionPresentation } from '@/hooks/useSessionPresentation'
@@ -47,7 +49,7 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
   ref
 ) {
   const { t } = useTranslation()
-  const [page, setPage] = useState<'main' | 'services' | 'memory'>('main')
+  const [page, setPage] = useState<'main' | 'services' | 'memory' | 'venice'>('main')
   useImperativeHandle(
     ref,
     () => ({
@@ -89,7 +91,10 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
   })
   const webSearch = useSettingsStore((s) => s.extension.webSearch)
   const licenseKey = useSettingsStore((s) => s.licenseKey)
-  const webIssue = webBrowsingMode && getWebSearchConfigurationIssue(webSearch, licenseKey) !== null
+  const providerOptions = useSettingsStore(s => providerId ? s.providers?.[providerId] : undefined)
+  const usesNativeSearch = providerId === 'venice' || Boolean(providerOptions?.models?.find(m => m.modelId === modelId)?.nativeWebSearch)
+  const veniceOptions = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, header?.settings?.veniceProfile)
+  const webIssue = !usesNativeSearch && webBrowsingMode && getWebSearchConfigurationIssue(webSearch, licenseKey) !== null
   const webProvider = WEB_SEARCH_PROVIDERS.find((p) => p.value === webSearch.provider)?.label ?? webSearch.provider
   const labels: Record<LocalWorkCapabilityId, string> = {
     photos: t('Photos'),
@@ -146,6 +151,12 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
       setSaving(false)
     }
   }
+
+  if (page === 'venice') return <Stack p="md" gap="sm" style={{ maxHeight: '70dvh', overflowY: 'auto' }}>
+    <Button variant="subtle" onClick={() => setPage('main')}>{t('Back')}</Button>
+    {sessionId === 'new' ? <Text size="sm">Crea la chat per impostare un profilo dedicato.</Text> : <VeniceProfileEditor options={providerOptions?.venice || {}} value={header?.settings?.veniceProfile || {}} onChange={value => { void rendererApplication.sessions.updateSessionHeader(sessionId, current => { if (!current) throw new Error('Session not found'); return { ...current, settings: { ...current.settings, veniceProfile: value } } }) }} />}
+    <Button variant="default" onClick={() => { onClose(); navigateToSettings('/provider/venice') }}>Impostazioni provider Venice</Button>
+  </Stack>
 
   if (page === 'memory') {
     return (
@@ -370,14 +381,14 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
         <Stack gap={2}>
           <Text size="sm">{t('Web Search')}</Text>
           <Text size="xs" c="dimmed">
-            {webProvider}
+            {usesNativeSearch ? (providerId === 'venice' ? `Venice · ${veniceOptions.webSearch || 'off'}` : 'Parametri del modello') : webProvider}
           </Text>
         </Stack>
         <Switch
           aria-label={String(t('Web Search'))}
-          checked={webBrowsingMode}
-          disabled={busy || saving}
-          onChange={(event) => onWebBrowsingChange(event.currentTarget.checked)}
+          checked={usesNativeSearch ? (providerId === 'venice' ? veniceOptions.webSearch !== 'off' && veniceOptions.webSearch !== undefined : true) : webBrowsingMode}
+          disabled={busy || saving || (usesNativeSearch && providerId !== 'venice')}
+          onChange={(event) => usesNativeSearch ? setPage('venice') : onWebBrowsingChange(event.currentTarget.checked)}
         />
       </Group>
       {webIssue && (
@@ -389,8 +400,9 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
         variant="subtle"
         size="xs"
         onClick={() => {
+          if (providerId === 'venice') { setPage('venice'); return }
           onClose()
-          navigateToSettings('/web-search')
+          navigateToSettings(usesNativeSearch ? `/provider/${providerId}` : '/web-search')
         }}
       >
         {t('Web Search Settings')}

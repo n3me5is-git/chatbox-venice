@@ -125,6 +125,8 @@ async function buildToolsForPausedToolCall(
     )
     const mcp = await prepareMobileMCPTools({ enabled: true, model, settings: settingsService.getSettings(), signal })
     const web = buildMobileWebTools(model, getSessionWebBrowsing(session.id, settings.provider))
+    const veniceOptions = settingsService.getSettings().providers?.venice?.venice
+    const veniceTools = model.name === 'Venice' && veniceOptions?.chatToolsEnabled && veniceOptions.enabled !== false ? (await import('@/packages/venice/tools')).veniceChatTools(session.id) : {}
     return (
       await capacitorWorkMode.createTools(
         {
@@ -138,6 +140,7 @@ async function buildToolsForPausedToolCall(
           ...web.tools,
           ...capacitorImageTools(model, session.id, signal)?.tools,
           ...mcp.tools,
+          ...veniceTools,
           ...buildPausedAgentMemoryTools({
             targetMessage,
             languageName: languageNameMap[settingsService.getSettings().language],

@@ -6,5 +6,5 @@ import { navigateToSettings } from '@/modals/settings-navigation'
 export const Route = createFileRoute('/venice/')({ component: StudioRoute })
 function StudioRoute() {
   const { providerSettings } = useProviderSettings('venice')
-  return <VeniceStudio service={veniceMediaService} options={providerSettings?.venice || {}} openSettings={() => navigateToSettings()} />
+  return <VeniceStudio service={veniceMediaService} options={providerSettings?.venice || {}} openSettings={() => navigateToSettings('/provider/venice')} />
 }

@@ -139,12 +139,32 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: android-debug-keystore-${{ github.repository_id }}
-      - name: Assemble signed development APK
-        run: chmod +x android/gradlew && cd android && ./gradlew assembleDebug --no-daemon
+      - name: Assemble personal release APK
+        run: chmod +x android/gradlew && cd android && ./gradlew assembleRelease --no-daemon
+      - name: Sign and verify Android package
+        id: sign
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_SIGNING_BACKUP_PASSPHRASE: ${{ secrets.ANDROID_SIGNING_BACKUP_PASSPHRASE }}
+        run: |
+          node scripts/android-signing.mjs android/app/build/outputs/apk/release/app-release-unsigned.apk
+          mv android/app/build/outputs/apk/release/app-release-unsigned.apk android/app/build/outputs/apk/release/Chatbox-Venice.apk
+      - name: Save encrypted signing backup
+        if: steps.sign.outputs.backup_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-signing-backup-encrypted
+          path: release/signing-backup/*.aes.json
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
       - uses: actions/upload-artifact@v4
         with:
           name: Chatbox-Venice-Android-APK
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
           overwrite: true

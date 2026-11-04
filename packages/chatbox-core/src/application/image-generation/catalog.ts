@@ -85,6 +85,7 @@ export function getConfiguredImageProviders(
   platform: PlatformType
 ): ImageModelProvider[] {
   return providers.filter((provider) => {
+    if (provider.id === ModelProviderEnum.Venice && settings.providers?.venice?.venice?.enabled === false) return false
     if (provider.isCustom) return Boolean(settings.providers?.[provider.id]?.models?.length)
     if (provider.id === ModelProviderEnum.ChatboxAI) return Boolean(settings.licenseKey)
     if (
@@ -109,7 +110,7 @@ export function buildImageModelGroups(options: {
   const groups: ImageModelGroup[] = []
   const builtin = (id: ModelProviderEnum) => providers.find((provider) => provider.id === id && !provider.isCustom)
   const add = (provider: ImageModelProvider | undefined, remote: readonly ImageModelOption[] = [], manual = true) => {
-    if (!provider) return
+    if (!provider || (provider.id === ModelProviderEnum.Venice && settings.providers?.venice?.venice?.enabled === false)) return
     const manualModels = manual
       ? (settings.providers?.[provider.id]?.models ?? [])
           .filter((model) => model.type === 'image')

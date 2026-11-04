@@ -77,7 +77,7 @@ export function providerImageModelsQueryOptions(provider: ModelProviderEnum, opt
         ? credentialRevision(provider, options.licenseKey)
         : 0
   return queryOptions({
-    queryKey: ['provider-image-models', provider, options.language, revision],
+    queryKey: ['provider-image-models', provider, options.language, revision, ...(provider === ModelProviderEnum.Venice ? [options.apiHost, options.venice?.enabled] : [])],
     staleTime: 3600 * 1000,
     queryFn: () => loadProviderImageModels(provider, options),
   })
@@ -127,6 +127,8 @@ async function loadRemoteModels(provider: ModelProviderEnum, settings: Settings)
     return await queryClient.fetchQuery(
       providerImageModelsQueryOptions(provider, {
         apiKey: [ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice].includes(provider) ? providerSettings.apiKey : undefined,
+        apiHost: provider === ModelProviderEnum.Venice ? providerSettings.apiHost : undefined,
+        venice: provider === ModelProviderEnum.Venice ? providerSettings.venice : undefined,
         language: settings.language,
         licenseKey: settings.licenseKey,
       })

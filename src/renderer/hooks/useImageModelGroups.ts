@@ -24,10 +24,12 @@ export function useProviderImageModels(
   const { data } = useQuery({
     ...providerImageModelsQueryOptions(provider, {
       apiKey: [ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice].includes(provider) ? providerSettings?.apiKey : undefined,
+      apiHost: provider === ModelProviderEnum.Venice ? providerSettings?.apiHost : undefined,
+      venice: provider === ModelProviderEnum.Venice ? providerSettings?.venice : undefined,
       language,
       licenseKey,
     }),
-    enabled,
+    enabled: enabled && !(provider === ModelProviderEnum.Venice && providerSettings?.venice?.enabled === false),
   })
 
   return data || []

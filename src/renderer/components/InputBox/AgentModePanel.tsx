@@ -772,7 +772,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
     if (page === 'web-search' && usesNativeSearch) {
       return <>
         <SubPanelHeader title={t('Provider native search')} />
-        {providerId === 'venice' ? <Stack p="sm">{isNewSession ? <Text size="sm">Crea la chat per impostare un profilo dedicato. Per ora si applicano le impostazioni del provider e del modello.</Text> : <VeniceProfileEditor options={providerOptions?.venice || {}} value={currentSession?.settings?.veniceProfile || {}} onChange={value => { void rendererApplication.sessions.updateSessionHeader(sessionId, current => ({ ...current, settings: { ...current.settings, veniceProfile: value } })) }} />}</Stack> : <Text size="sm" p="sm">{t('Search is configured in the selected model extra request JSON.')}</Text>}
+        {providerId === 'venice' ? <Stack p="sm">{isNewSession ? <Text size="sm">Crea la chat per impostare un profilo dedicato. Per ora si applicano le impostazioni del provider e del modello.</Text> : <VeniceProfileEditor options={providerOptions?.venice || {}} value={currentSession?.settings?.veniceProfile || {}} onChange={value => { void rendererApplication.sessions.updateSessionHeader(sessionId, current => { if (!current) throw new Error('Session not found'); return { ...current, settings: { ...current.settings, veniceProfile: value } } }) }} />}</Stack> : <Text size="sm" p="sm">{t('Search is configured in the selected model extra request JSON.')}</Text>}
       </>
     }
     if (page === 'web-search') {
