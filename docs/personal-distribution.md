@@ -23,15 +23,15 @@ Gli aggiornamenti sul posto richiedono la stessa chiave. Il workflow supporta qu
 
 Si configurano in **Settings → Secrets and variables → Actions → Repository secrets** del repository GitHub. Non sono account Google e non contengono la API key Venice. La configurazione incompleta fa fallire la firma; non si ripiega silenziosamente su una chiave diversa. Il keystore dei secrets viene scritto solo temporaneamente nel runner, poi rimosso. Non viene inserito nella cache o negli artifact in chiaro.
 
-Senza questi secrets viene riutilizzato il debug keystore della cache CI già usato dalle prime release, per mantenere compatibilità con quelle installazioni personali. La cache può essere eliminata da GitHub: non è un backup permanente. Cambiare chiave può richiedere esportazione dei dati, disinstallazione e nuova installazione. Una chiave nuova creata altrove non conserva automaticamente l'identità di quella precedente.
+Senza questi secrets viene riutilizzato il keystore personale della cache CI, con identità fissata dalla versione 1.25.0. Il certificato della 1.24.2 è diverso: quel vecchio APK non può essere aggiornato sul posto con la 1.25.0. Se lo avevi installato, esporta prima i dati e procedi a una nuova installazione; se non lo avevi installato, inizia direttamente dalla 1.25.0. La cache può essere eliminata da GitHub: non è un backup permanente. Cambiare chiave può richiedere esportazione dei dati, disinstallazione e nuova installazione. Una chiave nuova creata altrove non conserva automaticamente l'identità di quella precedente.
 
-Il job **Sign and verify Android package** riporta nel log e nel riepilogo la fingerprint SHA-256 pubblica del certificato. Puoi inserirla come singola riga in `scripts/android-signing-cert.sha256`: dopo il pinning, una firma diversa o la perdita della chiave di fallback blocca la distribuzione invece di pubblicare un aggiornamento incompatibile. Non inserire password o materiale privato in quel file.
+Il job **Sign and verify Android package** riporta nel log e nel riepilogo la fingerprint SHA-256 pubblica del certificato. Il certificato della 1.25.0 è già fissato in `scripts/android-signing-cert.sha256`: una firma diversa o la perdita della chiave di fallback blocca la distribuzione invece di pubblicare un aggiornamento incompatibile. Non inserire password o materiale privato in quel file.
 
 ## Backup cifrato della chiave corrente
 
 Aggiungi il repository secret `ANDROID_SIGNING_BACKUP_PASSPHRASE` con una passphrase robusta di almeno 20 caratteri. Alla successiva build Android, dopo la firma, il workflow carica l'artifact **Android-signing-backup-encrypted**. Scaricalo e conservalo fuori da GitHub: gli artifact CI scadono dopo 14 giorni. Conserva la passphrase separatamente; senza di essa non si recupera la chiave.
 
-Il backup usa AES-256-GCM con salt e nonce casuali e PBKDF2-SHA256 (600.000 iterazioni). Contiene solo il keystore cifrato, non le sue password né la API key Venice. Se si usa il keystore di debug precedente, alias e password sono quelli Android standard (`androiddebugkey`, `android`). Se si usa una propria chiave, conserva anche alias e password originali.
+Il backup usa AES-256-GCM con salt e nonce casuali e PBKDF2-SHA256 (600.000 iterazioni). Contiene solo il keystore cifrato, non le sue password né la API key Venice. Se si usa il keystore personale della cache CI, alias e password sono quelli Android standard (`androiddebugkey`, `android`). Se si usa una propria chiave, conserva anche alias e password originali.
 
 Per ripristinare, su un ambiente fidato con Node imposta la passphrase nell'ambiente `ANDROID_SIGNING_BACKUP_PASSPHRASE`, quindi esegui:
 

@@ -33,7 +33,7 @@ flowchart LR
 
 Compiled bundles and finished packages are retained as artifacts for 14 days. Packaging downloads the compiled artifact from the same run and commit. Windows runtime dependencies are installed in an isolated npm staging project using the app lockfile. Android uses Java 21 and SDK 35, generating its Capacitor host in CI and registering the local document export plugin.
 
-If a job fails, open the run and choose **Re-run failed jobs**. Successful checks and compilation jobs are reused; GitHub restarts a failed job from its first step, not an arbitrary individual step. Dependency stores and Gradle dependencies are cached. Uploads replace an existing artifact of the same name when rerunning a job. A source change requires a new run and compilation. New pushes do not cancel an active build; documentation-only changes do not trigger packaging.
+If a job fails, open the run and choose **Re-run failed jobs**. Successful checks and compilation jobs are reused; GitHub restarts a failed job from its first step, not an arbitrary individual step. Dependency stores and Gradle dependencies are cached. Uploads replace an existing artifact of the same name when rerunning a job. A source change requires a new run and compilation. New source pushes cancel superseded builds; documentation-only changes do not trigger packaging.
 
 If publication alone fails, rerun that job or open **Publish existing build → Run workflow** and enter the build run ID. It accepts both successful packages and successful checks from this fork main branch, even when the overall run failed during publication. It publishes the exact built commit, uses version-specific notes, and leaves an existing public release unchanged. Artifacts must still be available. The publisher reads all attempts and uses the newest available result per job, including successful jobs reused from a prior attempt. A version that is already public is detected before downloading packages again.
 
@@ -47,7 +47,7 @@ Change `release/app/package.json` and the top-level/root-package version in `rel
 
 The release job uses the repository-scoped `GITHUB_TOKEN` with contents write permission only in that job. Build jobs use read-only repository permission.
 
-The Windows installer is unsigned. Android uses a release-mode APK, signed with optional repository signing secrets or the existing cached CI debug key for compatibility with earlier personal installs. Cache eviction can change the fallback key. Certificate pinning and encrypted signing backup are supported; configure durable signing secrets for continuity. No private signing key is committed or uploaded unencrypted. See [personal installation and signing](personal-distribution.md).
+The Windows installer is unsigned. Android uses a release-mode APK, signed with optional repository signing secrets or the cached personal key pinned from 1.25.0 onward. The published 1.24.2 certificate differs, so upgrading that APK requires exporting data and a fresh install. Missing cached keys or a certificate mismatch fail the signing job rather than silently changing the identity. Encrypted signing backup is supported; configure durable signing secrets for continuity. No private signing key is committed or uploaded unencrypted. See [personal installation and signing](personal-distribution.md).
 
 The fork has a separate application ID and product name. Desktop updater checks only this fork's GitHub release feed. Android updates are downloaded and installed manually from the fork's release page.
 
