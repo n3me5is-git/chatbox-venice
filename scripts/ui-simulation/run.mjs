@@ -44,7 +44,7 @@ try {
   assert.equal(await evaluate('window.__simulationRequestCount || 0'), 0, 'Opening Studio must not contact Venice')
   await click(byText('Carica modelli')); await wait(() => evaluate('window.__simulationRequestCount === 2'), 'Catalog button did not work')
   await wait(() => evaluate(`!!document.querySelector('input[value="Kokoro"]')`), 'Model was not selected')
-  await click(byLabel('Voce'))
+  await click(byLabel('Voce da usare'))
   await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === 'Nicola · Italiano')`)
   await fill('Testo da leggere', 'Prova locale senza API reali')
   await click(byText('Genera voce')); await wait(() => evaluate(`!!document.querySelector('audio[aria-label="Audio generato"]')`), 'Generated audio did not appear')

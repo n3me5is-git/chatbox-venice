@@ -29,8 +29,8 @@ describe('Venice Studio simulated user journeys', () => {
   it('offers the live model voices and generates without typing any IDs or JSON', async () => {
     const service = setup(); show(service); const generate = screen.getByRole('button', { name: 'Genera voce' }) as HTMLButtonElement
     expect(generate.disabled).toBe(true); await loadModels()
-    expect((screen.getByLabelText('Voce', { selector: 'input' }) as HTMLInputElement).value).toContain('Sara')
-    fireEvent.click(screen.getByLabelText('Voce', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Nicola · Italiano' }))
+    expect((screen.getByLabelText('Voce da usare', { selector: 'input' }) as HTMLInputElement).value).toContain('Sara')
+    fireEvent.click(screen.getByLabelText('Voce da usare', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Nicola · Italiano' }))
     expect(service.start).not.toHaveBeenCalled()
     fireEvent.change(screen.getByLabelText('Testo da leggere'), { target: { value: 'Buongiorno' } }); fireEvent.click(generate)
     await waitFor(() => expect(service.start).toHaveBeenCalledWith(expect.objectContaining({ kind: 'speech', model: 'tts-kokoro', prompt: 'Buongiorno', options: expect.objectContaining({ voice: 'im_nicola' }) })))
@@ -38,7 +38,7 @@ describe('Venice Studio simulated user journeys', () => {
   it('resets incompatible voice and format choices when choosing another model', async () => {
     const service = setup(); show(service); await loadModels()
     fireEvent.click(screen.getByLabelText('Modello', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Altra voce' }))
-    expect((screen.getByLabelText('Voce', { selector: 'input' }) as HTMLInputElement).value).toContain('Vivian')
+    expect((screen.getByLabelText('Voce da usare', { selector: 'input' }) as HTMLInputElement).value).toContain('Vivian')
     fireEvent.click(screen.getByLabelText('Formato audio', { selector: 'input' })); expect(screen.queryByRole('option', { name: 'MP3' })).toBeNull(); expect(screen.getByRole('option', { name: 'WAV' })).toBeTruthy()
     expect(service.start).not.toHaveBeenCalled()
   })
