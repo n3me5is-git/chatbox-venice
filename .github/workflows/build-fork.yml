@@ -19,7 +19,8 @@ permissions:
   contents: read
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: false
+  # New source commits supersede an in-flight build; manual reruns retain their jobs.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 env:
   NODE_OPTIONS: --max-old-space-size=8192
 jobs:

@@ -39,7 +39,7 @@ describe('Venice media lifecycle without live APIs', () => {
     expect(record).toMatchObject({ status: 'ready', text: 'Buongiorno' })
     expect(s.api.mock.calls[0][0].headers).not.toHaveProperty('Content-Type')
   })
-  it('resumes a stored video queue after restart without repeating creation, then cleans remote only after local save', async () => {
+  it('downloads queued video and cleans remote only after local save', async () => {
     const s = setup(async (path, body) => {
       if (path === '/video/queue') return json({ queue_id: 'q1', model: 'video' })
       if (path === '/video/retrieve') { expect(body).toMatchObject({ queue_id: 'q1', delete_media_on_completion: false }); return new Response('video-bytes', { headers: { 'content-type': 'video/mp4' } }) }
@@ -51,6 +51,22 @@ describe('Venice media lifecycle without live APIs', () => {
     expect(s.api.mock.calls.filter(([request]) => request.url.endsWith('/video/queue'))).toHaveLength(1)
     const restarted = new VeniceMediaService(s.store, () => s.config, s.api, 1)
     await restarted.list(); expect((await restarted.list())[0].id).toBe(record.id); expect(s.api).toHaveBeenCalledTimes(3)
+  })
+  it('retrieves a paused job from persistent state after restart without a new paid queue request', async () => {
+    const s = setup(async path => path.endsWith('/complete') ? json({ success: true }) : new Response('media', { headers: { 'content-type': path.endsWith('/retrieve') ? 'video/mp4' : 'audio/mpeg' } }))
+    const seed = await s.service.start({ kind: 'speech', model: 'tts', prompt: 'hello' })
+    if (seed.blobKey) await s.store.deleteBlob(seed.blobKey)
+    await s.store.write([{ ...seed, model: 'video', kind: 'video', queueId: 'saved-queue', status: 'paused', blobKey: undefined, mime: undefined }]); s.api.mockClear()
+    const restarted = new VeniceMediaService(s.store, () => s.config, s.api, 1)
+    await restarted.list(); expect(s.api).not.toHaveBeenCalled()
+    await restarted.resume(seed.id)
+    expect((await restarted.list())[0]).toMatchObject({ status: 'ready', remoteCleaned: true })
+    expect(s.api.mock.calls.map(([request]) => new URL(request.url).pathname)).toEqual(['/api/v1/video/retrieve', '/api/v1/video/complete'])
+  })
+  it('uses the effective vendor model and options for quotes without creating a job', async () => {
+    const s = setup(async (path, body) => { expect(path).toBe('/video/quote'); expect(body).toEqual({ model: 'actual-model', duration: '10s', audio: false }); return json({ quote: 1 }) })
+    await s.service.quote({ kind: 'video', model: 'local-alias', prompt: 'private', options: { model: 'actual-model', duration: '10s', audio: false, prompt: 'not-in-quote' } })
+    expect(s.api).toHaveBeenCalledTimes(1); expect(await s.service.list()).toEqual([])
   })
   it('does not contact a different endpoint or credential when resuming stored jobs', async () => {
     const s = setup(); const record = await s.service.start({ kind: 'speech', model: 'tts', prompt: 'hello' })
