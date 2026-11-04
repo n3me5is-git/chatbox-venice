@@ -1,7 +1,8 @@
 import NiceModal, { useModal } from '@ebay/nice-modal-react'
-import { Button, Checkbox, Flex, Loader, NumberInput, Stack, Text, TextInput, UnstyledButton } from '@mantine/core'
+import { Button, Checkbox, Flex, Loader, NumberInput, Stack, Text, TextInput, Textarea, UnstyledButton } from '@mantine/core'
 import { TestId } from '@shared/automation/testids'
 import type { ProviderModelInfo } from '@shared/types'
+import { parseExtraBody } from '@shared/models/utils/extra-body'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createModelDependencies } from '@/adapters'
@@ -17,6 +18,10 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
   const { t } = useTranslation()
 
   const isNew = !props.model
+  const canEditExtraBody = props.providerId === 'venice' || settingsStore.getState().customProviders?.some((p) => p.id === props.providerId)
+  const [extraBodyText, setExtraBodyText] = useState(props.model?.extraBody ? JSON.stringify(props.model.extraBody, null, 2) : '')
+  const [extraBodyError, setExtraBodyError] = useState<string>()
+  const [nativeWebSearch, setNativeWebSearch] = useState(props.model?.nativeWebSearch ?? false)
   const [modelId, setModelId] = useState(props.model?.modelId || '')
   const [nickname, setNickname] = useState(props.model?.nickname || '')
   const [capabilities, setCapabilities] = useState(props.model?.capabilities || [])
@@ -42,18 +47,31 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
     setContextWindow(props.model?.contextWindow)
     setMaxOutput(props.model?.maxOutput)
     setTestState({ testing: false })
+    setExtraBodyText(props.model?.extraBody ? JSON.stringify(props.model.extraBody, null, 2) : '')
+    setExtraBodyError(undefined)
+    setNativeWebSearch(props.model?.nativeWebSearch ?? false)
   }, [props])
 
   const handleTestModel = async () => {
     if (!modelId || !props.providerId) return
 
+    let edited: ProviderModelInfo
+    try { edited = getEditedModel() } catch (error) {
+      setExtraBodyError(error instanceof Error ? error.message : String(error))
+      return
+    }
+    const currentSettings = settingsStore.getState()
+    const providerSettings = currentSettings.providers?.[props.providerId] || {}
     const configs = await platform.getConfig()
     const dependencies = await createModelDependencies()
 
     await testModelCapabilities({
       providerId: props.providerId,
       modelId,
-      settings: settingsStore.getState(),
+      settings: { ...currentSettings, providers: { ...currentSettings.providers, [props.providerId]: {
+        ...providerSettings,
+        models: [...(providerSettings.models || []).filter((m) => m.modelId !== modelId), edited],
+      } } },
       configs,
       dependencies,
       onStateChange: (state) => {
@@ -75,15 +93,22 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
     modal.hide()
   }
 
-  const handleSave = () => {
-    modal.resolve({
+  const getEditedModel = (): ProviderModelInfo => ({
+      ...props.model,
       modelId,
       type,
       nickname: nickname || undefined,
       capabilities,
       contextWindow,
       maxOutput,
+      ...(canEditExtraBody ? { extraBody: parseExtraBody(extraBodyText), nativeWebSearch } : {}),
     })
+
+  const handleSave = () => {
+    try { modal.resolve(getEditedModel()) } catch (error) {
+      setExtraBodyError(error instanceof Error ? error.message : String(error))
+      return
+    }
     modal.hide()
   }
 
@@ -226,6 +251,27 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
             </Stack>
           </Flex>
         </Stack>
+
+        {canEditExtraBody && (
+          <Stack gap="xs">
+            <Textarea
+              label={t('Extra request JSON')}
+              description={t('Merged into each request. Objects merge recursively; arrays replace. Use a unique Model ID and set model in JSON to create variants of the same remote model.')}
+              placeholder={'{ "moderation": "low" }'}
+              autosize minRows={4} maxRows={14}
+              value={extraBodyText}
+              error={extraBodyError}
+              onChange={(event) => { setExtraBodyText(event.currentTarget.value); setExtraBodyError(undefined) }}
+              styles={{ input: { fontFamily: 'monospace' } }}
+            />
+            {type === 'chat' && <Checkbox
+              label={t('Use provider native web search')}
+              description={t('Configure search in the extra JSON. Chatbox search tools will not be sent.')}
+              checked={nativeWebSearch}
+              onChange={(event) => setNativeWebSearch(event.currentTarget.checked)}
+            />}
+          </Stack>
+        )}
 
         <AdaptiveModal.Actions>
           {testState.basicTest?.status === 'success' ? (

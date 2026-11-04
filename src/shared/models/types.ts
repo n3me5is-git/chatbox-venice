@@ -13,6 +13,7 @@ import { z } from 'zod'
 export interface ModelInterface {
   name: string
   modelId: string
+  readonly usesNativeWebSearch?: boolean
   /**
    * Resolved API family of this model instance. getModel() stamps it from the provider
    * type (builtin/custom providers) or the per-model remote config (ChatboxAI).

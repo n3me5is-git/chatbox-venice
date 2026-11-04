@@ -1,0 +1,11 @@
+extends: ./electron-builder.yml
+productName: Chatbox Venice
+appId: io.github.n3me5is.chatboxvenice
+publish: null
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-${version}-${arch}-Setup.${ext}
+  signtoolOptions: null
+  signAndEditExecutable: false

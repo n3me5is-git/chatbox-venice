@@ -130,6 +130,7 @@ export default abstract class AbstractAISDKModel implements ModelInterface {
   public name = 'AI SDK Model'
   public injectDefaultMetadata = true
   public modelId = ''
+  public get usesNativeWebSearch(): boolean { return this.options.model.nativeWebSearch ?? false }
   public reasoningReplaySource?: string
 
   public get apiStyle(): ProviderModelInfo['apiStyle'] {

@@ -43,6 +43,8 @@ export const AgentModeEntrySchema = z.object({
 
 export const ProviderModelInfoSchema = z.object({
   modelId: z.string(),
+  extraBody: z.record(z.string(), z.json()).optional().catch(undefined),
+  nativeWebSearch: z.boolean().optional().catch(undefined),
   // The provider id this model was resolved under (e.g. 'chatbox-ai', 'qwen').
   // Stamped at model-resolution time (getModel); not part of persisted model lists.
   // Used to evaluate reasoning-control support with the same provider+model-id logic as the UI.
@@ -79,6 +81,15 @@ export const ProviderSettingsSchema = z.object({
   modelGroups: z.array(ProviderModelGroupSchema).optional().catch(undefined),
   excludedModels: z.array(z.string()).optional().catch(undefined),
   useProxy: z.boolean().optional().catch(undefined),
+  venice: z.object({
+    webSearch: z.enum(['off', 'auto', 'on']).optional().catch(undefined),
+    webScraping: z.boolean().optional().catch(undefined),
+    webCitations: z.boolean().optional().catch(undefined),
+    xSearch: z.boolean().optional().catch(undefined),
+    includeSystemPrompt: z.boolean().optional().catch(undefined),
+    imageSafeMode: z.boolean().optional().catch(undefined),
+    imageWebSearch: z.boolean().optional().catch(undefined),
+  }).optional().catch(undefined),
 
   // oauth
   oauth: OAuthCredentialsSchema.optional().catch(undefined),
@@ -356,6 +367,7 @@ const ExtensionSettingsSchema = z.object({
         embedding: z
           .object({
             modelId: z.string(),
+  extraBody: z.record(z.string(), z.json()).optional().catch(undefined),
             providerId: z.string(),
           })
           .nullable()
@@ -363,6 +375,7 @@ const ExtensionSettingsSchema = z.object({
         rerank: z
           .object({
             modelId: z.string(),
+  extraBody: z.record(z.string(), z.json()).optional().catch(undefined),
             providerId: z.string(),
           })
           .nullable()

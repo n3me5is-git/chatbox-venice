@@ -1,0 +1,96 @@
+name: Build Windows and Android
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run src/shared/models/utils/extra-body.test.ts
+      - run: pnpm check
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+  windows:
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      UPDATE_CHANNEL: latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec electron-builder --config electron-builder.fork.yml --win nsis --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Chatbox-Venice-Windows-x64-Setup
+          path: |
+            release/build/*Setup.exe
+            release/build/*.blockmap
+            release/build/latest.yml
+          if-no-files-found: error
+          retention-days: 14
+  android:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
+      CHATBOX_BUILD_TARGET: mobile_app
+      CHATBOX_BUILD_PLATFORM: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:renderer
+      - run: pnpm exec cap add android
+      - run: node scripts/configure-fork-android.mjs
+      - run: pnpm exec cap sync android
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-${{ github.repository_id }}
+      - run: chmod +x android/gradlew && cd android && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Chatbox-Venice-Android-APK
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

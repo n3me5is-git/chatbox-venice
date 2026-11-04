@@ -356,7 +356,7 @@ export async function buildToolsForSession(
     (hasInlineFileOrLink || hasStoredToolResults || options.fileResourceKeys) && model.isSupportToolUse('read-file')
   const needSessionAttachmentRagToolSet = sessionAttachmentIds.length > 0 && model.isSupportToolUse('read-file')
   const kbSupported = Boolean(knowledgeBase) && model.isSupportToolUse('knowledge-base')
-  const webSupported = webBrowsing && model.isSupportToolUse('web-browsing')
+  const webSupported = !model.usesNativeWebSearch && webBrowsing && model.isSupportToolUse('web-browsing')
   const searchProvider = settingActions.getExtensionSettings().webSearch.provider
   const includeParseLinkTool = webSupported && PROVIDERS_WITH_PARSE_LINK.has(searchProvider)
 

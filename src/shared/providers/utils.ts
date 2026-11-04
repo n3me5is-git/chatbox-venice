@@ -1,3 +1,4 @@
+import { withExtraBody } from '../models/utils/extra-body'
 import type { ModelInterface } from '../models/types'
 import { ModelProviderType } from '../types'
 import type { ModelDependencies } from '../types/adapters'
@@ -13,6 +14,8 @@ export function createCustomProviderModel(
   dependencies: ModelDependencies
 ): ModelInterface {
   const { settings, providerSetting, formattedApiHost, formattedApiPath, model } = config
+
+  dependencies = withExtraBody(dependencies, model.extraBody)
 
   switch (customProviderType) {
     case ModelProviderType.Claude:

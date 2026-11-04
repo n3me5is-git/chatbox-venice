@@ -57,7 +57,7 @@ export const capacitorWorkMode = new LocalWorkMode(
 
 export function buildMobileWebTools(model: ModelInterface, enabled: boolean) {
   const tools: ToolSet = {}
-  if (!enabled || !model.isSupportToolUse('web-browsing')) return { tools }
+  if (model.usesNativeWebSearch || !enabled || !model.isSupportToolUse('web-browsing')) return { tools }
   const includeParseLink = PROVIDERS_WITH_PARSE_LINK.has(settingActions.getExtensionSettings().webSearch.provider)
   tools.web_search = webSearchTool
   if (includeParseLink) tools.parse_link = parseLinkTool
