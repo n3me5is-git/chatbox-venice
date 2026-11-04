@@ -1,3 +1,4 @@
+import { compareVersions } from 'compare-versions'
 import {
   createImageGenerationAsyncClient,
   IMAGE_GENERATION_POLL_INTERVAL_MS,
@@ -138,21 +139,9 @@ const getChatboxHeaders = async () => {
 
 // ========== 各个接口方法 ==========
 
-export async function checkNeedUpdate(version: string, os: string, config: Config, settings: Settings) {
-  type Response = {
-    need_update?: boolean
-  }
-  // const res = await ofetch<Response>(`${RELEASE_ORIGIN}/chatbox_need_update/${version}`, {
-  const res = await ofetch<Response>(`${getAPIOrigin()}/chatbox_need_update/${version}`, {
-    method: 'POST',
-    retry: 3,
-    body: {
-      uuid: config.uuid,
-      os: os,
-      allowReportingAndTracking: settings.allowReportingAndTracking ? 1 : 0,
-    },
-  })
-  return !!res.need_update
+export async function checkNeedUpdate(version: string, _os: string, _config: Config, _settings: Settings) {
+  const release = await ofetch<{ tag_name: string }>('https://api.github.com/repos/n3me5is-git/chatbox-venice/releases/latest', { retry: 0 })
+  return compareVersions(release.tag_name.replace(/^v/, ''), version) > 0
 }
 
 // export async function getSponsorAd(): Promise<null | SponsorAd> {

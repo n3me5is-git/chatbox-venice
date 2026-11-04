@@ -33,4 +33,12 @@ describe('Markdown server rendering', () => {
     expect(html).toContain('src="https://example.com/exported.png"')
     expect(html).toContain('alt="Exported image"')
   })
+  it('renders Venice references received after the answer as clickable links in saved and exported chats', () => {
+    const html = ReactDOMServer.renderToStaticMarkup(
+      <Markdown>{'Answer [1][venice-source-1]\n\n**Sources**\n1. [Source](<https://example.com/source>)\n\n[venice-source-1]: <https://example.com/source>\n'}</Markdown>
+    )
+    expect((html.match(/href="https:\/\/example.com\/source"/g) || [])).toHaveLength(2)
+    expect(html).not.toContain('venice-source-1')
+  })
+
 })

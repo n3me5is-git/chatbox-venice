@@ -48,9 +48,7 @@ export default abstract class BaseConfig implements ModelSettingUtil {
 
     const localOptionGroups = providerSettings.models || []
     const [remoteModels, providerApiModels] = await Promise.all([
-      this.listRemoteProviderModels().catch(() => {
-        return []
-      }),
+      definition?.modelListSource === 'provider-only' ? Promise.resolve([]) : this.listRemoteProviderModels().catch(() => []),
       this.listProviderModels(providerSettings).catch(() => {
         return []
       }),

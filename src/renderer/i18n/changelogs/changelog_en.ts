@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.24.1
+1. Per-model extra request JSON and native Venice provider
+2. Venice search modes and image generation/editing controls
+3. Local data, fork releases and Windows/Android builds
+
 ## v1.24.0 - 2026.10.29
 1. Added Projects: group chats into projects, with Work Mode chats grouped by working directory
 2. Added a built-in browser to Work Mode on desktop: the AI can use web pages, and you can take over at any time

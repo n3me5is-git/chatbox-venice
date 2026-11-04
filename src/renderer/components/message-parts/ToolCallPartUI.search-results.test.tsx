@@ -262,4 +262,11 @@ describe('tool call search result overflow', () => {
     expect(screen.getByRole('status')).toBeTruthy()
     expect(screen.getByText('Web Search was not run: sign in to use Chatbox AI Search')).toBeTruthy()
   })
+  it('shows Venice search results as clickable cards in the timeline', () => {
+    render(<MantineProvider><StepTimelineUI parts={[webSearchPart({ toolName: 'venice_web_search', duration: 3000 })]} /></MantineProvider>)
+    expandByLabel('Venice Web Search')
+    expect(screen.getByRole('link', { name: /OAuth token refresh patterns/ }).getAttribute('href')).toBe(LONG_LINK)
+    expect(screen.getByText('How to rotate refresh tokens…')).toBeTruthy()
+  })
+
 })

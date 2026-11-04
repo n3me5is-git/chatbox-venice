@@ -100,13 +100,7 @@ export class AppUpdater {
 
     this.isChecking = true
     try {
-      const feedUrls = [
-        'https://chatboxai.app/api/auto_upgrade',
-        'https://api.chatboxai.app/api/auto_upgrade',
-        'https://api.ai-chatbox.com/api/auto_upgrade',
-        'https://api.chatboxapp.xyz/api/auto_upgrade',
-        'https://api.chatboxai.com/api/auto_upgrade',
-      ]
+      const feedUrls = ['https://github.com/n3me5is-git/chatbox-venice/releases/latest/download']
 
       const settings = getSettings()
       autoUpdater.channel = settings.betaUpdate ? 'beta' : 'latest'

@@ -24,7 +24,7 @@ import BrandWechat from '@/components/icons/BrandWechat'
 import Page from '@/components/layout/Page'
 import { useIsSmallScreen } from '@/hooks/useScreenChange'
 import useVersion from '@/hooks/useVersion'
-import { buildChatboxUrl } from '@/packages/remote'
+
 import platform from '@/platform'
 import iconPNG from '@/static/icon.png'
 import IMG_WECHAT_QRCODE from '@/static/wechat_qrcode.png'
@@ -49,8 +49,8 @@ function RouteComponent() {
             <Image h={100} w={100} mah={'20vw'} maw={'20vw'} src={iconPNG} />
             <Stack flex={1} gap="xxs">
               <Flex justify="space-between" align="center" wrap="wrap" gap={isSmallScreen ? 'xs' : 'sm'} rowGap="xs">
-                <Title order={5} lh={1.5} lineClamp={1} title={`Chatbox v${version.version}`}>
-                  Chatbox {/\d/.test(version.version) ? `(v${version.version})` : ''}
+                <Title order={5} lh={1.5} lineClamp={1} title={`Chatbox Venice v${version.version}`}>
+                  Chatbox Venice {/\d/.test(version.version) ? `(v${version.version})` : ''}
                 </Title>
 
                 <UpdateSection language={language} needCheckUpdate={version.needCheckUpdate} />
@@ -61,7 +61,7 @@ function RouteComponent() {
               <Flex gap="sm">
                 <Anchor
                   size="sm"
-                  href="https://chatboxai.app/privacy"
+                  href="https://github.com/n3me5is-git/chatbox-venice/blob/main/docs/fork-privacy.md"
                   target="_blank"
                   underline="hover"
                   c="chatbox-tertiary"
@@ -70,7 +70,7 @@ function RouteComponent() {
                 </Anchor>
                 <Anchor
                   size="sm"
-                  href="https://chatboxai.app/terms"
+                  href="https://github.com/n3me5is-git/chatbox-venice/blob/main/LICENSE"
                   target="_blank"
                   underline="hover"
                   c="chatbox-tertiary"
@@ -85,7 +85,7 @@ function RouteComponent() {
             <ListItem
               icon={<BrandGithub className="w-full h-full" />}
               title={t('Github')}
-              link="https://github.com/chatboxai/chatbox"
+              link="https://github.com/n3me5is-git/chatbox-venice"
               value="chatbox"
             />
             {/* <ListItem
@@ -107,22 +107,22 @@ function RouteComponent() {
             <ListItem
               icon={<IconHome className="w-full h-full" />}
               title={t('Official Site')}
-              link={buildChatboxUrl(`/redirect_app/homepage/${language}`)}
+              link={'https://github.com/n3me5is-git/chatbox-venice'}
             />
             <ListItem
               icon={<IconPencil className="w-full h-full" />}
               title={t('Feedback')}
-              link={buildChatboxUrl(`/redirect_app/feedback/${language}`)}
+              link={'https://github.com/n3me5is-git/chatbox-venice/issues'}
             />
             <ListItem
               icon={<IconFileText className="w-full h-full" />}
               title={t('Changelog')}
-              link={`https://chatboxai.app/${language.split('-')[0] || 'en'}/help-center/changelog`}
+              link={'https://github.com/n3me5is-git/chatbox-venice/releases'}
             />
             <ListItem
               icon={<IconMessage2 className="w-full h-full" />}
               title={t('FAQs')}
-              link={`https://chatboxai.app/${language.split('-')[0] || 'en'}/help-center/chatbox-ai-service-faqs`}
+              link={'https://github.com/n3me5is-git/chatbox-venice#readme'}
             />
           </List>
         </Stack>
@@ -158,7 +158,7 @@ function MobileUpdateHint({ language, needCheckUpdate }: { language: string; nee
         color="chatbox-brand"
         radius="lg"
         className="flex-shrink-0"
-        onClick={() => platform.openLink(buildChatboxUrl(`/redirect_app/check_update/${language}`))}
+        onClick={() => platform.openLink('https://github.com/n3me5is-git/chatbox-venice/releases/latest')}
       >
         {t('New version available')}
       </Button>
@@ -171,7 +171,7 @@ function MobileUpdateHint({ language, needCheckUpdate }: { language: string; nee
       variant="default"
       radius="lg"
       className="flex-shrink-0"
-      onClick={() => platform.openLink(buildChatboxUrl(`/redirect_app/check_update/${language}`))}
+      onClick={() => platform.openLink('https://github.com/n3me5is-git/chatbox-venice/releases/latest')}
     >
       {t('Check Update')}
     </Button>
@@ -259,7 +259,7 @@ function DesktopUpdateSection() {
           <Anchor
             size="xs"
             c="chatbox-tertiary"
-            onClick={() => platform.openLink(buildChatboxUrl('/redirect_app/homepage/'))}
+            onClick={() => platform.openLink('https://github.com/n3me5is-git/chatbox-venice/releases/latest')}
           >
             {t('Download from official site')}
           </Anchor>

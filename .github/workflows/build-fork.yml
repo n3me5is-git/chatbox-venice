@@ -3,15 +3,35 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+    paths-ignore: ['README.md', 'README.it.md', 'CHANGELOG.md', 'docs/**', 'doc/**', 'LICENSE']
   workflow_dispatch:
+    inputs:
+      target:
+        description: Packages to build
+        type: choice
+        options: [all, windows, android]
+        default: all
+      publish_release:
+        description: Publish after both packages succeed
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: false
+env:
+  NODE_OPTIONS: --max-old-space-size=8192
 jobs:
-  verify:
-    runs-on: ubuntu-latest
+  checks:
+    name: Checks
+    uses: ./.github/workflows/checks.yml
+  build_windows:
+    name: Compile Windows app
+    if: github.event_name != 'workflow_dispatch' || inputs.target != 'android'
+    needs: checks
+    runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -20,16 +40,20 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vitest run src/shared/models/utils/extra-body.test.ts src/shared/providers/definitions/models/venice.test.ts packages/chatbox-core/src/application/image-generation/catalog.test.ts packages/chatbox-core/src/application/image-generation/ImageGenerationService.test.ts
-      - run: pnpm check
-        env:
-          NODE_OPTIONS: --max-old-space-size=8192
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compiled-windows-app
+          path: release/app/dist/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
   windows:
-    needs: verify
+    name: Package Windows x64 setup
+    needs: build_windows
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
-      NODE_OPTIONS: --max-old-space-size=8192
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       UPDATE_CHANNEL: latest
     steps:
@@ -40,9 +64,10 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Validate standalone Windows packaging configuration
-        run: node scripts/package-fork.cjs --check-config
-      - run: pnpm build
+      - uses: actions/download-artifact@v4
+        with:
+          name: compiled-windows-app
+          path: release/app/dist/
       - run: node scripts/package-fork.cjs
       - uses: actions/upload-artifact@v4
         with:
@@ -53,14 +78,36 @@ jobs:
             release/build/latest.yml
           if-no-files-found: error
           retention-days: 14
-  android:
-    needs: verify
+  build_android_renderer:
+    name: Compile Android renderer
+    if: github.event_name != 'workflow_dispatch' || inputs.target != 'windows'
+    needs: checks
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
-      NODE_OPTIONS: --max-old-space-size=8192
       CHATBOX_BUILD_TARGET: mobile_app
       CHATBOX_BUILD_PLATFORM: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:renderer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compiled-android-renderer
+          path: release/app/dist/renderer/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+  android:
+    name: Package Android APK
+    needs: build_android_renderer
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -78,7 +125,10 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build:renderer
+      - uses: actions/download-artifact@v4
+        with:
+          name: compiled-android-renderer
+          path: release/app/dist/renderer/
       - run: pnpm exec cap add android
       - run: node scripts/configure-fork-android.mjs
       - run: pnpm exec cap sync android
@@ -86,10 +136,22 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: android-debug-keystore-${{ github.repository_id }}
-      - run: chmod +x android/gradlew && cd android && ./gradlew assembleDebug --no-daemon
+      - name: Assemble signed development APK
+        run: chmod +x android/gradlew && cd android && ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: Chatbox-Venice-Android-APK
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+  release:
+    name: Release
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (inputs.publish_release && inputs.target == 'all'))
+    needs: [checks, windows, android]
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/publish-release.yml
+    with:
+      run_id: ${{ github.run_id }}
+

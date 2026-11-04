@@ -233,6 +233,7 @@ function usePausedStepElementRegistration(
 
 const toolIconMap: Record<string, React.ElementType> = {
   web_search: IconWorld,
+  venice_web_search: IconWorld,
   terminal: IconTerminal,
   code_search: IconFileSearch,
   file_search: IconFileSearch,
@@ -440,6 +441,7 @@ const SearchResultCard: FC<{ index: number; result: SearchResultItem }> = ({ ind
       >
         {result.link}
       </Text>
+      {result.snippet && <Text size="xs" lineClamp={2} mt={4} c="chatbox-secondary" style={{ overflowWrap: 'anywhere' }}>{result.snippet}</Text>}
     </Paper>
   )
 
@@ -1267,7 +1269,7 @@ export const ToolCallPartUI: FC<{ part: MessageToolCallPart } & ToolCallActionCo
       </Box>
     )
   }
-  if (part.toolName === 'web_search') {
+  if ((part.toolName === 'web_search' || part.toolName === 'venice_web_search')) {
     return <WebSearchGroupUI parts={[part]} />
   }
   if (isPageReadPart(part)) {
@@ -1436,7 +1438,7 @@ const TimelineToolCallDetail: FC<{ part: MessageToolCallPart }> = ({ part }) => 
   if (part.state === 'paused') {
     return <PausedToolCallDetails part={part} />
   }
-  if (part.toolName === 'web_search') {
+  if ((part.toolName === 'web_search' || part.toolName === 'venice_web_search')) {
     return <WebSearchDetails part={part} />
   }
   if (isPageReadPart(part)) {

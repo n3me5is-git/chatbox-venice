@@ -33,7 +33,7 @@ export function RouteComponent() {
           label={
             <Flex align="center" gap="sm">
               <Image src={iconPNG} w={32} h={32} radius="md" />
-              <span>Chatbox{hasVersion ? ` ${version.version}` : ''}</span>
+              <span>Chatbox Venice{hasVersion ? ` ${version.version}` : ''}</span>
             </Flex>
           }
           control={<UpdateSection language={language} needCheckUpdate={version.needCheckUpdate} />}

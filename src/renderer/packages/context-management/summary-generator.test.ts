@@ -58,3 +58,13 @@ describe('generateSummaryWithStream', () => {
     expect(chatMock).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ sessionId: 'session-1' }))
   })
 })
+
+it('keeps a Venice summary on the selected provider despite a remote fast-model override', async () => {
+  const messages: Message[] = [{ id: 'private', role: 'user', contentParts: [{ type: 'text', text: 'Private conversation' }] }]
+  const { getRemoteConfig } = await import('@/stores/settingActions')
+  vi.mocked(getRemoteConfig).mockReturnValue({ fastModel: { provider: 'chatbox-ai', model: 'remote-default' } } as never)
+  createModelMock.mockResolvedValue({ isSupportVision: () => false, chat: chatMock })
+  chatMock.mockResolvedValue({ contentParts: [{ type: 'text', text: 'Summary' }] })
+  await generateSummaryWithStream({ sessionId: 'private-session', messages, sessionSettings: { provider: 'venice', modelId: 'chosen-model' } })
+  expect(createModelMock).toHaveBeenCalledWith(expect.objectContaining({ provider: 'venice', modelId: 'chosen-model' }))
+})

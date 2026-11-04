@@ -2,16 +2,26 @@ type Citation = { url: string; title?: string }
 
 function sourceFooter(value: unknown): string {
   if (!Array.isArray(value)) return ''
-  const citations = value.filter((item): item is Citation => {
-    if (!item || typeof item.url !== 'string') return false
-    try { return ['http:', 'https:'].includes(new URL(item.url).protocol) } catch { return false }
+  const citations = value.flatMap((item, index) => {
+    if (!item || typeof item.url !== 'string') return []
+    try {
+      if (!['http:', 'https:'].includes(new URL(item.url).protocol)) return []
+      return [{ ...(item as Citation), number: index + 1 }]
+    } catch { return [] }
   })
   if (!citations.length) return ''
-  return '\n\n**Sources**\n' + citations.map((item, index) => `${index + 1}. [${String(item.title || item.url).replace(/[\[\]\\\n\r]/g, '')}](<${item.url.replace(/[<>\n\r]/g, '')}>)`).join('\n')
+  const url = (item: Citation) => item.url.replace(/[<>\n\r]/g, '')
+  return '\n\n**Sources**\n' + citations.map((item) => `${item.number}. [${String(item.title || item.url).replace(/[\[\]\\\n\r]/g, '')}](<${url(item)}>)`).join('\n')
+    + '\n\n' + citations.map((item) => `[venice-source-${item.number}]: <${url(item)}>`).join('\n') + '\n'
 }
 
-// Keep Venice citations useful even though OpenAI-compatible SDKs discard the
-// vendor metadata. Sources become ordinary local message text and survive export.
+function linkReferences(text: string): string {
+  return text.replace(/\^(\d+(?:\s*,\s*\d+)*)\^/g, (_, numbers: string) =>
+    numbers.split(',').map((number) => `[${number.trim()}][venice-source-${number.trim()}]`).join(' '))
+}
+
+// Standard Markdown references resolve even when Venice sends the citations
+// after the answer. Both inline links and sources survive local storage/export.
 export async function withVeniceCitations(response: Response): Promise<Response> {
   if (!response.ok || !response.body) return response
   const type = response.headers.get('content-type') || ''
@@ -21,32 +31,55 @@ export async function withVeniceCitations(response: Response): Promise<Response>
     const data = await response.json()
     const footer = sourceFooter(data.venice_parameters?.web_search_citations)
     if (footer && typeof data.choices?.[0]?.message?.content === 'string') {
-      data.choices[0].message.content += footer
+      data.choices[0].message.content = linkReferences(data.choices[0].message.content) + footer
     }
     return new Response(JSON.stringify(data), { status: response.status, headers })
   }
   if (!type.includes('text/event-stream')) return response
   let pending = ''
+  let pendingReference = ''
   let citations: unknown
+  let completed = false
   const decoder = new TextDecoder()
   const encoder = new TextEncoder()
   const transform = new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
+      const emit = (frame: string) => controller.enqueue(encoder.encode(frame + '\n\n'))
       pending += decoder.decode(chunk, { stream: true })
       const frames = pending.split(/\r?\n\r?\n/)
       pending = frames.pop() || ''
-      for (const frame of frames) {
+      for (let frame of frames) {
         const data = frame.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trimStart()).join('\n')
         if (data === '[DONE]') {
-          const footer = sourceFooter(citations)
-          if (footer) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: footer }, finish_reason: null }] })}\n\n`))
+          const footer = pendingReference + sourceFooter(citations)
+          pendingReference = ''
+          completed = true
+          if (footer) emit(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: footer }, finish_reason: null }] })}`)
         } else {
-          try { const parsed = JSON.parse(data); citations = parsed.venice_parameters?.web_search_citations ?? citations } catch { /* Keep non-JSON frames unchanged. */ }
+          try {
+            const parsed = JSON.parse(data)
+            citations = parsed.venice_parameters?.web_search_citations ?? citations
+            const delta = parsed.choices?.find((choice: { index: number }) => choice.index === 0)?.delta
+            if (typeof delta?.content === 'string') {
+              let content = linkReferences(pendingReference + delta.content)
+              pendingReference = content.match(/\^[\d,\s]*$/)?.[0] || ''
+              if (pendingReference) content = content.slice(0, -pendingReference.length)
+              delta.content = content
+              frame = `data: ${JSON.stringify(parsed)}`
+            }
+          } catch { /* Keep non-JSON frames unchanged. */ }
         }
-        controller.enqueue(encoder.encode(frame + '\n\n'))
+        emit(frame)
       }
     },
-    flush(controller) { pending += decoder.decode(); if (pending) controller.enqueue(encoder.encode(pending)) },
+    flush(controller) {
+      pending += decoder.decode()
+      if (pending) controller.enqueue(encoder.encode(pending + '\n\n'))
+      if (!completed) {
+        const footer = pendingReference + sourceFooter(citations)
+        if (footer) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: footer }, finish_reason: null }] })}\n\n`))
+      }
+    },
   })
   return new Response(response.body.pipeThrough(transform), { status: response.status, headers })
 }

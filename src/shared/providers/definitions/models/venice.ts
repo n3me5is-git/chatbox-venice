@@ -33,7 +33,7 @@ export async function fetchVeniceModels(
   if (!response.ok) throw new ApiError('Venice model discovery failed', await response.text(), response.status)
   const result = await response.json() as { data?: VeniceCatalogModel[] }
   if (!Array.isArray(result.data)) throw new ApiError('Invalid Venice model catalog')
-  return result.data.filter((item) => ['text', 'image', 'inpaint'].includes(item.type) && !item.model_spec?.offline)
+  return result.data.filter((item) => ['text', 'image', 'inpaint'].includes(item.type) && !item.model_spec?.offline && !item.id.toLowerCase().includes('e2ee'))
     .map((item): ProviderModelInfo => {
       const spec = item.model_spec
       const capabilities: NonNullable<ProviderModelInfo['capabilities']> = []
@@ -95,6 +95,7 @@ export default class Venice extends OpenAICompatible {
   public override get usesNativeWebSearch() { return true }
 
   constructor(options: VeniceOptions, dependencies: ModelDependencies) {
+    if (options.model.modelId.toLowerCase().includes('e2ee')) throw new ApiError('This model requires Venice E2EE, which this client has not implemented')
     const resolved = { ...options, apiHost: options.apiHost.replace(/\/+$/, ''), useProxy: false,
       customFetch: createVeniceFetch(options.customFetch || createFetchWithProxy(false, dependencies), options.venice, options.model.extraBody),
     }

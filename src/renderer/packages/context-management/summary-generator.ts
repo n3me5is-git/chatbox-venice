@@ -5,7 +5,6 @@ import { languageNameMap } from '@/i18n/locales'
 import { generateText } from '@/packages/model-calls'
 import { convertToModelMessages } from '@/packages/model-calls/message-utils'
 import * as promptFormat from '@/packages/prompts'
-import * as settingActions from '@/stores/settingActions'
 import { settingsStore } from '@/stores/settingsStore'
 import { reportError } from '@/utils/sentry'
 
@@ -66,18 +65,6 @@ export async function generateSummary(options: SummaryGeneratorOptions): Promise
 }
 
 function buildModelSettings(globalSettings: Settings, sessionSettings?: SessionSettings): SessionSettings & Settings {
-  const remoteConfig = settingActions.getRemoteConfig()
-
-  const fastModel = (remoteConfig as { fastModel?: { provider: string; model: string } })?.fastModel
-  if (fastModel?.provider && fastModel?.model) {
-    return {
-      ...globalSettings,
-      ...sessionSettings,
-      provider: fastModel.provider as ModelProvider,
-      modelId: fastModel.model,
-    }
-  }
-
   if (globalSettings.threadNamingModel?.provider && globalSettings.threadNamingModel?.model) {
     return {
       ...globalSettings,
@@ -102,13 +89,6 @@ function buildModelSettings(globalSettings: Settings, sessionSettings?: SessionS
 
 export function isSummaryGenerationAvailable(): boolean {
   const globalSettings = settingsStore.getState().getSettings()
-  const remoteConfig = settingActions.getRemoteConfig()
-
-  const fastModel = (remoteConfig as { fastModel?: { provider: string; model: string } })?.fastModel
-  if (fastModel?.provider && fastModel?.model) {
-    return true
-  }
-
   if (globalSettings.threadNamingModel?.provider && globalSettings.threadNamingModel?.model) {
     return true
   }

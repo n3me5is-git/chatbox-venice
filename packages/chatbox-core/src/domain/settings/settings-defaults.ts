@@ -9,7 +9,7 @@ export interface SettingsHostDefaults {
 }
 
 export function getDefaultDocumentParser(host: SettingsHostDefaults): DocumentParserConfig {
-  return host.isDesktopLike ? { type: 'local' } : { type: 'chatbox-ai' }
+  return host.isDesktopLike ? { type: 'local' } : { type: 'none' }
 }
 
 /**
@@ -39,7 +39,7 @@ export function createDefaultSettings(): Settings {
     fontSize: 14,
     spellCheck: true,
     defaultPrompt: DEFAULT_SYSTEM_PROMPT,
-    allowReportingAndTracking: true,
+    allowReportingAndTracking: false,
     hasExpiredLicense: false,
     chatboxAIDesktopPromptDismissed: false,
     enableMarkdownRendering: true,

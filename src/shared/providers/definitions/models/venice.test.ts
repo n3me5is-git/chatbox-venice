@@ -36,7 +36,8 @@ describe('Venice direct API integration', () => {
   })
   it('carries search citations across split SSE frames into the SDK text stream', async () => {
     const frames = [
-      'data: {"choices":[{"index":0,"delta":{"content":"Answer"},"finish_reason":null}]}\n\n',
+      'data: {"choices":[{"index":0,"delta":{"content":"Answer ^"},"finish_reason":null}]}\n\n',
+      'data: {"choices":[{"index":0,"delta":{"content":"1^"},"finish_reason":null}]}\n\n',
       'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
       'data: {"choices":[],"venice_parameters":{"web_search_citations":[{"url":"https://example.com","title":"Source"}]}}\n\n',
       'data: [DONE]\n\n',
@@ -52,6 +53,9 @@ describe('Venice direct API integration', () => {
     while (true) { const next = await reader.read(); if (next.done) break; parts.push(next.value) }
     expect(JSON.stringify(parts)).toContain('https://example.com')
     expect(parts.some((part) => part.type === 'error')).toBe(false)
+    const text = parts.filter((part) => part.type === 'text-delta').map((part) => part.delta).join('')
+    expect(text).toContain('Answer [1][venice-source-1]')
+    expect(text).toContain('[venice-source-1]: <https://example.com>')
   })
   it('keeps false values for image moderation and sends each billable request once', async () => {
     const api = vi.fn().mockImplementation(async () => json({ images: ['cG5n'] }))
@@ -98,4 +102,12 @@ describe('Venice direct API integration', () => {
     const response = await withVeniceCitations(json({ choices: [{ message: { content: 'answer' } }], venice_parameters: { web_search_citations: [{ url: 'javascript:alert(1)' }] } }))
     expect((await response.json()).choices[0].message.content).toBe('answer')
   })
+  it('preserves reference numbers when invalid source URLs occur before valid sources', async () => {
+    const response = await withVeniceCitations(json({ choices: [{ message: { content: 'Answer ^2^' } }], venice_parameters: { web_search_citations: [{ url: 'javascript:alert(1)' }, { url: 'https://example.com', title: 'Source' }] } }))
+    const text = (await response.json()).choices[0].message.content
+    expect(text).toContain('Answer [2][venice-source-2]')
+    expect(text).toContain('[venice-source-2]: <https://example.com>')
+    expect(text).not.toContain('javascript:')
+  })
+
 })

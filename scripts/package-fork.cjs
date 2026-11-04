@@ -48,9 +48,9 @@ async function main() {
     win: { target: [{ target: 'nsis', arch: ['x64'] }], artifactName: 'Chatbox-Venice-${version}-${arch}-Setup.${ext}', signAndEditExecutable: false, verifyUpdateCodeSignature: false },
     nsis: { oneClick: false, allowToChangeInstallationDirectory: true, include: path.join(root, 'assets', 'installer.nsh') },
   }
-  const effective = await getConfig(appDir, null, config)
-  await validateConfiguration(effective, new DebugLogger(false))
   if (process.argv.includes('--check-config')) {
+    const effective = await getConfig(appDir, null, config)
+    await validateConfiguration(effective, new DebugLogger(false))
     console.log('Fork Windows packaging configuration is valid')
     return
   }

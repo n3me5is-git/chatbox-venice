@@ -68,6 +68,7 @@ export function getToolName(toolName: string, input?: unknown): string {
     read_file_chunks: t('Read File Chunks'),
     list_files: t('List Files'),
     web_search: t('Web Search'),
+    venice_web_search: t('Venice Web Search'),
     file_search: t('File Search'),
     code_search: t('Code Search'),
     terminal: t('Terminal'),

@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.24.1
+1. Per-model extra request JSON and native Venice provider
+2. Venice search modes and image generation/editing controls
+3. Local data, fork releases and Windows/Android builds
+
 ## v1.24.0 - 2026.10.29
 1. 新增项目：对话可按项目分组，工作模式对话按工作目录自动归类
 2. 桌面端工作模式新增内置浏览器，AI 可以操作网页，你可以随时接手
