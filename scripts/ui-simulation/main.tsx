@@ -12,8 +12,9 @@ ascii(0, 'RIFF'); header.setUint32(4, wav.length - 8, true); ascii(8, 'WAVEfmt '
 const service = new VeniceMediaService({ read: async () => structuredClone(records), write: async value => { records = structuredClone(value) }, putBlob: async (id, value) => { blobs.set(id, value) }, getBlob: async id => blobs.get(id) || null, deleteBlob: async id => { blobs.delete(id) } }, () => configuration, async request => {
   (window as any).__simulationRequestCount = ((window as any).__simulationRequestCount || 0) + 1
   const path = new URL(request.url).pathname
-  if (path.endsWith('/models')) return Response.json({ data: [{ id: 'simulated-tts', type: 'tts', model_spec: { name: 'Simulated voice' } }] })
+  if (path.endsWith('/models')) return Response.json({ data: [{ id: 'tts-kokoro', type: 'tts', model_spec: { name: 'Kokoro', voices: ['if_sara', 'im_nicola'], default_voice: 'if_sara', supported_formats: ['mp3', 'wav'], default_format: 'mp3' } }] })
   if (path.endsWith('/audio/speech')) {
+    (window as any).__simulationLastBody = JSON.parse(String(request.body))
     if (String(request.body).includes('SIMULATE_ERROR')) return new Response('', { status: 429 })
     return new Response(wav, { headers: { 'content-type': 'audio/wav' } })
   }

@@ -9,7 +9,9 @@ export type MediaRecord = {
   status: 'creating' | 'queued' | 'ready' | 'paused' | 'error'; queueId?: string; origin: string;
   credentialId: string; blobKey?: string; mime?: string; text?: string; error?: string; remoteCleaned?: boolean;
 }
+export type MediaCatalogCache = { origin: string; credentialId: string; items: MediaCatalogItem[] }
 export interface MediaStore {
+  readCatalog?(): Promise<MediaCatalogCache | null>; writeCatalog?(cache: MediaCatalogCache): Promise<void>;
   read(): Promise<MediaRecord[]>; write(records: MediaRecord[]): Promise<void>;
   putBlob(key: string, value: string): Promise<void>; getBlob(key: string): Promise<string | null>; deleteBlob(key: string): Promise<void>;
 }
@@ -74,10 +76,24 @@ export class VeniceMediaService {
     if (!response.ok) { await response.body?.cancel(); throw new Error(`Venice ${path} failed (HTTP ${response.status}). No paid request was retried.`) }
     return response
   }
+  async cachedCatalog(): Promise<MediaCatalogItem[]> {
+    const config = this.configuration(); if (!config.apiKey) return []
+    const cache = await this.store.readCatalog?.()
+    return cache && Array.isArray(cache.items) && cache.origin === mediaOrigin(config.apiHost) && cache.credentialId === await this.credential(config) ? cache.items : []
+  }
   async catalog(): Promise<MediaCatalogItem[]> {
-    const config = this.config(); const data = await (await this.api(config, '/models?type=all')).json()
-    if (!Array.isArray(data.data)) throw new Error('Invalid Venice model catalog')
-    return data.data.filter((item: MediaCatalogItem) => !item.model_spec?.offline && ['tts', 'asr', 'video', 'music'].includes(item.type))
+    const config = this.config()
+    const [all, tts] = await Promise.all(['/models?type=all', '/models?type=tts'].map(async path => (await this.api(config, path)).json()))
+    if (!Array.isArray(all.data) || !Array.isArray(tts.data)) throw new Error('Invalid Venice model catalog')
+    const merged = new Map<string, MediaCatalogItem>()
+    for (const item of [...all.data, ...tts.data.map((item: MediaCatalogItem) => ({ ...item, type: 'tts' }))] as MediaCatalogItem[]) {
+      if (!item || typeof item.id !== 'string' || item.model_spec?.offline || !['tts', 'asr', 'video', 'music'].includes(item.type)) continue
+      const old = merged.get(item.type + ':' + item.id)
+      merged.set(item.type + ':' + item.id, { ...old, ...item, model_spec: { ...old?.model_spec, ...item.model_spec } })
+    }
+    const items = [...merged.values()]
+    await this.store.writeCatalog?.({ origin: config.origin, credentialId: await this.credential(config), items }).catch(() => {})
+    return items
   }
   async quote(input: MediaInput) {
     const config = this.config(input.kind)

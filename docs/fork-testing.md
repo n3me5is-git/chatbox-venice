@@ -16,7 +16,7 @@ Questa action non produce setup o APK. I controlli mirati e UI sono anche requis
 
 Il servizio media viene verificato con risposte HTTP simulate: moduli disattivati, generazione voce, trascrizione multipart, errori e rate limit senza ripetere POST a pagamento, salvataggio, ripresa delle code, credenziali cambiate, pulizia remota, cancellazione durante il salvataggio e limiti di dimensione/tipo. I tool vengono verificati per isolamento della chat, conferme, annullamento e disattivazione durante l'approvazione.
 
-I test React interagiscono con il componente reale: campi obbligatori, JSON errato, scelta dei profili e moderazione disattivata, generazione, ripresa, errori, cronologia e cancellazione. Si eseguono anche regressioni dei pannelli chat desktop/mobile, delle immagini, delle impostazioni e dei link alle fonti.
+I test React interagiscono con il componente reale: campi obbligatori, selezione delle voci del modello, cambio modello senza conservare voci incompatibili, prove voce solo su richiesta, preventivi leggibili, immagine iniziale del video, JSON errato, scelta dei profili e moderazione disattivata, generazione, ripresa, errori, cronologia e cancellazione. Si eseguono anche regressioni dei pannelli chat desktop/mobile, delle immagini, delle impostazioni e dei link alle fonti.
 
 La prova Chromium monta il componente reale Venice Studio in una pagina di test con un servizio locale simulato. Usa click e tastiera, genera un WAV di prova, esporta il file, simula HTTP 429, disattiva il modulo ed elimina il risultato. Controlla richieste esterne inattese, eccezioni JavaScript e debordamento orizzontale. Non monta l'intera applicazione Electron/Android e non certifica tutte le schermate dell'app.
 

@@ -13,6 +13,8 @@ The workflows are:
 | Build Windows and Android | Code push to main, version tag, manual | Checks, then separate compilation and packaging jobs. Manual runs select Windows, Android or both; publishing is off by default for manual runs. |
 | Publish existing build | Automatic after both packages succeed on main, or manual run ID | Verify the source commit and successful jobs, then publish existing packages. No compilation or dependency installation. |
 
+Commits whose message starts with `WIP:` can build preview artifacts but do not publish a release automatically. A normal commit with a new app version publishes after the checks and packages pass.
+
 A new push cancels an older in-flight build on the same branch, so superseded code is not published. Manual runs do not cancel an in-flight run. Rerunning a failed job on the same commit keeps the existing compilation artifacts; a source correction starts a new build.
 
 The build graph is:

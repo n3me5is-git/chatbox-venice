@@ -22,7 +22,7 @@ Venice's integrated chat search and its standalone retrieval APIs expose differe
 
 ## Optional media and chat tools
 
-Enable Audio/transcription, Video or Music/SFX in Settings → Providers → Venice. Open **Venice Studio** in the sidebar. Fetch current media models explicitly, select a model and enter text or choose a transcription file. Supported model options can be supplied as extra JSON. The app never automatically creates a paid job again after an error.
+Enable Audio/transcription, Video or Music/SFX in Settings → Providers → Venice. Open **Venice Studio** in the sidebar. Load the current catalog explicitly and choose models by name. Speech shows model-specific voices, compatible formats, language and speed; a short voice test runs only on an explicit click and may have a cost. Enter text or choose a transcription file. Cached catalog metadata can be reused locally. Technical IDs and JSON are under Advanced options. Supported model options can be supplied as extra JSON. The app never automatically creates a paid job again after an error.
 
 Video and music save their queue IDs locally. Resume retrieves the existing job after an interruption or app restart. Once downloaded and saved, the app requests remote cleanup; failures remain visible and can be retried. You can export media, remove the local entry or explicitly clean up the remote copy. Closing the app or stopping polling does not guarantee server cancellation or a refund. Files are limited to 25 MB for transcription and 128 MB for generated media.
 
