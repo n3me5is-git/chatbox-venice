@@ -40,6 +40,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Validate standalone Windows packaging configuration
+        run: node scripts/package-fork.cjs --check-config
       - run: pnpm build
       - run: node scripts/package-fork.cjs
       - uses: actions/upload-artifact@v4
