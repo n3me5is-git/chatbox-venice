@@ -43,11 +43,11 @@ export function VeniceImageSettings() {
         <Textarea label={t('Negative prompt')} value={image.negative_prompt ?? ''} onChange={(event) => updateImage({ negative_prompt: event.currentTarget.value || undefined })} />
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           <Select label={t('Image format')} allowDeselect={false} value={image.format ?? 'png'} data={['png', 'jpeg', 'webp']} onChange={(value) => updateImage({ format: value as 'png' | 'jpeg' | 'webp' })} />
-          <Select label={t('Resolution')} placeholder={t('Model default')} clearable value={image.resolution ?? null} data={['1K', '2K', '4K']} onChange={(value) => updateImage({ resolution: value || undefined })} />
-          <Select label={t('Quality')} placeholder={t('Model default')} clearable value={image.quality ?? null} data={['low', 'medium', 'high']} onChange={(value) => updateImage({ quality: value as 'low' | 'medium' | 'high' || undefined })} />
+          <Select label={t('Resolution')} placeholder={String(t('Model default'))} clearable value={image.resolution ?? null} data={['1K', '2K', '4K']} onChange={(value) => updateImage({ resolution: value || undefined })} />
+          <Select label={t('Quality')} placeholder={String(t('Model default'))} clearable value={image.quality ?? null} data={['low', 'medium', 'high']} onChange={(value) => updateImage({ quality: value as 'low' | 'medium' | 'high' || undefined })} />
           <TextInput label={t('Style preset')} value={image.style_preset ?? ''} onChange={(event) => updateImage({ style_preset: event.currentTarget.value || undefined })} />
-          <NumberInput label={t('Width (pixels)')} placeholder={t('Model default')} min={64} max={4096} step={64} value={image.width ?? ''} onChange={(value) => updateImage({ width: typeof value === 'number' ? value : undefined })} />
-          <NumberInput label={t('Height (pixels)')} placeholder={t('Model default')} min={64} max={4096} step={64} value={image.height ?? ''} onChange={(value) => updateImage({ height: typeof value === 'number' ? value : undefined })} />
+          <NumberInput label={t('Width (pixels)')} placeholder={String(t('Model default'))} min={64} max={4096} step={64} value={image.width ?? ''} onChange={(value) => updateImage({ width: typeof value === 'number' ? value : undefined })} />
+          <NumberInput label={t('Height (pixels)')} placeholder={String(t('Model default'))} min={64} max={4096} step={64} value={image.height ?? ''} onChange={(value) => updateImage({ height: typeof value === 'number' ? value : undefined })} />
           <NumberInput label={t('Steps')} min={1} max={100} value={image.steps ?? ''} onChange={(value) => updateImage({ steps: typeof value === 'number' ? value : undefined })} />
           <NumberInput label={t('CFG scale')} min={0.1} max={20} step={0.5} value={image.cfg_scale ?? ''} onChange={(value) => updateImage({ cfg_scale: typeof value === 'number' ? value : undefined })} />
           <NumberInput label={t('Seed')} min={-999999999} max={999999999} value={image.seed ?? ''} onChange={(value) => updateImage({ seed: typeof value === 'number' ? value : undefined })} />

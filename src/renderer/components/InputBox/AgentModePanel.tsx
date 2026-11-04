@@ -1118,7 +1118,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
               }
               label={usesNativeSearch ? t('Provider native search') : t('Web Search')}
               subtitle={
-                usesNativeSearch ? (providerId === 'venice' ? `Venice · ${providerOptions?.venice?.webSearch ?? 'off'}` : t('Model request JSON')) : webSearchConfigurationIssue === 'chatbox-ai-sign-in'
+                usesNativeSearch ? (providerId === 'venice' ? `Venice · ${providerOptions?.venice?.webSearch ?? 'off'}` : String(t('Model request JSON'))) : webSearchConfigurationIssue === 'chatbox-ai-sign-in'
                   ? (t('Sign in required') ?? undefined)
                   : webSearchConfigurationIssue
                     ? (t('Setup required') ?? undefined)
