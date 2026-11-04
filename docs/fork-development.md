@@ -8,6 +8,7 @@ The workflows are:
 
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
+| Release checks | Release-tooling changes, pull request or manual | Lightweight publication regressions and syntax checks, without installing the app dependencies. |
 | Checks | Pull request, manual, or called by builds | Configuration validation, focused regression tests and TypeScript. Manual runs can select the full unit suite. No packages or releases. |
 | Build Windows and Android | Code push to main, version tag, manual | Checks, then separate compilation and packaging jobs. Manual runs select Windows, Android or both; publishing is off by default for manual runs. |
 | Publish existing build | Automatic after both packages succeed on main, or manual run ID | Verify the source commit and successful jobs, then publish existing packages. No compilation or dependency installation. |
@@ -28,11 +29,13 @@ flowchart LR
 
 Compiled bundles and finished packages are retained as artifacts for 14 days. Packaging downloads the compiled artifact from the same run and commit. Windows runtime dependencies are installed in an isolated npm staging project using the app lockfile. Android uses Java 21 and SDK 35, generating its Capacitor host in CI and registering the local document export plugin.
 
-If a job fails, open the run and choose **Re-run failed jobs**. Successful checks and compilation jobs are reused; GitHub restarts a failed job from its first step, not an arbitrary individual step. Dependency stores and Gradle dependencies are cached. A source change requires a new run and compilation. New pushes do not cancel an active build; documentation-only changes do not trigger packaging.
+If a job fails, open the run and choose **Re-run failed jobs**. Successful checks and compilation jobs are reused; GitHub restarts a failed job from its first step, not an arbitrary individual step. Dependency stores and Gradle dependencies are cached. Uploads replace an existing artifact of the same name when rerunning a job. A source change requires a new run and compilation. New pushes do not cancel an active build; documentation-only changes do not trigger packaging.
 
-If publication alone fails, rerun that job or open **Publish existing build → Run workflow** and enter the build run ID. It accepts both successful packages and successful checks from this fork main branch, even when the overall run failed during publication. It publishes the exact built commit, uses version-specific notes, and leaves an existing public release unchanged. Artifacts must still be available. A version that is already public is detected before downloading packages again.
+If publication alone fails, rerun that job or open **Publish existing build → Run workflow** and enter the build run ID. It accepts both successful packages and successful checks from this fork main branch, even when the overall run failed during publication. It publishes the exact built commit, uses version-specific notes, and leaves an existing public release unchanged. Artifacts must still be available. The publisher reads all attempts and uses the newest available result per job, including successful jobs reused from a prior attempt. A version that is already public is detected before downloading packages again.
 
 See [Actions](https://github.com/n3me5is-git/chatbox-venice/actions). Open a run → job → step for its logs. Published release assets remain available until removed.
+
+GitHub restricts release creation if the built commit has workflow files that differ from the default branch. Keep workflow definitions stable while publishing or retrying an older build; otherwise publish a fresh build from the current main branch. This is a token permission constraint, not a build failure. See [GitHub release permissions](https://docs.github.com/en/rest/releases/releases#create-a-release).
 
 ## Publish a new version
 

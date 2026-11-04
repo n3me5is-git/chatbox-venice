@@ -1,0 +1,35 @@
+name: Release checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-release.yml
+      - .github/workflows/release-checks.yml
+      - scripts/publish-fork-release.mjs
+      - scripts/publish-release-workflow.test.mjs
+      - .node-version
+  pull_request:
+    paths:
+      - .github/workflows/publish-release.yml
+      - .github/workflows/release-checks.yml
+      - scripts/publish-fork-release.mjs
+      - scripts/publish-release-workflow.test.mjs
+      - .node-version
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Validate release script syntax
+        run: node --check scripts/publish-fork-release.mjs
+      - name: Test reused jobs and release eligibility
+        run: node --test scripts/publish-release-workflow.test.mjs

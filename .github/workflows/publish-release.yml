@@ -36,11 +36,15 @@ jobs:
                 run.head_repository.full_name !== context.repo.owner + '/' + context.repo.repo) {
               throw new Error('Release requires a build of this fork main branch')
             }
-            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { ...repo, run_id, filter: 'latest' })
+            // GitHub can copy reused jobs into the new attempt after this job starts.
+            // Read all attempts and use the newest available result for each job.
+            const jobs = (await github.paginate(github.rest.actions.listJobsForWorkflowRun, { ...repo, run_id, filter: 'all' }))
+              .sort((a, b) => b.run_attempt - a.run_attempt || b.id - a.id)
+            const succeeded = name => jobs.find(job => job.name === name)?.conclusion === 'success'
             for (const name of ['Package Windows x64 setup', 'Package Android APK']) {
-              if (!jobs.some(job => job.name === name && job.conclusion === 'success')) throw new Error(name + ' has not succeeded')
+              if (!succeeded(name)) throw new Error(name + ' has not succeeded')
             }
-            if (!jobs.some(job => job.name.endsWith('Validate and test') && job.conclusion === 'success')) {
+            if (jobs.find(job => job.name.endsWith('Validate and test'))?.conclusion !== 'success') {
               throw new Error('Required checks have not succeeded')
             }
             core.setOutput('sha', run.head_sha)
