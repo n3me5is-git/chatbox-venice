@@ -15,7 +15,7 @@ export interface MediaStore {
 }
 export type MediaConfiguration = { apiKey: string; apiHost?: string; options: VeniceOptions }
 export type MediaInput = { kind: MediaKind; model: string; prompt: string; options?: Record<string, unknown>; file?: File; sessionId?: string; signal?: AbortSignal }
-export type MediaCatalogItem = { id: string; type: string; model_spec?: { name?: string; constraints?: Record<string, unknown>; capabilities?: Record<string, unknown>; offline?: boolean } }
+export type MediaCatalogItem = { id: string; type: string; model_spec?: { name?: string; description?: string; voices?: string[]; default_voice?: string; supported_formats?: string[]; default_format?: string; constraints?: Record<string, unknown>; capabilities?: Record<string, unknown>; offline?: boolean } }
 const MAX_BYTES = 128 * 1024 * 1024
 const flags = { speech: 'audioEnabled', transcription: 'audioEnabled', video: 'videoEnabled', music: 'musicEnabled' } as const
 export function mediaEnabled(kind: MediaKind, options: VeniceOptions) { return options.enabled !== false && options[flags[kind]] === true }

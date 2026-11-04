@@ -171,7 +171,7 @@ jobs:
           overwrite: true
   release:
     name: Release
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (inputs.publish_release && inputs.target == 'all'))
+    if: github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'WIP:') && (github.event_name == 'push' || (inputs.publish_release && inputs.target == 'all'))
     needs: [checks, windows, android]
     permissions:
       contents: write
