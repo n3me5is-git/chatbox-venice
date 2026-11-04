@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.24.2
+
+See [release notes](docs/releases/v1.24.2.md). Preserves local/text-only parser settings when importing legacy data, adds hydration/import regression checks and makes artifact uploads safe to rerun.
+
 ## 1.24.1
 
 See [release notes](docs/releases/v1.24.1.md). Includes per-model vendor JSON, the Venice provider, native search, native image generation/editing, local history and deletion, and automated Windows x64 / Android builds.

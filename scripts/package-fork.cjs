@@ -42,7 +42,7 @@ async function main() {
       execFileSync(isWindows ? 'npm.cmd' : 'npm', ['ci', '--omit=dev', '--ignore-scripts'], { cwd: appDir, stdio: 'inherit', shell: isWindows })
       require('../.erb/scripts/runtime-deps.cjs').verifyInstalledRuntimeDeps(appDir)
     },
-    afterPack: path.join(root, '.erb', 'scripts', 'after-pack.cjs'),
+    afterPack: async (context) => require('../.erb/scripts/after-pack.cjs').default({ ...context, appDir }),
     npmRebuild: false,
     publish: [{ provider: 'github', owner: 'n3me5is-git', repo: 'chatbox-venice' }],
     win: { target: [{ target: 'nsis', arch: ['x64'] }], artifactName: 'Chatbox-Venice-${version}-${arch}-Setup.${ext}', signAndEditExecutable: false, verifyUpdateCodeSignature: false },
@@ -56,5 +56,9 @@ async function main() {
   }
   fs.cpSync(path.join(sourceApp, 'dist'), path.join(appDir, 'dist'), { recursive: true })
   await build({ projectDir: appDir, targets: Platform.WINDOWS.createTarget(['nsis'], Arch.x64), publish: 'never', config })
+  for (const name of [`Chatbox-Venice-${app.version}-x64-Setup.exe`, 'latest.yml']) {
+    const output = path.join(root, 'release', 'build', name)
+    if (!fs.existsSync(output) || fs.statSync(output).size === 0) throw new Error(`Packaging did not produce ${output}; inspect the packaging hook errors above`)
+  }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })

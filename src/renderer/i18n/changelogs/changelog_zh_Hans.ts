@@ -1,4 +1,8 @@
 const changelog = `
+## Chatbox Venice 1.24.2
+1. Preserve local parsing choices when importing legacy settings
+2. Expand settings regression coverage and support artifact upload retries
+
 ## Chatbox Venice 1.24.1
 1. Per-model extra request JSON and native Venice provider
 2. Venice search modes and image generation/editing controls

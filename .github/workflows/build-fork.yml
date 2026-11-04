@@ -48,6 +48,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
   windows:
     name: Package Windows x64 setup
     needs: build_windows
@@ -78,6 +79,7 @@ jobs:
             release/build/latest.yml
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
   build_android_renderer:
     name: Compile Android renderer
     if: github.event_name != 'workflow_dispatch' || inputs.target != 'windows'
@@ -103,6 +105,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
   android:
     name: Package Android APK
     needs: build_android_renderer
@@ -144,6 +147,7 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
   release:
     name: Release
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (inputs.publish_release && inputs.target == 'all'))

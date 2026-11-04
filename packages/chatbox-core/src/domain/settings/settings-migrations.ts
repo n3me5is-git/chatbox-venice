@@ -62,12 +62,7 @@ export function migrateSettings(persisted: unknown, version: number, host: Setti
     }
   }
 
-  if (shouldRunMigration(4)) {
-    const extension = settings.extension as { documentParser?: { type?: string } } | undefined
-    if (!host.isDesktopLike && extension?.documentParser?.type === 'none') {
-      extension.documentParser.type = 'chatbox-ai'
-    }
-  }
+  // Preserve a local/text-only parser choice when importing older settings.
 
   if (shouldRunMigration(5)) {
     const mcp = settings.mcp as { enabledBuiltinServers?: unknown } | undefined

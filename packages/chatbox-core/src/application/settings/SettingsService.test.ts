@@ -75,7 +75,7 @@ describe('SettingsService', () => {
     const settings = await service.hydrate()
 
     expect(resolveDesktopLike).toHaveBeenCalledOnce()
-    expect(settings.extension.documentParser).toEqual({ type: 'chatbox-ai' })
+    expect(settings.extension.documentParser).toEqual({ type: 'none' })
   })
 
   test('publishes synchronous updates and restores them through a new service', async () => {

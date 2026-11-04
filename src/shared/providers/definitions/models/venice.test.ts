@@ -54,8 +54,9 @@ describe('Venice direct API integration', () => {
     expect(JSON.stringify(parts)).toContain('https://example.com')
     expect(parts.some((part) => part.type === 'error')).toBe(false)
     const text = parts.filter((part) => part.type === 'text-delta').map((part) => part.delta).join('')
-    expect(text).toContain('Answer [1][venice-source-1]')
-    expect(text).toContain('[venice-source-1]: <https://example.com>')
+    const namespace = text.match(/Answer \[1\]\[(venice-source-[\w-]+)-1\]/)?.[1]
+    expect(namespace).toBeTruthy()
+    expect(text).toContain(`[${namespace}-1]: <https://example.com>`)
   })
   it('keeps false values for image moderation and sends each billable request once', async () => {
     const api = vi.fn().mockImplementation(async () => json({ images: ['cG5n'] }))
@@ -105,9 +106,23 @@ describe('Venice direct API integration', () => {
   it('preserves reference numbers when invalid source URLs occur before valid sources', async () => {
     const response = await withVeniceCitations(json({ choices: [{ message: { content: 'Answer ^2^' } }], venice_parameters: { web_search_citations: [{ url: 'javascript:alert(1)' }, { url: 'https://example.com', title: 'Source' }] } }))
     const text = (await response.json()).choices[0].message.content
-    expect(text).toContain('Answer [2][venice-source-2]')
-    expect(text).toContain('[venice-source-2]: <https://example.com>')
+    const namespace = text.match(/Answer \[2\]\[(venice-source-[\w-]+)-2\]/)?.[1]
+    expect(namespace).toBeTruthy()
+    expect(text).toContain(`[${namespace}-2]: <https://example.com>`)
     expect(text).not.toContain('javascript:')
+  })
+
+  it('uses different reference labels for messages exported together', async () => {
+    const convert = async (url: string) => {
+      const result = await withVeniceCitations(json({ choices: [{ message: { content: 'Answer ^1^' } }], venice_parameters: { web_search_citations: [{ url }] } }))
+      return (await result.json()).choices[0].message.content as string
+    }
+    const first = await convert('https://first.example.com')
+    const second = await convert('https://second.example.com')
+    const label = (text: string) => text.match(/\[1\]\[([^\]]+)\]/)?.[1]
+    expect(label(first)).toBeTruthy()
+    expect(label(second)).toBeTruthy()
+    expect(label(first)).not.toBe(label(second))
   })
 
 })

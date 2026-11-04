@@ -64,7 +64,7 @@ describe('settings migrations', () => {
       },
     })
     expect(migrated.skills.translationEnabled).toBe(true)
-    expect(migrated.extension.documentParser).toEqual({ type: 'chatbox-ai' })
+    expect(migrated.extension.documentParser).toEqual({ type: 'none' })
   })
 
   test('moves the version 7 default compaction threshold to the current default and keeps chosen values', () => {
@@ -204,10 +204,15 @@ describe('settings migrations', () => {
       },
       extension: {
         ...defaults.extension,
-        documentParser: version <= 4 ? { type: 'chatbox-ai' } : { type: 'none' },
+        documentParser: { type: 'none' },
       },
     }
 
     expect(actual).toEqual(expected)
   })
+  test('preserves an explicitly configured cloud parser on import', () => {
+    const migrated = migrateSettings({ ...createDefaultSettings(), extension: { documentParser: { type: 'chatbox-ai' } } }, 4, { isDesktopLike: false })
+    expect(migrated.extension.documentParser).toEqual({ type: 'chatbox-ai' })
+  })
+
 })
