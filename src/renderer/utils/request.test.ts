@@ -46,6 +46,17 @@ describe('provider API request routing', () => {
     expect(rendererFetch).not.toHaveBeenCalled()
   })
 
+  it('lets fetch supply multipart boundaries for transcription uploads without enabling a relay', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('{}'))
+    vi.stubGlobal('fetch', fetch)
+    const file = new FormData(); file.set('file', new Blob(['audio']), 'sample.wav')
+    await apiRequest.post('https://api.venice.ai/api/v1/audio/transcriptions', { Authorization: 'Bearer secret', 'Content-Type': 'application/json' }, file, { useProxy: false, retry: 0 })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    const request = fetch.mock.calls[0][1]
+    expect(request.body).toBe(file); expect(request.headers.has('Content-Type')).toBe(false)
+    expect(request.headers.has('CHATBOX-TARGET-URI')).toBe(false); expect(mocks.desktopDirectRequest).not.toHaveBeenCalled()
+  })
+
   it('keeps local desktop targets in the renderer', async () => {
     const response = new Response('ok')
     const rendererFetch = vi.fn().mockResolvedValue(response)

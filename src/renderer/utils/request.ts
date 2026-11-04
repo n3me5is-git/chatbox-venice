@@ -44,7 +44,8 @@ async function retryRequest<T>(fn: () => Promise<T>, retry: number, url: string)
 
 function buildHeaders(options: RequestOptions, url: string): Headers {
   const headers = new Headers(options.headers)
-  headers.set('Content-Type', 'application/json')
+  if (typeof FormData !== 'undefined' && options.body instanceof FormData) headers.delete('Content-Type')
+  else headers.set('Content-Type', 'application/json')
 
   if (options.useProxy && !isLocalHost(url) && platform.type !== 'mobile' && platform.type !== 'desktop') {
     headers.set('CHATBOX-TARGET-URI', url)

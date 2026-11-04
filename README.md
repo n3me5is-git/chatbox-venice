@@ -8,7 +8,7 @@ A local-first fork of [Chatbox Community Edition](https://github.com/chatboxai/c
 
 The fork builds a Windows x64 setup and an Android APK. Download them from this repository's [latest release](https://github.com/n3me5is-git/chatbox-venice/releases/latest). Builds awaiting publication are available as artifacts inside each successful Actions run. This fork currently has no macOS, Linux, iOS or app-store packages.
 
-Windows installers are unsigned. The APK is a development-signed sideload build. Keep the same signing key when updating an installed Android app; see [development and releases](docs/fork-development.md).
+Windows installers are unsigned. New versions use a release-mode APK signed for personal sideload installation. Keep the same signing key when updating an installed Android app; see [development and releases](docs/fork-development.md).
 
 ## Configure Venice
 
@@ -19,6 +19,16 @@ Windows installers are unsigned. The APK is a development-signed sideload build.
 5. Open Venice image settings in Image Creator for moderation, output format, size, resolution, quality, seed, steps, CFG scale and other supported options. Editing models accept reference images. Model capabilities and constraints still apply.
 
 Venice's integrated chat search and its standalone retrieval APIs expose different options. Brave/Google/Exa choices use Venice's `/augment/search` API directly; they are not Chatbox search providers. X search takes precedence when enabled. Search and prompt enhancement can incur additional Venice charges.
+
+## Optional media and chat tools
+
+Enable Audio/transcription, Video or Music/SFX in Settings → Providers → Venice. Open **Venice Studio** in the sidebar. Fetch current media models explicitly, select a model and enter text or choose a transcription file. Supported model options can be supplied as extra JSON. The app never automatically creates a paid job again after an error.
+
+Video and music save their queue IDs locally. Resume retrieves the existing job after an interruption or app restart. Once downloaded and saved, the app requests remote cleanup; failures remain visible and can be retried. You can export media, remove the local entry or explicitly clean up the remote copy. Closing the app or stopping polling does not guarantee server cancellation or a refund. Files are limited to 25 MB for transcription and 128 MB for generated media.
+
+Enable **Venice tools in Work Mode chats** separately to let Venice chat models discover, quote, generate and manage this chat's media. Generation asks for confirmation by default; deletion always asks. Tools return metadata, not media blobs or API credentials. Existing local tools, MCP integrations and other providers retain their behavior. Media prompts and selected files go directly to Venice, without E2EE.
+
+Save reusable search/image profiles in Venice provider settings, then select or override them per model or existing chat. Priority is provider → saved profile → model → chat → extra model request JSON. Permission switches remain provider-level. Turning Venice off blocks new Venice requests while preserving local history.
 
 ## Extra request JSON for each custom model
 
@@ -59,4 +69,4 @@ Development, tests, Windows packaging and Android compilation can all run on Git
 
 [Changelog](CHANGELOG.md) · [Upstream source and license](https://github.com/chatboxai/chatbox) · [Venice CLI reference](https://github.com/veniceai/venice-cli) · [Venice MCP reference](https://github.com/veniceai/venice-mcp-server)
 
-Audio, video and music UI are future work. Existing Work Mode and MCP features provide an extension point; the Venice MCP server can be configured explicitly for additional modalities. It is not automatically installed or given your API key.
+E2EE/TEE attestation, voice cloning and voice conversion are not implemented. The optional Venice MCP server can be configured explicitly; it is not installed automatically or given your API key.

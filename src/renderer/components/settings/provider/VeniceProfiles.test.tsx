@@ -11,7 +11,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 describe('Venice profile UI', () => {
   it('selects explicit moderation false and can restore inherited settings', () => {
     const onChange = vi.fn(); render(<MantineProvider><VeniceProfileEditor options={{}} value={{ webSearch: 'on' }} onChange={onChange} /></MantineProvider>)
-    fireEvent.click(screen.getByLabelText('Moderazione immagini (safe mode)')); fireEvent.click(screen.getByRole('option', { name: 'Disattivata' }))
+    fireEvent.click(screen.getByLabelText('Moderazione immagini (safe mode)', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Disattivata' }))
     expect(onChange).toHaveBeenCalledWith({ webSearch: 'on', imageSafeMode: false })
     fireEvent.click(screen.getByRole('button', { name: 'Ripristina tutte le opzioni ereditate' })); expect(onChange).toHaveBeenLastCalledWith({})
   })

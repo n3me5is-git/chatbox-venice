@@ -83,8 +83,10 @@ export class VeniceMediaService {
     const config = this.config(input.kind)
     if (!['video', 'music'].includes(input.kind)) throw new Error('Quotes are available for video and music')
     const allowed = input.kind === 'video' ? ['duration', 'aspect_ratio', 'resolution', 'audio', 'video_url', 'upscale_factor'] : ['duration_seconds', 'character_count']
-    const body: Record<string, unknown> = { model: input.model }
-    for (const key of allowed) if (input.options?.[key] !== undefined) body[key] = input.options[key]
+    const merged = mergeExtraBody({ model: input.model }, input.options || {})
+    if (typeof merged.model !== 'string' || !merged.model.trim()) throw new Error('Choose a model')
+    const body: Record<string, unknown> = { model: merged.model }
+    for (const key of allowed) if (merged[key] !== undefined) body[key] = merged[key]
     return (await this.api(config, input.kind === 'video' ? '/video/quote' : '/audio/quote', body)).json()
   }
   async start(input: MediaInput): Promise<MediaRecord> {
@@ -112,7 +114,10 @@ export class VeniceMediaService {
         await this.saveBinary(record.id, await this.api(config, '/audio/speech', body, controller.signal), controller.signal)
       } else {
         const form = new FormData(); form.set('file', input.file!); form.set('model', record.model); form.set('response_format', 'json')
-        for (const [key, value] of Object.entries(input.options || {})) if (!['file', 'model', 'response_format'].includes(key) && value !== undefined) form.set(key, typeof value === 'string' ? value : JSON.stringify(value))
+        for (const [key, value] of Object.entries(input.options || {})) {
+          if (['file', 'model', 'response_format'].includes(key) || value === undefined) continue
+          for (const item of Array.isArray(value) ? value : [value]) form.append(key, typeof item === 'string' ? item : JSON.stringify(item))
+        }
         const result = await (await this.api(config, '/audio/transcriptions', form, controller.signal)).json()
         if (typeof result.text !== 'string') throw new Error('Venice returned no transcription text')
         controller.signal.throwIfAborted(); await this.patch(record.id, { text: result.text, status: 'ready' })
@@ -136,10 +141,14 @@ export class VeniceMediaService {
     const record = (await this.list()).find(item => item.id === id); if (!record?.queueId) throw new Error('No stored queue ID; an interrupted paid request must not be automatically repeated')
     const config = this.config(record.kind)
     if (config.origin !== record.origin || await this.credential(config) !== record.credentialId) throw new Error('Resume requires the original Venice endpoint and API key')
-    const controller = new AbortController(); this.active.set(id, controller); await this.patch(id, { status: 'queued', error: undefined })
+    if (this.active.has(id)) return
+    const controller = new AbortController(); this.active.set(id, controller)
     try {
+      await this.patch(id, { status: 'queued', error: undefined })
       for (let attempt = 0; attempt < 240; attempt++) {
-        this.config(record.kind); controller.signal.throwIfAborted()
+        const current = this.config(record.kind)
+        if (current.origin !== record.origin || await this.credential(current) !== record.credentialId) throw new Error('Venice credentials changed; resume with the original endpoint and key')
+        controller.signal.throwIfAborted()
         const response = await this.api(config, record.kind === 'video' ? '/video/retrieve' : '/audio/retrieve', { model: record.model, queue_id: record.queueId, delete_media_on_completion: false }, controller.signal)
         if ((response.headers.get('content-type') || '').includes('application/json')) {
           const status = await response.json()
@@ -155,7 +164,7 @@ export class VeniceMediaService {
     finally { this.active.delete(id); for (const listener of this.listeners) listener() }
   }
   pause(id: string) { this.active.get(id)?.abort(); return this.patch(id, { status: 'paused' }) }
-  pauseAll() { for (const id of this.active.keys()) void this.pause(id) }
+  pauseAll() { for (const id of this.active.keys()) void this.pause(id).catch(() => {}) }
   async cleanup(id: string) {
     const record = (await this.list()).find(item => item.id === id); if (!record?.queueId || record.remoteCleaned) return
     const config = this.config()

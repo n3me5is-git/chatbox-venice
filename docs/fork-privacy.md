@@ -11,6 +11,16 @@ This fork stores chats, provider configuration and generation history locally us
 - Native image generation returns base64 or binary data directly to local history. Prompt EXIF metadata defaults off. Prompt enhancement is opt-in.
 - Local tools run within the existing host and approval mechanisms. Data returned by tools can become part of the model conversation and be sent to its selected provider.
 
+## Optional audio, video and music
+
+These modules and their chat tools are off until explicitly enabled. Studio opens local history without loading a remote model list. Loading models, quoting, generation, polling and cleanup contact the configured Venice endpoint directly. Transcription uploads the selected file. Speech/video/music prompts and additional parameters are sent to Venice without E2EE. No background paid re-creation happens on startup or failure.
+
+Queue IDs, model IDs, prompts, status and media are stored locally. A SHA-256 credential fingerprint binds resumable jobs to the original endpoint/key; the media records do not duplicate the API key. Media blobs use their own namespace and explicit deletion. Studio history is currently outside the portable chat/image backup format: export wanted media before resetting or migrating the app. Device encryption, app storage protection and separately created backups remain the user's responsibility.
+
+After video/music bytes are saved successfully, the app requests remote completion/cleanup. A failure leaves the local result and a retry control. Deleting a local record does not implicitly contact Venice. A remote cleanup confirmation represents Venice's response; the client cannot independently verify provider retention. Stopping polling or closing the app does not necessarily cancel a running server job.
+
+Media tools are registered only for Venice models in Work Mode when enabled. List/status/resume/delete are limited to records created for the current chat. Default approval precedes paid generation; destructive tool actions always require approval. Local filesystem tools retain the existing permissions and approvals; their results may be sent to the selected chat model.
+
 ## Delete generated content
 
 Delete an entry in Image Creator history to cancel any active request, delete the local record, and clean up generated/reference images that are no longer used by another record. Exported copies and user-created backups must be deleted separately from their saved locations. Local deletion is not a remote deletion request to Venice or a search provider.

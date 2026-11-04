@@ -11,6 +11,7 @@ const types: Record<MediaKind, string> = { speech: 'tts', transcription: 'asr', 
 export function VeniceStudio({ service, options, openSettings }: { service: Service; options: VeniceOptions; openSettings?: () => void }) {
   const [kind, setKind] = useState<MediaKind>('speech')
   const [model, setModel] = useState(''); const [prompt, setPrompt] = useState(''); const [voice, setVoice] = useState('af_sky')
+  const [format, setFormat] = useState('auto')
   const [duration, setDuration] = useState('5s'); const [seconds, setSeconds] = useState<number | string>(30)
   const [lyrics, setLyrics] = useState(''); const [instrumental, setInstrumental] = useState(false)
   const [extra, setExtra] = useState(''); const [file, setFile] = useState<File | null>(null)
@@ -25,7 +26,7 @@ export function VeniceStudio({ service, options, openSettings }: { service: Serv
   }, [service])
   const run = async (work: () => Promise<unknown>) => { setError(''); setBusy(true); try { await work() } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) } }
   const input = () => ({ kind, model, prompt, file: file || undefined, options: {
-    ...(kind === 'speech' ? { voice, response_format: 'mp3' } : {}), ...(kind === 'video' ? { duration } : {}),
+    ...(kind === 'speech' ? { voice: voice || undefined, response_format: format === 'auto' ? undefined : format } : {}), ...(kind === 'video' ? { duration } : {}),
     ...(kind === 'music' ? { duration_seconds: Number(seconds), force_instrumental: instrumental, ...(lyrics ? { lyrics_prompt: lyrics } : {}) } : {}),
     ...parseExtraBody(extra),
   } })
@@ -45,7 +46,7 @@ export function VeniceStudio({ service, options, openSettings }: { service: Serv
       {selected && <Text size="xs" c="dimmed">Opzioni e limiti dipendono dal modello selezionato. I parametri aggiuntivi permettono di usare le opzioni esposte dalle sue API.</Text>}
       {kind === 'transcription' ? <FileInput label="File audio o video (massimo 25 MB)" accept="audio/*,video/*" value={file} onChange={setFile} clearable />
         : <Textarea label={kind === 'speech' ? 'Testo da leggere' : 'Descrizione del contenuto'} value={prompt} onChange={e => setPrompt(e.currentTarget.value)} autosize minRows={3} />}
-      {kind === 'speech' && <TextInput label="Voce / voice ID" value={voice} onChange={e => setVoice(e.currentTarget.value)} />}
+      {kind === 'speech' && <><TextInput label="Voce / voice ID" value={voice} onChange={e => setVoice(e.currentTarget.value)} /><Select label="Formato audio" allowDeselect={false} value={format} data={[{ value: 'auto', label: 'Predefinito del modello' }, ...['mp3', 'wav', 'opus', 'aac', 'flac', 'pcm'].map(value => ({ value, label: value }))]} onChange={value => setFormat(value || 'auto')} /></>}
       {kind === 'video' && <TextInput label="Durata video (es. 5s)" value={duration} onChange={e => { setDuration(e.currentTarget.value); setQuote('') }} />}
       {kind === 'music' && <><NumberInput label="Durata audio in secondi" min={1} max={600} value={seconds} onChange={setSeconds} /><Checkbox label="Solo strumentale" checked={instrumental} onChange={e => setInstrumental(e.currentTarget.checked)} /><Textarea label="Testo della canzone (opzionale)" value={lyrics} onChange={e => setLyrics(e.currentTarget.value)} /></>}
       <Textarea label="Parametri aggiuntivi JSON (opzionali)" description="Per esempio risoluzione, aspect_ratio, lingua, speed, image_url o video_url, se supportati dal modello." value={extra} onChange={e => { setExtra(e.currentTarget.value); setQuote('') }} autosize minRows={2} />
@@ -76,7 +77,7 @@ function MediaResult({ record, service, enabled, run }: { record: MediaRecord; s
     <Group>
       {(safe || record.text) && <Button size="xs" variant="default" onClick={() => void run(async () => {
         if (record.text) await platform.exporter.exportTextFile(`Venice-${record.id}.txt`, record.text)
-        else if (safe) await platform.exporter.exportBlob(`Venice-${record.id}.${record.mime === 'video/mp4' ? 'mp4' : record.mime?.includes('wav') ? 'wav' : record.mime?.includes('flac') ? 'flac' : 'mp3'}`, await (await fetch(safe)).blob())
+        else if (safe) await platform.exporter.exportBlob(`Venice-${record.id}.${record.mime === 'video/mp4' ? 'mp4' : record.mime?.includes('wav') ? 'wav' : record.mime?.includes('flac') ? 'flac' : record.mime?.includes('ogg') ? 'ogg' : record.mime?.includes('opus') ? 'opus' : record.mime?.includes('aac') ? 'aac' : record.mime?.includes('pcm') ? 'pcm' : 'mp3'}`, await (await fetch(safe)).blob())
       })}>Esporta</Button>}
       {record.queueId && !record.remoteCleaned && <Button size="xs" variant="default" disabled={!enabled} onClick={() => void run(() => service.cleanup(record.id))}>Elimina copia su Venice</Button>}
       <Button size="xs" color="red" variant="subtle" onClick={() => void run(() => service.remove(record.id))}>Elimina dal dispositivo</Button>

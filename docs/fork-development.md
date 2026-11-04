@@ -43,7 +43,7 @@ Change `release/app/package.json` and the top-level/root-package version in `rel
 
 The release job uses the repository-scoped `GITHUB_TOKEN` with contents write permission only in that job. Build jobs use read-only repository permission.
 
-The Windows installer is unsigned. Android uses the CI debug signing key cached under the repository ID. Cache eviction can change this key; before wider distribution, configure a durable release keystore and secure signing secrets. A change of Android signing key prevents in-place updates and can require migration/reinstallation. No private signing key is committed to the repository.
+The Windows installer is unsigned. Android uses a release-mode APK, signed with optional repository signing secrets or the existing cached CI debug key for compatibility with earlier personal installs. Cache eviction can change the fallback key. Certificate pinning and encrypted signing backup are supported; configure durable signing secrets for continuity. No private signing key is committed or uploaded unencrypted. See [personal installation and signing](personal-distribution.md).
 
 The fork has a separate application ID and product name. Desktop updater checks only this fork's GitHub release feed. Android updates are downloaded and installed manually from the fork's release page.
 
@@ -52,6 +52,8 @@ The fork has a separate application ID and product name. Desktop updater checks 
 Use Node 22.14 and the package-manager version pinned in `package.json`. `pnpm install --frozen-lockfile`, then `pnpm dev` for Electron or `pnpm dev:web` for the browser. Local source, dependencies and package caches commonly require several GB; allow roughly 5–10 GB total and 15 GB free as a practical margin. This is an estimate, not a measured full installation.
 
 A browser preview can have CORS limits that differ from the native apps. Final release packages are built by Actions. Android Studio/SDK and Java are unnecessary unless you choose to debug the native Android host locally.
+
+See [simulated UI and functional testing](fork-testing.md) for isolated Checks runs and screenshot artifacts.
 
 ## Validation boundaries
 

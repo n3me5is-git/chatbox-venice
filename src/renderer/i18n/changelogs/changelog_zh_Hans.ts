@@ -1,4 +1,10 @@
 const changelog = `
+## Chatbox Venice 1.25.0
+1. Optional Venice Studio for audio, transcription, video and music/SFX
+2. Local media history, export, resume and explicit remote cleanup
+3. Per-model/chat Venice profiles and opt-in Work Mode media tools
+4. Simulated UI/browser checks and personal Android release signing
+
 ## Chatbox Venice 1.24.2
 1. Preserve local parsing choices when importing legacy settings
 2. Expand settings regression coverage and support artifact upload retries
