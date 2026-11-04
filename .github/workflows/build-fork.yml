@@ -20,7 +20,7 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vitest run src/shared/models/utils/extra-body.test.ts
+      - run: pnpm exec vitest run src/shared/models/utils/extra-body.test.ts src/shared/providers/definitions/models/venice.test.ts packages/chatbox-core/src/application/image-generation/catalog.test.ts packages/chatbox-core/src/application/image-generation/ImageGenerationService.test.ts
       - run: pnpm check
         env:
           NODE_OPTIONS: --max-old-space-size=8192

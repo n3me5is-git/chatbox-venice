@@ -62,6 +62,7 @@ import * as toastActions from '@/stores/toastActions'
 import { useUIStore } from '@/stores/uiStore'
 import { featureFlags } from '@/utils/feature-flags'
 import { ScalableIcon } from '../common/ScalableIcon'
+import { VeniceSearchSettings } from '@/components/settings/provider/VeniceSettings'
 import MCPStatus from '../mcp/MCPStatus'
 import { CommandApprovalOptions, WorkingDirectoryContent } from './AgentModeSettingsContent'
 import { AgentMemorySettingsContent, useAgentMemorySettings } from './AgentMemorySettings'
@@ -216,6 +217,11 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
   )
   const workModeCapabilitiesDisabled = agentModeUIState.capabilitiesDisabled
 
+  const providerOptions = useSettingsStore((s) => providerId ? s.providers?.[providerId] : undefined)
+  const usesNativeSearch = providerId === 'venice' || Boolean(providerOptions?.models?.find((m) => m.modelId === modelId)?.nativeWebSearch)
+  const nativeSearchEnabled = providerId === 'venice'
+    ? Boolean((providerOptions?.venice?.webSearch ?? 'off') !== 'off' || providerOptions?.venice?.xSearch || providerOptions?.venice?.webScraping)
+    : usesNativeSearch
   // Web Search state
   const webSearchProvider = useSettingsStore((s) => s.extension.webSearch.provider)
   const setSettings = useSettingsStore((s) => s.setSettings)
@@ -226,7 +232,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
   const searxngBaseUrl = useSettingsStore((s) => s.extension.webSearch.searxngBaseUrl)
   const webSearchProviderLabel =
     WEB_SEARCH_PROVIDERS.find((p) => p.value === webSearchProvider)?.label ?? webSearchProvider
-  const webSearchConfigurationIssue = webBrowsingMode
+  const webSearchConfigurationIssue = !usesNativeSearch && webBrowsingMode
     ? getWebSearchConfigurationIssue(
         {
           provider: webSearchProvider,
@@ -761,6 +767,12 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
 
   // --- Sub-panel content ---
   const renderSubPanel = () => {
+    if (page === 'web-search' && usesNativeSearch) {
+      return <>
+        <SubPanelHeader title={t('Provider native search')} />
+        {providerId === 'venice' ? <VeniceSearchSettings /> : <Text size="sm" p="sm">{t('Search is configured in the selected model extra request JSON.')}</Text>}
+      </>
+    }
     if (page === 'web-search') {
       return (
         <>
@@ -1104,9 +1116,9 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
                   }
                 />
               }
-              label={t('Web Search')}
+              label={usesNativeSearch ? t('Provider native search') : t('Web Search')}
               subtitle={
-                webSearchConfigurationIssue === 'chatbox-ai-sign-in'
+                usesNativeSearch ? (providerId === 'venice' ? `Venice · ${providerOptions?.venice?.webSearch ?? 'off'}` : t('Model request JSON')) : webSearchConfigurationIssue === 'chatbox-ai-sign-in'
                   ? (t('Sign in required') ?? undefined)
                   : webSearchConfigurationIssue
                     ? (t('Setup required') ?? undefined)
@@ -1128,10 +1140,20 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
                   >
                     <Switch
                       data-testid={TestId.chat.webSearchToggle}
-                      checked={webBrowsingMode}
+                      checked={usesNativeSearch ? nativeSearchEnabled : webBrowsingMode}
+                      disabled={usesNativeSearch && providerId !== 'venice'}
                       size="xs"
                       onChange={(e) => {
                         const enabled = e.currentTarget.checked
+                        if (providerId === 'venice') {
+                          setSettings((draft) => {
+                            draft.providers ??= {}
+                            draft.providers.venice ??= {}
+                            draft.providers.venice.venice = { ...draft.providers.venice.venice, webSearch: enabled ? 'on' : 'off',
+                              ...(enabled ? {} : { xSearch: false, webScraping: false }) }
+                          })
+                          return
+                        }
                         trackWebSearchClick(
                           {
                             sessionId,

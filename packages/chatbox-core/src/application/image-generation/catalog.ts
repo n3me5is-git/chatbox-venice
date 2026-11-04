@@ -88,7 +88,7 @@ export function getConfiguredImageProviders(
     if (provider.isCustom) return Boolean(settings.providers?.[provider.id]?.models?.length)
     if (provider.id === ModelProviderEnum.ChatboxAI) return Boolean(settings.licenseKey)
     if (
-      ![ModelProviderEnum.OpenAI, ModelProviderEnum.Gemini, ModelProviderEnum.OpenRouter].includes(
+      ![ModelProviderEnum.OpenAI, ModelProviderEnum.Gemini, ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice].includes(
         provider.id as ModelProviderEnum
       )
     )
@@ -139,6 +139,7 @@ export function buildImageModelGroups(options: {
     add(builtin(ModelProviderEnum.OpenAI), remoteModels[ModelProviderEnum.OpenAI])
   }
   add(builtin(ModelProviderEnum.OpenRouter), remoteModels[ModelProviderEnum.OpenRouter])
+  add(builtin(ModelProviderEnum.Venice), remoteModels[ModelProviderEnum.Venice])
   for (const provider of providers.filter(
     (provider) =>
       provider.isCustom &&
@@ -189,7 +190,7 @@ export function supportsImageReferenceInput(
     )
   }
   return (
-    model.provider === ModelProviderEnum.OpenRouter &&
+    [ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice].includes(model.provider as ModelProviderEnum) &&
     Boolean(capabilities?.inputReferences) &&
     capabilities?.inputReferences?.max !== 0
   )

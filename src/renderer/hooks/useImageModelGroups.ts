@@ -23,7 +23,7 @@ export function useProviderImageModels(
   const licenseKey = useSettingsStore((state) => state.licenseKey)
   const { data } = useQuery({
     ...providerImageModelsQueryOptions(provider, {
-      apiKey: provider === ModelProviderEnum.OpenRouter ? providerSettings?.apiKey : undefined,
+      apiKey: [ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice].includes(provider) ? providerSettings?.apiKey : undefined,
       language,
       licenseKey,
     }),
@@ -48,6 +48,7 @@ export function useImageModelGroups(): ImageModelGroup[] {
     !!openRouterProvider,
     providerSettingsMap?.[ModelProviderEnum.OpenRouter]
   )
+  const veniceImageModels = useProviderImageModels(ModelProviderEnum.Venice, Boolean(providerSettingsMap?.venice?.apiKey), providerSettingsMap?.venice)
   const geminiImageModels = useProviderImageModels(
     ModelProviderEnum.Gemini,
     !!geminiProvider || customGeminiProviders.length > 0
@@ -63,9 +64,10 @@ export function useImageModelGroups(): ImageModelGroup[] {
           [ModelProviderEnum.ChatboxAI]: chatboxAIImageModels.map(manualImageModelToOption),
           [ModelProviderEnum.OpenAI]: openAIImageModels,
           [ModelProviderEnum.OpenRouter]: openRouterImageModels,
+          [ModelProviderEnum.Venice]: veniceImageModels,
           [ModelProviderEnum.Gemini]: geminiImageModels,
         },
       }),
-    [providers, providerSettingsMap, chatboxAIImageModels, openAIImageModels, openRouterImageModels, geminiImageModels]
+    [providers, providerSettingsMap, chatboxAIImageModels, openAIImageModels, openRouterImageModels, geminiImageModels, veniceImageModels]
   )
 }

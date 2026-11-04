@@ -30,6 +30,7 @@ import { JK_PAGE_NAMES } from '@/analytics/jk-events'
 import { ChatboxWelcomeCard } from '@/components/common/ChatboxWelcomeCard'
 import errorNoticeClasses from '@/components/common/ErrorNotice.module.css'
 import { ImageModelSelect } from '@/components/ImageModelSelect'
+import { VeniceImageSettings } from '@/components/settings/provider/VeniceSettings'
 import { SEND_BUTTON_BLOCKED_CLASS } from '@/components/InputBox/inputSurface'
 import Page from '@/components/layout/Page'
 import { type ImageModelGroup, useImageModelGroups } from '@/hooks/useImageModelGroups'
@@ -610,6 +611,8 @@ function ImageCreatorPage() {
                       {isCurrentlyGenerating ? <Loader size={16} color="white" /> : <IconArrowUp size={16} />}
                     </ActionIcon>
                   </Flex>
+
+                  {selectedProvider === ModelProviderEnum.Venice && <VeniceImageSettings />}
 
                   {/* Toolbar Row */}
                   <InputToolbar

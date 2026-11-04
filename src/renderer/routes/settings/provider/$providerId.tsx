@@ -54,6 +54,7 @@ import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import PopoverConfirm from '@/components/common/PopoverConfirm'
 import { ScalableIcon } from '@/components/common/ScalableIcon'
 import { ModelList } from '@/components/ModelList'
+import { VeniceSearchSettings, VeniceImageSettings } from '@/components/settings/provider/VeniceSettings'
 import { SettingRow, SettingSwitchRow, SettingsPage, SettingsSection } from '@/components/settings/SettingsLayout'
 import { AppTooltip as Tooltip } from '@/components/ui/tooltip'
 import { useOAuth } from '@/hooks/useOAuth'
@@ -983,6 +984,11 @@ function ProviderSettings({ providerId }: { providerId: string }) {
           )}
         </SettingsSection>
       )}
+
+      {providerId === ModelProviderEnum.Venice && <>
+        <SettingsSection title={t('Venice native search')}><VeniceSearchSettings /></SettingsSection>
+        <VeniceImageSettings />
+      </>}
 
       {/* Models */}
       <SettingsSection

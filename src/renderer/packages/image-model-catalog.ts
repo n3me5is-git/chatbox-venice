@@ -71,7 +71,7 @@ function observeCredentials(): void {
 export function providerImageModelsQueryOptions(provider: ModelProviderEnum, options: ImageModelCatalogOptions = {}) {
   observeCredentials()
   const revision =
-    provider === ModelProviderEnum.OpenRouter
+    [ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice].includes(provider)
       ? credentialRevision(provider, options.apiKey)
       : provider === ModelProviderEnum.ChatboxAI
         ? credentialRevision(provider, options.licenseKey)
@@ -109,8 +109,8 @@ export async function getImageModelCapabilities(
   signal?: AbortSignal
 ): Promise<ImageModelCapabilities | undefined> {
   signal?.throwIfAborted()
-  if (model.provider !== ModelProviderEnum.OpenRouter) return undefined
-  const models = await waitForCatalog(loadRemoteModels(ModelProviderEnum.OpenRouter, settings), signal)
+  if (![ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice].includes(model.provider as ModelProviderEnum)) return undefined
+  const models = await waitForCatalog(loadRemoteModels(model.provider as ModelProviderEnum, settings), signal)
   return models.find((option) => option.modelId === model.modelId)?.capabilities
 }
 
@@ -126,7 +126,7 @@ async function loadRemoteModels(provider: ModelProviderEnum, settings: Settings)
     const providerSettings = mergeSharedOAuthProviderSettings(provider, settings.providers)
     return await queryClient.fetchQuery(
       providerImageModelsQueryOptions(provider, {
-        apiKey: provider === ModelProviderEnum.OpenRouter ? providerSettings.apiKey : undefined,
+        apiKey: [ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice].includes(provider) ? providerSettings.apiKey : undefined,
         language: settings.language,
         licenseKey: settings.licenseKey,
       })
@@ -148,6 +148,7 @@ export async function getAvailableImageModels(
         ModelProviderEnum.Gemini,
         ModelProviderEnum.OpenAI,
         ModelProviderEnum.OpenRouter,
+        ModelProviderEnum.Venice,
       ].map((id) => ({ id, name: id })),
       ...(settings.customProviders ?? []),
     ],
@@ -159,6 +160,7 @@ export async function getAvailableImageModels(
     ModelProviderEnum.Gemini,
     ModelProviderEnum.OpenAI,
     ModelProviderEnum.OpenRouter,
+    ModelProviderEnum.Venice,
   ].filter(
     (id) =>
       (id !== ModelProviderEnum.OpenAI || isOpenAIImageGenerationAuthSupported(settings.providers)) &&
