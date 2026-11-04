@@ -43,7 +43,7 @@ export const AgentModeEntrySchema = z.object({
 
 export const ProviderModelInfoSchema = z.object({
   modelId: z.string(),
-  extraBody: z.record(z.string(), z.json()).optional().catch(undefined),
+  extraBody: z.record(z.string(), z.unknown()).optional().catch(undefined),
   nativeWebSearch: z.boolean().optional().catch(undefined),
   // The provider id this model was resolved under (e.g. 'chatbox-ai', 'qwen').
   // Stamped at model-resolution time (getModel); not part of persisted model lists.
@@ -367,7 +367,7 @@ const ExtensionSettingsSchema = z.object({
         embedding: z
           .object({
             modelId: z.string(),
-  extraBody: z.record(z.string(), z.json()).optional().catch(undefined),
+  extraBody: z.record(z.string(), z.unknown()).optional().catch(undefined),
             providerId: z.string(),
           })
           .nullable()
@@ -375,7 +375,7 @@ const ExtensionSettingsSchema = z.object({
         rerank: z
           .object({
             modelId: z.string(),
-  extraBody: z.record(z.string(), z.json()).optional().catch(undefined),
+  extraBody: z.record(z.string(), z.unknown()).optional().catch(undefined),
             providerId: z.string(),
           })
           .nullable()

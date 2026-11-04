@@ -1,13 +1,13 @@
-import type { JSONValue } from 'ai'
+
 import type { ModelDependencies } from '../../types/adapters'
 
-export type ExtraBody = Record<string, JSONValue>
+export type ExtraBody = Record<string, unknown>
 
-function isObject(value: unknown): value is Record<string, JSONValue> {
+function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-export function mergeExtraBody(body: Record<string, JSONValue>, extra: ExtraBody): Record<string, JSONValue> {
+export function mergeExtraBody(body: Record<string, unknown>, extra: ExtraBody): Record<string, unknown> {
   const result = { ...body }
   for (const [key, value] of Object.entries(extra)) {
     if (['__proto__', 'prototype', 'constructor'].includes(key)) throw new Error(`Invalid JSON parameter: ${key}`)
