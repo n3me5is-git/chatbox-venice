@@ -1,3 +1,4 @@
+import { veniceCredentialRevision } from '@/packages/venice/models'
 import { cachified } from '@epic-web/cachified'
 import type { SearchResultItem } from '@shared/types'
 import { truncate } from 'lodash'
@@ -147,7 +148,7 @@ export const webSearchExecutor = async (
   const webSearch = getExtensionSettings().webSearch
   const provider = webSearch.provider
   const cacheIdentity =
-    provider === 'searxng' ? `${provider}:${normalizeSearxngBaseUrl(webSearch.searxngBaseUrl ?? '')}` : provider === 'venice' ? `${provider}:${settingsStore.getState().getSettings().providers?.venice?.apiHost}:${webSearch.veniceSearchProvider}:${settingsStore.getState().getSettings().providers?.venice?.apiKey}` : provider
+    provider === 'searxng' ? `${provider}:${normalizeSearxngBaseUrl(webSearch.searxngBaseUrl ?? '')}` : provider === 'venice' ? `${provider}:${settingsStore.getState().getSettings().providers?.venice?.apiHost}:${webSearch.veniceSearchProvider}:${veniceCredentialRevision(settingsStore.getState().providers?.venice?.apiHost, settingsStore.getState().providers?.venice?.apiKey)}` : provider
   const searchResults = await cachified({
     cache,
     key: `search-context:${cacheIdentity}:${query}`,

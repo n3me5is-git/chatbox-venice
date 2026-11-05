@@ -23,7 +23,7 @@ import { registerFileTransferIpc } from './file-transfer-ipc'
  */
 
 import fs from 'node:fs'
-import { execFile } from 'node:child_process'
+import { spawn as spawnExternalBrowser } from 'node:child_process'
 import {
   app,
   BrowserWindow,
@@ -947,7 +947,7 @@ ipcMain.handle('openLink', async (event, link, options?: { browser?: string }) =
   const roots = [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter((value): value is string => !!value)
   const chrome = roots.map(root => path.join(root, 'Google', 'Chrome', 'Application', 'chrome.exe')).find(file => fs.existsSync(file))
   if (!chrome) return shell.openExternal(url.href)
-  await new Promise<void>((resolve, reject) => execFile(chrome, [url.href], { windowsHide: true }, error => error ? reject(error) : resolve()))
+  await new Promise<void>((resolve, reject) => { const child = spawnExternalBrowser(chrome, [url.href], { detached: true, stdio: 'ignore' }); child.once('error', reject); child.once('spawn', () => { child.unref(); resolve() }) })
 })
 ipcMain.handle('window:is-focused', () => {
   return Boolean(mainWindow?.isFocused())

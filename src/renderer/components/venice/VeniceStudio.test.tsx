@@ -11,7 +11,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 const models = [
   { id: 'tts-kokoro', type: 'tts', model_spec: { name: 'Kokoro', voices: ['if_sara', 'im_nicola'], default_voice: 'if_sara', supported_formats: ['mp3', 'wav'], default_format: 'mp3' } },
   { id: 'tts-other', type: 'tts', model_spec: { name: 'Altra voce', voices: ['Vivian'], default_voice: 'Vivian', supported_formats: ['wav'] } },
-  { id: 'video', type: 'video', model_spec: { name: 'Video creativo', constraints: { duration: ['4s', '8s'], aspectRatios: ['16:9', '9:16'] } } },
+  { id: 'video', type: 'video', model_spec: { name: 'Video creativo', constraints: { model_type: 'image-to-video', duration: ['4s', '8s'], aspectRatios: ['16:9', '9:16'] } } },
 ]
 const record = { id: 'one', kind: 'video', model: 'video', prompt: 'Landscape', createdAt: 1, status: 'paused', queueId: 'q1', origin: 'https://api.venice.ai/api/v1', credentialId: 'hash' } satisfies MediaRecord
 function setup(records: MediaRecord[] = []) {

@@ -30,6 +30,7 @@ export function getWebSearchConfigurationIssue(
       return configuration.queritApiKey ? null : 'querit-api-key'
     case 'searxng':
       return configuration.searxngBaseUrl?.trim() ? null : 'searxng-instance'
+    case 'venice':
     case 'bing':
       return null
   }

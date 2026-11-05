@@ -12,8 +12,8 @@ function setup() {
   return { service, settings, confirm, tools, call }
 }
 describe('Venice chat media tools', () => {
-  it('has no tools until explicitly enabled', () => {
-    expect(buildVeniceMediaTools('chat', {} as VeniceMediaService, () => ({}), vi.fn())).toEqual({})
+  it('can explicitly disable the internal tools', () => {
+    expect(buildVeniceMediaTools('chat', {} as VeniceMediaService, () => ({ chatToolsEnabled: false }), vi.fn())).toEqual({})
   })
   it('lists only this chat and omits credential, endpoint and prompt metadata', async () => {
     const s = setup(); const result = await s.call({ action: 'list' })
