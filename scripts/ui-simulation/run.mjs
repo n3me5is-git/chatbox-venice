@@ -8,13 +8,14 @@ await mkdir(output, { recursive: true })
 const profile = await mkdtemp(path.join(tmpdir(), 'venice-ui-'))
 const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--config', 'scripts/ui-simulation/vite.config.ts'], { stdio: ['ignore', 'pipe', 'pipe'] })
 let serverLog = ''; vite.stdout.on('data', x => { serverLog += x }); vite.stderr.on('data', x => { serverLog += x })
-const chrome = spawn(process.env.CHROME_PATH || '/usr/bin/google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--remote-debugging-port=9222', '--remote-allow-origins=*', '--user-data-dir=' + profile, 'about:blank'], { stdio: 'ignore' })
+const chrome = spawn(process.env.CHROME_PATH || '/usr/bin/google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--remote-debugging-port=9222', '--remote-allow-origins=*', '--user-data-dir=' + profile, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] })
+let chromeLog = ''; chrome.stderr.on('data', chunk => { chromeLog += chunk });
 let browserError; chrome.on('error', error => { browserError = error }); vite.on('error', error => { browserError = error })
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 async function wait(condition, message) {
   const deadline = Date.now() + 25000
   while (Date.now() < deadline) { if (browserError) throw browserError; try { const value = await condition(); if (value) return value } catch {} await delay(100) }
-  throw new Error(message)
+  throw new Error(message + (message.includes('Chromium') ? ': ' + chromeLog.slice(-3000) : ''))
 }
 let socket; let serial = 0; const pending = new Map(); const exceptions = []; const requests = []
 try {
@@ -31,7 +32,14 @@ try {
   const cdp = (method, params = {}) => new Promise((resolve, reject) => { const id = ++serial; const timer = setTimeout(() => { pending.delete(id); reject(new Error('CDP timeout: ' + method)) }, 20000); pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value) }, reject: error => { clearTimeout(timer); reject(error) } }); socket.send(JSON.stringify({ id, method, params })) })
   const evaluate = async expression => { const result = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.text); return result.result.value }
   async function click(expression) {
-    const box = await evaluate(`(() => { const e = ${expression}; if (!e) throw new Error('Missing element'); e.scrollIntoView({block:'center'}); const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2} })()`)
+    await evaluate(`(${expression}).scrollIntoView({block:'center'})`)
+    let previous
+    const box = await wait(async () => {
+      const current = await evaluate(`(() => { const e = ${expression}; if (!e) return null; const r=e.getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2,width:r.width,height:r.height,viewport:innerHeight} })()`)
+      if (!current || !current.width || !current.height || current.y < 0 || current.y >= current.viewport) return false
+      const stable = previous && Math.abs(previous.x-current.x) < 0.5 && Math.abs(previous.y-current.y) < 0.5
+      previous = current; return stable ? {x:current.x,y:current.y} : false
+    }, 'Clickable element did not settle')
     await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', ...box, button: 'left', clickCount: 1 }); await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', ...box, button: 'left', clickCount: 1 })
   }
   const byText = text => `[...document.querySelectorAll('button')].find(e => e.textContent.trim() === ${JSON.stringify(text)})`
@@ -67,7 +75,7 @@ try {
   await click(byLabel('Modello immagine Venice')); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === 'GPT Flare')`)
   await click(byLabel('Filtro contenuti')); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === 'Disattivato')`)
   await click(byText('Parametri della singola chiamata')); await fill('Seed per questa generazione', '42')
-  await writeFile(path.join(output, 'image-hitl-mobile.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: true })).data, 'base64'))
+  await writeFile(path.join(output, 'image-hitl-mobile.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
   await click(byText('Conferma e genera')); await wait(() => evaluate('!!window.__simulationImageChoice'), 'HITL did not return the approved request')
   assert.equal(await evaluate('window.__simulationImageChoice.modelId'), 'gpt-flare-image'); assert.equal(await evaluate('window.__simulationImageChoice.extraBody.seed'), 42); assert.equal(await evaluate('window.__simulationImageChoice.extraBody.safe_mode'), false)
   assert.equal(await evaluate('window.__simulationRequestCount'), 4, 'The HITL fixture must not call paid APIs')
@@ -77,5 +85,5 @@ try {
   await writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, viewports: ['1440x1100', '412x915'], assertions: ['no automatic API calls', 'load catalog', 'choose a live model voice', 'generate audio', 'export local media', 'show error without retry', 'disable module', 'delete local media', 'no horizontal mobile overflow', 'image HITL selection', 'per-call moderation and seed approval', 'no browser exceptions', 'no external requests'], requests: await evaluate('window.__simulationRequestCount'), exceptions }, null, 2))
   console.log('Venice Studio browser simulation passed; desktop/mobile screenshots saved.')
 } finally {
-  socket?.close(); chrome.kill('SIGTERM'); vite.kill('SIGTERM'); await writeFile(path.join(output, 'vite.log'), serverLog)
+  socket?.close(); chrome.kill('SIGTERM'); vite.kill('SIGTERM'); await writeFile(path.join(output, 'vite.log'), serverLog); await writeFile(path.join(output, 'chrome.log'), chromeLog)
 }

@@ -1,3 +1,5 @@
+import '../../src/renderer/static/globals.css'
+import '../../src/renderer/static/index.css'
 import NiceModal from '@ebay/nice-modal-react'
 import { VeniceImageApproval } from '../../src/renderer/components/venice/VeniceImageApproval'
 import '@mantine/core/styles.css'
