@@ -26,3 +26,14 @@ it('does not silently choose the first model when no name was supplied', async (
   expect((screen.getByRole('button', { name: "Confirm and generate" }) as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: "Cancel" })); expect(await result!).toBeNull()
 })
+
+it('clears the previous searchable model when reopening after resetting approvals',async()=>{
+ render(<MantineProvider><NiceModal.Provider/></MantineProvider>);let result:Promise<unknown>
+ act(()=>{result=NiceModal.show(VeniceImageApproval,{models,request:{modelId:'gpt-flare-image',prompt:'first',count:1}})})
+ expect((await screen.findByLabelText('Venice image model',{selector:'input'}) as HTMLInputElement).value).toBe('GPT Flare')
+ fireEvent.click(screen.getByRole('button',{name:'Confirm and generate'}));await result!
+ act(()=>{result=NiceModal.show(VeniceImageApproval,{models,request:{prompt:'second',count:1}})})
+ expect((await screen.findByLabelText('Venice image model',{selector:'input'}) as HTMLInputElement).value).toBe('')
+ expect((screen.getByRole('button',{name:'Confirm and generate'}) as HTMLButtonElement).disabled).toBe(true)
+ fireEvent.click(screen.getByRole('button',{name:'Cancel'}));expect(await result!).toBeNull()
+})
