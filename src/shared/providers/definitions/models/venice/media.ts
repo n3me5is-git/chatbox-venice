@@ -22,11 +22,12 @@ export interface MediaStore {
   putBlob(key: string, value: string): Promise<void>; getBlob(key: string): Promise<string | null>; deleteBlob(key: string): Promise<void>;
 }
 export type MediaConfiguration = { apiKey: string; apiHost?: string; options: VeniceOptions }
-export type MediaInput = { kind: MediaKind; model: string; prompt: string; options?: Record<string, unknown>; file?: File; sessionId?: string; signal?: AbortSignal;protection?:string }
+export type MediaInput = { kind: MediaKind; model: string; prompt: string; options?: Record<string, unknown>; file?: File; sessionId?: string; signal?: AbortSignal;protection?:string;durationSeconds?:number }
 export type MediaCatalogItem = { id: string; type: string; model_spec?: { name?: string; description?: string; voices?: string[]; default_voice?: string; supported_formats?: string[]; default_format?: string; constraints?: Record<string, unknown>; capabilities?: Record<string, unknown>; offline?: boolean; privacy?: string; uncensored?: boolean; traits?: string[]; model_sets?: string[]; modelSource?: string;
     pricing?: Record<string, unknown>; supports_lyrics?: boolean; lyrics_required?: boolean; supports_force_instrumental?: boolean; supports_lyrics_optimizer?: boolean; supports_loop?: boolean; supports_language_code?: boolean; supports_speed?: boolean;
     min_duration?: number; max_duration?: number; default_duration?: number; duration_options?: number[]; min_prompt_length?: number; prompt_character_limit?: number; lyrics_character_limit?: number; min_speed?: number; max_speed?: number; [key: string]: unknown } }
 const MAX_BYTES = 128 * 1024 * 1024
+const audioExtension=(name:string)=>{const extension=name.split('.').pop()?.toLowerCase()||'';return ({m4a:'mp4',wave:'wav',oga:'ogg'} as Record<string,string>)[extension]||extension}
 const flags = { speech: 'audioEnabled', transcription: 'audioEnabled', 'voice-conversion': 'audioEnabled', video: 'videoEnabled', music: 'musicEnabled', 'sound-effects': 'musicEnabled' } as const
 const queuePath = (kind: MediaKind) => kind === 'video' ? '/video' : kind === 'voice-conversion' ? '/audio/voice-changer' : '/audio'
 export function mediaEnabled(kind: MediaKind, options: VeniceOptions) { return options.enabled !== false && options[flags[kind]] === true }
@@ -115,9 +116,10 @@ export class VeniceMediaService {
     requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec, config.options.privacyFilter)
     for (const key of allowed) if (merged[key] !== undefined) body[key] = merged[key]
     if ((input.kind === 'music' || input.kind === 'sound-effects') && body.character_count === undefined && (await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec?.pricing?.per_thousand_characters) body.character_count = input.prompt.length
-    return (await this.api(config, `${queuePath(input.kind)}/quote`, body)).json()
+    return (await this.api(config, `${queuePath(input.kind)}/quote`, body,input.signal)).json()
   }
   async start(input: MediaInput): Promise<MediaRecord> {
+    input.signal?.throwIfAborted()
     const config = this.config(input.kind)
     if (!input.model.trim() || (!['transcription','voice-conversion'].includes(input.kind) && !input.prompt.trim())) throw new Error('Choose a model and enter a prompt')
     if (input.file && input.file.size > 25 * 1024 * 1024) throw new Error('Transcription file exceeds 25 MB')
@@ -128,6 +130,7 @@ export class VeniceMediaService {
     const known = (await this.cachedCatalog()).find(item => item.id === body.model && item.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : ['sound-effects','voice-conversion'].includes(input.kind) ? 'music' : input.kind))
     requireModelPrivacy(known?.model_spec, config.options.privacyFilter)
     validateMediaRequest(input.kind, body, known)
+    if(input.kind==='voice-conversion'&&input.durationSeconds!==undefined&&(!Number.isFinite(input.durationSeconds)||input.durationSeconds<=0||input.durationSeconds>Number(known?.model_spec?.max_source_audio_duration_seconds||300)))throw new Error('The source recording exceeds this model’s supported duration')
     const record: MediaRecord = { id: uuid(), kind: input.kind, model: String(body.model), prompt: input.prompt, createdAt: Date.now(), sessionId: input.sessionId,protection:input.protection,
       status: 'creating', origin: config.origin, credentialId: await this.credential(config) }
     await this.mutate(records => [record, ...records]); const controller = new AbortController(); this.active.set(record.id, controller)
@@ -141,7 +144,7 @@ export class VeniceMediaService {
         if (input.kind === 'voice-conversion') {
           if (known?.model_spec?.voice_changer !== true) throw new Error('Choose a voice-conversion model from the current Venice catalog')
           const spec = known.model_spec
-          const extension = input.file!.name.split('.').pop()?.toLowerCase()
+          const extension = audioExtension(input.file!.name)
           if (!Array.isArray(spec.accepted_audio_formats) || !spec.accepted_audio_formats.includes(extension)) throw new Error('This recording format is not accepted by the selected model')
           const allowed = ['model','voice','remove_background_noise','seed']
           if (Object.keys(input.options || {}).some(key => !allowed.includes(key))) throw new Error('Unsupported voice-conversion option')
@@ -240,15 +243,16 @@ export class VeniceMediaService {
     const voices = await this.store.readVoices?.() || []
     await this.store.writeVoices?.(voices.filter(voice => voice.id !== id))
   }
-  async createVoice(model: string, file: File, name = '') {
+  async createVoice(model: string, file: File, name = '',signal?:AbortSignal) {
+    signal?.throwIfAborted()
     const config = this.config('speech')
     const entry = (await this.cachedCatalog()).find(item => item.id === model && item.type === 'tts')
     requireModelPrivacy(entry?.model_spec, config.options.privacyFilter)
     const cloning = entry?.model_spec?.voice_cloning as { accepted_formats?: string[] } | undefined
-    if (!cloning || !cloning.accepted_formats?.includes(file.name.split('.').pop()?.toLowerCase() || '')) throw new Error('Choose a supported sample and a model with voice cloning')
+    if (!cloning || !cloning.accepted_formats?.includes(audioExtension(file.name))) throw new Error('Choose a supported sample and a model with voice cloning')
     if (!file.size || file.size > 25 * 1024 * 1024) throw new Error('Voice samples must be between 1 byte and 25 MB')
     const form = new FormData(); form.set('model', model); form.set('file', file)
-    const result = await (await this.api(config, '/audio/voices', form)).json()
+    const result = await (await this.api(config, '/audio/voices', form,signal)).json()
     if (typeof result.id !== 'string' || !/^vv_[\w-]+$/.test(result.id) || result.model !== model) throw new Error('Invalid Venice voice handle')
     const details = entry?.model_spec?.voice_cloning as { retention_days?: number }
     const voice: VoiceHandle = { id: result.id, model, name: name.trim().slice(0,100) || 'My cloned voice', origin: config.origin, credentialId: await this.credential(config), createdAt: Date.now(), expiresAt: Date.now() + (Number(details.retention_days) || 7) * 86400000 }

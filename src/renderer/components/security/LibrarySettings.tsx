@@ -8,6 +8,7 @@ import { exportVault,importVault } from '@/packages/vault/backup'
 import type { AssetHeader,AssetInfo } from '@/packages/vault/chunk-store'
 import { SettingsSection } from '@/components/settings/SettingsLayout'
 import { ScopeUnlock } from './ScopeUnlock'
+import { ProtectedAreaUnlocks } from './ProtectedAreaUnlocks'
 type Row={header:AssetHeader;info?:AssetInfo}
 const size=(bytes:number)=>`${(bytes/1048576).toFixed(bytes<1048576?2:1)} MB`
 export function LibrarySettings(){
@@ -37,7 +38,7 @@ export function LibrarySettings(){
     <Text size="sm" c="dimmed">{ft('Media is read only when opened. New media uses authenticated encryption on supported native devices; migrate older files below. Public means no extra app PIN, not unencrypted disk storage.')}</Text>
     <Text size="xs" c="dimmed">{ft('For generated images, protection applies to the whole creation, including its prompt and batch. Audio and video protection also includes their Studio record.')}</Text>
     <ScrollArea type="auto"><SegmentedControl aria-label={ft('Library protection')} value={section} onChange={value=>{if(!busy)setSection(value)}} data={[{value:'public',label:ft('Public library')},{value:'protected',label:ft('Protected library')}]}/></ScrollArea>
-    {section==='protected'&&!vault.keys.isUnlocked('app')&&<><Text size="sm">{ft('Configure unlock methods above to use the protected library.')}</Text><ScopeUnlock keys={vault.keys}/></>}
+    {section==='protected'&&<ProtectedAreaUnlocks vault={vault}/>}
     <Group><Button size="xs" variant="default" disabled={busy||!selected.length} onClick={()=>void rewrap(section==='public'?'app':'public')}>{section==='public'?ft('Protect selected files'):ft('Move to public library')}</Button><Button size="xs" color="red" variant="subtle" disabled={busy||!selected.length} onClick={()=>setConfirm(true)}>{ft('Delete selected files')}</Button></Group>
     {rows.map(row=><Group key={row.header.id} wrap="nowrap" align="start"><Checkbox aria-label={ft('Select library item')} disabled={!row.info||busy} checked={selected.includes(row.header.id)} onChange={event=>{const checked=event.currentTarget.checked;setSelected(ids=>checked?[...ids,row.header.id]:ids.filter(id=>id!==row.header.id))}}/><Stack gap={0} style={{flex:1,minWidth:0}}><Text size="sm" lineClamp={2}>{row.info?.name||ft('Locked content')}</Text><Text size="xs" c="dimmed">{size(row.header.bytes)}{row.info?` · ${row.info.mime}`:''}</Text></Stack>{row.info&&<Button size="compact-xs" variant="subtle" disabled={busy} onClick={()=>void openPreview(row)}>{ft('Preview')}</Button>}</Group>)}
     {!rows.length&&<Text size="sm" c="dimmed">{ft('No saved content in this category')}</Text>}{next!==null&&<Button variant="subtle" disabled={busy} onClick={()=>void load(next).catch(error=>setError(String(error)))}>{ft('Show more')}</Button>}

@@ -21,6 +21,7 @@ export class VaultDatabase implements AssetIndex {
   }
   async *all(){let after:string|undefined;while(true){const tx=(await this.db()).transaction('assets');const values=await request(tx.objectStore('assets').getAll(after?IDBKeyRange.lowerBound(after,true):undefined,128)) as AssetHeader[];if(!values.length)return;for(const header of values)yield header;after=values[values.length-1].id}}
   async aliases(){const tx=(await this.db()).transaction('aliases');return await request(tx.objectStore('aliases').getAllKeys()) as string[]}
+  async scopes(){const tx=(await this.db()).transaction('settings');return (await request(tx.objectStore('settings').getAllKeys())).filter(key=>typeof key==='string'&&key.startsWith('scope:')).map(key=>String(key).slice(6))}
   async getSetting<T>(key:string):Promise<T|null>{const tx=(await this.db()).transaction('settings');const found=await request(tx.objectStore('settings').get(key)) as {value:T}|undefined;return found?.value??null}
   async setSetting<T>(key:string,value:T){const tx=(await this.db()).transaction('settings','readwrite');const done=complete(tx);tx.objectStore('settings').put({key,value});await done}
 }

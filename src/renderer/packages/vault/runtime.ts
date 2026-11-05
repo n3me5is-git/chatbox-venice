@@ -8,15 +8,16 @@ import { ProtectedImageRecords } from './image-records'
 import { ProjectAccess } from './project-access'
 import { ProtectedMediaRecords } from './media-records'
 import type { MediaRecord } from '@shared/providers/definitions/models/venice/media'
+import type { DeviceProtector } from './device'
 const runtimes=new WeakMap<Platform,VaultRuntime>()
 const mimeInfo=(mime:string,name='Saved content'):AssetInfo=>({name,mime,kind:mime.startsWith('image/')?'image':mime.startsWith('video/')?'video':mime.startsWith('audio/')?'audio':'document'})
 export class VaultRuntime {
-  readonly db=new VaultDatabase();readonly keys=new VaultKeys(this.db,deviceProtector());readonly assets:EncryptedChunkStore
+  readonly db:VaultDatabase;readonly keys:VaultKeys;readonly assets:EncryptedChunkStore
   readonly legacy:{get:(key:string)=>Promise<string|null>;set:(key:string,value:string)=>Promise<void>;remove:(key:string)=>Promise<void>;keys:()=>Promise<string[]>}
   private ready:Promise<boolean>|undefined
   projects!:ProjectAccess
   media!:ProtectedMediaRecords
-  constructor(private readonly platform:Platform){this.legacy={get:platform.getStoreBlob.bind(platform),set:platform.setStoreBlob.bind(platform),remove:platform.delStoreBlob.bind(platform),keys:platform.listStoreBlobKeys.bind(platform)};this.assets=new EncryptedChunkStore(this.legacy,this.db,async scope=>{await this.projects?.assertApp();return this.keys.key(scope)})}
+  constructor(private readonly platform:Platform,options:{device?:DeviceProtector;databaseName?:string}={}){this.db=new VaultDatabase(options.databaseName);this.keys=new VaultKeys(this.db,options.device||deviceProtector());this.legacy={get:platform.getStoreBlob.bind(platform),set:platform.setStoreBlob.bind(platform),remove:platform.delStoreBlob.bind(platform),keys:platform.listStoreBlobKeys.bind(platform)};this.assets=new EncryptedChunkStore(this.legacy,this.db,async scope=>{await this.projects?.assertApp();return this.keys.key(scope)})}
   async find(alias:string){return await this.assets.header(alias)||(this.platform.type==='desktop'&&alias.includes(':')?this.db.byAlias(alias.replace(/:/g,'')):null)}
   available(){return this.ready ||= (async()=>{
     // Once data exists, losing the device key is an error, never a plaintext fallback.
@@ -37,7 +38,8 @@ export class VaultRuntime {
     try{return await this.putBytes(alias,responseBytes(response,signal),mime,signal)}catch(error){await response.body?.cancel().catch(()=>{});throw error}
   }
   async migrate(alias:string){if(!await this.available())throw new Error('Device encryption is unavailable');if(await this.db.byAlias(alias))return false
-    const value=await this.legacy.get(alias);const mime=/^data:((?:image|audio|video)\/[^;,]+);base64,/.exec(value||'')?.[1];if(!value||!mime)return false
+    let value=await this.legacy.get(alias);if(value&&alias.startsWith('picture')&&!value.startsWith('data:')&&/^[A-Za-z0-9+/=\r\n]+$/.test(value)){const mime=value.startsWith('/9j/')?'image/jpeg':value.startsWith('UklGR')?'image/webp':value.startsWith('R0lGOD')?'image/gif':'image/png';value=`data:${mime};base64,${value}`}
+    const mime=/^data:((?:image|audio|video)\/[^;,]+);base64,/.exec(value||'')?.[1];if(!value||!mime)return false
     const imageId=/^picture(?::)?image-gen(?::)?([a-f0-9-]{36})/.exec(alias)?.[1],mediaId=/^venice-media(?::)?([a-f0-9-]{36})/.exec(alias)?.[1]
     const record=imageId?await this.platform.getImageGenerationStorage().getById(imageId):mediaId?await this.media?.get(mediaId):null
     const info={...mimeInfo(mime),...(record?{name:record.prompt.slice(0,100)||'Saved content',prompt:record.prompt,model:typeof record.model==='object'?record.model.modelId:String(record.model),sourceId:record.id}:{})}
@@ -52,8 +54,8 @@ export class VaultRuntime {
     const meta=platform.getSessionMetaStorage(),rows=platform.getSessionRowStore();this.projects=new ProjectAccess(this.db,this.keys,meta,getValue)
     const guardedMeta=this.projects.protectMetadata(),guardedRows=this.projects.protectRows(rows);platform.getSessionMetaStorage=()=>guardedMeta;platform.getSessionRowStore=()=>guardedRows
     const sessionGuard=async(key:string)=>{if(key.startsWith('session:'))await this.projects.assertSession(key.slice(8))}
-    platform.getStoreValue=async key=>{if(key===mediaKey)return this.media.read();await sessionGuard(key);const result=await getValue(key);await sessionGuard(key);return result}
-    platform.setStoreValue=async(key,value)=>{if(key===mediaKey){if(!Array.isArray(value))throw new Error('Invalid media records');return this.media.write(value)}await sessionGuard(key);return setValue(key,value)}
+    platform.getStoreValue=async key=>{if(key===mediaKey){await this.projects.assertApp();return this.media.read()}await sessionGuard(key);const result=await getValue(key);await sessionGuard(key);return result}
+    platform.setStoreValue=async(key,value)=>{if(key===mediaKey){await this.projects.assertApp();if(!Array.isArray(value))throw new Error('Invalid media records');return this.media.write(value)}await sessionGuard(key);return setValue(key,value)}
     platform.delStoreValue=async key=>{await sessionGuard(key);return removeValue(key)}
     platform.getAllStoreValues=async()=>{const values=await getAll();for(const key of Object.keys(values)){if(!key.startsWith('session:'))continue;const scope=await this.projects.sessionScope(key.slice(8));if(scope&&!this.keys.isUnlocked(scope))delete values[key]}return values}
     platform.setAllStoreValues=async values=>{for(const key of Object.keys(values))await sessionGuard(key);return setAll(values)}

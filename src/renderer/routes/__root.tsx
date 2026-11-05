@@ -1,6 +1,7 @@
 import NiceModal from '@ebay/nice-modal-react'
 import { AppGate,AppLockButton } from '@/components/security/AppGate'
 import { useProjectAccessState } from '@/components/security/ProjectGate'
+import { installedVaultFor } from '@/packages/vault/runtime'
 import {
   Avatar,
   Button,
@@ -185,6 +186,7 @@ function SettingsModalErrorFallback({ retry }: { error: Error; retry: () => void
 }
 
 function Root() {
+  useEffect(()=>{const vault=installedVaultFor(platform);if(!vault)return;let unlocked=JSON.stringify(vault.keys.unlockedScopes());return vault.keys.subscribe(()=>{const next=JSON.stringify(vault.keys.unlockedScopes());if(next===unlocked)return;unlocked=next;void rendererApplication.queryClient.resetQueries().catch(()=>{})})},[])
   useScreenChange()
   const { t } = useTranslation()
   const startupTranslation = useRef(t)

@@ -1,5 +1,13 @@
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 export const forkEnglish = {
+  "App unlock": "App unlock",
+  "Protected project": "Protected project",
+  "Protected area to unlock": "Protected area to unlock",
+  "Unlock methods can be configured in Data & Backup and in each project’s protection settings.": "Unlock methods can be configured in Data & Backup and in each project’s protection settings.",
+  "Use a recording between {{min}} and {{max}} seconds": "Use a recording between {{min}} and {{max}} seconds",
+  "This model cannot use recordings from this device. Upload a supported audio file.": "This model cannot use recordings from this device. Upload a supported audio file.",
+  "Unable to prepare the recording": "Unable to prepare the recording",
+  "Record locally for up to 3 minutes. Nothing is uploaded until you confirm the selected action.": "Record locally for up to 3 minutes. Nothing is uploaded until you confirm the selected action.",
   "Locking and stopping active generations…": "Locking and stopping active generations…",
   "For generated images, protection applies to the whole creation, including its prompt and batch. Audio and video protection also includes their Studio record.": "For generated images, protection applies to the whole creation, including its prompt and batch. Audio and video protection also includes their Studio record.",
   "Locking stops active generations and closes previews and approval dialogs.": "Locking stops active generations and closes previews and approval dialogs.",
@@ -477,6 +485,7 @@ export const forkEnglish = {
   "Uncensored": "Uncensored"
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+
 
 
 

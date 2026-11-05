@@ -18,6 +18,7 @@ export class VaultKeys {
   async capabilities():Promise<DeviceCapabilities>{return this.device.capabilities()}
   async status(scope='app'):Promise<UnlockStatus>{const record=await this.record(scope);return {configured:!!record,pin:!!record?.pin,biometric:!!record?.biometric,unlocked:this.keys.has(scope),retryAt:record?.retryAt||0}}
   isUnlocked(scope:string){return scope==='public'||this.keys.has(scope)}
+  unlockedScopes(){return [...this.keys.keys()].filter(scope=>scope!=='public').sort()}
   async key(scope:string):Promise<CryptoKey>{if(this.keys.has(scope))return this.keys.get(scope)!;if(scope!=='public')throw new VaultLockedError(scope)
     return this.serial(async()=>{if(this.keys.has(scope))return this.keys.get(scope)!;let record=await this.record(scope)
       if(!record){if(!(await this.device.capabilities()).encryption)throw new Error('Device encryption is unavailable. Configure a device screen lock first.');const raw=crypto.getRandomValues(new Uint8Array(32));try{record={version:1,id:scope,device:await this.device.protect(encode64(raw),false)};await this.settings.setSetting(`scope:${scope}`,record);const key=await aesKey(raw,true);this.keys.set(scope,key);return key}finally{raw.fill(0)}}

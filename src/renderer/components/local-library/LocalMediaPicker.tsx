@@ -7,6 +7,7 @@ import { forkT as ft } from '@/i18n/fork'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { acceptsLocalFile, localLibraryFile, localLibraryPage, type LibraryKind, type LocalLibraryItem } from '@/packages/local-library'
 import { ScopeUnlock } from '@/components/security/ScopeUnlock'
+import { ProtectedAreaUnlocks } from '@/components/security/ProtectedAreaUnlocks'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import platform from '@/platform'
 import { useSyncExternalStore } from 'react'
@@ -24,7 +25,7 @@ export const LocalMediaPicker=NiceModal.create(({accept='',multiple=false}:{acce
   return <AdaptiveModal opened={modal.visible} onClose={cancel} title={ft('Choose from local library')} size="lg"><Stack>
     <Text size="sm" c="dimmed">{ft('Files stay on this device until you submit the chat or generation. Only selected items are loaded into memory.')}</Text>
     <ScrollArea type="auto"><SegmentedControl aria-label={ft('Library content type')} value={kind} onChange={value=>setKind(value as LibraryKind)} data={[{value:'vault',label:ft('Saved media')},{value:'image',label:ft('Image sessions')},{value:'audio',label:ft('Audio')},{value:'video',label:'Video'},{value:'document',label:ft('Saved text')}]}/></ScrollArea>
-    {kind==='vault'&&<><SegmentedControl aria-label={ft('Library protection')} value={protection} onChange={value=>setProtection(value as 'public'|'protected')} data={[{value:'public',label:ft('Public library')},{value:'protected',label:ft('Protected library')}]}/>{protection==='protected'&&!vault.keys.isUnlocked('app')&&<ScopeUnlock keys={vault.keys}/>}</>}
+    {kind==='vault'&&<><SegmentedControl aria-label={ft('Library protection')} value={protection} onChange={value=>setProtection(value as 'public'|'protected')} data={[{value:'public',label:ft('Public library')},{value:'protected',label:ft('Protected library')}]}/>{protection==='protected'&&<ProtectedAreaUnlocks vault={vault}/>}</>}
     {kind==='document'&&<Text size="xs" c="dimmed">{ft('Saved document attachments are available as extracted text. Original PDF or Office files must be selected from the device.')}</Text>}
     {items.map(item=><Group key={item.id} wrap="nowrap">{item.thumbnail&&<div style={{width:52,height:52,flexShrink:0}}><ImageInStorage storageKey={item.thumbnail}/></div>}<Checkbox label={item.name} checked={selected.includes(item.id)} onChange={event=>{const checked=event.currentTarget.checked;setSelected(current=>checked?(multiple?[...current,item.id]:[item.id]):current.filter(id=>id!==item.id))}}/></Group>)}
     {!items.length&&!busy&&<Text size="sm">{ft('No saved content in this category')}</Text>}
