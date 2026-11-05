@@ -76,7 +76,10 @@ try {
   await click(byLabel("Aspect ratio")); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === '16:9')`)
   await click(byLabel("Content filter")); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === "Off")`)
   await click(byText("Parameters for this call")); await fill("Seed for this generation", '42')
-  await click(byLabel('Remember similar generations after approval'))
+  await evaluate(`window.__radioEvents=[]; ['pointerdown','pointerup','click','change'].forEach(type=>document.addEventListener(type,e=>window.__radioEvents.push({type,tag:e.target.tagName,name:e.target.name,value:e.target.value,checked:e.target.checked}),true))`)
+  await click(`[...document.querySelectorAll('label')].findLast(e=>e.textContent==='Remember similar generations after approval')`)
+  try { await wait(()=>evaluate(`[...document.querySelectorAll('input[type="radio"][value="similar"]')].at(-1)?.checked`),'Similar approval radio was not selected') }
+  catch(error) { const diagnostic=await evaluate(`({events:window.__radioEvents,radios:[...document.querySelectorAll('input[type="radio"]')].map(e=>({id:e.id,name:e.name,value:e.value,checked:e.checked})),body:document.body.innerText})`); await writeFile(path.join(output,'radio-failure.json'),JSON.stringify(diagnostic,null,2)); throw new Error(error.message+': '+JSON.stringify(diagnostic)) }
   await delay(500)
   await writeFile(path.join(output, 'image-hitl-mobile.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
   await evaluate(`window.__hitlEvents=[]; ['pointerdown','pointerup','click'].forEach(type => document.addEventListener(type, e => window.__hitlEvents.push({type,text:e.target.textContent?.slice(0,100),tag:e.target.tagName,x:e.clientX,y:e.clientY}),true))`)
