@@ -39,7 +39,7 @@ jobs:
         if: inputs.test_scope == 'unit'
         run: pnpm test:unit
       - name: Check private Android signing backup logic
-        run: node --test scripts/android-signing.test.mjs
+        run: node --test scripts/android-signing.test.mjs scripts/android-signing-migration.test.mjs
 
 
   ui:

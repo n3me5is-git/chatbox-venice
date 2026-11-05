@@ -12,7 +12,7 @@ ADB needs Platform Tools, not Android Studio or the full build SDK. After author
 
 ## Preserve signing identity
 
-In-place updates require the same key. The workflow supports these GitHub repository secrets:
+In-place updates require the same key. The workflow requires GitHub repository secrets. Configure one `ANDROID_SIGNING_IDENTITY` JSON secret with all four fields below, or configure the four individual secrets. Do not use both forms:
 
 | Secret | Value |
 | --- | --- |
@@ -23,7 +23,7 @@ In-place updates require the same key. The workflow supports these GitHub reposi
 
 Configure them in **Settings → Secrets and variables → Actions → Repository secrets**. These are not Google accounts and do not contain your Venice key. Incomplete signing configuration fails instead of falling back to another key. A secrets-supplied keystore exists only temporarily on the runner, is removed afterwards, and is never cached or uploaded unencrypted.
 
-Without these secrets, CI reuses the cached personal keystore whose identity was pinned in 1.25.0. The 1.24.2 certificate differs: that APK cannot be updated in place with later releases. Export its data and reinstall if necessary. For a new installation, start with the latest release.
+Without complete secrets, CI refuses to build another APK. Cache fallback and automatic key generation are disabled. See [the signing migration procedure](android-signing-migration.md) to preserve the existing key. The 1.24.2 certificate differs from 1.25.0 and later; export its data before reinstalling if needed.
 
 GitHub can evict caches; a cache is not a permanent backup. A different/new key does not preserve an older key's identity and may require export, uninstall and reinstall. The **Sign and verify Android package** job prints the public certificate SHA-256 fingerprint. `scripts/android-signing-cert.sha256` pins the 1.25.0 identity: missing fallback keys or a mismatched certificate stop distribution rather than publish an incompatible update. Never put passwords or private material in that file.
 
@@ -41,4 +41,4 @@ node scripts/android-signing.mjs restore android-keystore.aes.json restored-andr
 
 The command refuses to overwrite an existing file. Base64-encode the restored keystore into the GitHub secret. Do not commit it or paste it into chat/logs. Remove the passphrase from the environment afterwards and protect the restored key.
 
-Enable and download the backup before losing the cache. Actions cannot reconstruct a lost private key.
+Finish the signing migration and retain a protected backup before removing recovery material. Actions cannot reconstruct a lost private key.

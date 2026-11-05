@@ -119,6 +119,14 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+      - name: Require repository signing secrets
+        env:
+          ANDROID_SIGNING_IDENTITY: ${{ secrets.ANDROID_SIGNING_IDENTITY }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: node --input-type=module -e "import { signingSecrets } from './scripts/android-signing.mjs'; signingSecrets(process.env)"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -136,15 +144,12 @@ jobs:
       - run: pnpm exec cap add android
       - run: node scripts/configure-fork-android.mjs
       - run: pnpm exec cap sync android
-      - uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: android-debug-keystore-${{ github.repository_id }}
       - name: Assemble personal release APK
         run: chmod +x android/gradlew && cd android && ./gradlew assembleRelease --no-daemon
       - name: Sign and verify Android package
         id: sign
         env:
+          ANDROID_SIGNING_IDENTITY: ${{ secrets.ANDROID_SIGNING_IDENTITY }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
