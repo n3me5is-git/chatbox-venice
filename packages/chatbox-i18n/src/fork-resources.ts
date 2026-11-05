@@ -1,5 +1,6 @@
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 export const forkEnglish = {
+  "Change PIN or passphrase (optional)": "Change PIN or passphrase (optional)",
   "App unlock": "App unlock",
   "Protected project": "Protected project",
   "Protected area to unlock": "Protected area to unlock",
@@ -485,6 +486,7 @@ export const forkEnglish = {
   "Uncensored": "Uncensored"
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+
 
 
 

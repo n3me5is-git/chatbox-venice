@@ -46,7 +46,14 @@ export class EncryptedChunkStore {
   }
   async rewrap(ref:string,scope:string){const header=await this.header(ref);if(!header||header.status!=='ready')throw new Error('Encrypted item not found');const raw=await open(await this.scopeKey(header.scope),header.key,`${header.id}:key:${header.scope}:${header.alias||''}`);try{const wrapped=await seal(await this.scopeKey(scope),raw,`${header.id}:key:${scope}:${header.alias||''}`);await this.index.put({...header,scope,key:wrapped})}finally{raw.fill(0)}}
   async remove(ref:string){const header=await this.header(ref);if(!header)return;await this.index.remove(header.id);for(let n=0;n<header.chunks;n++)await this.blobs.remove(keyFor(header.id,n))}
-  async cleanupOrphans(){const live=new Set<string>();for await(const header of this.index.all()){if(header.status==='writing'&&header.createdAt<Date.now()-86400000)await this.index.remove(header.id);else live.add(header.id)}let removed=0;for(const key of await this.blobs.keys()){const match=/^vault-v1-([a-f0-9-]{36})-chunk-\d+$/.exec(key);if(match&&!live.has(match[1])&&!await this.index.get(match[1])){await this.blobs.remove(key);removed++}}return removed}
+  async cleanupOrphans(){
+    const live=new Set<string>();for await(const header of this.index.all()){if(header.status==='writing'&&header.createdAt<Date.now()-86400000)await this.index.remove(header.id);else live.add(header.id)}
+    let removed=0;const keys=await this.blobs.keys(),expired=new Set<string>()
+    for(const key of keys){const match=/^vault-backup-lease-([a-f0-9-]{36})$/.exec(key);if(!match)continue;try{const lease=JSON.parse(await this.blobs.get(key)||'null');if(Number.isFinite(lease?.updatedAt)&&lease.updatedAt<Date.now()-86400000)expired.add(match[1])}catch{/* Never remove unrecognized files. */}}
+    for(const key of keys){const match=/^vault-v1-([a-f0-9-]{36})-chunk-\d+$/.exec(key),stage=/^vault-backup-stage-([a-f0-9-]{36})-\d+$/.exec(key);if(match&&!live.has(match[1])&&!await this.index.get(match[1])||stage&&expired.has(stage[1])){await this.blobs.remove(key);removed++}}
+    for(const id of expired)await this.blobs.remove('vault-backup-lease-'+id)
+    return removed
+  }
 }
 export async function* responseBytes(response:Response,signal?:AbortSignal){const reader=response.body?.getReader();if(!reader)throw new Error('Empty media response');let completed=false;try{while(true){signal?.throwIfAborted();const next=await reader.read();if(next.done){completed=true;return}yield next.value}}finally{if(!completed)await reader.cancel().catch(()=>{});reader.releaseLock()}}
 export async function* dataUrlBytes(url:string){const match=/^data:([^;,]+);base64,([a-zA-Z0-9+/=\r\n]+)$/.exec(url);if(!match)throw new Error('Invalid local media data');const text=match[2].replace(/[\r\n]/g,'');for(let offset=0;offset<text.length;offset+=65536)yield decode64(text.slice(offset,offset+65536))}

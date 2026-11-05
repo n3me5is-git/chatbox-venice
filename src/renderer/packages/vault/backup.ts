@@ -19,8 +19,9 @@ export async function* exportVault(assets:EncryptedChunkStore,password:string,sc
 async function* lines(file:Blob,signal?:AbortSignal){const reader=file.stream().getReader();const decoder=new TextDecoder('utf-8',{fatal:true});let pending='';try{while(true){signal?.throwIfAborted();const value=await reader.read();if(value.done)break;pending+=decoder.decode(value.value,{stream:true});let newline:number;while((newline=pending.indexOf('\n'))>=0){if(newline>MAX_LINE)throw new Error('Backup record exceeds the size limit');yield pending.slice(0,newline);pending=pending.slice(newline+1)}if(pending.length>MAX_LINE)throw new Error('Backup record exceeds the size limit')}pending+=decoder.decode();if(pending.length)throw new Error('The backup is incomplete')}finally{await reader.cancel().catch(()=>{});reader.releaseLock()}}
 /** Stage only encrypted records. Verify the complete file before publishing any restored content. */
 export async function importVault(assets:EncryptedChunkStore,temporary:CipherBlobStore,file:Blob,password:string,targetScope:string,signal?:AbortSignal){
-  passwordCheck(password);const id=crypto.randomUUID(),stage=(n:number)=>`vault-backup-stage-${id}-${n}`;let staged=0;const imported:string[]=[]
+  passwordCheck(password);const id=crypto.randomUUID(),stage=(n:number)=>`vault-backup-stage-${id}-${n}`;let staged=0;const imported:string[]=[],lease=`vault-backup-lease-${id}`
   try{
+    await temporary.set(lease,JSON.stringify({updatedAt:Date.now()}))
     let prefix:string|undefined,key:CryptoKey|undefined,footer=false,expectedAssets=0,started=0,ended=0,openAsset=false
     for await(const line of lines(file,signal)){
       if(prefix===undefined){const header=JSON.parse(line);if(header.format!=='chatbox-vault-backup'||header.version!==1||typeof header.salt!=='string'||decode64(header.salt).length!==16)throw new Error('Unsupported encrypted library backup');prefix=line;key=await pinKey(password,decode64(header.salt));continue}
@@ -31,7 +32,7 @@ export async function importVault(assets:EncryptedChunkStore,temporary:CipherBlo
       else if(value.type==='asset-end'){if(!openAsset||!Number.isSafeInteger(value.bytes)||!Number.isInteger(value.chunks)||value.chunks<1||value.bytes<1||value.bytes>assets.maximum)throw new Error('Invalid backup item length');openAsset=false;ended++}
       else if(value.type==='chunk'){if(!openAsset||typeof value.data!=='string'||value.data.length>1500000)throw new Error('Invalid backup content block')}
       else throw new Error('Unknown backup record')
-      await temporary.set(stage(staged++),line)
+      await temporary.set(stage(staged++),line);if(staged%32===0)await temporary.set(lease,JSON.stringify({updatedAt:Date.now()}))
     }
     if(!footer||!key||!prefix)throw new Error('The encrypted backup is incomplete')
     let at=0
@@ -43,5 +44,5 @@ export async function importVault(assets:EncryptedChunkStore,temporary:CipherBlo
     }
     if(imported.length!==expectedAssets)throw new Error('Backup item count mismatch');return imported.length
   }catch(error){for(const ref of imported)await assets.remove(ref).catch(()=>{});throw error}
-  finally{for(let n=0;n<staged;n++)await temporary.remove(stage(n)).catch(()=>{})}
+  finally{for(let n=0;n<staged;n++)await temporary.remove(stage(n)).catch(()=>{});await temporary.remove(lease).catch(()=>{})}
 }

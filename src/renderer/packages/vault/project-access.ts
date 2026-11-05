@@ -12,7 +12,7 @@ export class ProjectAccess {
   private appEnabled:Promise<boolean>|undefined
   private libraryEpoch=0
   private libraryCache:Promise<Set<string>>|undefined
-  constructor(readonly settings:KeySettings,readonly keys:VaultKeys,readonly metadata:SessionMetaRepositoryPort,private readonly readValue:(key:string)=>Promise<unknown>,private readonly library?:{scan:(folders:ReadonlySet<string>)=>Promise<Set<string>>;beforeProtect?:(folder:string,scope:string)=>Promise<void>}){keys.subscribe(()=>{this.cached=undefined;this.appEnabled=undefined;this.invalidateLibrary()})}
+  constructor(readonly settings:KeySettings,readonly keys:VaultKeys,readonly metadata:SessionMetaRepositoryPort,private readonly readValue:(key:string)=>Promise<unknown>,private readonly library?:{scan:(folders:ReadonlySet<string>)=>Promise<Set<string>>;drafts?:(folders:ReadonlySet<string>)=>Promise<Set<string>>;beforeProtect?:(folder:string,scope:string)=>Promise<void>}){keys.subscribe(()=>{this.cached=undefined;this.appEnabled=undefined;this.invalidateLibrary()})}
   invalidateLibrary(){this.libraryEpoch++;this.libraryCache=undefined}
   /** Library discovery has no selected chat context. Hide references owned by locked projects. */
   async assertLibraryKey(alias?:string):Promise<void>{await this.assertApp();if(!alias||!this.library)return
@@ -20,6 +20,7 @@ export class ProjectAccess {
     const blocked=await(this.libraryCache ||= (async()=>{const folders=new Set<string>();for(const [folder,policy] of Object.entries(await this.policies()))if(!this.keys.isUnlocked(policy.scope))folders.add(folder);return folders.size?this.library!.scan(folders):new Set<string>()})())
     if(epoch!==this.libraryEpoch)return this.assertLibraryKey(alias)
     if(blocked.has(alias)||blocked.has(alias.replace(/:/g,'')))throw new VaultLockedError('project')
+    if(this.library.drafts){const folders=new Set<string>();for(const [folder,policy] of Object.entries(await this.policies()))if(!this.keys.isUnlocked(policy.scope))folders.add(folder);if(folders.size){const current=await this.library.drafts(folders);if(epoch!==this.libraryEpoch)return this.assertLibraryKey(alias);if(current.has(alias)||current.has(alias.replace(/:/g,'')))throw new VaultLockedError('project')}}
   }
   async libraryKeyVisible(alias?:string){try{await this.assertLibraryKey(alias);return true}catch(error){if(error instanceof VaultLockedError)return false;throw error}}
   async isApplicationLocked(){const enabled=await(this.appEnabled ||=this.settings.getSetting<boolean>('app-lock-enabled').then(value=>value===true));return enabled&&!this.keys.isUnlocked('app')}

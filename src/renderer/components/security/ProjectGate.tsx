@@ -21,5 +21,5 @@ export function ProjectGate({children,sessionId,folderId}:{children:ReactNode;se
   if(!access.ready)return <Stack align="center" p="xl"><Loader/></Stack>
   if(access.error)return <Box p="lg"><Alert color="red">{access.error}</Alert></Box>
   if(access.locked&&access.scope&&vault)return <Stack align="center" justify="center" h="100%" p="lg"><Box maw={380} w="100%"><ScopeUnlock keys={vault.keys} scope={access.scope} title={ft('Unlock this project')}/></Box></Stack>
-  return <ProjectContext.Provider value={{scope:access.scope,draftKey:access.scope&&folderId&&(!sessionId||sessionId==='new')?'private-new:'+folderId:undefined}}>{children}</ProjectContext.Provider>
+  return <ProjectContext.Provider value={{scope:access.scope,draftKey:folderId&&(!sessionId||sessionId==='new')?'private-new:'+folderId:undefined}}>{children}</ProjectContext.Provider>
 }
