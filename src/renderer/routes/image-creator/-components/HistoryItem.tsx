@@ -3,6 +3,7 @@ import type { ImageGeneration } from '@shared/types'
 import { IconPhoto, IconPhotoOff, IconTrash } from '@tabler/icons-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { forkT as ft } from '@/i18n/fork'
 import { useBlob } from '@/hooks/useBlob'
 import { blobToDataUrl, isDirectImageSource } from './constants'
 
@@ -72,6 +73,7 @@ export function HistoryItem({ record, isActive, isMobile, modelDisplayName, onCl
 
       {/* Prompt + Model name + Date + Delete */}
       <Flex align="center" justify="space-between" gap={4} px={2}>
+        {record.protection&&<Text size="xs" c="dimmed">{record.protectedRecord?ft('Locked creation'):ft('Protected creation')}</Text>}
         {record.prompt && (
           <Text size={isMobile ? 'sm' : 'xs'} lineClamp={1} title={record.prompt}>
             {record.prompt}

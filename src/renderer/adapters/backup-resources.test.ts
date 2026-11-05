@@ -1,7 +1,8 @@
 import type { BackupResourceRecord, BackupWorkspace } from '@chatbox/core/backup-v3'
 import type { ByteSink, ClosableByteSource } from '@chatbox/core/io'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createRendererBackupResources } from './backup-resources'
+import { createRendererBackupResources,openVaultBackupResource } from './backup-resources'
+import type { VaultRuntime } from '@/packages/vault/runtime'
 
 const platform = vi.hoisted(() => ({
   type: 'web',
@@ -12,6 +13,10 @@ const platform = vi.hoisted(() => ({
 }))
 vi.mock('@/platform', () => ({ default: platform }))
 const encode = (value: string) => new TextEncoder().encode(value)
+it('streams encrypted public files into conversation backups and refuses plaintext export of protected files',async()=>{
+  const header={id:'one',scope:'public',bytes:3};const read=vi.fn(async function*(){yield new Uint8Array([1,2,3])});const vault={find:async()=>header,assets:{info:async()=>({mime:'image/png'}),read}} as unknown as VaultRuntime
+  const resource=await openVaultBackupResource(vault,'saved');expect(resource?.mimeType).toBe('image/png');expect(read).not.toHaveBeenCalled();const result=[];for await(const bytes of resource!.source.chunks!())result.push(...bytes);expect(result).toEqual([1,2,3]);header.scope='app';await expect(openVaultBackupResource(vault,'saved')).rejects.toThrow('encrypted library backup')
+})
 function combine(parts: Uint8Array[]) {
   const result = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0))
   let offset = 0

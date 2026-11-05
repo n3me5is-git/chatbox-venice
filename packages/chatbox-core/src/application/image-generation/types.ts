@@ -3,6 +3,8 @@ import type { BlobStoragePort, ImageGenerationStoragePort } from '../../ports'
 import type { ImageGeneration, ImageGenerationModel, ImageGenerationSource } from '../../types'
 
 export interface GenerateImageParams {
+  /** Optional host storage scope; does not change the provider request. */
+  protection?: string
   prompt: string
   referenceImages: string[]
   model: ImageGenerationModel

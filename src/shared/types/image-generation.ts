@@ -31,6 +31,8 @@ export type ImageGenerationSource = z.infer<typeof ImageGenerationSourceSchema>
 
 // Image generation record schema
 export const ImageGenerationSchema = z.object({
+  protection: z.string().optional(),
+  protectedRecord: z.boolean().optional(),
   id: z.string(),
   prompt: z.string(),
   referenceImages: z.array(z.string()), // storage keys

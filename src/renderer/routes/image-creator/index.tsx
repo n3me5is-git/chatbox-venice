@@ -1,5 +1,8 @@
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
+import { ScopeUnlock,useScopeStatus } from '@/components/security/ScopeUnlock'
+import { vaultRuntimeFor } from '@/packages/vault/runtime'
+import { lockedImageRecord } from '@/packages/vault/image-records'
 import NiceModal from '@ebay/nice-modal-react'
 import {
   ActionIcon,
@@ -10,6 +13,7 @@ import {
   Menu,
   Group,
   NumberInput,
+  Checkbox,
   ScrollArea,
   Stack,
   Text,
@@ -51,6 +55,7 @@ import { cancelGeneration, createAndGenerate, retryGeneration } from '@/stores/i
 import {
   deleteRecord,
   IMAGE_GEN_LIST_QUERY_KEY,
+  IMAGE_GEN_QUERY_KEY,
   imageGenerationStore,
   useCurrentGeneratingId,
   useCurrentRecordId,
@@ -233,6 +238,9 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   const imageModelGroups = useMemo(() => onlyVenice ? allImageModelGroups.filter(group => group.providerId === 'venice') : allImageModelGroups, [allImageModelGroups, onlyVenice])
   const Frame = embedded ? ImageCreatorEmbeddedFrame : Page
   const [batchCount, setBatchCount] = useState(1)
+  const [saveProtected,setSaveProtected]=useState(false)
+  const vault=vaultRuntimeFor(platform)
+  const {revision:protectionRevision}=useScopeStatus(vault.keys)
   const hasLicense = useSettingsStore((s) => Boolean(s.licenseKey))
   const hasExpiredLicense = useSettingsStore((s) => s.hasExpiredLicense)
   const isLoggedIn = useAuthInfoStore((s) => Boolean(s.accessToken && s.refreshToken))
@@ -289,7 +297,8 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   const currentGeneratingId = useCurrentGeneratingId()
   const currentRecordId = useCurrentRecordId()
   const { data: currentRecordRaw } = useImageGenerationRecord(currentRecordId)
-  const currentRecord = onlyVenice && currentRecordRaw?.model.provider !== 'venice' ? undefined : currentRecordRaw
+  const visibleRecord=currentRecordRaw?.protection&&!vault.keys.isUnlocked(currentRecordRaw.protection)?lockedImageRecord(currentRecordRaw):currentRecordRaw
+  const currentRecord = onlyVenice && visibleRecord?.model.provider !== 'venice' ? undefined : visibleRecord
 
   const {
     data: historyData,
@@ -300,8 +309,9 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   } = useImageGenerationHistory()
 
   const historyCache = useMemo(() => {
-    return (historyData?.pages.flatMap((page) => page.items) ?? []).filter(record => !onlyVenice || record.model.provider === 'venice')
-  }, [historyData, onlyVenice])
+    return (historyData?.pages.flatMap((page) => page.items) ?? []).filter(record => !onlyVenice || record.model.provider === 'venice').map(record=>record.protection&&!vault.keys.isUnlocked(record.protection)?lockedImageRecord(record):record)
+  }, [historyData, onlyVenice, protectionRevision])
+  useEffect(()=>{void queryClient.invalidateQueries({queryKey:[IMAGE_GEN_LIST_QUERY_KEY]});void queryClient.invalidateQueries({queryKey:[IMAGE_GEN_QUERY_KEY]});if(!vault.keys.isUnlocked('app')&&(saveProtected||currentRecordRaw?.protection))setPrompt('')},[protectionRevision])
 
   const isCurrentlyGenerating = currentGeneratingId !== null
 
@@ -338,11 +348,13 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
     }
 
     try {
+      if(saveProtected)await vault.keys.key('app')
       const submission = beginSubmission()
       try {
         await createAndGenerate(
           {
             prompt: prompt.trim(),
+            protection: saveProtected?'app':undefined,
             referenceImages: submission.referenceImages,
             model: { provider: selectedProvider, modelId: selectedModel },
             imageGenerateNum: batchCount,
@@ -358,8 +370,9 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
       if (submission.complete()) setPrompt('')
     } catch (error) {
       log.error('Failed to generate image:', error)
+      toastActions.add(error instanceof Error?error.message:ft('Unable to generate image'))
     }
-  }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, batchCount, t])
+  }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, batchCount, t,saveProtected,vault])
 
   const handleQuickPromptSubmit = useCallback(
     async (quickPrompt: string) => {
@@ -375,8 +388,10 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
       }
 
       try {
+        if(saveProtected)await vault.keys.key('app')
         await createAndGenerate({
           prompt: quickPrompt,
+          protection:saveProtected?'app':undefined,
           referenceImages: [],
           model: {
             provider: selectedProvider,
@@ -389,7 +404,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
         log.error('Failed to generate image:', error)
       }
     },
-    [selectedProvider, selectedModel, isCurrentlyGenerating, batchCount, t]
+    [selectedProvider, selectedModel, isCurrentlyGenerating, batchCount, t,saveProtected,vault]
   )
 
   const handleReportGeneratedImage = useCallback(async (record: ImageGeneration) => {
@@ -409,6 +424,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   const handleHistoryClick = useCallback(
     async (record: ImageGeneration) => {
       imageGenerationStore.getState().setCurrentRecordId(record.id)
+      if(record.protectedRecord)return
       setPrompt(record.prompt)
 
       await replaceReferenceImages(record.referenceImages.map((key) => ({ storageKey: key })))
@@ -513,6 +529,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   )}
 
                   <Group justify="center" wrap="wrap">
+                    {currentRecord.protectedRecord?<ScopeUnlock keys={vault.keys}/>:<Button size="xs" variant="default" disabled={isCurrentlyGenerating} onClick={()=>void(async()=>{try{if(!currentRecord.protection)await vault.keys.key('app');await platform.getImageGenerationStorage().update(currentRecord.id,{protection:currentRecord.protection?undefined:'app'});await queryClient.invalidateQueries({queryKey:[IMAGE_GEN_QUERY_KEY]});await queryClient.invalidateQueries({queryKey:[IMAGE_GEN_LIST_QUERY_KEY]})}catch(error){toastActions.add(error instanceof Error?error.message:String(error))}})()}>{currentRecord.protection?ft('Make this creation public'):ft('Protect this creation')}</Button>}
                     <Button size="xs" variant="default" onClick={() => { setPrompt(currentRecord.prompt); textareaRef.current?.focus() }}>{ft("Reuse prompt")}</Button>
                     {!!currentRecord.generatedImages.length && <Button size="xs" variant="light" onClick={() => {
                       const edit = imageModelGroups.filter(group => group.providerId === currentRecord.model.provider).flatMap(group => group.models.map(model => ({ group, model }))).find(({ model }) => !!model.capabilities?.inputReferences && (model.capabilities.inputReferences.max || 1) > 0)
@@ -636,7 +653,9 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   {selectedProvider === ModelProviderEnum.Venice && <><VeniceBalance /><VeniceImageSettings /></>}
 
                   {/* Toolbar Row */}
-                  <Group justify="space-between" align="end" wrap="wrap"><NumberInput label="Immagini per richiesta" description={ft("Each image may incur a cost")} min={1} max={4} value={batchCount} onChange={value => setBatchCount(Math.min(4, Math.max(1, Number(value) || 1)))} w={170} />
+                  <Checkbox label={ft('Save new creations as protected')} checked={saveProtected} onChange={event=>setSaveProtected(event.currentTarget.checked)}/>
+                  {saveProtected&&!vault.keys.isUnlocked('app')&&<ScopeUnlock keys={vault.keys}/>}
+                  <Group justify="space-between" align="end" wrap="wrap"><NumberInput label={ft('Images per request')} description={ft("Each image may incur a cost")} min={1} max={4} value={batchCount} onChange={value => setBatchCount(Math.min(4, Math.max(1, Number(value) || 1)))} w={170} />
                   {selectedProvider === 'venice' && <><VeniceModelBadges metadata={selectedOption?.vendorMetadata} /><VeniceModelInfo model={selectedOption ? { id: selectedModel, type: String(selectedOption.vendorMetadata?.veniceType || 'image'), model_spec: selectedOption.vendorMetadata } : undefined} /></>}</Group>
                   <InputToolbar
                     isSmallScreen={isSmallScreen}

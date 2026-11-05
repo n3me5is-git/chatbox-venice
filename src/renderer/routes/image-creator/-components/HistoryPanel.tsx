@@ -1,4 +1,6 @@
-import { ActionIcon, Box, Button, Flex, Skeleton, Stack, Text } from '@mantine/core'
+import { ActionIcon, Box, Button, Flex, SegmentedControl, Skeleton, Stack, Text } from '@mantine/core'
+import { useState } from 'react'
+import { forkT as ft } from '@/i18n/fork'
 import type { ImageGeneration } from '@shared/types'
 import { IconChevronRight, IconClock, IconPlus } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
@@ -62,9 +64,12 @@ export function HistoryListContent({
   onDelete,
 }: HistoryListContentProps) {
   const { t } = useTranslation()
+  const [section,setSection]=useState('public')
+  const visible=historyCache.filter(record=>section==='protected'?!!record.protection:!record.protection)
 
   return (
-    <Box className="h-full">
+    <Box className="h-full min-h-0 flex flex-col">
+      <SegmentedControl aria-label={ft('Image history protection')} size="xs" mx="xs" mb="xs" value={section} onChange={setSection} data={[{value:'public',label:ft('Public')},{value:'protected',label:ft('Protected')}]}/>
       {historyLoading && historyCache.length === 0 && (
         <Stack gap="sm" p={0}>
           {[1, 2, 3].map((i) => (
@@ -73,7 +78,7 @@ export function HistoryListContent({
         </Stack>
       )}
 
-      {historyCache.length === 0 && !historyLoading && (
+      {visible.length === 0 && !historyLoading && (
         <Flex direction="column" align="center" py="xl" gap="sm" opacity={0.5}>
           <IconClock size={24} />
           <Text size="xs" ta="center">
@@ -82,10 +87,10 @@ export function HistoryListContent({
         </Flex>
       )}
 
-      {historyCache.length > 0 && (
+      {visible.length > 0 && (
         <Virtuoso<ImageGeneration, HistoryListFooterContext>
-          style={{ height: '100%' }}
-          data={historyCache}
+          style={{ flex:1,minHeight:0 }}
+          data={visible}
           context={{
             hasNextPage,
             isFetchingNextPage,
@@ -115,6 +120,7 @@ export function HistoryListContent({
           }}
         />
       )}
+      {!visible.length&&hasNextPage&&<Button variant="subtle" size="xs" onClick={onLoadMore} loading={isFetchingNextPage}>{t('Load More')}</Button>}
     </Box>
   )
 }

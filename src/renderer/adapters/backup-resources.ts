@@ -4,6 +4,7 @@ import type { ByteSink, ClosableByteSource } from '@chatbox/core/io'
 import { readFileBytes } from '@chatbox/core/io'
 import platform from '@/platform'
 import { bytesToBase64 } from '@/platform/binary-chunks'
+import type { VaultRuntime } from '@/packages/vault/runtime'
 
 const CHUNK = 64 * 1024
 const STRING_LIMIT = 64 * 1024 * 1024
@@ -101,10 +102,19 @@ async function readStored(source: ClosableByteSource): Promise<string> {
   }
 }
 
+export async function openVaultBackupResource(vault:VaultRuntime,key:string):Promise<BackupResourceSource|null>{
+  const header=await vault.find(key);if(!header)return null
+  if(header.scope!=='public')throw new Error('Protected library files require an encrypted library backup in Settings → Data & Backup')
+  const info=await vault.assets.info(header)
+  return {mimeType:info.mime,contentType:'binary',source:{size:header.bytes,close:async()=>{},chunks:()=>vault.assets.read(`vault-asset-${header.id}`)}}
+}
 export function createRendererBackupResources(workspace: BackupWorkspace): BackupHostResources {
   const ipc = platform.type === 'desktop' ? window.electronAPI : null
   return {
     async open(key) {
+      if(process.env.NODE_ENV!=='test'){
+        const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const resource=await openVaultBackupResource(vaultRuntimeFor(platform),key);if(resource)return resource
+      }
       if (platform.resourceFiles) {
         const source = await platform.resourceFiles.open(key)
         return source ? normalized(source) : null

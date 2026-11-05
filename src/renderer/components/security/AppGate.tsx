@@ -7,7 +7,8 @@ import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import { ScopeUnlock,useScopeStatus } from './ScopeUnlock'
 export async function lockApplication(){
   const vault=vaultRuntimeFor(platform);vault.keys.lock()
-  const [{rendererApplication},{veniceMediaService},{sessionApprovals},{stopAllMessageGenerations}]=await Promise.all([import('@/app/renderer-application'),import('@/packages/venice/service'),import('@/packages/venice/session-approvals'),import('@/stores/session/generation-cancellation')])
+  const [{rendererApplication},{veniceMediaService},{sessionApprovals},{stopAllMessageGenerations},{cancelGeneration}]=await Promise.all([import('@/app/renderer-application'),import('@/packages/venice/service'),import('@/packages/venice/session-approvals'),import('@/stores/session/generation-cancellation'),import('@/stores/imageGenerationActions')])
+  cancelGeneration()
   veniceMediaService.pauseAll();sessionApprovals.clearAll();void rendererApplication.queryClient.cancelQueries();rendererApplication.queryClient.clear()
   await Promise.allSettled(rendererApplication.generationRuntime.getGeneratingSessionIds().map(id=>stopAllMessageGenerations(id)))
 }

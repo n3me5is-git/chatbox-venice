@@ -1,5 +1,17 @@
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 export const forkEnglish = {
+
+  "Set up unlock methods in Settings → Data & Backup first.": "Set up unlock methods in Settings → Data & Backup first.",
+  "Locked creation": "Locked creation",
+  "Protected creation": "Protected creation",
+  "Image history protection": "Image history protection",
+  "Public": "Public",
+  "Protected": "Protected",
+  "Unable to generate image": "Unable to generate image",
+  "Make this creation public": "Make this creation public",
+  "Protect this creation": "Protect this creation",
+  "Save new creations as protected": "Save new creations as protected",
+  "Images per request": "Images per request",
   "Unable to read protection settings": "Unable to read protection settings",
   "Loading protection settings…": "Loading protection settings…",
   "Unlock Chatbox Venice": "Unlock Chatbox Venice",
@@ -445,6 +457,8 @@ export const forkEnglish = {
   "Uncensored": "Uncensored"
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+
+
   "App lock and protected content": "Blocco app e contenuti protetti",
   "Protected content": "Contenuti protetti",
   "PIN or passphrase": "PIN o passphrase",

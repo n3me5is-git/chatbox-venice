@@ -159,6 +159,12 @@ async function doCleanupOrphanedBlobs(options?: CleanupOptions): Promise<number>
     return 0
   }
   const needDeletedSet = new Set<string>(storageKeys)
+  // The encrypted library is a durable owner even when a protected image
+  // session cannot disclose its references. Removal belongs to library tools.
+  if (process.env.NODE_ENV !== 'test') {
+    const { vaultRuntimeFor } = await import('@/packages/vault/runtime')
+    for (const alias of await vaultRuntimeFor(platform).db.aliases()) needDeletedSet.delete(alias)
+  }
 
   // 正在预处理/草稿中的附件，以及刚写入但持久引用可能尚未落盘的 blob 不需要删除
   for (const key of options?.extraProtectedKeys ?? []) {
