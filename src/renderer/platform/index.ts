@@ -1,5 +1,6 @@
 import { CHATBOX_BUILD_TARGET } from '@/variables'
 import { trackBlobWrite } from '../storage/blob-write-tracker'
+import { installVaultStorage } from '../packages/vault/runtime'
 import DesktopPlatform from './desktop_platform'
 import type { Platform } from './interfaces'
 import MobilePlatform from './mobile_platform'
@@ -8,6 +9,7 @@ import WebPlatform from './web_platform'
 
 function initPlatform(): Platform {
   const platform = createPlatform()
+  if (process.env.NODE_ENV !== 'test') installVaultStorage(platform)
   // Track every blob write at the platform boundary (parsers and remote code call
   // platform.setStoreBlob() directly, bypassing storage.setBlob()), so the
   // orphaned-blob cleanup can protect in-flight blobs whose durable references

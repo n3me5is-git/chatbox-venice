@@ -10,6 +10,7 @@ import { CHATBOX_QA_PREFLIGHT } from './qa-preflight'
 // since 1.21.0, and this NEEDS to be the first import that initializes Electron's app module.
 import './legacy-database-migration'
 import { registerFileTransferIpc } from './file-transfer-ipc'
+import { registerVaultKeyIpc } from './vault-key'
 
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 
@@ -869,6 +870,7 @@ app.on('open-url', async (_event, url) => {
 // --------- IPC 监听 ---------
 
 registerFileTransferIpc()
+registerVaultKeyIpc(() => mainWindow)
 
 ipcMain.handle('getStoreValue', (event, key) => {
   return store.get(key)

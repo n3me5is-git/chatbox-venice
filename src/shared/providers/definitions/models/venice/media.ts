@@ -14,6 +14,7 @@ export type MediaRecord = {
 export type MediaCatalogCache = { origin: string; credentialId: string; items: MediaCatalogItem[] }
 export type VoiceHandle = { id: string; model: string; name: string; origin: string; credentialId: string; createdAt: number; expiresAt: number }
 export interface MediaStore {
+  putStream?(key:string,response:Response,mime:string,signal:AbortSignal):Promise<boolean>;
   readVoices?(): Promise<VoiceHandle[]>; writeVoices?(voices: VoiceHandle[]): Promise<void>;
   readCatalog?(): Promise<MediaCatalogCache | null>; writeCatalog?(cache: MediaCatalogCache): Promise<void>;
   read(): Promise<MediaRecord[]>; write(records: MediaRecord[]): Promise<void>;
@@ -174,8 +175,9 @@ export class VeniceMediaService {
     const record = (await this.list()).find(item => item.id === id); if (!record) { await response.body?.cancel(); return }
     const mime = (response.headers.get('content-type') || '').split(';')[0].toLowerCase()
     if (!(record.kind === 'video' ? mime === 'video/mp4' : mime.startsWith('audio/'))) { await response.body?.cancel(); throw new Error('Venice returned an unexpected media type') }
-    const bytes = await readMediaBytes(response); signal.throwIfAborted()
-    const key = 'venice-media:' + id; await this.store.putBlob(key, mediaDataUrl(bytes, mime))
+    const key = 'venice-media:' + id
+    const streamed = await this.store.putStream?.(key,response,mime,signal)
+    if (!streamed) { const bytes = await readMediaBytes(response); signal.throwIfAborted(); await this.store.putBlob(key, mediaDataUrl(bytes, mime)); bytes.fill(0) }
     if (signal.aborted || !(await this.list()).some(item => item.id === id)) { await this.store.deleteBlob(key); signal.throwIfAborted(); return }
     await this.patch(id, { blobKey: key, mime, status: 'ready', error: undefined })
     if (!(await this.list()).some(item => item.id === id)) await this.store.deleteBlob(key)

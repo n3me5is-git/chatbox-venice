@@ -3,6 +3,9 @@ import { readFileSync, writeFileSync, copyFileSync } from 'node:fs'
 const manifest = 'android/app/src/main/AndroidManifest.xml'
 let xml = readFileSync(manifest, 'utf8')
 if (!xml.includes('android.permission.RECORD_AUDIO')) xml = xml.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" /><application')
+for (const permission of ['USE_BIOMETRIC', 'USE_FINGERPRINT']) {
+  if (!xml.includes(`android.permission.${permission}`)) xml = xml.replace('<application', `<uses-permission android:name="android.permission.${permission}" /><application`)
+}
 xml = xml.replace('<application', '<application android:usesCleartextTraffic="false"')
 writeFileSync(manifest, xml)
 const version = JSON.parse(readFileSync('release/app/package.json', 'utf8')).version
@@ -12,12 +15,14 @@ writeFileSync(gradle, readFileSync(gradle, 'utf8')
   .replace(/versionName\s+"[^"]+"/, `versionName "${version}"`))
 const javaDir = 'android/app/src/main/java/io/github/n3me5is/chatboxvenice'
 copyFileSync('native/android/DocumentSaverPlugin.java', `${javaDir}/DocumentSaverPlugin.java`)
+copyFileSync('native/android/VaultKeyPlugin.java', `${javaDir}/VaultKeyPlugin.java`)
 writeFileSync(`${javaDir}/MainActivity.java`, `package io.github.n3me5is.chatboxvenice;
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
   @Override public void onCreate(Bundle savedInstanceState) {
     registerPlugin(DocumentSaverPlugin.class);
+    registerPlugin(VaultKeyPlugin.class);
     super.onCreate(savedInstanceState);
   }
 }

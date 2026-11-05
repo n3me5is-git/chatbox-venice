@@ -1,6 +1,7 @@
 import { createModelDependencies } from '@/adapters'
 import platform from '@/platform'
 import { settingsStore } from '@/stores/settingsStore'
+import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import { VeniceMediaService, type MediaRecord, type MediaCatalogCache, type VoiceHandle } from '@shared/providers/definitions/models/venice/media'
 const key = 'venice:media:records:v1'
 export const veniceConfiguration = () => {
@@ -8,6 +9,7 @@ export const veniceConfiguration = () => {
   return { apiKey: provider?.apiKey || '', apiHost: provider?.apiHost, options: provider?.venice || {} }
 }
 export const veniceMediaService = new VeniceMediaService({
+  putStream: process.env.NODE_ENV === 'test' ? undefined : (id,response,mime,signal)=>vaultRuntimeFor(platform).putStream(id,response,mime,signal),
   readVoices: async () => (await platform.getStoreValue('venice:voice-handles:v1') || []) as VoiceHandle[],
   writeVoices: voices => platform.setStoreValue('venice:voice-handles:v1', voices),
   readCatalog: async () => await platform.getStoreValue('venice:media:catalog:v1') as MediaCatalogCache | null,
