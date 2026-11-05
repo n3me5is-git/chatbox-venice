@@ -2,7 +2,10 @@ import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { VeniceProfiles } from './VeniceProfiles'
-import { Accordion, Button, NumberInput, Select, SimpleGrid, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
+import { Accordion, Button, MultiSelect, NumberInput, Select, SimpleGrid, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
+import { useEffect, useState } from 'react'
+import { veniceMediaService } from '@/packages/venice/service'
+import type { MediaCatalogItem } from '@shared/providers/definitions/models/venice/media'
 import type { ProviderSettings } from '@shared/types'
 import { useProviderSettings } from '@/stores/settingsStore'
 type Options = NonNullable<ProviderSettings['venice']>
@@ -69,6 +72,11 @@ export function VeniceModuleSettings() {
     <Switch label={ft("Enable Venice")} checked={options.enabled !== false} onChange={e => update({ enabled: e.currentTarget.checked })} />
     <Text size="xs" c="dimmed">{ft("When disabled, new requests are blocked and media waiting stops. Saved content stays on this device.")}</Text>
     <VeniceBalance />
+    <Switch label={ft("Show other models from Venice")} description={ft("Include the current provider catalog even when only some models were selected. Privacy restrictions still apply.")} checked={options.showOtherModels === true} onChange={e => update({ showOtherModels: e.currentTarget.checked })} />
+    <Select label={ft("Privacy Only")} allowDeselect={false} value={options.privacyFilter || 'all'} data={[{ value: 'all', label: ft("All privacy levels") }, { value: 'private', label: ft("At least Private") }, { value: 'tee', label: ft("TEE or E2EE models only") }]} onChange={value => update({ privacyFilter: value as Options['privacyFilter'] })} />
+    <Select label={ft("Secure text chat")} allowDeselect={false} value={options.textPrivacy || 'standard'} data={[{ value: 'standard', label: ft("Standard HTTPS") }, { value: 'tee', label: ft("Require TEE verification") }, { value: 'e2ee', label: ft("Require end-to-end encryption") }]} onChange={value => update({ textPrivacy: value as Options['textPrivacy'] })} />
+    <Text size="xs" c="dimmed">{ft("E2EE encrypts text on this device. Attachments, tools and web search are unavailable in this mode. Secure replies are shown after verification. TEE alone allows Venice to read the prompt.")}</Text>
+    <Text size="xs" c="dimmed">{ft("Attestation checks follow the Venice CLI: fresh nonce, model identity, debug-mode rejection and key binding. Hardware certificate-chain verification relies on Venice; this app does not independently verify Intel/NVIDIA roots.")}</Text>
     <Text fw={600} mt="sm">{ft("What would you like to use?")}</Text>
     <SimpleGrid cols={{ base: 1, sm: 2 }}>
       <Switch label={ft("Voice and transcription")} disabled={options.enabled === false} checked={options.audioEnabled === true} onChange={e => update({ audioEnabled: e.currentTarget.checked })} />
@@ -76,8 +84,21 @@ export function VeniceModuleSettings() {
       <Switch label={ft("Music and sound effects")} disabled={options.enabled === false} checked={options.musicEnabled === true} onChange={e => update({ musicEnabled: e.currentTarget.checked })} />
     </SimpleGrid>
     <Text size="xs" c="dimmed">{ft("Enabled modules are available in Venice Studio in the sidebar.")}</Text>
+    <VeniceMediaModelSelection options={options} update={update} />
     <Switch label={ft("Internal Venice MCP: tools in Work mode chats")} disabled={options.enabled === false} checked={options.chatToolsEnabled !== false} onChange={e => update({ chatToolsEnabled: e.currentTarget.checked })} />
     <Text size="xs" c="dimmed">{ft("Generation approval is managed in each chat, next to the Venice balance.")}</Text>
     <VeniceProfiles />
   </Stack>
+}
+function VeniceMediaModelSelection({ options, update }: { options: Options; update: (value: Partial<Options>) => void }) {
+  const [catalog, setCatalog] = useState<MediaCatalogItem[]>([])
+  const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
+  useEffect(() => { let live = true; void veniceMediaService.cachedCatalog().then(rows => { if (live) setCatalog(rows) }).catch(() => {}); return () => { live = false } }, [])
+  return <Accordion><Accordion.Item value="media-models"><Accordion.Control>{ft("Models shown in Venice Studio")}</Accordion.Control><Accordion.Panel><Stack gap="sm">
+    <Button variant="default" size="xs" loading={busy} disabled={options.enabled === false} onClick={async () => { setBusy(true); setError(''); try { setCatalog(await veniceMediaService.catalog()) } catch { setError(ft("Unable to load the Venice model catalog")) } finally { setBusy(false) } }}>{ft("Refresh models")}</Button>
+    <MultiSelect label={ft("Selected audio and video models")} searchable clearable disabled={options.showOtherModels === true} value={options.mediaModelIds || []} data={catalog.filter(model => ['tts','asr','music','video'].includes(model.type)).map(model => ({ value: model.id, label: `${model.model_spec?.name || model.id} · ${model.type}` }))} onChange={mediaModelIds => update({ mediaModelIds })} />
+    <Button variant="subtle" size="xs" onClick={() => update({ mediaModelIds: undefined })}>{ft("Use all available media models")}</Button>
+    <Text size="xs" c="dimmed">{ft("Show other models from Venice temporarily includes the full catalog without changing your selection.")}</Text>
+    {error && <Text size="xs" c="red">{error}</Text>}
+  </Stack></Accordion.Panel></Accordion.Item></Accordion>
 }

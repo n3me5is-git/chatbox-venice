@@ -1,4 +1,5 @@
 import { useVeniceModels } from '@/packages/venice/models'
+import { projectVeniceModels } from '@shared/providers/definitions/models/venice/model-selection'
 import { SystemProviders } from '@shared/defaults'
 import { isUsingOAuth, mergeSharedOAuthProviderSettings } from '@shared/oauth'
 import { ModelProviderEnum, type ProviderInfo } from '@shared/types'
@@ -43,7 +44,7 @@ export const useProviders = () => {
               providerSettings?.models?.length)
           ) {
             const saved = providerSettings?.models || p.defaultSettings?.models || []
-            const baseModels = p.id === ModelProviderEnum.Venice && veniceModels ? (saved.length ? saved.map(model => ({ ...veniceModels.find(remote => remote.modelId === model.modelId), ...model, vendorMetadata: veniceModels.find(remote => remote.modelId === model.modelId)?.vendorMetadata || model.vendorMetadata })) : veniceModels.filter(model => !providerSettings.excludedModels?.includes(model.modelId))) : saved
+            const baseModels = p.id === ModelProviderEnum.Venice ? projectVeniceModels(saved, veniceModels, providerSettings.venice, providerSettings.excludedModels) : saved
             return {
               ...p,
               ...providerSettings,

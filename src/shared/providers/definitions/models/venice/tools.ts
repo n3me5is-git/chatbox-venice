@@ -22,7 +22,8 @@ export function buildVeniceMediaTools(sessionId: string, service: Service, setti
       allowed()
       if (input.action === 'catalog') {
         const rows = (await service.catalog()).filter(row => ['tts', 'asr', 'video', 'music'].includes(row.type) && (!input.kind || row.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : input.kind === 'sound-effects' ? 'music' : input.kind)) && (input.kind !== 'sound-effects' || isSoundEffectsModel(row)) && (input.kind !== 'music' || !isSoundEffectsModel(row)) && (!input.model || row.id === input.model))
-        return input.model ? rows : rows.map(row => ({ id: row.id, type: row.type, kind: row.type === 'music' && isSoundEffectsModel(row) ? 'sound-effects' : row.type, name: row.model_spec?.name, privacy: row.model_spec?.privacy }))
+        const visible = rows.filter(row => settings().showOtherModels || settings().mediaModelIds === undefined || settings().mediaModelIds?.includes(row.id))
+        return input.model ? visible : visible.map(row => ({ id: row.id, type: row.type, kind: row.type === 'music' && isSoundEffectsModel(row) ? 'sound-effects' : row.type, name: row.model_spec?.name, privacy: row.model_spec?.privacy }))
       }
       if (input.action === 'list') return (await service.list()).filter(r => r.sessionId === sessionId).map(summary)
       if (input.action === 'generate' || input.action === 'quote') {

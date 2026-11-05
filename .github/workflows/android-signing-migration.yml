@@ -87,4 +87,3 @@ jobs:
               if (deleted > 1000) throw new Error('Unexpected cache count');
             }
             await core.summary.addRaw('Signing secrets match the pinned Android identity. The legacy keystore cache has been removed. New APKs use repository secrets only.').write();
-

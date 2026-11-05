@@ -77,7 +77,7 @@ export function providerImageModelsQueryOptions(provider: ModelProviderEnum, opt
         ? credentialRevision(provider, options.licenseKey)
         : 0
   return queryOptions({
-    queryKey: ['provider-image-models', provider, options.language, revision, ...(provider === ModelProviderEnum.Venice ? [options.apiHost, options.venice?.enabled] : [])],
+    queryKey: ['provider-image-models', provider, options.language, revision, ...(provider === ModelProviderEnum.Venice ? [options.apiHost, options.venice?.enabled, options.venice?.privacyFilter] : [])],
     staleTime: 3600 * 1000,
     queryFn: () => loadProviderImageModels(provider, options),
   })

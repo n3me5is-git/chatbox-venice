@@ -11,6 +11,7 @@ import type { VeniceOptions } from '@shared/providers/definitions/models/venice/
 import { mediaEnabled, type MediaKind, type MediaRecord, type MediaCatalogItem, type VeniceMediaService } from '@shared/providers/definitions/models/venice/media'
 import { audioFormats, friendlyMediaError, mediaTypes, quoteLabel, readableName, supportedValues, voiceChoices } from '@shared/providers/definitions/models/venice/catalog'
 import { parseExtraBody } from '@shared/models/utils/extra-body'
+import { privacyAllowed } from '@shared/providers/definitions/models/venice/privacy'
 import platform from '@/platform'
 
 type Service = Pick<VeniceMediaService, 'list' | 'subscribe' | 'catalog' | 'quote' | 'start' | 'resume' | 'pause' | 'remove' | 'cleanup' | 'content' | 'isActive'> & Partial<Pick<VeniceMediaService, 'cachedCatalog'>>
@@ -42,7 +43,7 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
   const [records, setRecords] = useState<MediaRecord[]>([]); const [catalog, setCatalog] = useState<MediaCatalogItem[]>([])
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [quote, setQuote] = useState(''); const [advanced, setAdvanced] = useState<string | null>(null)
   const enabled = mediaEnabled(kind, options)
-  const compatible = catalog.filter(item => item.type === mediaTypes[kind] && (kind === 'sound-effects' ? isSoundEffectsModel(item) : kind !== 'music' || !isSoundEffectsModel(item)))
+  const compatible = catalog.filter(item => item.type === mediaTypes[kind] && privacyAllowed(item.model_spec, options.privacyFilter) && (options.showOtherModels || options.mediaModelIds === undefined || options.mediaModelIds.includes(item.id)) && (kind === 'sound-effects' ? isSoundEffectsModel(item) : kind !== 'music' || !isSoundEffectsModel(item)))
   const selected = compatible.find(item => item.id === model)
   const videoSupport = videoInputs(selected); const music = musicDuration(selected); const spec = selected?.model_spec
   const voices = voiceChoices(selected, ft); const formats = audioFormats(selected)
@@ -62,7 +63,7 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
     void service.cachedCatalog?.().then(items => { if (live) setCatalog(items) }).catch(() => {})
     return () => { live = false; unsubscribe() }
   }, [service])
-  useEffect(() => { if (!compatible.some(item => item.id === model)) { if (compatible.length) pickModel(compatible[0].id); else if (model) setModel('') } }, [catalog, kind])
+  useEffect(() => { if (!compatible.some(item => item.id === model)) { if (compatible.length) pickModel(compatible[0].id); else if (model) setModel('') } }, [catalog, kind, options.privacyFilter, options.showOtherModels, options.mediaModelIds])
   useEffect(() => setQuote(''), [kind, model, prompt, voice, format, speed, language, duration, seconds, lyrics, instrumental, extra, aspect, resolution, audio, image, endImage, referenceImages, sourceVideo, referenceVideos, referenceAudio, audioFile, loop, optimizer])
   const run = async (work: () => Promise<unknown>) => { setError(''); setBusy(true); try { await work() } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) } }
   const speechOptions = () => ({ voice: voice || undefined, response_format: format === 'auto' ? undefined : format, speed,

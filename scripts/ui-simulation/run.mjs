@@ -33,14 +33,14 @@ try {
   const evaluate = async expression => { const result = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.text); return result.result.value }
   async function click(expression) {
     // Commit edits and let focus/viewport changes settle before measuring a touch target.
-    await evaluate(`new Promise(resolve => { document.activeElement?.blur(); requestAnimationFrame(() => requestAnimationFrame(resolve)) })`)
+    await evaluate(`new Promise(resolve => { if (document.activeElement?.closest('.mantine-NumberInput-root')) document.activeElement.blur(); requestAnimationFrame(() => requestAnimationFrame(resolve)) })`)
     let previous
     const box = await wait(async () => {
       const current = await evaluate(`(() => { const e = ${expression}; if (!e) return null; e.scrollIntoView({block:'center',behavior:'instant'}); const r=e.getBoundingClientRect(); const x=r.x+r.width/2,y=r.y+r.height/2; const hit=document.elementFromPoint(x,y); return {x,y,width:r.width,height:r.height,viewport:innerHeight,hit:hit===e||e.contains(hit)} })()`)
       if (!current || !current.width || !current.height || !current.hit || current.y < 0 || current.y >= current.viewport) return false
       const stable = previous && Math.abs(previous.x-current.x) < 0.5 && Math.abs(previous.y-current.y) < 0.5
       previous = current; return stable ? {x:current.x,y:current.y} : false
-    }, 'Clickable element did not settle')
+    }, 'Clickable element did not settle: ' + expression)
     if (touchMode) { await cdp('Input.dispatchTouchEvent', {type:'touchStart',touchPoints:[box]}); await cdp('Input.dispatchTouchEvent', {type:'touchEnd',touchPoints:[]}) }
     else { await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', ...box, button: 'left', clickCount: 1 }); await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', ...box, button: 'left', clickCount: 1 }) }
   }

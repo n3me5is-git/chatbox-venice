@@ -69,6 +69,10 @@ export const VeniceProfileSchema = z.object({
   })
 
 export const VeniceSettingsSchema = VeniceProfileSchema.extend({
+  privacyFilter: z.enum(['all', 'private', 'tee']).optional(),
+  textPrivacy: z.enum(['standard', 'tee', 'e2ee']).optional(),
+  showOtherModels: z.boolean().optional(),
+  mediaModelIds: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),
   imageToolsEnabled: z.boolean().optional(),
   audioEnabled: z.boolean().optional(),
@@ -118,6 +122,7 @@ export const ProviderSettingsSchema = z.object({
   apiHost: z.string().optional().catch(undefined),
   apiPath: z.string().optional().catch(undefined),
   models: z.array(ProviderModelInfoSchema).optional().catch(undefined),
+  catalogModels: z.array(ProviderModelInfoSchema).optional().catch(undefined),
   modelGroups: z.array(ProviderModelGroupSchema).optional().catch(undefined),
   excludedModels: z.array(z.string()).optional().catch(undefined),
   useProxy: z.boolean().optional().catch(undefined),

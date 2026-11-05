@@ -10,7 +10,8 @@ export function resolveVeniceSettings(base: VeniceOptions = {}, model?: VenicePr
   // Permission switches belong to provider settings, never to a model/session override.
   return { ...merged, enabled: base.enabled, audioEnabled: base.audioEnabled, videoEnabled: base.videoEnabled,
     musicEnabled: base.musicEnabled, chatToolsEnabled: base.chatToolsEnabled,
-    confirmMediaTools: base.confirmMediaTools } as VeniceOptions
+    confirmMediaTools: base.confirmMediaTools, privacyFilter: base.privacyFilter, textPrivacy: base.textPrivacy,
+    showOtherModels: base.showOtherModels, mediaModelIds: base.mediaModelIds } as VeniceOptions
 }
 export function assertVeniceEnabled(options: VeniceOptions) {
   if (options.enabled === false) throw new Error('Venice support is disabled in provider settings')

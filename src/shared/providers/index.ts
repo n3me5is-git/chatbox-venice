@@ -92,6 +92,10 @@ function getModelConfig(settings: SessionSettings, globalSettings: Settings, pro
       ?.defaultSettings?.models?.find((m) => m.modelId === settings.modelId) ??
     getProviderDefinition(provider)?.defaultSettings?.models?.find((m) => m.modelId === settings.modelId)
   let model = mergeProviderModelCapabilities(storedModel, defaultModel)
+  if (provider === 'venice') {
+    const current = providerSetting.catalogModels?.find(row => row.modelId === settings.modelId)
+    if (current) model = { ...current, ...model, vendorMetadata: current.vendorMetadata, capabilities: current.capabilities }
+  }
   if (!model) {
     model = {
       modelId: settings.modelId ?? '',

@@ -1,6 +1,7 @@
 import { isUsingOAuth, mergeSharedOAuthProviderSettings } from '@shared/oauth'
 import type { PlatformType } from '@shared/platform'
 import { getRatioOptionsForModel } from '@shared/providers/definitions/image-models'
+import { privacyAllowed } from '@shared/providers/definitions/models/venice/privacy'
 import {
   type ImageGenerationModel,
   type ImageModelCapabilities,
@@ -119,6 +120,11 @@ export function buildImageModelGroups(options: {
           .map(manualImageModelToOption)
       : []
     let models = mergeImageModels(remote, manualModels)
+    if (provider.id === ModelProviderEnum.Venice) {
+      const config = settings.providers?.venice
+      const selected = config?.models?.filter(model => model.type === 'image') || []
+      models = models.filter(model => privacyAllowed(model.vendorMetadata, config?.venice?.privacyFilter) && (config?.venice?.showOtherModels === true || !config?.models?.length || selected.some(saved => saved.modelId === model.modelId)))
+    }
     if (provider.id === ModelProviderEnum.ChatboxAI) {
       const excluded = new Set(settings.providers?.[provider.id]?.excludedModels ?? [])
       models = models.filter((model) => !excluded.has(model.modelId))

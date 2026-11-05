@@ -1,4 +1,5 @@
 import { validateMediaRequest } from './media-capabilities'
+import { privacyAllowed, requireModelPrivacy } from './privacy'
 import { v4 as uuid } from 'uuid'
 import type { RequestAdapter } from '../../../../types/adapters'
 import { mergeExtraBody } from '../../../../models/utils/extra-body'
@@ -82,7 +83,7 @@ export class VeniceMediaService {
   async cachedCatalog(): Promise<MediaCatalogItem[]> {
     const config = this.configuration(); if (!config.apiKey) return []
     const cache = await this.store.readCatalog?.()
-    return cache && Array.isArray(cache.items) && cache.origin === mediaOrigin(config.apiHost) && cache.credentialId === await this.credential(config) ? cache.items : []
+    return cache && Array.isArray(cache.items) && cache.origin === mediaOrigin(config.apiHost) && cache.credentialId === await this.credential(config) ? cache.items.filter(item => privacyAllowed(item.model_spec, config.options.privacyFilter)) : []
   }
   async catalog(): Promise<MediaCatalogItem[]> {
     const config = this.config()
@@ -94,12 +95,13 @@ export class VeniceMediaService {
       const old = merged.get(item.type + ':' + item.id)
       merged.set(item.type + ':' + item.id, { ...old, ...item, model_spec: { ...old?.model_spec, ...item.model_spec } })
     }
-    const items = [...merged.values()]
+    const items = [...merged.values()].filter(item => privacyAllowed(item.model_spec, config.options.privacyFilter))
     await this.store.writeCatalog?.({ origin: config.origin, credentialId: await this.credential(config), items }).catch(() => {})
     return items
   }
   async quote(input: MediaInput) {
     const config = this.config(input.kind)
+    if (config.options.privacyFilter && config.options.privacyFilter !== 'all') requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === input.model)?.model_spec, config.options.privacyFilter)
     if (!['video', 'music', 'sound-effects'].includes(input.kind)) throw new Error('Quotes are available for video and music')
     const allowed = input.kind === 'video' ? ['duration', 'aspect_ratio', 'resolution', 'audio', 'video_url', 'upscale_factor'] : ['duration_seconds', 'character_count']
     const merged = mergeExtraBody({ model: input.model }, input.options || {})
@@ -117,6 +119,7 @@ export class VeniceMediaService {
     const body = mergeExtraBody(input.kind === 'speech' ? { model: input.model, input: input.prompt } : { model: input.model, prompt: input.prompt }, input.options || {})
     if (typeof body.model !== 'string' || !body.model.trim()) throw new Error('The request model must be a non-empty string')
     const known = (await this.cachedCatalog()).find(item => item.id === body.model && item.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : input.kind === 'sound-effects' ? 'music' : input.kind))
+    requireModelPrivacy(known?.model_spec, config.options.privacyFilter)
     validateMediaRequest(input.kind, body, known)
     const record: MediaRecord = { id: uuid(), kind: input.kind, model: String(body.model), prompt: input.prompt, createdAt: Date.now(), sessionId: input.sessionId,
       status: 'creating', origin: config.origin, credentialId: await this.credential(config) }
@@ -162,6 +165,7 @@ export class VeniceMediaService {
     if (this.active.has(id)) return
     const record = (await this.list()).find(item => item.id === id); if (!record?.queueId) throw new Error('No stored queue ID; an interrupted paid request must not be automatically repeated')
     const config = this.config(record.kind)
+    requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === record.model)?.model_spec, config.options.privacyFilter)
     if (config.origin !== record.origin || await this.credential(config) !== record.credentialId) throw new Error('Resume requires the original Venice endpoint and API key')
     if (this.active.has(id)) return
     const controller = new AbortController(); this.active.set(id, controller)

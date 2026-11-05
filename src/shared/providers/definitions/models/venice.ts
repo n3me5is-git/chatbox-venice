@@ -7,6 +7,8 @@ import type { ProviderModelInfo, ProviderSettings, ImageModelCapabilities } from
 import type { ModelDependencies } from '../../../types/adapters'
 import { withVeniceCitations } from './venice-citations'
 import { prepareVeniceSearch } from './venice-search'
+import { privacyAllowed, requireModelPrivacy, supportsTee } from './venice/privacy'
+import { secureVeniceChat } from './venice/secure-chat'
 import type { ModelMessage, ToolSet } from 'ai'
 import type { CallChatCompletionOptions, ChatStreamOptions, ModelStreamPart } from '../../../models/types'
 
@@ -36,7 +38,7 @@ export async function fetchVeniceModels(
   if (!response.ok) throw new ApiError('Venice model discovery failed', await response.text(), response.status)
   const result = await response.json() as { data?: VeniceCatalogModel[] }
   if (!Array.isArray(result.data)) throw new ApiError('Invalid Venice model catalog')
-  return result.data.filter((item) => ['text', 'image', 'inpaint', 'embedding'].includes(item.type) && !item.model_spec?.offline && !item.id.toLowerCase().includes('e2ee'))
+  return result.data.filter((item) => ['text', 'image', 'inpaint', 'embedding'].includes(item.type) && !item.model_spec?.offline && privacyAllowed(item.model_spec, options.venice?.privacyFilter))
     .map((item): ProviderModelInfo => {
       const spec = item.model_spec
       const capabilities: NonNullable<ProviderModelInfo['capabilities']> = []
@@ -80,10 +82,15 @@ export function getVeniceParameters(settings: VeniceSettings = {}) {
 }
 
 // Add vendor options after SDK serialization, for both chat transports and tool calls.
-export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: VeniceSettings, extra?: ProviderModelInfo['extraBody']): typeof globalThis.fetch {
+export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: VeniceSettings, extra?: ProviderModelInfo['extraBody'], model?: ProviderModelInfo): typeof globalThis.fetch {
   return async (url, init) => {
     assertVeniceEnabled(settings || {})
     const endpoint = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+    if (settings?.privacyFilter && settings.privacyFilter !== 'all' && typeof init?.body === 'string') {
+      const request = JSON.parse(init.body)
+      requireModelPrivacy(model?.vendorMetadata, settings.privacyFilter)
+      if (request.model && request.model !== model?.modelId) throw new Error('Model overrides cannot bypass Venice privacy settings')
+    }
     if (new URL(endpoint).pathname.endsWith('/chat/completions') && typeof init?.body === 'string') {
       const parsed = JSON.parse(init.body)
       const effort = parsed.reasoning_effort ?? parsed.reasoningEffort
@@ -91,7 +98,10 @@ export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: Ven
       const thinking = parsed.enable_thinking
       delete parsed.enable_thinking
       const body = mergeExtraBody({ ...parsed, ...(effort !== undefined ? { reasoning_effort: effort } : {}), venice_parameters: { ...getVeniceParameters(settings), ...(thinking !== undefined ? { disable_thinking: !thinking } : {}) } }, extra || {})
-      const response = await fetch(url, { ...init, body: JSON.stringify(body) })
+      const mode = settings?.textPrivacy && settings.textPrivacy !== 'standard' ? settings.textPrivacy : settings?.privacyFilter === 'tee' ? 'tee' : undefined
+      if ((settings?.privacyFilter && settings.privacyFilter !== 'all' || mode) && body.model !== model?.modelId) throw new Error('Model overrides cannot bypass Venice privacy settings')
+      requireModelPrivacy(model?.vendorMetadata, settings?.privacyFilter)
+      const response = mode ? await secureVeniceChat(fetch, endpoint, init || {}, body, mode) : await fetch(url, { ...init, body: JSON.stringify(body) })
       return withVeniceCitations(response)
     }
     return fetch(url, init)
@@ -105,21 +115,24 @@ export default class Venice extends OpenAICompatible {
 
   constructor(options: VeniceOptions, dependencies: ModelDependencies) {
     assertVeniceEnabled(options.venice || {})
-    if (options.model.modelId.toLowerCase().includes('e2ee')) throw new ApiError('This model requires Venice E2EE, which this client has not implemented')
+    requireModelPrivacy(options.model.vendorMetadata, options.venice?.privacyFilter)
+    const secure = options.venice?.textPrivacy && options.venice.textPrivacy !== 'standard' || options.venice?.privacyFilter === 'tee'
+    if (secure && options.model.type !== 'image' && options.model.type !== 'embedding' && !supportsTee(options.model.vendorMetadata)) throw new ApiError('Choose a model with Venice TEE support or change the secure text setting')
+    if (options.venice?.textPrivacy === 'e2ee' && options.model.type !== 'image' && options.model.type !== 'embedding' && (options.model.vendorMetadata?.capabilities as Record<string, unknown> | undefined)?.supportsE2EE !== true) throw new ApiError('Choose an E2EE-capable model from the Venice catalog')
     const resolved = { ...options, apiHost: options.apiHost.replace(/\/+$/, ''), useProxy: false,
-      customFetch: createVeniceFetch(options.customFetch || createFetchWithProxy(false, dependencies), options.venice, options.model.extraBody),
+      customFetch: createVeniceFetch(options.customFetch || createFetchWithProxy(false, dependencies), options.venice, options.model.extraBody, options.model),
     }
     super(resolved, dependencies)
     this.options = resolved
   }
 
   public override async chat(messages: ModelMessage[], options: CallChatCompletionOptions) {
-    const prepared = await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
+    const prepared = this.options.venice?.textPrivacy === 'e2ee' ? { messages } : await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
     return super.chat(prepared.messages, { ...options, tools: { ...options.tools, ...prepared.tools } })
   }
 
   public override async *chatStream<T extends ToolSet>(messages: ModelMessage[], options: ChatStreamOptions): AsyncGenerator<ModelStreamPart<T>> {
-    const prepared = await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
+    const prepared = this.options.venice?.textPrivacy === 'e2ee' ? { messages } : await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
     yield* super.chatStream<T>(prepared.messages, { ...options, tools: { ...options.tools, ...prepared.tools } })
   }
 
