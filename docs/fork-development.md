@@ -8,6 +8,7 @@ The workflows are:
 
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
+| Sync release notes | Release-note source changes or manual | Update published note text from current English Markdown without changing tags or packages. |
 | Release checks | Release-tooling changes, pull request or manual | Lightweight publication regressions and syntax checks, without installing the app dependencies. |
 | Checks | Pull request, manual, or called by builds | Configuration validation, focused regression tests and TypeScript. Manual runs can select the full unit suite. No packages or releases. |
 | Build Windows and Android | Code push to main, version tag, manual | Checks, then separate compilation and packaging jobs. Manual runs select Windows, Android or both; publishing is off by default for manual runs. |
@@ -66,3 +67,7 @@ See [simulated UI and functional testing](fork-testing.md) for isolated Checks r
 Provider tests use mocked API responses, including streaming citations, moderation, model discovery, native editing and request cancellation. They do not make billable Venice calls. A successful build proves packaging, not successful inference with every model or behavior on every Android device. Test the downloaded packages with your own key before relying on them.
 
 Reference implementations: [Venice CLI](https://github.com/veniceai/venice-cli), [Venice MCP](https://github.com/veniceai/venice-mcp-server), and [Venice API documentation](https://docs.venice.ai).
+
+## Source language and localization
+
+Use English in primary documentation and `docs/releases/vVERSION.md`. The Sync release notes workflow updates existing published bodies when source notes change. App fork strings use the existing i18n resources, English fallback and locale-aware formatting. Add keys/translations in `packages/chatbox-i18n/src/fork-resources.ts`, preserve interpolation placeholders and cover runtime language switching in tests. Explicitly translated documents such as README.it.md retain their own language.

@@ -35,3 +35,9 @@ Il setup Windows non è firmato con certificato commerciale. Dalla 1.25.0 l'APK 
 Vedi anche [test simulati](docs/fork-testing.md) e [installazione personale e firma Android](docs/personal-distribution.md). E2EE/attestazione TEE, clonazione e conversione della voce non sono implementate.
 
 [Licenza GPL-3.0](LICENSE) · [Progetto originale](https://github.com/chatboxai/chatbox)
+
+## Approvazioni della chat e lingue
+
+Da Venice approvals, accanto al saldo della chat, scegli conferma ogni volta, ricorda le generazioni simili o approvazione automatica. Le regole riguardano immagini, voce, video e musica Venice della sola chat corrente e restano in memoria fino alla chiusura dell’app. Simili significa stesso tool, modello e parametri; il prompt può cambiare. Il reset revoca le autorizzazioni. Modelli immagine ambigui o riferimenti da caricare richiedono comunque la scelta dell’utente; le cancellazioni chiedono conferma.
+
+La lingua sorgente su GitHub e nell’app è inglese. Le nuove funzioni usano i18n con fallback inglese, traduzioni italiane e controlli principali delle approvazioni nelle 15 lingue desktop supportate. Le traduzioni nuove ancora mancanti usano l’inglese.

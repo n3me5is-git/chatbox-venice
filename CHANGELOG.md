@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.27.0
+
+See [release notes](docs/releases/v1.27.0.md). Adds per-chat ask/similar/automatic generation approval, reusable per-call image parameters, visible revocation, English release sources and i18n-compatible fork UI with English fallback.
+
 ## 1.26.0
 
 See [release notes](docs/releases/v1.26.0.md). Fixes model profiles and Venice thinking, adds global Venice search, model-aware music/video, native MCP image tools with model selection and per-call HITL approval, Studio images, microphone transcription, credit display and Venice embeddings for RAG.

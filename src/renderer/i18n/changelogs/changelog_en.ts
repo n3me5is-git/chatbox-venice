@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.27.0
+1. Per-chat generation approval: always ask, remember similar requests, or automatic
+2. Reuse approved image parameters and revoke permissions from the chat
+3. English release notes and localized fork controls with English fallback
+
 ## Chatbox Venice 1.26.0
 1. Fix Venice model profile persistence and native thinking levels
 2. Internal Venice MCP, image model selection and per-call human approval

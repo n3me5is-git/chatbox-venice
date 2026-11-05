@@ -1,3 +1,9 @@
+import type {ImageChoice} from '../../src/shared/providers/definitions/models/venice/image-tools'
+import type {ApprovalMode} from '../../src/renderer/packages/venice/session-approvals'
+import i18n from '../../src/renderer/i18n'
+import {requestSessionImageChoice} from '../../src/renderer/packages/venice/image-approval'
+import {sessionApprovals} from '../../src/renderer/packages/venice/session-approvals'
+import {VeniceSessionApprovals} from '../../src/renderer/components/venice/VeniceSessionApprovals'
 import '../../src/renderer/static/globals.css'
 import '../../src/renderer/static/index.css'
 import NiceModal from '@ebay/nice-modal-react'
@@ -24,8 +30,20 @@ const service = new VeniceMediaService({ read: async () => structuredClone(recor
   }
   throw new Error('Unexpected simulated request: ' + path)
 })
+const imageModels = [{modelId:'gpt-flare-image',displayName:'GPT Flare',capabilities:{aspectRatio:{values:['1:1','16:9']},inputReferences:null},vendorMetadata:{privacy:'anonymized'}}]
+;(window as any).__simulationSetLanguage=(language:string)=>i18n.changeLanguage(language)
 function Simulation() {
-  const [enabled, setEnabled] = useState(true)
-  return <MantineProvider><NiceModal.Provider><div style={{ padding: 12, background: '#fff3bf' }}>Simulazione locale: nessuna API reale, nessun addebito.<Checkbox label="Modulo audio attivo (simulazione)" checked={enabled} onChange={e => { const value = e.currentTarget.checked; configuration.options.audioEnabled = value; setEnabled(value) }} /></div><Button m="sm" variant="light" onClick={() => void NiceModal.show(VeniceImageApproval, { models: [{ modelId: 'gpt-flare-image', displayName: 'GPT Flare', capabilities: { aspectRatio: { values: ['1:1', '16:9'] }, inputReferences: null }, vendorMetadata: { privacy: 'anonymized' } }], request: { prompt: 'Un tramonto sul mare', count: 1 } }).then(choice => { (window as any).__simulationImageChoice = choice })}>Prova scelta immagini</Button><VeniceStudio service={service} options={{ ...configuration.options, audioEnabled: enabled }} /></NiceModal.Provider></MantineProvider>
+ const [enabled,setEnabled]=useState(true)
+ const chooseImage=async()=>{
+  const count=((window as any).__simulationImageAttempt||0)+1; (window as any).__simulationImageAttempt=count
+  ;(window as any).__simulationImageChoice=null
+  const result=await requestSessionImageChoice('simulation-chat',{prompt:count===1?'A sunset by the sea':'Another sunset with different colors',count:1},imageModels,async request=>{
+   ;(window as any).__simulationImageDialogs=((window as any).__simulationImageDialogs||0)+1
+   return await NiceModal.show(VeniceImageApproval,{models:imageModels,request,sessionId:'simulation-chat'}) as ImageChoice & {approvalMode?:ApprovalMode} | null
+  })
+  ;(window as any).__simulationImageChoice=result?.choice; (window as any).__simulationImageAutomatic=result?.automatic
+  ;(window as any).__simulationOtherChatMode=sessionApprovals.mode('other-chat')
+ }
+ return <MantineProvider><NiceModal.Provider><div style={{padding:12,background:'#fff3bf'}}>Local simulation: no real APIs or charges.<Checkbox label="Audio module enabled (simulation)" checked={enabled} onChange={e=>{const value=e.currentTarget.checked;configuration.options.audioEnabled=value;setEnabled(value)}}/></div><Button m="sm" variant="light" onClick={()=>void chooseImage()}>Test image selection</Button><div style={{padding:12}}><VeniceSessionApprovals sessionId="simulation-chat"/></div><VeniceStudio service={service} options={{...configuration.options,audioEnabled:enabled}}/></NiceModal.Provider></MantineProvider>
 }
-createRoot(document.getElementById('root')!).render(<Simulation />)
+void i18n.changeLanguage('en').then(()=>createRoot(document.getElementById('root')!).render(<Simulation/>))

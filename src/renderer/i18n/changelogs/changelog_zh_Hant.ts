@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.27.0
+1. Per-chat generation approval: always ask, remember similar requests, or automatic
+2. Reuse approved image parameters and revoke permissions from the chat
+3. English release notes and localized fork controls with English fallback
+
 ## v1.21.1 - 2026.06.12
 1. 修復上傳檔案後發送按鈕無法恢復可用的問題
 2. 更新 Android 應用圖示

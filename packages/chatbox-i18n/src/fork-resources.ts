@@ -637,6 +637,125 @@ export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT'
   "A walk by the sea, sunset light, slow movement…": "Una passeggiata al mare, luce del tramonto, movimento lento…",
   "Relaxing jazz with piano and double bass…": "Un brano jazz rilassante con pianoforte e contrabbasso…"
 } }
+Object.assign(forkTranslations,{
+  "fr": {
+    "Generation approval for this chat": "Approbation des générations pour cette discussion",
+    "Ask every time": "Toujours demander",
+    "Remember similar generations after approval": "Mémoriser les générations similaires après approbation",
+    "Automatically approve generations": "Approuver automatiquement les générations",
+    "Reset approvals for this chat": "Réinitialiser les approbations de cette discussion",
+    "Venice approvals": "Approbations Venice",
+    "Similar requests": "Demandes similaires"
+  },
+  "de": {
+    "Generation approval for this chat": "Generierungsfreigabe für diesen Chat",
+    "Ask every time": "Jedes Mal fragen",
+    "Remember similar generations after approval": "Ähnliche Generierungen nach Freigabe merken",
+    "Automatically approve generations": "Generierungen automatisch freigeben",
+    "Reset approvals for this chat": "Freigaben für diesen Chat zurücksetzen",
+    "Venice approvals": "Venice-Freigaben",
+    "Similar requests": "Ähnliche Anfragen"
+  },
+  "es": {
+    "Generation approval for this chat": "Aprobación de generaciones para este chat",
+    "Ask every time": "Preguntar siempre",
+    "Remember similar generations after approval": "Recordar generaciones similares tras aprobarlas",
+    "Automatically approve generations": "Aprobar generaciones automáticamente",
+    "Reset approvals for this chat": "Restablecer aprobaciones de este chat",
+    "Venice approvals": "Aprobaciones de Venice",
+    "Similar requests": "Solicitudes similares"
+  },
+  "pt-PT": {
+    "Generation approval for this chat": "Aprovação de gerações nesta conversa",
+    "Ask every time": "Perguntar sempre",
+    "Remember similar generations after approval": "Memorizar gerações semelhantes após aprovação",
+    "Automatically approve generations": "Aprovar gerações automaticamente",
+    "Reset approvals for this chat": "Repor aprovações desta conversa",
+    "Venice approvals": "Aprovações Venice",
+    "Similar requests": "Pedidos semelhantes"
+  },
+  "zh-Hans": {
+    "Generation approval for this chat": "此聊天的生成审批",
+    "Ask every time": "每次询问",
+    "Remember similar generations after approval": "批准后记住类似生成",
+    "Automatically approve generations": "自动批准生成",
+    "Reset approvals for this chat": "重置此聊天的审批",
+    "Venice approvals": "Venice 审批",
+    "Similar requests": "类似请求"
+  },
+  "zh-Hant": {
+    "Generation approval for this chat": "此聊天的生成核准",
+    "Ask every time": "每次詢問",
+    "Remember similar generations after approval": "核准後記住類似生成",
+    "Automatically approve generations": "自動核准生成",
+    "Reset approvals for this chat": "重設此聊天的核准",
+    "Venice approvals": "Venice 核准",
+    "Similar requests": "類似請求"
+  },
+  "ja": {
+    "Generation approval for this chat": "このチャットの生成承認",
+    "Ask every time": "毎回確認する",
+    "Remember similar generations after approval": "承認後に同様の生成を記憶する",
+    "Automatically approve generations": "生成を自動承認する",
+    "Reset approvals for this chat": "このチャットの承認をリセット",
+    "Venice approvals": "Venice の承認",
+    "Similar requests": "同様のリクエスト"
+  },
+  "ko": {
+    "Generation approval for this chat": "이 채팅의 생성 승인",
+    "Ask every time": "항상 확인",
+    "Remember similar generations after approval": "승인 후 유사한 생성 기억",
+    "Automatically approve generations": "생성 자동 승인",
+    "Reset approvals for this chat": "이 채팅의 승인 초기화",
+    "Venice approvals": "Venice 승인",
+    "Similar requests": "유사한 요청"
+  },
+  "ru": {
+    "Generation approval for this chat": "Подтверждение генераций в этом чате",
+    "Ask every time": "Спрашивать каждый раз",
+    "Remember similar generations after approval": "Запоминать похожие генерации после подтверждения",
+    "Automatically approve generations": "Автоматически подтверждать генерации",
+    "Reset approvals for this chat": "Сбросить разрешения этого чата",
+    "Venice approvals": "Разрешения Venice",
+    "Similar requests": "Похожие запросы"
+  },
+  "ar": {
+    "Generation approval for this chat": "الموافقة على الإنشاء في هذه المحادثة",
+    "Ask every time": "السؤال في كل مرة",
+    "Remember similar generations after approval": "تذكّر عمليات الإنشاء المشابهة بعد الموافقة",
+    "Automatically approve generations": "الموافقة التلقائية على الإنشاء",
+    "Reset approvals for this chat": "إعادة تعيين موافقات هذه المحادثة",
+    "Venice approvals": "موافقات Venice",
+    "Similar requests": "طلبات مشابهة"
+  },
+  "sv": {
+    "Generation approval for this chat": "Godkännande av generering i denna chatt",
+    "Ask every time": "Fråga varje gång",
+    "Remember similar generations after approval": "Kom ihåg liknande genereringar efter godkännande",
+    "Automatically approve generations": "Godkänn genereringar automatiskt",
+    "Reset approvals for this chat": "Återställ godkännanden för denna chatt",
+    "Venice approvals": "Venice-godkännanden",
+    "Similar requests": "Liknande förfrågningar"
+  },
+  "nb-NO": {
+    "Generation approval for this chat": "Godkjenning av generering i denne samtalen",
+    "Ask every time": "Spør hver gang",
+    "Remember similar generations after approval": "Husk lignende genereringer etter godkjenning",
+    "Automatically approve generations": "Godkjenn genereringer automatisk",
+    "Reset approvals for this chat": "Tilbakestill godkjenninger for denne samtalen",
+    "Venice approvals": "Venice-godkjenninger",
+    "Similar requests": "Lignende forespørsler"
+  },
+  "tr": {
+    "Generation approval for this chat": "Bu sohbet için üretim onayı",
+    "Ask every time": "Her seferinde sor",
+    "Remember similar generations after approval": "Onaydan sonra benzer üretimleri hatırla",
+    "Automatically approve generations": "Üretimleri otomatik onayla",
+    "Reset approvals for this chat": "Bu sohbetin onaylarını sıfırla",
+    "Venice approvals": "Venice onayları",
+    "Similar requests": "Benzer istekler"
+  }
+})
 export function withForkTranslations<T extends Record<string,string>>(language: string, original: T) {
   return {...forkEnglish,...original,...forkTranslations[language]}
 }

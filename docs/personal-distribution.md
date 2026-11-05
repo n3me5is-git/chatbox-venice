@@ -1,44 +1,44 @@
-# Installazione personale e firma dei pacchetti
+# Personal installation and package signing
 
-Per questo fork non pubblichiamo su Google Play o Microsoft Store. Setup e APK si scaricano dalle [release del fork](https://github.com/n3me5is-git/chatbox-venice/releases). Non serve acquistare un certificato Windows commerciale per produrre il setup; Windows può mostrare avvisi per un installer non firmato.
+This fork distributes the Windows setup and Android APK through [GitHub releases](https://github.com/n3me5is-git/chatbox-venice/releases), rather than Google Play or Microsoft Store. A commercial Windows certificate is not required to create the installer; Windows may warn about unsigned software.
 
-## Android senza account sviluppatore Google
+## Android without a Google Play developer account
 
-Dalla 1.25.0 il workflow compila un APK in modalità release, poi lo firma e verifica la firma nelle Actions. La firma Android usa una chiave del progetto: non richiede una registrazione Google Play.
+Since 1.25.0, Actions builds a release-mode APK, signs it and verifies the certificate. Signing uses a project key and does not require Google Play registration.
 
-L'installazione personale tramite ADB resta disponibile senza registrazione/verifica dello sviluppatore secondo le [FAQ ufficiali Android](https://developer.android.com/developer-verification/guides/faq). Il flusso di installazione di un APK dal browser dipende da dispositivo, versione, area e regole Android in vigore; per app di sviluppatori non verificati può essere richiesto il [percorso avanzato di Android](https://support.google.com/android/answer/17588095). Questo fork non aggira i controlli del dispositivo.
+Personal ADB installation remains available without developer registration/verification according to the [official Android FAQ](https://developer.android.com/developer-verification/guides/faq). Browser-based APK installation depends on device, version, region and current Android rules; apps from unverified developers may require Android's [advanced installation flow](https://support.google.com/android/answer/17588095). This fork does not bypass device checks.
 
-Per ADB servono solo i Platform Tools, non Android Studio o l'intero SDK di compilazione. Dopo avere autorizzato il computer sul telefono, l'aggiornamento si effettua con `adb install -r percorso-al-file.apk`. Usa sempre pacchetti scaricati dalla release del tuo fork.
+ADB needs Platform Tools, not Android Studio or the full build SDK. After authorizing your computer on the phone, update with `adb install -r path-to-file.apk`. Use packages from this fork's releases.
 
-## Conservare la stessa identità della firma
+## Preserve signing identity
 
-Gli aggiornamenti sul posto richiedono la stessa chiave. Il workflow supporta quattro repository secrets GitHub:
+In-place updates require the same key. The workflow supports these GitHub repository secrets:
 
-| Secret | Contenuto |
+| Secret | Value |
 | --- | --- |
-| `ANDROID_KEYSTORE_BASE64` | File keystore codificato base64 |
-| `ANDROID_KEYSTORE_PASSWORD` | Password del keystore |
-| `ANDROID_KEY_ALIAS` | Alias della chiave |
-| `ANDROID_KEY_PASSWORD` | Password della chiave |
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded keystore file |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Key alias |
+| `ANDROID_KEY_PASSWORD` | Key password |
 
-Si configurano in **Settings → Secrets and variables → Actions → Repository secrets** del repository GitHub. Non sono account Google e non contengono la API key Venice. La configurazione incompleta fa fallire la firma; non si ripiega silenziosamente su una chiave diversa. Il keystore dei secrets viene scritto solo temporaneamente nel runner, poi rimosso. Non viene inserito nella cache o negli artifact in chiaro.
+Configure them in **Settings → Secrets and variables → Actions → Repository secrets**. These are not Google accounts and do not contain your Venice key. Incomplete signing configuration fails instead of falling back to another key. A secrets-supplied keystore exists only temporarily on the runner, is removed afterwards, and is never cached or uploaded unencrypted.
 
-Senza questi secrets viene riutilizzato il keystore personale della cache CI, con identità fissata dalla versione 1.25.0. Il certificato della 1.24.2 è diverso: quel vecchio APK non può essere aggiornato sul posto con la 1.25.0. Se lo avevi installato, esporta prima i dati e procedi a una nuova installazione; se non lo avevi installato, inizia direttamente dalla 1.25.0. La cache può essere eliminata da GitHub: non è un backup permanente. Cambiare chiave può richiedere esportazione dei dati, disinstallazione e nuova installazione. Una chiave nuova creata altrove non conserva automaticamente l'identità di quella precedente.
+Without these secrets, CI reuses the cached personal keystore whose identity was pinned in 1.25.0. The 1.24.2 certificate differs: that APK cannot be updated in place with later releases. Export its data and reinstall if necessary. For a new installation, start with the latest release.
 
-Il job **Sign and verify Android package** riporta nel log e nel riepilogo la fingerprint SHA-256 pubblica del certificato. Il certificato della 1.25.0 è già fissato in `scripts/android-signing-cert.sha256`: una firma diversa o la perdita della chiave di fallback blocca la distribuzione invece di pubblicare un aggiornamento incompatibile. Non inserire password o materiale privato in quel file.
+GitHub can evict caches; a cache is not a permanent backup. A different/new key does not preserve an older key's identity and may require export, uninstall and reinstall. The **Sign and verify Android package** job prints the public certificate SHA-256 fingerprint. `scripts/android-signing-cert.sha256` pins the 1.25.0 identity: missing fallback keys or a mismatched certificate stop distribution rather than publish an incompatible update. Never put passwords or private material in that file.
 
-## Backup cifrato della chiave corrente
+## Encrypted backup of the current key
 
-Aggiungi il repository secret `ANDROID_SIGNING_BACKUP_PASSPHRASE` con una passphrase robusta di almeno 20 caratteri. Alla successiva build Android, dopo la firma, il workflow carica l'artifact **Android-signing-backup-encrypted**. Scaricalo e conservalo fuori da GitHub: gli artifact CI scadono dopo 14 giorni. Conserva la passphrase separatamente; senza di essa non si recupera la chiave.
+Add repository secret `ANDROID_SIGNING_BACKUP_PASSPHRASE`, using a strong passphrase of at least 20 characters. After the next successful Android signing job, download **Android-signing-backup-encrypted** and store it outside GitHub; CI artifacts expire after 14 days. Keep the passphrase separately. The key cannot be recovered without it.
 
-Il backup usa AES-256-GCM con salt e nonce casuali e PBKDF2-SHA256 (600.000 iterazioni). Contiene solo il keystore cifrato, non le sue password né la API key Venice. Se si usa il keystore personale della cache CI, alias e password sono quelli Android standard (`androiddebugkey`, `android`). Se si usa una propria chiave, conserva anche alias e password originali.
+The backup uses AES-256-GCM, random salt/nonce and PBKDF2-SHA256 with 600,000 iterations. It contains only the encrypted keystore, not its passwords or your Venice key. The cached personal key uses standard Android alias/password values (`androiddebugkey`, `android`). For a custom key, retain its original alias and passwords too.
 
-Per ripristinare, su un ambiente fidato con Node imposta la passphrase nell'ambiente `ANDROID_SIGNING_BACKUP_PASSPHRASE`, quindi esegui:
+To restore on a trusted system with Node, set environment variable `ANDROID_SIGNING_BACKUP_PASSPHRASE` and run:
 
 ```text
 node scripts/android-signing.mjs restore android-keystore.aes.json restored-android.keystore
 ```
 
-Il comando rifiuta di sovrascrivere un file esistente. Codifica il keystore ripristinato in base64 e inseriscilo nel secret GitHub; non commetterlo nel repository e non incollarlo in chat o nei log. Dopo il recupero rimuovi la passphrase dall'ambiente e conserva il keystore in modo protetto.
+The command refuses to overwrite an existing file. Base64-encode the restored keystore into the GitHub secret. Do not commit it or paste it into chat/logs. Remove the passphrase from the environment afterwards and protect the restored key.
 
-Il backup va abilitato e scaricato prima che la cache venga persa. Le Actions non possono ricostruire una chiave privata smarrita.
+Enable and download the backup before losing the cache. Actions cannot reconstruct a lost private key.

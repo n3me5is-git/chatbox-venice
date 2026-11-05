@@ -15,7 +15,7 @@ it('uses English by default and updates the real control when the language chang
  await act(async()=>{await i18n.changeLanguage('it-IT')})
  expect(screen.getByLabelText('Approvazione delle generazioni per questa chat',{selector:'input'})).toBeTruthy()
  await act(async()=>{await i18n.changeLanguage('fr')})
- expect(screen.getByLabelText('Generation approval for this chat',{selector:'input'})).toBeTruthy()
+ expect(screen.getByLabelText('Approbation des générations pour cette discussion',{selector:'input'})).toBeTruthy()
 })
 it('has nonempty English fallback and matching placeholders for all 15 supported languages',()=>{
  expect(supportedLanguages).toHaveLength(15)
