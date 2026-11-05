@@ -17,6 +17,7 @@ export function useVeniceModels() {
       if (current && current.apiKey === config?.apiKey && current?.apiHost === config?.apiHost && current?.venice?.enabled !== false) {
         const saved = current.models || []
         const enriched = saved.length ? saved.map(model => { const remote = models.find(row => row.modelId === model.modelId); return remote ? { ...remote, ...model, vendorMetadata: remote.vendorMetadata, capabilities: remote.capabilities } : model }) : models.filter(model => !current.excludedModels?.includes(model.modelId))
+        for (const remote of models) if (remote.type === 'embedding' && !enriched.some(model => model.modelId === remote.modelId) && !current.excludedModels?.includes(remote.modelId)) enriched.push(remote)
         state.setSettings({ providers: { ...state.providers, venice: { ...current, models: enriched } } })
       }
       return models

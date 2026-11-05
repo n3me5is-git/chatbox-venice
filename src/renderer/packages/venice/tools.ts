@@ -1,6 +1,6 @@
 import NiceModal from '@ebay/nice-modal-react'
 import { buildVeniceMediaTools } from '@shared/providers/definitions/models/venice/tools'
-import { buildVeniceImageTools } from '@shared/providers/definitions/models/venice/image-tools'
+import { buildVeniceImageTools, type ImageChoice } from '@shared/providers/definitions/models/venice/image-tools'
 import { internalVeniceMCP } from '@shared/providers/definitions/models/venice/internal-mcp'
 import { ModelProviderEnum } from '@shared/types'
 import { resolveRequestedVeniceImageModel } from './image-model-choice'
@@ -29,7 +29,7 @@ export function veniceChatTools(sessionId: string) {
     choose: async (request, signal) => {
       const before = veniceConfiguration(); const models = await images()
       const resolved = resolveRequestedVeniceImageModel(models, request.modelId, request.prompt)
-      const choice = await NiceModal.show(VeniceImageApproval, { models, request: { ...request, modelId: resolved.modelId, message: resolved.message }, signal })
+      const choice = await NiceModal.show(VeniceImageApproval, { models, request: { ...request, modelId: resolved.modelId, message: resolved.message }, signal }) as ImageChoice | null
       const current = veniceConfiguration()
       if (before.apiKey !== current.apiKey || before.apiHost !== current.apiHost) throw new Error('Le credenziali Venice sono cambiate. Conferma nuovamente la richiesta.')
       return choice

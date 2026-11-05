@@ -286,7 +286,8 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   const selectedOption = imageModelGroups.find(group => group.providerId === selectedProvider)?.models.find(model => model.modelId === selectedModel)
   const currentGeneratingId = useCurrentGeneratingId()
   const currentRecordId = useCurrentRecordId()
-  const { data: currentRecord } = useImageGenerationRecord(currentRecordId)
+  const { data: currentRecordRaw } = useImageGenerationRecord(currentRecordId)
+  const currentRecord = onlyVenice && currentRecordRaw?.model.provider !== 'venice' ? undefined : currentRecordRaw
 
   const {
     data: historyData,
@@ -512,7 +513,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   <Group justify="center" wrap="wrap">
                     <Button size="xs" variant="default" onClick={() => { setPrompt(currentRecord.prompt); textareaRef.current?.focus() }}>Usa lo stesso prompt</Button>
                     {!!currentRecord.generatedImages.length && <Button size="xs" variant="light" onClick={() => {
-                      const edit = imageModelGroups.flatMap(group => group.models.map(model => ({ group, model }))).find(({ model }) => !!model.capabilities?.inputReferences && (model.capabilities.inputReferences.max || 1) > 0)
+                      const edit = imageModelGroups.filter(group => group.providerId === currentRecord.model.provider).flatMap(group => group.models.map(model => ({ group, model }))).find(({ model }) => !!model.capabilities?.inputReferences && (model.capabilities.inputReferences.max || 1) > 0)
                       if (!edit) { toastActions.add('Seleziona o configura un modello che supporti la modifica delle immagini'); return }
                       handleModelSelect(edit.group.providerId, edit.model.modelId); setPrompt(currentRecord.prompt); void handleUseAsReference(currentRecord.generatedImages[0], currentRecord.id); textareaRef.current?.focus()
                     }}>Remix / modifica immagine</Button>}

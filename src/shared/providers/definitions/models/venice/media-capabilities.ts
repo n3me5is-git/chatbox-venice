@@ -56,7 +56,7 @@ export function privacyLabels(metadata?: Record<string, unknown>) {
   if (metadata.privacy === 'private') labels.push({ label: 'Privato', description: 'Elaborazione privata dichiarata da Venice. Non significa E2EE.', icon: 'private' })
   if (metadata.privacy === 'anonymized' || metadata.privacy === 'anonymous') labels.push({ label: 'Anonimizzato', description: 'Venice protegge l’identità; il fornitore del modello può elaborare i contenuti.', icon: 'anonymous' })
   const caps = metadata.capabilities as Record<string, unknown> | undefined
-  if (caps?.supportsE2EE === true || metadata.privacy === 'e2ee') labels.push({ label: 'E2EE richiesto', description: 'Richiede un protocollo E2EE. Questo client non lo implementa e non abilita questi modelli.', icon: 'encrypted' })
+  if (caps?.supportsE2EE === true || metadata.privacy === 'e2ee') labels.push({ label: 'E2EE non attivo', description: 'Il modello dichiara supporto E2EE; questo client non lo implementa. La richiesta ordinaria usa HTTPS.', icon: 'encrypted' })
   const sets = [...(Array.isArray(metadata.model_sets) ? metadata.model_sets : []), ...(Array.isArray(metadata.traits) ? metadata.traits : [])]
   if (typeof metadata.uncensored === 'boolean' || sets.includes('uncensored')) labels.push({ label: metadata.uncensored === false ? 'Con filtri' : 'Uncensored', description: 'Indicazione pubblicata nel catalogo Venice; non modifica la moderazione della richiesta.', icon: 'filter' })
   return labels

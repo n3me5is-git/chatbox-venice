@@ -113,7 +113,7 @@ export async function prepareCapacitorWorkMode(
     prepareTools: async () => ({
       ...memory,
       tools,
-      instructions: `${memory.instructions ?? ''}${WORK_INSTRUCTIONS}${mcp.unavailable.length ? '\nSome enabled MCP services are unavailable. Do not claim to have used their tools.' : ''}`,
+      instructions: `${memory.instructions ?? ''}${WORK_INSTRUCTIONS}${Object.keys(veniceTools).length ? '\nUse venice_image for Venice image creation/editing; resolve the exact requested model from its catalog, then let the user confirm per-call settings. Use venice_media for other Venice media. Do not bypass the native approval dialog.' : ''}${mcp.unavailable.length ? '\nSome enabled MCP services are unavailable. Do not claim to have used their tools.' : ''}`,
     }),
   }).prepare(request)
   return {

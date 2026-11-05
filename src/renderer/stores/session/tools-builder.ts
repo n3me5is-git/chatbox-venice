@@ -651,6 +651,7 @@ When you create a Git commit that includes code changes, append this exact trail
   if (includeAgentTools && model.name === 'Venice' && options.sessionId && settingsStore.getState().providers?.venice?.venice?.chatToolsEnabled !== false && settingsStore.getState().providers?.venice?.venice?.enabled !== false) {
     const { veniceChatTools } = await import('@/packages/venice/tools')
     tools = { ...tools, ...veniceChatTools(options.sessionId) }
+    instructions += '\nUse venice_image for Venice image generation/editing. Resolve an explicitly requested model name with its live catalog; do not substitute another model. The user dialog selects/changes per-call options and confirms payment. Use venice_media for other Venice media. Do not install an external server or use chatbox_cli to bypass these native tools.\n'
   }
 
   if (Object.keys(tools).length > 0) {
