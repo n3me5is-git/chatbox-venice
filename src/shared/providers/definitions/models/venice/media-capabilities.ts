@@ -43,8 +43,8 @@ export function validateMediaRequest(kind: MediaKind, body: Record<string, unkno
   }
   if (kind === 'video') {
     const c = s.constraints || {}; const inputs = videoInputs(model)
-    for (const [key, values] of [['duration', c.durations], ['aspect_ratio', c.aspect_ratios], ['resolution', c.resolutions]] as const) if (body[key] !== undefined && Array.isArray(values) && values.length && !values.includes(body[key])) throw new Error(`${key} non consentito dal modello. Apri la scheda del modello.`)
-    for (const [key, supported] of [['image_url', inputs.start], ['end_image_url', inputs.end], ['reference_image_urls', inputs.references], ['video_url', inputs.video], ['audio', inputs.audio], ['reference_video_urls', inputs.referenceVideos], ['reference_audio_urls', inputs.referenceAudio], ['audio_url', inputs.audioInput]] as const) if (body[key] !== undefined && !supported) throw new Error(`Il modello non supporta ${key}. Scegli un modello compatibile.`)
+    for (const [key, values] of [['duration', c.durations], ['aspect_ratio', c.aspect_ratios], ['resolution', c.resolutions]] as const) if (body[key] !== undefined && Array.isArray(values) && values.length && !values.includes(body[key])) throw new Error(`${key} is not supported by this model. Open the model details.`)
+    for (const [key, supported] of [['image_url', inputs.start], ['end_image_url', inputs.end], ['reference_image_urls', inputs.references], ['video_url', inputs.video], ['audio', inputs.audio], ['reference_video_urls', inputs.referenceVideos], ['reference_audio_urls', inputs.referenceAudio], ['audio_url', inputs.audioInput]] as const) if (body[key] !== undefined && !supported) throw new Error(`This model does not support ${key}. Choose a compatible model.`)
     if (inputs.start && !body.image_url) throw new Error("This model requires a start image.")
     if (inputs.video && !inputs.references && !body.video_url) throw new Error("This model requires a source video.")
     if (inputs.end && !body.end_image_url) throw new Error("This model requires an end frame.")

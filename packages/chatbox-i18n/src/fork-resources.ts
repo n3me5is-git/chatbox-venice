@@ -1,5 +1,6 @@
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 export const forkEnglish = {
+  "Image content filter": "Image content filter",
   "For example: Deep research": "For example: Deep research",
   "Refresh Venice balance": "Refresh Venice balance",
   "Cancel": "Cancel",
@@ -318,6 +319,7 @@ export const forkEnglish = {
   "Relaxing jazz with piano and double bass…": "Relaxing jazz with piano and double bass…"
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+  "Image content filter": "Filtro contenuti nelle immagini",
   "For example: Deep research": "Ad esempio: Ricerca approfondita",
   "Refresh Venice balance": "Aggiorna credito Venice",
   "Cancel": "Annulla",
