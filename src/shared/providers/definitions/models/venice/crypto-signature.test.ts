@@ -1,3 +1,4 @@
+const concat = (parts: ArrayLike<number>[]) => Buffer.concat(parts.map(part => Uint8Array.from(part)))
 // Adapted from veniceai/venice-cli (MIT). See docs/venice-cli-LICENSE.txt.
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -29,7 +30,7 @@ function makeSigner() {
     sign(signedText: string) {
       const message = new TextEncoder().encode(signedText);
       const prefix = new TextEncoder().encode(`\x19Ethereum Signed Message:\n${message.length}`);
-      const signature = secp256k1.sign(keccak_256(Buffer.concat([prefix, message])), privateKey);
+      const signature = secp256k1.sign(keccak_256(Uint8Array.from(concat([prefix, message]))), privateKey);
       const v = (27 + signature.recovery).toString(16);
       return {
         signedText,

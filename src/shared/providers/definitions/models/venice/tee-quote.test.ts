@@ -1,3 +1,4 @@
+const concat = (parts: ArrayLike<number>[]) => Buffer.concat(parts.map(part => Uint8Array.from(part)))
 // Adapted from veniceai/venice-cli (MIT). See docs/venice-cli-LICENSE.txt.
 import assert from 'node:assert/strict';
 import { it as test } from 'vitest';
@@ -44,8 +45,8 @@ interface QuoteOptions {
 
 function tdReport({ length = 584, tdAttributes = Buffer.alloc(8), reportData = Buffer.alloc(64) }: ReportOptions = {}): Buffer {
   const report = Buffer.alloc(length);
-  tdAttributes.copy(report, 120);
-  reportData.copy(report, 520);
+  report.set(Uint8Array.from(tdAttributes), 120);
+  report.set(Uint8Array.from(reportData), 520);
   return report;
 }
 
@@ -74,16 +75,16 @@ function buildQuote({
   const signatureLength = Buffer.alloc(4);
   signatureLength.writeUInt32LE(signatureData.length);
   if (version !== 5) {
-    return Buffer.concat([header, body, signatureLength, signatureData]);
+    return concat([header, body, signatureLength, signatureData]);
   }
   const descriptor = Buffer.alloc(6);
   descriptor.writeUInt16LE(bodyType, 0);
   descriptor.writeUInt32LE(bodyLength, 2);
-  return Buffer.concat([header, descriptor, body, signatureLength, signatureData]);
+  return concat([header, descriptor, body, signatureLength, signatureData]);
 }
 
 function withVersion(quote: Buffer, version: number): Buffer {
-  const relabelled = Buffer.from(quote);
+  const relabelled = Buffer.from(Uint8Array.from(quote));
   relabelled.writeUInt16LE(version, 0);
   return relabelled;
 }
@@ -121,7 +122,7 @@ test('a v5 quote with the TD debug bit set is reported as debug mode', () => {
 });
 
 test('the signing address in a v5 REPORTDATA binds the signing key', () => {
-  const reportData = Buffer.concat([Buffer.from(SIGNING_ADDRESS, 'hex'), Buffer.alloc(44)]);
+  const reportData = concat([Buffer.from(SIGNING_ADDRESS, 'hex'), Buffer.alloc(44)]);
   for (const [bodyType, length] of [[2, 584], [3, 648]]) {
     const body = tdReport({ length, reportData });
     const parsed = parseTdxQuote(buildQuote({ version: 5, bodyType, body }).toString('hex'));
@@ -158,8 +159,8 @@ test('parseTdxQuote rejects anything but exactly one well-formed TDX quote', () 
     'v5 layout labelled version 4': withVersion(v5, 4),
     'missing signature length': v4.subarray(0, 632),
     'truncated signature data': buildQuote({ signatureData: Buffer.alloc(64, 0xab) }).subarray(0, -1),
-    'v4 trailing bytes': Buffer.concat([v4, Buffer.alloc(1)]),
-    'v5 trailing bytes': Buffer.concat([v5, Buffer.alloc(1)]),
+    'v4 trailing bytes': concat([v4, Buffer.alloc(1)]),
+    'v5 trailing bytes': concat([v5, Buffer.alloc(1)]),
   };
 
   for (const [name, quote] of Object.entries(cases)) {

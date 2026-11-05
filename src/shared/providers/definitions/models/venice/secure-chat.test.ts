@@ -1,3 +1,4 @@
+const concat = (parts: ArrayLike<number>[]) => Buffer.concat(parts.map(part => Uint8Array.from(part)))
 import { describe, expect, it, vi } from 'vitest'
 import { secp256k1 } from '@noble/curves/secp256k1'
 import { keccak_256 } from '@noble/hashes/sha3'
@@ -10,7 +11,7 @@ function fixture(options: {badNonce?:boolean;badSignature?:boolean;plaintext?:bo
  const api=vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>{
   const target=new URL(String(url))
   if(target.pathname.endsWith('/tee/attestation')){
-   const quote=Buffer.alloc(636);quote.writeUInt16LE(4,0);quote.writeUInt32LE(0x81,4);Buffer.from(address,'hex').copy(quote,48+520)
+   const quote=Buffer.alloc(636);quote.writeUInt16LE(4,0);quote.writeUInt32LE(0x81,4);quote.set(Uint8Array.from(Buffer.from(address,'hex')),48+520)
    return json({verified:true,nonce:options.badNonce?'wrong':target.searchParams.get('nonce'),model:'secure-model',signing_key:enclave.publicKeyHex,signing_address:address,intel_quote:quote.toString('hex'),server_verification:{tdx:{valid:true},nonceBinding:{bound:true},verifiedAt:new Date().toISOString(),verificationDurationMs:1}})
   }
   if(target.pathname.endsWith('/chat/completions')){
@@ -19,7 +20,7 @@ function fixture(options: {badNonce?:boolean;badSignature?:boolean;plaintext?:bo
    return json({id:'reply-1',model:'secure-model',created:1,choices:[{index:0,message:{role:'assistant',content:options.plaintext?'Unencrypted':encryptMessage('Encrypted reply',client)},finish_reason:'stop'}]})
   }
   const text=options.badSignature?'Different reply':'Encrypted reply';const bytes=new TextEncoder().encode(text);const prefix=new TextEncoder().encode(`\x19Ethereum Signed Message:\n${bytes.length}`)
-  const signature=secp256k1.sign(keccak_256(Buffer.concat([prefix,bytes])),enclave.privateKey)
+  const signature=secp256k1.sign(keccak_256(Uint8Array.from(concat([prefix,bytes]))),enclave.privateKey)
   return json({model:'secure-model',request_id:'reply-1',text,signature:'0x'+bytesToHex(signature.toBytes('compact'))+(27+signature.recovery).toString(16)})
  })
  return {api,decrypted,sent:()=>sent,enclave}

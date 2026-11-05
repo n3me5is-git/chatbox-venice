@@ -26,10 +26,10 @@ function buildTdxQuote(
   quote.writeUInt16LE(4, 0);
   quote.writeUInt16LE(2, 2);
   quote.writeUInt32LE(options.teeType ?? 0x81, 4);
-  options.tdAttributes?.copy(quote, 168);
-  if (options.reportData) Buffer.from(options.reportData, 'hex').copy(quote, 568);
+  if(options.tdAttributes) quote.set(Uint8Array.from(options.tdAttributes), 168);
+  if (options.reportData) quote.set(Uint8Array.from(Buffer.from(options.reportData, 'hex')), 568);
   quote.writeUInt32LE(signatureData.length, 632);
-  signatureData.copy(quote, 636);
+  quote.set(Uint8Array.from(signatureData), 636);
   return quote.toString('hex');
 }
 

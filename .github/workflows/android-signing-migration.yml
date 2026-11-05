@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   recover:
-    if: github.repository == 'n3me5is-git/chatbox-venice' && github.ref == 'refs/heads/main' && ((github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'SIGNING:')) || inputs.operation == 'recover')
+    if: github.repository == 'n3me5is-git/chatbox-venice' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.operation == 'recover'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
