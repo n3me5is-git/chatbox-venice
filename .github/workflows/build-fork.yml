@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths-ignore: ['README.md', 'README.it.md', 'CHANGELOG.md', 'docs/**', 'doc/**', 'LICENSE', '.github/workflows/publish-release.yml', '.github/workflows/release-checks.yml', 'scripts/publish-fork-release.mjs', 'scripts/publish-release-workflow.test.mjs']
+    paths-ignore: ['README.md', 'README.it.md', 'CHANGELOG.md', 'docs/**', 'doc/**', 'LICENSE', '.github/workflows/publish-release.yml', '.github/workflows/release-checks.yml', 'scripts/publish-fork-release.mjs', 'scripts/publish-release-workflow.test.mjs', '.github/workflows/android-signing-migration.yml', '.github/workflows/prepare-crypto-dependencies.yml']
   workflow_dispatch:
     inputs:
       target:
@@ -29,7 +29,7 @@ jobs:
     uses: ./.github/workflows/checks.yml
   build_windows:
     name: Compile Windows app
-    if: "!startsWith(github.event.head_commit.message, 'CHECKS:') && (github.event_name != 'workflow_dispatch' || inputs.target != 'android')"
+    if: "!startsWith(github.event.head_commit.message, 'CHECKS:') && !startsWith(github.event.head_commit.message, 'SIGNING:') && (github.event_name != 'workflow_dispatch' || inputs.target != 'android')"
     needs: checks
     runs-on: windows-latest
     timeout-minutes: 30
@@ -83,7 +83,7 @@ jobs:
           overwrite: true
   build_android_renderer:
     name: Compile Android renderer
-    if: "!startsWith(github.event.head_commit.message, 'CHECKS:') && (github.event_name != 'workflow_dispatch' || inputs.target != 'windows')"
+    if: "!startsWith(github.event.head_commit.message, 'CHECKS:') && !startsWith(github.event.head_commit.message, 'SIGNING:') && (github.event_name != 'workflow_dispatch' || inputs.target != 'windows')"
     needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -184,4 +184,5 @@ jobs:
     uses: ./.github/workflows/publish-release.yml
     with:
       run_id: ${{ github.run_id }}
+
 
