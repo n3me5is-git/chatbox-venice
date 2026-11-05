@@ -1,9 +1,11 @@
 import NiceModal from '@ebay/nice-modal-react'
+import { forkT as ft } from '@/i18n/fork'
 import { ActionIcon, Box, Flex, Input, Text } from '@mantine/core'
 import { AutomationAdjacentAttr, AutomationStateAttr, TestId } from '@shared/automation/testids'
 import type { SessionMetaRecord } from '@shared/types'
 import {
   IconArchive,
+  IconTrash,
   IconArrowsMoveVertical,
   IconClockHour4,
   IconFolderShare,
@@ -23,7 +25,7 @@ import { useTouchLayout } from '@/hooks/useTouchLayout'
 import { navigateToSettings } from '@/modals/settings-navigation'
 import { showSessionArchiveUndo } from '@/presentation/session/session-archive-notification'
 import { router } from '@/router'
-import { switchCurrentSession } from '@/stores/session/crud'
+import { deleteSession, switchCurrentSession } from '@/stores/session/crud'
 import { useSessionActivity } from '@/stores/sessionActivityStore'
 import * as toastActions from '@/stores/toastActions'
 import { useUIStore } from '@/stores/uiStore'
@@ -233,6 +235,16 @@ function SessionItem(props: Props) {
       disabled: archiving,
       onClick: () => {
         void archiveCurrentSession()
+      },
+    },
+    { divider: true },
+    {
+      text: ft('Delete chat permanently'), icon: IconTrash, color: 'red', disabled: archiving,
+      doubleCheck: { text: ft('Permanently delete this chat?'), color: 'red' },
+      onClick: () => {
+        if (archiving) return
+        setArchiving(true)
+        void deleteSession(session.id).then(async () => { if (selected) await router.navigate({ to: '/', replace: true }) }).catch(() => toastActions.add(ft('Unable to delete the chat. Please try again.'))).finally(() => setArchiving(false))
       },
     },
   ]

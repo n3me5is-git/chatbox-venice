@@ -57,7 +57,7 @@ try {
   await click(byLabel("Voice to use"))
   await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === 'Nicola · Italian')`)
   await fill("Text to read", 'Local test without real APIs')
-  await click(byText("Generate speech")); await wait(() => evaluate(`!!document.querySelector('audio[aria-label="Generated audio"]')`), 'Generated audio did not appear')
+  await click(byText("Generate speech")); await wait(() => evaluate(`!!(${byText("Open preview")})`), 'Preview control did not appear'); await click(byText("Open preview")); await wait(() => evaluate(`!!document.querySelector('audio[aria-label="Generated audio"]')`), 'Generated audio did not appear')
   assert.equal(await evaluate('window.__simulationLastBody.voice'), 'im_nicola', 'Selected voice did not reach the request')
   await click(byText("Export")); await wait(() => evaluate('window.__simulationExport?.size > 0'), 'Export did not receive local audio')
   await evaluate('window.scrollTo(0,0)'); await writeFile(path.join(output, 'desktop.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: true })).data, 'base64'))

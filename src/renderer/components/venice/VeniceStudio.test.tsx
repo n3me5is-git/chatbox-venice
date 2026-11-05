@@ -81,7 +81,9 @@ describe('Venice Studio simulated user journeys', () => {
   })
   it('rejects remote content URLs for embedded playback', async () => {
     const service = setup([{ ...record, status: 'ready', blobKey: 'blob' }]); service.content.mockResolvedValue('https://tracking.example/video.mp4'); show(service)
-    await screen.findByText('Landscape'); expect(screen.queryByLabelText("Generated video")).toBeNull()
+    await screen.findByText('Landscape'); expect(service.content).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button',{name:'Open preview'}));await waitFor(()=>expect(service.content).toHaveBeenCalledTimes(1))
+    expect(screen.queryByLabelText("Generated video")).toBeNull()
   })
 })
 
@@ -117,4 +119,14 @@ it('separates music and sound effects and sends a sound-effects job with only su
   fireEvent.change(screen.getByLabelText('Describe the sound effect'),{target:{value:'Gentle rain on a window'}})
   fireEvent.click(screen.getByRole('button',{name:'Create sound effects'}))
   await waitFor(()=>expect(service.start).toHaveBeenCalledWith(expect.objectContaining({kind:'sound-effects',model:'elevenlabs-sound-effects-v2',options:{duration_seconds:7,loop:true}})))
+})
+
+it('does not load a large history into media memory and closes the previous preview', async () => {
+  const records=Array.from({length:60},(_,index)=>({...record,id:String(index),blobKey:'blob-'+index,status:'ready' as const}))
+  const service=setup(records);service.content.mockResolvedValue('data:video/mp4;base64,YQ==');show(service)
+  await screen.findAllByRole('button',{name:'Open preview'});expect(service.content).not.toHaveBeenCalled();expect(screen.getAllByRole('button',{name:'Open preview'})).toHaveLength(20)
+  fireEvent.click(screen.getAllByRole('button',{name:'Open preview'})[0]);await screen.findByLabelText('Generated video')
+  fireEvent.click(screen.getAllByRole('button',{name:'Open preview'})[0]);await waitFor(()=>expect(service.content).toHaveBeenCalledTimes(2))
+  expect(screen.getAllByLabelText('Generated video')).toHaveLength(1)
+  fireEvent.click(screen.getByRole('button',{name:'Close preview'}));await waitFor(()=>expect(screen.queryByLabelText('Generated video')).toBeNull())
 })

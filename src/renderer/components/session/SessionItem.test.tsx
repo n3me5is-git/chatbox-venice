@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 const {
   archiveSessionMock,
+  deleteSessionMock,
   countArchivedSessionsMetaMock,
   isSmallScreenMock,
   platformMock,
@@ -18,6 +19,7 @@ const {
   updateSessionHeaderMock,
 } = vi.hoisted(() => ({
   archiveSessionMock: vi.fn(),
+  deleteSessionMock: vi.fn(),
   countArchivedSessionsMetaMock: vi.fn(),
   isSmallScreenMock: vi.fn(() => false),
   platformMock: { type: 'desktop' },
@@ -50,7 +52,7 @@ vi.mock('@/app/renderer-application', async (importOriginal) => {
     },
   }
 })
-vi.mock('@/stores/session/crud', () => ({ switchCurrentSession: switchCurrentSessionMock }))
+vi.mock('@/stores/session/crud', () => ({ switchCurrentSession: switchCurrentSessionMock, deleteSession: deleteSessionMock }))
 vi.mock('@/stores/toastActions', () => ({ add: toastAddMock }))
 vi.mock('@/stores/uiStore', () => ({
   useUIStore: (selector: (state: { setShowSidebar: () => void }) => unknown) => selector({ setShowSidebar: vi.fn() }),
@@ -95,6 +97,7 @@ describe('SessionItem', () => {
     resetSessionActivityStore()
     isSmallScreenMock.mockReturnValue(false)
     platformMock.type = 'desktop'
+    deleteSessionMock.mockResolvedValue(undefined)
     archiveSessionMock.mockResolvedValue(undefined)
     countArchivedSessionsMetaMock.mockResolvedValue(0)
     restoreSessionMock.mockResolvedValue(undefined)
@@ -113,6 +116,16 @@ describe('SessionItem', () => {
         dispatchEvent: vi.fn(() => false),
       })),
     })
+  })
+
+  test('deletes a chat directly only after the explicit permanent-deletion confirmation', async () => {
+    renderItem()
+    fireEvent.contextMenu(screen.getByTestId(TestId.sidebar.sessionItem))
+    fireEvent.click(await screen.findByText('Delete chat permanently'))
+    expect(deleteSessionMock).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByText('Permanently delete this chat?'))
+    await waitFor(() => expect(deleteSessionMock).toHaveBeenCalledWith('session-1'))
+    expect(archiveSessionMock).not.toHaveBeenCalled()
   })
 
   test('opens the chat menu with a right click on desktop', async () => {

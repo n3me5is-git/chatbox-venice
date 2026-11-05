@@ -5,14 +5,16 @@ import type { RequestAdapter } from '../../../../types/adapters'
 import { mergeExtraBody } from '../../../../models/utils/extra-body'
 import { assertVeniceEnabled, type VeniceOptions } from './options'
 
-export type MediaKind = 'speech' | 'transcription' | 'video' | 'music' | 'sound-effects'
+export type MediaKind = 'speech' | 'transcription' | 'video' | 'music' | 'sound-effects' | 'voice-conversion'
 export type MediaRecord = {
   id: string; kind: MediaKind; model: string; prompt: string; createdAt: number; sessionId?: string;
   status: 'creating' | 'queued' | 'ready' | 'paused' | 'error'; queueId?: string; origin: string;
   credentialId: string; blobKey?: string; mime?: string; text?: string; error?: string; remoteCleaned?: boolean;
 }
 export type MediaCatalogCache = { origin: string; credentialId: string; items: MediaCatalogItem[] }
+export type VoiceHandle = { id: string; model: string; name: string; origin: string; credentialId: string; createdAt: number; expiresAt: number }
 export interface MediaStore {
+  readVoices?(): Promise<VoiceHandle[]>; writeVoices?(voices: VoiceHandle[]): Promise<void>;
   readCatalog?(): Promise<MediaCatalogCache | null>; writeCatalog?(cache: MediaCatalogCache): Promise<void>;
   read(): Promise<MediaRecord[]>; write(records: MediaRecord[]): Promise<void>;
   putBlob(key: string, value: string): Promise<void>; getBlob(key: string): Promise<string | null>; deleteBlob(key: string): Promise<void>;
@@ -23,7 +25,8 @@ export type MediaCatalogItem = { id: string; type: string; model_spec?: { name?:
     pricing?: Record<string, unknown>; supports_lyrics?: boolean; lyrics_required?: boolean; supports_force_instrumental?: boolean; supports_lyrics_optimizer?: boolean; supports_loop?: boolean; supports_language_code?: boolean; supports_speed?: boolean;
     min_duration?: number; max_duration?: number; default_duration?: number; duration_options?: number[]; min_prompt_length?: number; prompt_character_limit?: number; lyrics_character_limit?: number; min_speed?: number; max_speed?: number; [key: string]: unknown } }
 const MAX_BYTES = 128 * 1024 * 1024
-const flags = { speech: 'audioEnabled', transcription: 'audioEnabled', video: 'videoEnabled', music: 'musicEnabled', 'sound-effects': 'musicEnabled' } as const
+const flags = { speech: 'audioEnabled', transcription: 'audioEnabled', 'voice-conversion': 'audioEnabled', video: 'videoEnabled', music: 'musicEnabled', 'sound-effects': 'musicEnabled' } as const
+const queuePath = (kind: MediaKind) => kind === 'video' ? '/video' : kind === 'voice-conversion' ? '/audio/voice-changer' : '/audio'
 export function mediaEnabled(kind: MediaKind, options: VeniceOptions) { return options.enabled !== false && options[flags[kind]] === true }
 export function mediaOrigin(host?: string) {
   const url = new URL(host || 'https://api.venice.ai/api/v1')
@@ -102,23 +105,25 @@ export class VeniceMediaService {
   async quote(input: MediaInput) {
     const config = this.config(input.kind)
     if (config.options.privacyFilter && config.options.privacyFilter !== 'all') requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === input.model)?.model_spec, config.options.privacyFilter)
-    if (!['video', 'music', 'sound-effects'].includes(input.kind)) throw new Error('Quotes are available for video and music')
+    if (!['video', 'music', 'sound-effects', 'voice-conversion'].includes(input.kind)) throw new Error('Quotes are available for video, music, sound effects and voice conversion')
     const allowed = input.kind === 'video' ? ['duration', 'aspect_ratio', 'resolution', 'audio', 'video_url', 'upscale_factor'] : ['duration_seconds', 'character_count']
     const merged = mergeExtraBody({ model: input.model }, input.options || {})
     if (typeof merged.model !== 'string' || !merged.model.trim()) throw new Error('Choose a model')
     const body: Record<string, unknown> = { model: merged.model }
+    requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec, config.options.privacyFilter)
     for (const key of allowed) if (merged[key] !== undefined) body[key] = merged[key]
     if ((input.kind === 'music' || input.kind === 'sound-effects') && body.character_count === undefined && (await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec?.pricing?.per_thousand_characters) body.character_count = input.prompt.length
-    return (await this.api(config, input.kind === 'video' ? '/video/quote' : '/audio/quote', body)).json()
+    return (await this.api(config, `${queuePath(input.kind)}/quote`, body)).json()
   }
   async start(input: MediaInput): Promise<MediaRecord> {
     const config = this.config(input.kind)
-    if (!input.model.trim() || (input.kind !== 'transcription' && !input.prompt.trim())) throw new Error('Choose a model and enter a prompt')
+    if (!input.model.trim() || (!['transcription','voice-conversion'].includes(input.kind) && !input.prompt.trim())) throw new Error('Choose a model and enter a prompt')
     if (input.file && input.file.size > 25 * 1024 * 1024) throw new Error('Transcription file exceeds 25 MB')
     if (input.kind === 'transcription' && !input.file) throw new Error('Choose an audio or video file')
+    if (input.kind === 'voice-conversion' && !input.file) throw new Error('Choose an audio recording to convert')
     const body = mergeExtraBody(input.kind === 'speech' ? { model: input.model, input: input.prompt } : { model: input.model, prompt: input.prompt }, input.options || {})
     if (typeof body.model !== 'string' || !body.model.trim()) throw new Error('The request model must be a non-empty string')
-    const known = (await this.cachedCatalog()).find(item => item.id === body.model && item.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : input.kind === 'sound-effects' ? 'music' : input.kind))
+    const known = (await this.cachedCatalog()).find(item => item.id === body.model && item.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : ['sound-effects','voice-conversion'].includes(input.kind) ? 'music' : input.kind))
     requireModelPrivacy(known?.model_spec, config.options.privacyFilter)
     validateMediaRequest(input.kind, body, known)
     const record: MediaRecord = { id: uuid(), kind: input.kind, model: String(body.model), prompt: input.prompt, createdAt: Date.now(), sessionId: input.sessionId,
@@ -129,8 +134,22 @@ export class VeniceMediaService {
     if (input.signal?.aborted) controller.abort()
     try {
       controller.signal.throwIfAborted()
-      if (input.kind === 'video' || input.kind === 'music' || input.kind === 'sound-effects') {
-        const queue = await (await this.api(config, input.kind === 'video' ? '/video/queue' : '/audio/queue', body, controller.signal)).json()
+      if (['video','music','sound-effects','voice-conversion'].includes(input.kind)) {
+        let payload: Record<string, unknown> | FormData = body
+        if (input.kind === 'voice-conversion') {
+          if (known?.model_spec?.voice_changer !== true) throw new Error('Choose a voice-conversion model from the current Venice catalog')
+          const spec = known.model_spec
+          const extension = input.file!.name.split('.').pop()?.toLowerCase()
+          if (!Array.isArray(spec.accepted_audio_formats) || !spec.accepted_audio_formats.includes(extension)) throw new Error('This recording format is not accepted by the selected model')
+          const allowed = ['model','voice','remove_background_noise','seed']
+          if (Object.keys(input.options || {}).some(key => !allowed.includes(key))) throw new Error('Unsupported voice-conversion option')
+          if (body.remove_background_noise !== undefined && spec.supports_background_noise_removal !== true || body.seed !== undefined && spec.supports_seed !== true) throw new Error('The conversion model does not support this option')
+          if (body.seed !== undefined && (typeof body.seed !== 'number' || !Number.isInteger(body.seed) || body.seed < 0 || body.seed > 4294967295)) throw new Error('The conversion seed must be an integer from 0 to 4294967295')
+          if (body.voice !== undefined && !spec.voices?.includes(String(body.voice)) && spec.supports_custom_voice_id !== true) throw new Error('Choose a voice offered by the conversion model')
+          payload = new FormData(); payload.set('file', input.file!); payload.set('model', String(body.model))
+          for (const key of allowed.filter(key => key !== 'model')) if (body[key] !== undefined) payload.set(key, String(body[key]))
+        }
+        const queue = await (await this.api(config, `${queuePath(input.kind)}/queue`, payload, controller.signal)).json()
         if (typeof queue.queue_id !== 'string' || !queue.queue_id) throw new Error('Venice did not return a queue ID; do not automatically repeat the paid request')
         await this.patch(record.id, { queueId: queue.queue_id, model: typeof queue.model === 'string' ? queue.model : record.model, status: 'queued' })
         if (controller.signal.aborted) { await this.patch(record.id, { status: 'paused' }); return { ...record, queueId: queue.queue_id, status: 'paused' } }
@@ -175,7 +194,7 @@ export class VeniceMediaService {
         const current = this.config(record.kind)
         if (current.origin !== record.origin || await this.credential(current) !== record.credentialId) throw new Error('Venice credentials changed; resume with the original endpoint and key')
         controller.signal.throwIfAborted()
-        const response = await this.api(config, record.kind === 'video' ? '/video/retrieve' : '/audio/retrieve', { model: record.model, queue_id: record.queueId, delete_media_on_completion: false }, controller.signal)
+        const response = await this.api(config, `${queuePath(record.kind)}/retrieve`, { model: record.model, queue_id: record.queueId, delete_media_on_completion: false }, controller.signal)
         if ((response.headers.get('content-type') || '').includes('application/json')) {
           const status = await response.json()
           if (['failed', 'error', 'cancelled'].includes(String(status.status).toLowerCase())) throw new Error('Venice generation failed')
@@ -195,7 +214,7 @@ export class VeniceMediaService {
     const record = (await this.list()).find(item => item.id === id); if (!record?.queueId || record.remoteCleaned) return
     const config = this.config()
     if (config.origin !== record.origin || await this.credential(config) !== record.credentialId) throw new Error('Remote cleanup requires the original endpoint and key')
-    const result = await (await this.api(config, record.kind === 'video' ? '/video/complete' : '/audio/complete', { model: record.model, queue_id: record.queueId })).json()
+    const result = await (await this.api(config, `${queuePath(record.kind)}/complete`, { model: record.model, queue_id: record.queueId })).json()
     if (result.success !== true) throw new Error('Venice did not confirm remote cleanup')
     await this.patch(id, { remoteCleaned: true, error: undefined })
   }
@@ -208,4 +227,30 @@ export class VeniceMediaService {
     await this.mutate(records => records.filter(item => item.id !== id))
   }
   async content(record: MediaRecord) { return record.blobKey ? this.store.getBlob(record.blobKey) : null }
+  async listVoices(model?: string): Promise<VoiceHandle[]> {
+    const config = this.configuration(); const credentialId = await this.credential(config); const origin = mediaOrigin(config.apiHost)
+    return (await this.store.readVoices?.() || []).filter(voice => voice.origin === origin && voice.credentialId === credentialId && voice.expiresAt > Date.now() && (!model || voice.model === model))
+  }
+  async removeVoice(id: string) {
+    // Venice currently documents expiry, not a DELETE endpoint for zero-shot voice handles.
+    // Removing this reference never claims to delete the server-side sample.
+    const voices = await this.store.readVoices?.() || []
+    await this.store.writeVoices?.(voices.filter(voice => voice.id !== id))
+  }
+  async createVoice(model: string, file: File, name = '') {
+    const config = this.config('speech')
+    const entry = (await this.cachedCatalog()).find(item => item.id === model && item.type === 'tts')
+    requireModelPrivacy(entry?.model_spec, config.options.privacyFilter)
+    const cloning = entry?.model_spec?.voice_cloning as { accepted_formats?: string[] } | undefined
+    if (!cloning || !cloning.accepted_formats?.includes(file.name.split('.').pop()?.toLowerCase() || '')) throw new Error('Choose a supported sample and a model with voice cloning')
+    if (!file.size || file.size > 25 * 1024 * 1024) throw new Error('Voice samples must be between 1 byte and 25 MB')
+    const form = new FormData(); form.set('model', model); form.set('file', file)
+    const result = await (await this.api(config, '/audio/voices', form)).json()
+    if (typeof result.id !== 'string' || !/^vv_[\w-]+$/.test(result.id) || result.model !== model) throw new Error('Invalid Venice voice handle')
+    const details = entry?.model_spec?.voice_cloning as { retention_days?: number }
+    const voice: VoiceHandle = { id: result.id, model, name: name.trim().slice(0,100) || 'My cloned voice', origin: config.origin, credentialId: await this.credential(config), createdAt: Date.now(), expiresAt: Date.now() + (Number(details.retention_days) || 7) * 86400000 }
+    const voices = await this.store.readVoices?.() || []
+    await this.store.writeVoices?.([...voices.filter(item => item.expiresAt > Date.now()), voice])
+    return voice
+  }
 }
