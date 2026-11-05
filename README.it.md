@@ -14,7 +14,7 @@ Nel generatore immagini compaiono le impostazioni Venice: moderazione, ricerca w
 
 Nei provider custom puoi specificare un JSON aggiuntivo per ogni modello, ad esempio `{"moderation":"low"}` per le immagini compatibili OpenAI. Gli oggetti vengono uniti ricorsivamente e gli array sostituiti. Per creare varianti dello stesso modello usa un ID locale diverso e specifica il vero ID nel campo `model` del JSON. L'opzione ricerca nativa esclude i tool di ricerca Chatbox.
 
-Cronologia e immagini restano sul dispositivo. Puoi eliminare le generazioni dalla cronologia; i file esportati manualmente restano nella cartella scelta. L'inferenza invia prompt e riferimenti selezionati a Venice. Questa integrazione usa HTTPS e non implementa il protocollo E2EE Venice.
+Cronologia e immagini restano sul dispositivo. Puoi eliminare le generazioni dalla cronologia; i file esportati manualmente restano nella cartella scelta. L'inferenza invia prompt e riferimenti selezionati a Venice. Le richieste standard usano HTTPS; nelle impostazioni Venice puoi richiedere verifica TEE o E2EE per i modelli testuali compatibili. I media non usano E2EE.
 
 Abilita i moduli desiderati in Impostazioni → Provider → Venice, poi apri **Venice Studio** dal menu laterale. Scegli modello e voce dai selettori: le voci e i formati arrivano dal catalogo del modello. Il caricamento del catalogo è esplicito; viene conservata una copia locale compatibile con la chiave configurata. Le prove voce sono brevi generazioni, avviate solo su richiesta, e possono avere un costo. ID e JSON sono raccolti nelle opzioni avanzate. Video e musica conservano il lavoro avviato e possono riprenderne il recupero senza rigenerarlo. La copia remota viene ripulita dopo il salvataggio locale; se non riesce, puoi riprovare. Cancellazione locale e cancellazione remota sono separate. I file esportati restano nella posizione scelta. Limiti: 25 MB per la trascrizione e 128 MB per i media generati.
 
@@ -32,7 +32,7 @@ Setup Windows x64 e APK Android vengono creati nelle Actions. Non serve installa
 
 Il setup Windows non è firmato con certificato commerciale. Dalla 1.25.0 l'APK è compilato in modalità release e firmato per l'installazione personale; per gli aggiornamenti Android occorre conservare la stessa chiave. Da 1.25.0 sono disponibili anche moduli facoltativi per audio, trascrizione, video, musica ed effetti sonori, con cronologia locale ed esportazione.
 
-Vedi anche [test simulati](docs/fork-testing.md) e [installazione personale e firma Android](docs/personal-distribution.md). E2EE/attestazione TEE, clonazione e conversione della voce non sono implementate.
+Vedi anche [test simulati](docs/fork-testing.md) e [installazione personale e firma Android](docs/personal-distribution.md). Sono disponibili E2EE/TEE testuali, clonazione e conversione vocale compatibili con il catalogo. In Dati e backup trovi PIN/biometria, protezione dei progetti e libreria cifrata con backup e pulizia. Il blocco progetti protegge l’accesso nell’app: non cifra il database preesistente delle chat. Remix/edit supporta modelli compatibili, maschera locale e commenti percentuali. Vedi [protezione locale e limiti](docs/local-security.md).
 
 [Licenza GPL-3.0](LICENSE) · [Progetto originale](https://github.com/chatboxai/chatbox)
 

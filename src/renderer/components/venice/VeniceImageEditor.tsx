@@ -39,7 +39,7 @@ export const VeniceImageEditor=NiceModal.create(({record,models,onCreated,loadDa
   }catch(error){if(!controller.signal.aborted)setError(error instanceof Error?error.message:String(error))}
   finally{if(!handedOff)for(const key of temporary)await removeData(key).catch(()=>{});setBusy(false)}
  }
- return <AdaptiveModal opened={modal.visible} onClose={()=>{if(!busy){modal.resolve(null);modal.remove()}} title={ft('Remix and edit image')} size="xl"><Stack gap="sm">
+ return <AdaptiveModal opened={modal.visible} onClose={()=>{if(!busy){modal.resolve(null);modal.remove()}}} title={ft('Remix and edit image')} size="xl"><Stack gap="sm">
   {record.generatedImages.length>1&&<Select label={ft('Source image')} value={source} onChange={value=>value&&setSource(value)} disabled={busy} data={record.generatedImages.map((key,index)=>({value:key,label:ft('Image {{number}}',{number:index+1})}))}/>}
   <ScrollArea type="auto"><SegmentedControl aria-label={ft('Image editing mode')} value={mode} onChange={value=>{setMode(value as EditMode);setModel(null)}} disabled={busy} data={[{value:'remix',label:ft('Remix')},{value:'edit',label:ft('Edit image')},{value:'mask',label:ft('Paint an edit area')}]}/></ScrollArea>
   <Select label={ft('Compatible image model')} placeholder={ft('Choose a model')} value={model} onChange={setModel} disabled={busy} searchable data={compatible.map(row=>({value:row.modelId,label:row.displayName}))} comboboxProps={{withinPortal:true}} maxDropdownHeight={220}/>

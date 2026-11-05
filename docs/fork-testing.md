@@ -24,11 +24,13 @@ Chat approval tests cover ask/similar/automatic policies, separate chats, fresh 
 
 Localization tests switch real controls between English, Italian and French without restarting. They verify nonempty resources and matching placeholders for all 15 desktop locales and existing mobile resource overlays. New fork keys have English fallbacks; existing locale translations remain in place. Core approval controls have translations for all supported desktop locales; longer new messages can fall back to English.
 
+Focused storage/security tests also cover authenticated chunk tampering, manifest truncation, streaming restore, locked scopes, wrong PIN/device-key loss, stale unlock completion, protection changes, legacy migration and project references/drafts. Image tests cover model filtering, cropped percentage comments, local composition hooks and preserving a paid unmasked result when local processing fails. Native security checks compile the Windows Hello C++ helper and Android Keystore/biometric Java plugin separately from installer packaging.
+
 ## Browser evidence
 
-Chromium mounts real Venice Studio and image approval components with a local mock service. It selects a voice, creates a test WAV, exports it, simulates HTTP 429, disables a module and deletes the result. Mobile interaction uses touch events and checks scrollable controls. The image dialog selects a model, aspect ratio, moderation and seed. The scenario checks JavaScript exceptions, unexpected external requests and horizontal overflow.
+Chromium mounts real Venice Studio and image approval components with a local mock service. It selects a voice, creates a test WAV, exports it, simulates HTTP 429, disables a module and deletes the result. Mobile interaction uses touch events and checks scrollable controls. The image dialog selects a model, aspect ratio, moderation and seed. The scenario also edits an image with a local mask/comment point, verifies exact test pixels inside/outside the mask, filters incompatible models and tests PIN setup/rejection plus independent PIN/device-unlock switches. It checks JavaScript exceptions, unexpected external requests and horizontal overflow. Device key wrapping and biometric hardware are simulated.
 
-Open **Artifacts → Venice-UI-simulation** in a successful run: `desktop.png` (1440×1100), `mobile.png` (412×915), `image-hitl-mobile.png`, `report.json`, and diagnostic logs. Artifacts expire after 14 days. The image model in the fixture is simulated. This is not a complete Electron/Android end-to-end test or a physical-phone screenshot.
+Open **Artifacts → Venice-UI-simulation** in a successful run: `desktop.png` (1440×1100), `mobile.png` (412×915), `image-hitl-mobile.png`, `image-editor-mobile.png`, `security-unlock-mobile.png`, `report.json`, and diagnostic logs. Artifacts expire after 14 days. The image model in the fixture is simulated. This is not a complete Electron/Android end-to-end test or a physical-phone screenshot.
 
 ## Physical-device and live checks
 

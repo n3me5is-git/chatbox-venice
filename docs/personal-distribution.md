@@ -31,7 +31,7 @@ GitHub can evict caches; a cache is not a permanent backup. A different/new key 
 
 Add repository secret `ANDROID_SIGNING_BACKUP_PASSPHRASE`, using a strong passphrase of at least 20 characters. After the next successful Android signing job, download **Android-signing-backup-encrypted** and store it outside GitHub; CI artifacts expire after 14 days. Keep the passphrase separately. The key cannot be recovered without it.
 
-The backup uses AES-256-GCM, random salt/nonce and PBKDF2-SHA256 with 600,000 iterations. It contains only the encrypted keystore, not its passwords or your Venice key. The cached personal key uses standard Android alias/password values (`androiddebugkey`, `android`). For a custom key, retain its original alias and passwords too.
+The backup uses AES-256-GCM, random salt/nonce and PBKDF2-SHA256 with 600,000 iterations. It contains only the encrypted keystore, not its passwords or your Venice key. The migrated personal identity retains its original Android alias/password values. The workflow no longer caches the signing key. For a custom key, retain its original alias and passwords too.
 
 To restore on a trusted system with Node, set environment variable `ANDROID_SIGNING_BACKUP_PASSPHRASE` and run:
 

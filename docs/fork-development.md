@@ -10,6 +10,7 @@ The workflows are:
 | --- | --- | --- |
 | Sync release notes | Release-note source changes or manual | Update published note text from current English Markdown without changing tags or packages. |
 | Release checks | Release-tooling changes, pull request or manual | Lightweight publication regressions and syntax checks, without installing the app dependencies. |
+| Native security checks | Native security source changes, pull request or manual | Compile Windows Hello helper and Android Keystore/biometric plugin without installer packaging or signing secrets. |
 | Checks | Pull request, manual, or called by builds | Configuration validation, focused regression tests and TypeScript. Manual runs can select the full unit suite. No packages or releases. |
 | Build Windows and Android | Code push to main, version tag, manual | Checks, then separate compilation and packaging jobs. Manual runs select Windows, Android or both; publishing is off by default for manual runs. |
 | Publish existing build | Automatic after both packages succeed on main, or manual run ID | Verify the source commit and successful jobs, then publish existing packages. No compilation or dependency installation. |

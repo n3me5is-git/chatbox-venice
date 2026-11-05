@@ -32,6 +32,14 @@ Save reusable search/image profiles in Venice provider settings, then select or 
 
 English is the source language for fork releases and UI. Fork controls use the existing translation resources and live language switching; missing new translations fall back to English. Core approval controls cover all 15 supported desktop locales. See [testing and localization](docs/fork-testing.md).
 
+## Protected local storage and model privacy
+
+Open **Settings → Data & Backup** to configure independent PIN/passphrase and biometric/device unlock, app-open/background locking, project locks, encrypted library backup/restore and cleanup. Image Creator and Studio have public/protected histories and a protection switch for new outputs. Native media is encrypted on disk and opened lazily; public library means no extra PIN. A project's lock guards access inside the app and does not encrypt the existing ordinary conversation database or external files. See [local protection and backup boundaries](docs/local-security.md).
+
+Venice settings offer **Privacy Only**, optional TEE verification/text E2EE and **Show other models from Venice**. E2EE excludes tools, attachments and search. Attestation validates nonce/model/key bindings and signed replies; Intel/NVIDIA certificate verification relies on Venice's reported verdicts. Catalog badges show provider privacy/uncensored claims.
+
+Studio separates music and sound effects, supports compatible voice cloning/conversion, and accepts recordings or existing local media. Clone-handle removal is local; server-side samples follow Venice's retention period. Image Creator/Studio remix and edit offer compatible models, batch controls, percent comment points and a local painted-area mask. Venice receives a context crop; masking is applied on-device.
+
 ## Extra request JSON for each custom model
 
 Open a custom provider, create or edit a model, and use **Extra request JSON**. This object merges into the outgoing body after SDK serialization. Nested objects merge; arrays replace. `false`, `0` and `null` retain their meaning. Streaming remains controlled by Chatbox settings.
@@ -61,7 +69,7 @@ Give variants unique local Model IDs and put the real model ID in JSON's `model`
 
 Chat history, generated images and API settings are stored on the device. Image Creator's Delete action removes the local record, aborts an active generation, and cleans up image blobs that are no longer referenced. Explicit file exports remain where you saved them.
 
-Venice chat, search and image requests go directly to Venice; there is no fork-operated relay or backend. Prompts and selected reference files must be sent to Venice for inference. Search providers may receive queries through Venice. This implementation uses HTTPS and does not implement Venice's E2EE handshake. Models requiring that handshake are excluded.
+Venice chat, search and image requests go directly to Venice; there is no fork-operated relay or backend. Prompts and selected reference files must be sent to Venice for inference. Search providers may receive queries through Venice. Standard requests use HTTPS; compatible text models can require TEE verification or E2EE in provider settings. Media endpoints do not use text E2EE.
 
 Tracking and error reporting default to disabled. Local document parsing is the desktop default; mobile defaults to no cloud parser. You can explicitly configure other providers, MCP servers, parsers or optional upstream Chatbox services, each with its own data destination. Existing imported preferences are preserved. See [privacy and data flows](docs/fork-privacy.md).
 
@@ -71,4 +79,4 @@ Development, tests, Windows packaging and Android compilation can all run on Git
 
 [Changelog](CHANGELOG.md) · [Upstream source and license](https://github.com/chatboxai/chatbox) · [Venice CLI reference](https://github.com/veniceai/venice-cli) · [Venice MCP reference](https://github.com/veniceai/venice-mcp-server)
 
-E2EE/TEE attestation, voice cloning and voice conversion are not implemented. The optional Venice MCP server can be configured explicitly; it is not installed automatically or given your API key.
+The external Venice MCP server can also be configured explicitly; it is not installed automatically or given your API key. The fork's internal MCP runs inside the app.
