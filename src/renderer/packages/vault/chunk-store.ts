@@ -40,9 +40,9 @@ export class EncryptedChunkStore {
     }
     if(total!==header.bytes)throw new Error('Encrypted content was truncated')
   }
-  async dataUrl(ref:string){const header=await this.header(ref);if(!header) return null;const info=await this.info(header);const chunks:Uint8Array[]=[];for await(const bytes of this.read(ref))chunks.push(bytes)
-    // Each chunk has independent padding; combine the decoded bytes only for legacy callers.
-    const all=new Uint8Array(header.bytes);let offset=0;for(const chunk of chunks){all.set(chunk,offset);offset+=chunk.length}try{return `data:${info.mime};base64,${encode64(all)}`}finally{all.fill(0);for(const bytes of chunks)bytes.fill(0)}
+  async dataUrl(ref:string){const header=await this.header(ref);if(!header) return null;const info=await this.info(header);if(!Number.isSafeInteger(header.bytes)||header.bytes<1||header.bytes>this.maximum)throw new Error('Invalid encrypted content size')
+    // Compatibility path for existing image consumers. Downloads/export use chunk iterators.
+    const all=new Uint8Array(header.bytes);let offset=0;try{for await(const bytes of this.read(ref)){all.set(bytes,offset);offset+=bytes.length;bytes.fill(0)}return `data:${info.mime};base64,${encode64(all)}`}finally{all.fill(0)}
   }
   async rewrap(ref:string,scope:string){const header=await this.header(ref);if(!header||header.status!=='ready')throw new Error('Encrypted item not found');const raw=await open(await this.scopeKey(header.scope),header.key,`${header.id}:key:${header.scope}:${header.alias||''}`);try{const wrapped=await seal(await this.scopeKey(scope),raw,`${header.id}:key:${scope}:${header.alias||''}`);await this.index.put({...header,scope,key:wrapped})}finally{raw.fill(0)}}
   async remove(ref:string){const header=await this.header(ref);if(!header)return;await this.index.remove(header.id);for(let n=0;n<header.chunks;n++)await this.blobs.remove(keyFor(header.id,n))}

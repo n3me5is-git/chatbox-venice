@@ -16,6 +16,7 @@ export function createSessionApprovals() {
     bind(id: string, scope: string) { const value = state(id); if (value.scope !== scope) { sessions.set(id, { mode: 'ask', scope, grants: new Set(), revision: value.revision + 1 }); changed() } },
     setMode(id: string, mode: ApprovalMode) { const value = state(id); value.mode = mode; value.revision++; if (mode === 'ask') { value.grants.clear(); delete value.image }; changed() },
     clear(id: string) { const value = state(id); sessions.set(id, { mode: 'ask', scope: value.scope, grants: new Set(), revision: value.revision + 1 }); changed() },
+    clearAll() { sessions.clear(); changed() },
     allows(id: string, request: GenerationApproval) { const value = state(id); return value.mode === 'automatic' || (value.mode === 'similar' && value.grants.has(canonical(request))) },
     remember(id: string, request: GenerationApproval, expectedRevision?: number) { const value = state(id); if (expectedRevision !== undefined && value.revision !== expectedRevision) return; if (value.mode === 'similar') { value.grants.add(canonical(request)); changed() } },
     image(id: string): Template | undefined { const value = state(id).image; return value ? structuredClone(value) : undefined },

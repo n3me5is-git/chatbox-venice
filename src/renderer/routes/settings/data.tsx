@@ -1,4 +1,6 @@
 import { Button } from '@mantine/core'
+import { SecuritySettings } from '@/components/security/SecuritySettings'
+import { LibrarySettings } from '@/components/security/LibrarySettings'
 import { IconChevronRight } from '@tabler/icons-react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -35,6 +37,8 @@ export function RouteComponent() {
         <DataRecoveryRow />
       </SettingsSection>
       <BackupRestoreSections />
+      <SecuritySettings />
+      <LibrarySettings />
     </SettingsPage>
   )
 }

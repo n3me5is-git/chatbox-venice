@@ -11,6 +11,7 @@ export class VaultKeys {
   constructor(readonly settings:KeySettings,readonly device:DeviceProtector){}
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener)}}
   snapshot=()=>this.revision
+  refresh(){this.changed()}
   private changed(){this.revision++;for(const listener of this.listeners)listener()}
   private serial<T>(work:()=>Promise<T>):Promise<T>{const next=this.running.then(work,work);this.running=next.catch(()=>{});return next}
   private record(scope:string){return this.settings.getSetting<ScopeRecord>(`scope:${scope}`)}

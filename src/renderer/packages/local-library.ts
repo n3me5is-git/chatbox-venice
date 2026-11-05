@@ -1,13 +1,19 @@
 import platform from '@/platform'
 import { currentBlobStorage } from '@/adapters/CurrentBlobStorage'
 import { veniceMediaService } from '@/packages/venice/service'
-export type LibraryKind = 'image'|'audio'|'video'|'document'
-export type LocalLibraryItem = { id:string; name:string; kind:LibraryKind; key:string; mime?:string; thumbnail?:string }
+export type ContentKind = 'image'|'audio'|'video'|'document'
+export type LibraryKind = ContentKind|'vault'
+export type LocalLibraryItem = { id:string; name:string; kind:ContentKind; key:string; mime?:string; thumbnail?:string }
 export function acceptsLocalFile(file: Pick<File,'name'|'type'>, accept='') {
   if(!accept.trim()) return true
   return accept.split(',').map(value=>value.trim().toLowerCase()).some(value=>value.startsWith('.')?file.name.toLowerCase().endsWith(value):value.endsWith('/*')?file.type.toLowerCase().startsWith(value.slice(0,-1)):file.type.toLowerCase()===value)
 }
-export async function localLibraryPage(kind:LibraryKind,cursor=0):Promise<{items:LocalLibraryItem[];next:number|null}> {
+export async function localLibraryPage(kind:LibraryKind,cursor=0,protection:'public'|'protected'='public'):Promise<{items:LocalLibraryItem[];next:number|null}> {
+  if(kind==='vault'){
+    const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform);const page=await vault.db.page(protection==='public'?'public':undefined,cursor,20);const items:LocalLibraryItem[]=[]
+    for(const header of page.items){if(protection==='protected'&&header.scope==='public'||!vault.keys.isUnlocked(header.scope))continue;const info=await vault.assets.info(header);if(!['image','audio','video','document'].includes(info.kind))continue;items.push({id:'vault:'+header.id,name:info.name,kind:info.kind as ContentKind,key:`vault-asset-${header.id}`,mime:info.mime})}
+    return {items,next:page.next}
+  }
   if(kind==='image'){
     const storage=platform.getImageGenerationStorage();await storage.initialize();const page=await storage.getPage(cursor,20)
     return {items:page.items.flatMap(record=>record.generatedImages.map((key,index)=>({id:`image:${record.id}:${index}`,name:record.prompt.slice(0,100)||'Saved image',kind,key,thumbnail:record.generatedImageThumbnails?.[index]}))),next:page.nextCursor}
@@ -21,6 +27,10 @@ export async function localLibraryPage(kind:LibraryKind,cursor=0):Promise<{items
   return {items:keys.slice(cursor,cursor+20).map(key=>({id:key,name:'Saved text attachment',kind,key,mime:'text/plain'})),next:cursor+20<keys.length?cursor+20:null}
 }
 export async function localLibraryFile(item:LocalLibraryItem):Promise<File> {
+  if(item.key.startsWith('vault-asset-')){
+    const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform);const header=await vault.assets.header(item.key);if(!header)throw new Error('This local item is no longer available');const info=await vault.assets.info(header);const chunks:Uint8Array[]=[]
+    try{for await(const bytes of vault.assets.read(item.key))chunks.push(bytes);const extension=info.mime.split('/')[1]?.replace('jpeg','jpg').replace('mpeg','mp3')||'bin';return new File(chunks.map(bytes=>Uint8Array.from(bytes)),`Saved-${header.id}.${extension}`,{type:info.mime})}finally{for(const bytes of chunks)bytes.fill(0)}
+  }
   const data=item.key.startsWith('data:')?item.key:await currentBlobStorage.get(item.key)
   if(!data)throw new Error('This local item is no longer available')
   if(item.kind==='document'&&!data.startsWith('data:'))return new File([data],item.name+'.txt',{type:'text/plain'})

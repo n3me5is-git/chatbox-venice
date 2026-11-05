@@ -1,4 +1,5 @@
 import NiceModal from '@ebay/nice-modal-react'
+import { AppGate } from '@/components/security/AppGate'
 import {
   Avatar,
   Button,
@@ -394,9 +395,10 @@ function Root() {
       spellCheck={spellCheck}
       dir={language === 'ar' ? 'rtl' : 'ltr'}
     >
-      <BackgroundImageOverlay />
       {platform.isDesktopLike && (getOS() === 'Windows' || getOS() === 'Linux') && <ExitFullscreenButton />}
       <AppTitleBar />
+      <AppGate>
+      <BackgroundImageOverlay />
       <Grid container className="min-h-0 flex-1 relative z-[1]">
         <Sidebar />
         <Box
@@ -476,6 +478,7 @@ function Root() {
       <ErrorBoundary name="settings-modal" fallback={SettingsModalErrorFallback}>
         <SettingsModal />
       </ErrorBoundary>
+      </AppGate>
     </Box>
   )
 }

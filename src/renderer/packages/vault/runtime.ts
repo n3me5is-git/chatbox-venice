@@ -10,7 +10,8 @@ export class VaultRuntime {
   readonly db=new VaultDatabase();readonly keys=new VaultKeys(this.db,deviceProtector());readonly assets:EncryptedChunkStore
   readonly legacy:{get:(key:string)=>Promise<string|null>;set:(key:string,value:string)=>Promise<void>;remove:(key:string)=>Promise<void>;keys:()=>Promise<string[]>}
   private ready:Promise<boolean>|undefined
-  constructor(platform:Platform){this.legacy={get:platform.getStoreBlob.bind(platform),set:platform.setStoreBlob.bind(platform),remove:platform.delStoreBlob.bind(platform),keys:platform.listStoreBlobKeys.bind(platform)};this.assets=new EncryptedChunkStore(this.legacy,this.db,scope=>this.keys.key(scope))}
+  constructor(private readonly platform:Platform){this.legacy={get:platform.getStoreBlob.bind(platform),set:platform.setStoreBlob.bind(platform),remove:platform.delStoreBlob.bind(platform),keys:platform.listStoreBlobKeys.bind(platform)};this.assets=new EncryptedChunkStore(this.legacy,this.db,scope=>this.keys.key(scope))}
+  async find(alias:string){return await this.assets.header(alias)||(this.platform.type==='desktop'&&alias.includes(':')?this.db.byAlias(alias.replace(/:/g,'')):null)}
   available(){return this.ready ||= (async()=>{
     // Once data exists, losing the device key is an error, never a plaintext fallback.
     if(await this.db.getSetting('scope:public')){await this.keys.key('public');return true}
@@ -32,13 +33,13 @@ export class VaultRuntime {
     await this.legacy.remove(alias);return true
   }
   install(platform:Platform){
-    platform.getStoreBlob=async alias=>{const header=await this.assets.header(alias);return header?this.assets.dataUrl(alias):this.legacy.get(alias)}
+    platform.getStoreBlob=async alias=>{const header=await this.find(alias);return header?this.assets.dataUrl(`vault-asset-${header.id}`):this.legacy.get(alias)}
     platform.setStoreBlob=async(alias,value)=>{const mime=/^data:((?:image|audio|video)\/[^;,]+);base64,/.exec(value)?.[1]
       if(!mime||!await this.available()){await this.legacy.set(alias,value);return}
-      const previous=await this.db.byAlias(alias);await this.assets.put(dataUrlBytes(value),mimeInfo(mime),previous?.scope||'public',alias)
+      const previous=await this.find(alias);await this.assets.put(dataUrlBytes(value),mimeInfo(mime),previous?.scope||'public',alias)
       if(previous)await this.assets.remove(`vault-asset-${previous.id}`);await this.legacy.remove(alias)
     }
-    platform.delStoreBlob=async alias=>{if(await this.assets.header(alias))await this.assets.remove(alias);await this.legacy.remove(alias)}
+    platform.delStoreBlob=async alias=>{const header=await this.find(alias);if(header)await this.assets.remove(`vault-asset-${header.id}`);await this.legacy.remove(alias)}
     platform.listStoreBlobKeys=async()=>[...new Set([...(await this.legacy.keys()).filter(key=>!/^vault-v1-[a-f0-9-]{36}-chunk-\d+$/.test(key)),...await this.db.aliases()])]
   }
 }
