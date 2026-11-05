@@ -45,6 +45,7 @@ try {
     else { await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', ...box, button: 'left', clickCount: 1 }); await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', ...box, button: 'left', clickCount: 1 }) }
   }
   const byText = text => `[...document.querySelectorAll('button')].find(e => e.textContent.trim() === ${JSON.stringify(text)})`
+  const switchTrack = label => `[...document.querySelectorAll('.mantine-Switch-root')].find(e=>e.querySelector('.mantine-Switch-label')?.textContent===${JSON.stringify(label)})?.querySelector('.mantine-Switch-track')`
   const byLabel = label => `document.getElementById([...document.querySelectorAll('label')].findLast(e => e.textContent === ${JSON.stringify(label)}).htmlFor)`
   const fill = async (label, value) => { await evaluate(`(${byLabel(label)}).focus()`); await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 }); await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 }); await cdp('Input.insertText', { text: value }) }
   await cdp('Runtime.enable'); await cdp('Network.enable'); await cdp('Page.enable')
@@ -121,8 +122,8 @@ try {
   await wait(()=>evaluate("document.body.textContent.includes('Protection settings saved')"),'PIN setup failed')
   await click(byText('Simulate app key lock'));await wait(()=>evaluate(`[...document.querySelectorAll('label')].some(e=>e.textContent==='PIN or passphrase')`),'PIN unlock form is missing');await fill('PIN or passphrase','000000');await click(byText('Unlock'));await wait(()=>evaluate("document.body.textContent.includes('The PIN or device key could not unlock this area')"),'Wrong PIN was not rejected')
   await fill('PIN or passphrase','123456');await click(byText('Unlock'));await wait(()=>evaluate("document.body.textContent.includes('Change PIN or passphrase (optional)')"),'Correct PIN did not unlock')
-  await click(`[...document.querySelectorAll('label')].findLast(e=>e.textContent==='Enable biometric or device unlock')`);await click(byText('Save unlock methods'));await wait(()=>evaluate("document.body.textContent.includes('Protection settings saved')"),'Device unlock could not be enabled independently')
-  await click(`[...document.querySelectorAll('label')].findLast(e=>e.textContent==='Enable PIN or passphrase')`);await click(byText('Save unlock methods'));await wait(()=>evaluate(`!document.querySelector('input[autocomplete="new-password"]')`),'PIN did not disable')
+  await click(switchTrack('Enable biometric or device unlock'));await click(byText('Save unlock methods'));await wait(()=>evaluate("document.body.textContent.includes('Protection settings saved')"),'Device unlock could not be enabled independently')
+  await click(switchTrack('Enable PIN or passphrase'));await click(byText('Save unlock methods'));await wait(()=>evaluate(`!document.querySelector('input[autocomplete="new-password"]')`),'PIN did not disable')
   await click(byText('Simulate app key lock'));await wait(()=>evaluate(`!!(${byText('Use device unlock')})`),'Device unlock option is missing');assert.equal(await evaluate(`[...document.querySelectorAll('label')].some(e=>e.textContent==='PIN or passphrase')`),false)
   await writeFile(path.join(output,'security-unlock-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
   await click(byText('Use device unlock'));await wait(()=>evaluate(`!!(${byText('Save unlock methods')})`),'Simulated device unlock failed')

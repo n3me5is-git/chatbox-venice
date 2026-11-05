@@ -12,7 +12,7 @@ export class ProjectAccess {
   private appEnabled:Promise<boolean>|undefined
   private libraryEpoch=0
   private libraryCache:Promise<Set<string>>|undefined
-  constructor(readonly settings:KeySettings,readonly keys:VaultKeys,readonly metadata:SessionMetaRepositoryPort,private readonly readValue:(key:string)=>Promise<unknown>,private readonly library?:{scan:(folders:ReadonlySet<string>)=>Promise<Set<string>>;drafts?:(folders:ReadonlySet<string>)=>Promise<Set<string>>;beforeProtect?:(folder:string,scope:string)=>Promise<void>}){keys.subscribe(()=>{this.cached=undefined;this.appEnabled=undefined;this.invalidateLibrary()})}
+  constructor(readonly settings:KeySettings,readonly keys:VaultKeys,readonly metadata:SessionMetaRepositoryPort,private readonly readValue:(key:string)=>Promise<unknown>,private readonly library?:{scan:(folders:ReadonlySet<string>)=>Promise<Set<string>>;drafts?:(folders:ReadonlySet<string>)=>Promise<Set<string>>;beforeProtect?:(folder:string,scope:string)=>Promise<void>;beforeMove?:(sessionId:string,folderId?:string)=>Promise<void>}){keys.subscribe(()=>{this.cached=undefined;this.appEnabled=undefined;this.invalidateLibrary()})}
   invalidateLibrary(){this.libraryEpoch++;this.libraryCache=undefined}
   /** Library discovery has no selected chat context. Hide references owned by locked projects. */
   async assertLibraryKey(alias?:string):Promise<void>{await this.assertApp();if(!alias||!this.library)return
@@ -47,7 +47,7 @@ export class ProjectAccess {
       if(method==='iterateIds')return async function*(){for await(const id of backend.iterateIds!())yield id}
       return async(...args:any[])=>{
         if(method==='create'||method==='createMany'){for(const record of method==='create'?[args[0]]:args[0]){await access.assertSession(record.id);await access.assertFolder(record.folderId)}}
-        if(method==='update'){await access.assertSession(args[0]);if(Object.hasOwn(args[1],'folderId'))await access.assertFolder(args[1].folderId)}
+        if(method==='update'){await access.assertSession(args[0]);if(Object.hasOwn(args[1],'folderId')){await access.assertFolder(args[1].folderId);if((await backend.getById(args[0]))?.folderId!==args[1].folderId)await access.library?.beforeMove?.(args[0],args[1].folderId)}}
         if(method==='delete'||method==='deleteMany')for(const id of method==='delete'?[args[0]]:args[0])await access.assertSession(id)
         if(method==='clear')for(const id of Object.keys(await access.policies()))await access.assertFolder(id)
         const result=await original.apply(target,args)

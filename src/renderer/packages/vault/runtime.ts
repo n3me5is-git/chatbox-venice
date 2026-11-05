@@ -49,14 +49,18 @@ export class VaultRuntime {
     for await(const bytes of this.assets.read(ref))bytes.fill(0)
     await this.legacy.remove(alias);return true
   }
+  private async protectSessionMedia(sessionIds:ReadonlySet<string>,scope:string){
+    const images=this.platform.getImageGenerationStorage();await images.initialize();let cursor:number|null=0
+    while(cursor!==null){const page=await images.getPage(cursor,100);for(const record of page.items)if(record.source?.sessionId&&sessionIds.has(record.source.sessionId)&&record.protection!==scope)await images.update(record.id,{protection:scope});cursor=page.nextCursor}
+    for(const record of await this.media.read())if(record.sessionId&&sessionIds.has(record.sessionId)&&record.protection!==scope)await this.media.setProtection(record.id,scope)
+  }
   install(platform:Platform){
     const getValue=platform.getStoreValue.bind(platform),setValue=platform.setStoreValue.bind(platform),removeValue=platform.delStoreValue.bind(platform),getAll=platform.getAllStoreValues.bind(platform),setAll=platform.setAllStoreValues.bind(platform)
     const mediaKey='venice:media:records:v1';this.media=new ProtectedMediaRecords({read:async()=>{const value=await getValue(mediaKey);return Array.isArray(value)?value as MediaRecord[]:[]},write:records=>setValue(mediaKey,records)},this)
     const meta=platform.getSessionMetaStorage(),rows=platform.getSessionRowStore();this.projects=new ProjectAccess(this.db,this.keys,meta,getValue,{...projectLibrary(meta,rows,getValue),beforeProtect:async(folder,scope)=>{
       await projectLibrary(meta,rows,getValue).beforeProtect(folder,scope);await meta.initialize();const sessionIds=new Set((await meta.getAllIncludingHidden()).filter(record=>record.folderId===folder).map(record=>record.id))
-      await protectedImages.initialize();let cursor:number|null=0;while(cursor!==null){const page=await protectedImages.getPage(cursor,100);for(const record of page.items)if(record.source?.sessionId&&sessionIds.has(record.source.sessionId)&&record.protection!==scope)await protectedImages.update(record.id,{protection:scope});cursor=page.nextCursor}
-      for(const record of await this.media.read())if(record.sessionId&&sessionIds.has(record.sessionId)&&record.protection!==scope)await this.media.setProtection(record.id,scope)
-    }})
+      await this.protectSessionMedia(sessionIds,scope)
+    },beforeMove:async(id,folder)=>{const scope=await this.projects.folderScope(folder);if(scope)await this.protectSessionMedia(new Set([id]),scope)}})
     const guardedMeta=this.projects.protectMetadata(),guardedRows=this.projects.protectRows(rows);platform.getSessionMetaStorage=()=>guardedMeta;platform.getSessionRowStore=()=>guardedRows
     const sessionGuard=async(key:string)=>{if(key.startsWith('session:'))await this.projects.assertSession(key.slice(8))}
     platform.getStoreValue=async key=>{if(key===mediaKey){await this.projects.assertApp();return this.media.read()}await sessionGuard(key);const result=await getValue(key);await sessionGuard(key);return result}
