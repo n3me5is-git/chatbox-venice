@@ -1,3 +1,4 @@
+import { CreationUnlock } from '@/components/security/CreationUnlock'
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceImageEditor } from '@/components/venice/VeniceImageEditor'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
@@ -531,7 +532,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   )}
 
                   <Group justify="center" wrap="wrap">
-                    {currentRecord.protectedRecord?<ScopeUnlock keys={vault.keys}/>:<Button size="xs" variant="default" disabled={isCurrentlyGenerating} onClick={()=>void(async()=>{try{if(!currentRecord.protection)await vault.keys.key('app');await platform.getImageGenerationStorage().update(currentRecord.id,{protection:currentRecord.protection?undefined:'app'});await queryClient.invalidateQueries({queryKey:[IMAGE_GEN_QUERY_KEY]});await queryClient.invalidateQueries({queryKey:[IMAGE_GEN_LIST_QUERY_KEY]})}catch(error){toastActions.add(error instanceof Error?error.message:String(error))}})()}>{currentRecord.protection?ft('Make this creation public'):ft('Protect this creation')}</Button>}
+                    {currentRecord.protectedRecord?<CreationUnlock keys={vault.keys} protection={currentRecord.protection}/>:<Button size="xs" variant="default" disabled={isCurrentlyGenerating} onClick={()=>void(async()=>{try{if(!currentRecord.protection)await vault.keys.key('app');await platform.getImageGenerationStorage().update(currentRecord.id,{protection:currentRecord.protection?undefined:'app'});await queryClient.invalidateQueries({queryKey:[IMAGE_GEN_QUERY_KEY]});await queryClient.invalidateQueries({queryKey:[IMAGE_GEN_LIST_QUERY_KEY]})}catch(error){toastActions.add(error instanceof Error?error.message:String(error))}})()}>{currentRecord.protection?ft('Make this creation public'):ft('Protect this creation')}</Button>}
                     <Button size="xs" variant="default" onClick={() => { setPrompt(currentRecord.prompt); textareaRef.current?.focus() }}>{ft("Reuse prompt")}</Button>
                     {!!currentRecord.generatedImages.length && <Button size="xs" variant="light" onClick={() => {
                       if(currentRecord.model.provider==='venice'){void NiceModal.show(VeniceImageEditor,{record:currentRecord,models:imageModelGroups.filter(group=>group.providerId==='venice').flatMap(group=>group.models),onCreated:(id:string)=>imageGenerationStore.getState().setCurrentRecordId(id)});return}

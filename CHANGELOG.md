@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.28.1
+
+See [release notes](docs/releases/v1.28.1.md). Fixes dedicated project PIN selection when unlocking image history, clears PIN input between protected areas and preserves brush drags inside the mobile image editor.
+
 ## 1.28.0
 
 See [release notes](docs/releases/v1.28.0.md). Adds encrypted media storage and portable library backup, lazy media/transcript previews and streaming native export, direct chat deletion, independent PIN/device unlock, project access controls, Venice text TEE/E2EE and privacy filters, voice cloning/conversion, local-library attachments, and model-aware image editing with local masks and percent comment points.

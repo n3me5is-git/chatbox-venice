@@ -1,3 +1,4 @@
+import { CreationUnlock } from '@/components/security/CreationUnlock'
 import { localText } from '@/packages/local-text'
 import { LibraryFileInput as FileInput } from '@/components/local-library/LibraryFileInput'
 import { useTranslation } from 'react-i18next'
@@ -162,7 +163,7 @@ function MediaResult({ record, modelName, service, enabled, run, opened, onToggl
   const [content, setContent] = useState<string | null>(null); const [loadError, setLoadError] = useState('')
   useEffect(() => { if(!opened||record.protectedRecord) {setContent(null);setLoadError('');return} let live = true; void service.content(record).then(value => { if (live) setContent(value) }).catch(() => { if (live) setLoadError(ft("Unable to read local content")) }); return () => { live = false } }, [record.blobKey, record.id, service, opened,record.protectedRecord])
   const transcript=useMemo(()=>{if(!opened||record.protectedRecord)return {text:null,error:''};try{return{text:record.text||localText(content),error:''}}catch{return{text:null,error:ft('Unable to read local content')}}},[opened,record.protectedRecord,record.text,content])
-  if(record.protectedRecord){const vault=installedVaultFor(platform);return <Paper withBorder radius="lg" p="md">{vault?<ScopeUnlock keys={vault.keys} scope={record.protection||'app'} title={ft('Locked creation')}/>:<Text>{ft('Locked creation')}</Text>}</Paper>}
+  if(record.protectedRecord){const vault=installedVaultFor(platform);return <Paper withBorder radius="lg" p="md">{vault?<CreationUnlock keys={vault.keys} protection={record.protection}/>:<Text>{ft('Locked creation')}</Text>}</Paper>}
   const safe = content && /^(data:audio\/[\w.+-]+;base64,|data:video\/mp4;base64,)/.test(content) ? content : null
   const statuses = { ready: ft("Ready"), creating: ft("Starting"), queued: ft("Processing"), paused: ft("Paused"), error: ft("Needs attention") }
   return <Paper withBorder radius="lg" p="md"><Stack gap="sm">
