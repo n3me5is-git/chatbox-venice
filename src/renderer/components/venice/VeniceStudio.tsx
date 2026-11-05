@@ -136,13 +136,13 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
   </Stack>
 }
 function MediaResult({ record, modelName, service, enabled, run }: { record: MediaRecord; modelName: string; service: Service; enabled: boolean; run: (work: () => Promise<unknown>) => Promise<void> }) {
-  useTranslation()
+  const {i18n}=useTranslation()
   const [content, setContent] = useState<string | null>(null); const [loadError, setLoadError] = useState('')
   useEffect(() => { let live = true; void service.content(record).then(value => { if (live) setContent(value) }).catch(() => { if (live) setLoadError(ft("Unable to read local content")) }); return () => { live = false } }, [record.blobKey, record.id, service])
   const safe = content && /^(data:audio\/[\w.+-]+;base64,|data:video\/mp4;base64,)/.test(content) ? content : null
   const statuses = { ready: ft("Ready"), creating: ft("Starting"), queued: ft("Processing"), paused: ft("Paused"), error: ft("Needs attention") }
   return <Paper withBorder radius="lg" p="md"><Stack gap="sm">
-    <Group justify="space-between"><Stack gap={2}><Text fw={600}>{ft(names[record.kind])} · {modelName}</Text><Text size="xs" c="dimmed">{new Date(record.createdAt).toLocaleString()}</Text></Stack><Badge color={record.status === 'ready' ? 'green' : record.status === 'error' ? 'orange' : 'blue'} variant="light">{ft(statuses[record.status])}</Badge></Group>
+    <Group justify="space-between"><Stack gap={2}><Text fw={600}>{ft(names[record.kind])} · {modelName}</Text><Text size="xs" c="dimmed">{new Date(record.createdAt).toLocaleString(i18n.resolvedLanguage || i18n.language || 'en')}</Text></Stack><Badge color={record.status === 'ready' ? 'green' : record.status === 'error' ? 'orange' : 'blue'} variant="light">{statuses[record.status]}</Badge></Group>
     <Text lineClamp={3} style={{ overflowWrap: 'anywhere' }}>{record.prompt}</Text>
     {service.isActive(record.id) && <Group><Loader size="xs" /><Text size="sm">{ft("Your content is being prepared…")}</Text><Button size="xs" variant="default" onClick={() => void run(() => service.pause(record.id))}>{ft("Stop waiting")}</Button></Group>}
     {record.text && <Paper p="sm" bg="var(--mantine-color-default-hover)"><Text style={{ whiteSpace: 'pre-wrap' }}>{record.text}</Text></Paper>}

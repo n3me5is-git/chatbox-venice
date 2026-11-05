@@ -159,7 +159,7 @@ export default class Venice extends OpenAICompatible {
       format, return_binary: false, variants: 1,
       ...(references.length ? { style_references: references.map((ref) => ({ image: ref.imageUrl })) } : {}),
     }, this.options.model.extraBody || {})
-    if ((editing ? request.modelId : request.model) !== this.options.model.modelId || request.prompt !== params.prompt || (!editing && request.variants !== 1)) throw new ApiError('Modello, prompt e quantità devono corrispondere alla richiesta confermata. Usa i controlli dedicati anziché sovrascriverli nel JSON.')
+    if ((editing ? request.modelId : request.model) !== this.options.model.modelId || request.prompt !== params.prompt || (!editing && request.variants !== 1)) throw new ApiError('Model, prompt and quantity must match the approved request. Use the dedicated controls instead of overriding them in JSON.')
     const images: string[] = []
     for (let index = 0; index < params.num; index++) {
       signal?.throwIfAborted()

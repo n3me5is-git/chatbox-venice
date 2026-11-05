@@ -77,7 +77,7 @@ export function VeniceModuleSettings() {
     </SimpleGrid>
     <Text size="xs" c="dimmed">{ft("Enabled modules are available in Venice Studio in the sidebar.")}</Text>
     <Switch label={ft("Internal Venice MCP: tools in Work mode chats")} disabled={options.enabled === false} checked={options.chatToolsEnabled !== false} onChange={e => update({ chatToolsEnabled: e.currentTarget.checked })} />
-    <Text size="xs" c="dimmed">Generation approval is managed in each chat, next to the Venice balance.</Text>
+    <Text size="xs" c="dimmed">{ft("Generation approval is managed in each chat, next to the Venice balance.")}</Text>
     <VeniceProfiles />
   </Stack>
 }

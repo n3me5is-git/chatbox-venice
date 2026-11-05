@@ -316,7 +316,13 @@ export const forkEnglish = {
   "Refresh models": "Refresh models",
   "Describe your video": "Describe your video",
   "A walk by the sea, sunset light, slow movement…": "A walk by the sea, sunset light, slow movement…",
-  "Relaxing jazz with piano and double bass…": "Relaxing jazz with piano and double bass…"
+  "Relaxing jazz with piano and double bass…": "Relaxing jazz with piano and double bass…",
+  "Generate {{kind}} with {{model}}?": "Generate {{kind}} with {{model}}?",
+  "Delete generation {{id}} from this device? The remote copy will remain.": "Delete generation {{id}} from this device? The remote copy will remain.",
+  "Delete generation {{id}} on Venice?": "Delete generation {{id}} on Venice?",
+  "Content is sent to Venice. Generation may incur a cost.": "Content is sent to Venice. Generation may incur a cost.",
+  "Embeddings send indexed text to Venice. Knowledge-base documents and the vector index stay on this device; this is not offline processing.": "Embeddings send indexed text to Venice. Knowledge-base documents and the vector index stay on this device; this is not offline processing.",
+  "Uncensored": "Uncensored"
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
   "Image content filter": "Filtro contenuti nelle immagini",
@@ -635,7 +641,13 @@ export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT'
   "Refresh models": "Aggiorna modelli",
   "Describe your video": "Descrivi il tuo video",
   "A walk by the sea, sunset light, slow movement…": "Una passeggiata al mare, luce del tramonto, movimento lento…",
-  "Relaxing jazz with piano and double bass…": "Un brano jazz rilassante con pianoforte e contrabbasso…"
+  "Relaxing jazz with piano and double bass…": "Un brano jazz rilassante con pianoforte e contrabbasso…",
+  "Generate {{kind}} with {{model}}?": "Generare {{kind}} con {{model}}?",
+  "Delete generation {{id}} from this device? The remote copy will remain.": "Eliminare la generazione {{id}} da questo dispositivo? La copia remota resterà disponibile.",
+  "Delete generation {{id}} on Venice?": "Eliminare la generazione {{id}} su Venice?",
+  "Content is sent to Venice. Generation may incur a cost.": "Il contenuto viene inviato a Venice. La generazione può avere un costo.",
+  "Embeddings send indexed text to Venice. Knowledge-base documents and the vector index stay on this device; this is not offline processing.": "Gli embeddings inviano a Venice il testo da indicizzare. Documenti e indice della knowledge base restano sul dispositivo; non è un’elaborazione offline.",
+  "Uncensored": "Non censurato"
 } }
 Object.assign(forkTranslations,{
   "fr": {

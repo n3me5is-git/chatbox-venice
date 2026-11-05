@@ -4,7 +4,7 @@ import { parseExtraBody } from '../../../../models/utils/extra-body'
 import type { VeniceMediaService, MediaKind, MediaRecord } from './media'
 import type { VeniceOptions } from './options'
 type Service = Pick<VeniceMediaService, 'catalog' | 'list' | 'quote' | 'start' | 'resume' | 'pause' | 'remove' | 'cleanup'>
-export interface MediaApprovalContext { action: 'generate' | 'delete_local' | 'cleanup_remote'; kind?: MediaKind; model?: string; options?: Record<string, unknown> }
+export interface MediaApprovalContext { action: 'generate' | 'delete_local' | 'cleanup_remote'; kind?: MediaKind; model?: string; options?: Record<string, unknown>; prompt?:string; id?:string; signal?:AbortSignal }
 type Input = { action: 'catalog' | 'list' | 'quote' | 'generate' | 'status' | 'resume' | 'pause' | 'delete_local' | 'cleanup_remote'; id?: string; kind?: MediaKind; model?: string; prompt?: string; extra_json?: string }
 const summary = (r: MediaRecord) => ({ id: r.id, kind: r.kind, model: r.model, status: r.status, createdAt: r.createdAt, text: r.text, error: r.error, remoteCleaned: r.remoteCleaned })
 export function buildVeniceMediaTools(sessionId: string, service: Service, settings: () => VeniceOptions, confirm: (message: string, request?: MediaApprovalContext) => Promise<boolean>): ToolSet {
@@ -28,7 +28,7 @@ export function buildVeniceMediaTools(sessionId: string, service: Service, setti
         if (!input.kind || input.kind === 'transcription' || !input.model || (input.action === 'generate' && !input.prompt)) throw new Error('Specify kind, model and prompt')
         const request = { kind: input.kind, model: input.model, prompt: input.prompt || '', options: parseExtraBody(input.extra_json || ''), sessionId, signal: abortSignal }
         if (input.action === 'quote') return service.quote(request)
-        if (!await confirm(`Generate ${input.kind} with Venice (${input.model})?\nThis request may incur a cost and sends this content to Venice:\n\n${request.prompt}\n\nParameters: ${input.extra_json || '{}'}`, { action: 'generate', kind: input.kind, model: input.model, options: request.options })) return { cancelled: true }
+        if (!await confirm(`Generate ${input.kind} with Venice (${input.model})?\nThis request may incur a cost and sends this content to Venice:\n\n${request.prompt}\n\nParameters: ${input.extra_json || '{}'}`, { action: 'generate', kind: input.kind, model: input.model, options: request.options, prompt:request.prompt, signal:abortSignal })) return { cancelled: true }
         allowed()
         return summary(await service.start(request))
       }
@@ -36,7 +36,7 @@ export function buildVeniceMediaTools(sessionId: string, service: Service, setti
       if (!record) throw new Error('Media record not found in this chat')
       if (input.action === 'status') return summary(record)
       if (['delete_local', 'cleanup_remote'].includes(input.action)) {
-        if (!await confirm(input.action === 'delete_local' ? `Delete generation ${record.id} from this device? The remote copy will remain.` : `Delete generation ${record.id} on Venice?`, { action: input.action as 'delete_local' | 'cleanup_remote' })) return { cancelled: true }
+        if (!await confirm(input.action === 'delete_local' ? `Delete generation ${record.id} from this device? The remote copy will remain.` : `Delete generation ${record.id} on Venice?`, { action: input.action as 'delete_local' | 'cleanup_remote', id:record.id, signal:abortSignal })) return { cancelled: true }
         allowed()
       }
       if (input.action === 'resume') await service.resume(record.id)

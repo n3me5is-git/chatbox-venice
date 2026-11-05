@@ -54,7 +54,7 @@ export const KnowledgeBaseModelSelectors: React.FC<ModelSelectorsProps> = ({
           allowDeselect={false}
         />
       )}
-      {embeddingModel?.startsWith('venice:') && <Text size="xs" c="dimmed">Gli embeddings inviano a Venice il testo da indicizzare. Documenti e indice della knowledge base restano sul dispositivo; non è un’elaborazione offline.</Text>}
+      {embeddingModel?.startsWith('venice:') && <Text size="xs" c="dimmed">{t("Embeddings send indexed text to Venice. Knowledge-base documents and the vector index stay on this device; this is not offline processing.")}</Text>}
       <Select
         label={t('Rerank Model (optional)')}
         description={t('Used to get more accurate search results')}

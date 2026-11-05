@@ -61,7 +61,7 @@ export function veniceChatTools(sessionId: string) {
     const descriptor = request?.action === 'generate' ? {tool:'venice_media', kind:request.kind!, model:request.model!, options:request.options || {}} : undefined
     if (descriptor && sessionApprovals.allows(sessionId, descriptor)) return true
     const revision = sessionApprovals.revision(sessionId)
-    const result = await NiceModal.show(VeniceMediaApproval, {message, sessionId, generation:!!descriptor}) as {approved:boolean; mode:ApprovalMode}
+    const result = await NiceModal.show(VeniceMediaApproval, {message, sessionId, generation:!!descriptor, request}) as {approved:boolean; mode:ApprovalMode}
     if (scope !== syncSessionApprovalScope(sessionId)) throw new Error('Venice settings changed. Review the request again.')
     if (result.approved && descriptor && revision === sessionApprovals.revision(sessionId)) {
       if (result.mode !== sessionApprovals.mode(sessionId)) sessionApprovals.setMode(sessionId,result.mode)

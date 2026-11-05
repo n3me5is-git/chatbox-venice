@@ -30,15 +30,15 @@ export function musicOptions(model: MediaCatalogItem | undefined, value: { secon
 export function validateMediaRequest(kind: MediaKind, body: Record<string, unknown>, model?: MediaCatalogItem) {
   const s = model?.model_spec; if (!s) return
   const prompt = String(body.prompt ?? body.input ?? '')
-  if (kind !== 'transcription' && ((s.min_prompt_length && prompt.length < s.min_prompt_length) || (s.prompt_character_limit && prompt.length > s.prompt_character_limit))) throw new Error(`Il testo per questo modello deve contenere da ${s.min_prompt_length || 1} a ${s.prompt_character_limit || '∞'} caratteri.`)
+  if (kind !== 'transcription' && ((s.min_prompt_length && prompt.length < s.min_prompt_length) || (s.prompt_character_limit && prompt.length > s.prompt_character_limit))) throw new Error(`The prompt for this model must contain ${s.min_prompt_length || 1} to ${s.prompt_character_limit || '∞'} characters.`)
   if (kind === 'music') {
     for (const [key, flag] of [['force_instrumental', 'supports_force_instrumental'], ['lyrics_prompt', 'supports_lyrics'], ['lyrics_optimizer', 'supports_lyrics_optimizer'], ['loop', 'supports_loop'], ['speed', 'supports_speed'], ['language_code', 'supports_language_code']] as const) {
-      if (body[key] !== undefined && s[flag] !== true) throw new Error(`Il modello ${model.id} non supporta ${key}. Apri la scheda del modello.`)
+      if (body[key] !== undefined && s[flag] !== true) throw new Error(`Model ${model.id} does not support ${key}. Open the model details.`)
     }
     const d = musicDuration(model)
     if (body.duration_seconds !== undefined) { const n = Number(body.duration_seconds); if (!d.supported || !Number.isFinite(n) || n < d.min || n > d.max || (d.choices.length && !d.choices.includes(n))) throw new Error("This duration is not supported. Open the model details.") }
     if (s.lyrics_required && !String(body.lyrics_prompt || '').trim() && body.lyrics_optimizer !== true) throw new Error("This model requires lyrics.")
-    if (s.lyrics_character_limit && String(body.lyrics_prompt || '').length > s.lyrics_character_limit) throw new Error(`Il testo della canzone supera ${s.lyrics_character_limit} caratteri.`)
+    if (s.lyrics_character_limit && String(body.lyrics_prompt || '').length > s.lyrics_character_limit) throw new Error(`Lyrics exceed ${s.lyrics_character_limit} characters.`)
     if (body.lyrics_optimizer === true && body.lyrics_prompt) throw new Error("Choose either lyrics or automatic lyrics generation.")
   }
   if (kind === 'video') {
