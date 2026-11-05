@@ -34,7 +34,7 @@ async function main() {
     electronVersion: require('electron/package.json').version,
     electronLanguages: ['en-US', 'zh-CN', 'zh-TW', 'ja', 'ko', 'ru', 'de', 'fr', 'pt-PT', 'es', 'ar', 'it', 'sv', 'nb', 'tr'],
     asar: true,
-    asarUnpack: ['**/*.{node,dll}', '**/node_modules/libsql/**'],
+    asarUnpack: ['**/*.{node,dll}', '**/node_modules/libsql/**', 'dist/native/windows/**'],
     files: ['dist', 'node_modules', '!node_modules/@types', '!node_modules/undici-types', 'package.json'],
     directories: { buildResources: path.join(root, 'assets'), output: path.join(root, 'release', 'build') },
     extraResources: [{ from: path.join(root, 'assets'), to: 'assets' }],
@@ -55,6 +55,7 @@ async function main() {
     return
   }
   fs.cpSync(path.join(sourceApp, 'dist'), path.join(appDir, 'dist'), { recursive: true })
+  if (!fs.existsSync(path.join(appDir,'dist','native','windows','vault-consent.exe'))) throw new Error('Compile the Windows Hello desktop helper before packaging')
   await build({ projectDir: appDir, targets: Platform.WINDOWS.createTarget(['nsis'], Arch.x64), publish: 'never', config })
   for (const name of [`Chatbox-Venice-${app.version}-x64-Setup.exe`, 'latest.yml']) {
     const output = path.join(root, 'release', 'build', name)

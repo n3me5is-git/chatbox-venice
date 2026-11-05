@@ -42,6 +42,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - name: Compile native Windows Hello helper
+        run: ./scripts/build-windows-security.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: compiled-windows-app

@@ -1,0 +1,54 @@
+name: Native security checks
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['native/**', 'scripts/configure-fork-android.mjs', 'scripts/build-windows-security.ps1', '.github/workflows/native-security.yml']
+  pull_request:
+    paths: ['native/**', 'scripts/configure-fork-android.mjs', 'scripts/build-windows-security.ps1', '.github/workflows/native-security.yml']
+permissions:
+  contents: read
+concurrency:
+  group: native-security-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    name: Compile Windows Hello desktop integration
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/build-windows-security.ps1
+      - name: Probe API availability without requesting authentication
+        run: |
+          $result=& ./release/app/dist/native/windows/vault-consent.exe --check
+          if ($LASTEXITCODE -ne 0 -or $result -notmatch '^\d+$') { throw 'Invalid Windows Hello API probe' }
+          Write-Host 'Windows Hello helper responded; device enrollment is not expected on a hosted runner.'
+  android:
+    name: Compile Android Keystore and biometric plugin
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare minimal renderer fixture for native compilation
+        run: node --input-type=module -e "import fs from 'node:fs'; fs.mkdirSync('release/app/dist/renderer',{recursive:true}); fs.writeFileSync('release/app/dist/renderer/index.html','<!doctype html><title>Native compilation fixture</title>')"
+      - run: pnpm exec cap add android
+      - run: node scripts/configure-fork-android.mjs
+      - run: pnpm exec cap sync android
+      - name: Compile Java without packaging or signing an APK
+        run: chmod +x android/gradlew && cd android && ./gradlew :app:compileReleaseJavaWithJavac --no-daemon

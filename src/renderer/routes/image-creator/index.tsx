@@ -2,6 +2,7 @@ import { forkT as ft } from '@/i18n/fork'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { ScopeUnlock,useScopeStatus } from '@/components/security/ScopeUnlock'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
+import platform from '@/platform'
 import { lockedImageRecord } from '@/packages/vault/image-records'
 import NiceModal from '@ebay/nice-modal-react'
 import {
