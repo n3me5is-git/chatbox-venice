@@ -15,6 +15,7 @@ export type MediaRecord = {
 export type MediaCatalogCache = { origin: string; credentialId: string; items: MediaCatalogItem[] }
 export type VoiceHandle = { id: string; model: string; name: string; origin: string; credentialId: string; createdAt: number; expiresAt: number }
 export interface MediaStore {
+  ensureStorage?():Promise<void>;
   putStream?(key:string,response:Response,mime:string,signal:AbortSignal):Promise<boolean>;
   readVoices?(): Promise<VoiceHandle[]>; writeVoices?(voices: VoiceHandle[]): Promise<void>;
   readCatalog?(): Promise<MediaCatalogCache | null>; writeCatalog?(cache: MediaCatalogCache): Promise<void>;
@@ -121,6 +122,7 @@ export class VeniceMediaService {
   async start(input: MediaInput): Promise<MediaRecord> {
     input.signal?.throwIfAborted()
     const config = this.config(input.kind)
+    await this.store.ensureStorage?.()
     if (!input.model.trim() || (!['transcription','voice-conversion'].includes(input.kind) && !input.prompt.trim())) throw new Error('Choose a model and enter a prompt')
     if (input.file && input.file.size > 25 * 1024 * 1024) throw new Error('Transcription file exceeds 25 MB')
     if (input.kind === 'transcription' && !input.file) throw new Error('Choose an audio or video file')
@@ -169,7 +171,12 @@ export class VeniceMediaService {
         }
         const result = await (await this.api(config, '/audio/transcriptions', form, controller.signal)).json()
         if (typeof result.text !== 'string') throw new Error('Venice returned no transcription text')
-        controller.signal.throwIfAborted(); await this.patch(record.id, { text: result.text, status: 'ready' })
+        controller.signal.throwIfAborted();const bytes=new TextEncoder().encode(result.text);if(bytes.length>16*1024*1024)throw new Error('Transcription exceeds the local text size limit')
+        const key='venice-media:'+record.id;let streamed=false
+        try{if(bytes.length)streamed=await this.store.putStream?.(key,new Response(bytes,{headers:{'content-type':'text/plain'}}),'text/plain',controller.signal)||false
+          if(streamed&&(controller.signal.aborted||!(await this.list()).some(item=>item.id===record.id))){await this.store.deleteBlob(key);controller.signal.throwIfAborted()}
+          controller.signal.throwIfAborted();await this.patch(record.id,streamed?{blobKey:key,mime:'text/plain',text:undefined,status:'ready'}:{text:result.text,status:'ready'})
+        }finally{bytes.fill(0)}
       }
     } catch (error) { await this.patch(record.id, { status: controller.signal.aborted ? 'paused' : 'error', error: error instanceof Error ? error.message : String(error) }) }
     finally { input.signal?.removeEventListener('abort', onAbort); if (this.active.get(record.id) === controller) this.active.delete(record.id); for (const listener of this.listeners) listener() }

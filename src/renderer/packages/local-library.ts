@@ -21,7 +21,7 @@ export async function localLibraryPage(kind:LibraryKind,cursor=0,protection:'pub
     const items:LocalLibraryItem[]=[];for(const record of page.items){if(record.protection)continue;for(const [index,key] of record.generatedImages.entries())if(!access||await access.libraryKeyVisible(key))items.push({id:`image:${record.id}:${index}`,name:record.prompt.slice(0,100)||'Saved image',kind,key,thumbnail:record.generatedImageThumbnails?.[index]})}return {items,next:page.nextCursor}
   }
   if(kind==='audio'||kind==='video'){
-    const records=(await veniceMediaService.list()).filter(record=>!record.protection&&record.status==='ready'&&record.blobKey&&(kind==='video'?record.kind==='video':record.kind!=='video'))
+    const records=(await veniceMediaService.list()).filter(record=>!record.protection&&record.status==='ready'&&record.blobKey&&record.kind!=='transcription'&&(kind==='video'?record.kind==='video':record.kind!=='video'))
     if(access)for(let n=records.length-1;n>=0;n--)if(!await access.libraryKeyVisible(records[n].blobKey))records.splice(n,1)
     return {items:records.slice(cursor,cursor+20).map(record=>({id:'media:'+record.id,name:record.prompt.slice(0,100)||record.model,kind,key:record.blobKey!,mime:record.mime})),next:cursor+20<records.length?cursor+20:null}
   }
@@ -34,7 +34,7 @@ export async function localLibraryFile(item:LocalLibraryItem):Promise<File> {
   const access=installedVaultFor(platform)?.projects
   if(item.key.startsWith('vault-asset-')){
     const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform);const header=await vault.assets.header(item.key);if(!header)throw new Error('This local item is no longer available');await access?.assertLibraryKey(header.alias);const info=await vault.assets.info(header);const chunks:Uint8Array<ArrayBuffer>[]=[]
-    try{for await(const bytes of vault.assets.read(item.key)){await access?.assertLibraryKey(header.alias);chunks.push(bytes)}await access?.assertLibraryKey(header.alias);const extension=info.mime.split('/')[1]?.replace('jpeg','jpg').replace('mpeg','mp3')||'bin';return new File(chunks,`Saved-${header.id}.${extension}`,{type:info.mime})}finally{for(const bytes of chunks)bytes.fill(0)}
+    try{for await(const bytes of vault.assets.read(item.key)){await access?.assertLibraryKey(header.alias);chunks.push(bytes)}await access?.assertLibraryKey(header.alias);const extension=info.mime==='text/plain'?'txt':info.mime.split('/')[1]?.replace('jpeg','jpg').replace('mpeg','mp3')||'bin';return new File(chunks,`Saved-${header.id}.${extension}`,{type:info.mime})}finally{for(const bytes of chunks)bytes.fill(0)}
   }
   await access?.assertLibraryKey(item.key)
   const data=item.key.startsWith('data:')?item.key:await currentBlobStorage.get(item.key)

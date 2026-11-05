@@ -1,3 +1,4 @@
+import platform from '@/platform'
 // @vitest-environment jsdom
 import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -130,3 +131,5 @@ it('does not load a large history into media memory and closes the previous prev
   expect(screen.getAllByLabelText('Generated video')).toHaveLength(1)
   fireEvent.click(screen.getByRole('button',{name:'Close preview'}));await waitFor(()=>expect(screen.queryByLabelText('Generated video')).toBeNull())
 })
+
+it('opens an encrypted transcript only on request and exports it with a text filename',async()=>{const service=setup([{...record,id:'transcript',kind:'transcription',model:'asr',status:'ready',blobKey:'text-file',mime:'text/plain'}]);service.content.mockResolvedValue('data:text/plain;base64,Q2nDsg==');show(service);await screen.findByRole('button',{name:'Open preview'});expect(service.content).not.toHaveBeenCalled();expect(screen.queryByText('Ciò')).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Open preview'}));await screen.findByText('Ciò');fireEvent.click(screen.getByRole('button',{name:'Export'}));await waitFor(()=>expect(platform.exporter.exportTextFile).toHaveBeenCalledWith('Venice-transcript.txt','Ciò'))})

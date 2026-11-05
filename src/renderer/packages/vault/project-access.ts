@@ -46,11 +46,13 @@ export class ProjectAccess {
     return new Proxy(backend,{get(target,key){const original=Reflect.get(target,key);if(typeof original!=='function')return original;const method=String(key)
       if(method==='iterateIds')return async function*(){for await(const id of backend.iterateIds!())yield id}
       return async(...args:any[])=>{
+        let moved=false
         if(method==='create'||method==='createMany'){for(const record of method==='create'?[args[0]]:args[0]){await access.assertSession(record.id);await access.assertFolder(record.folderId)}}
-        if(method==='update'){await access.assertSession(args[0]);if(Object.hasOwn(args[1],'folderId')){await access.assertFolder(args[1].folderId);if((await backend.getById(args[0]))?.folderId!==args[1].folderId)await access.library?.beforeMove?.(args[0],args[1].folderId)}}
+        if(method==='update'){await access.assertSession(args[0]);if(Object.hasOwn(args[1],'folderId')){await access.assertFolder(args[1].folderId);if((await backend.getById(args[0]))?.folderId!==args[1].folderId){moved=true;await access.library?.beforeMove?.(args[0],args[1].folderId)}}}
         if(method==='delete'||method==='deleteMany')for(const id of method==='delete'?[args[0]]:args[0])await access.assertSession(id)
         if(method==='clear')for(const id of Object.keys(await access.policies()))await access.assertFolder(id)
         const result=await original.apply(target,args)
+        if(moved)access.keys.refresh()
         if(!/^(get|read|list|find|iterate|initialize)/.test(method))access.invalidateLibrary()
         if(method==='getById')return result?access.redact(result):null
         if(['getAll','getAllIncludingHidden','getArchived'].includes(method))return Promise.all(result.map((meta:SessionMetaRecord)=>access.redact(meta)))

@@ -18,6 +18,7 @@ import { getLogger } from '@/lib/utils'
 import { providerImageModelsQueryOptions, getImageModelCapabilities } from '@/packages/image-model-catalog'
 import { pollImageTask, submitImageGeneration } from '@/packages/remote'
 import platform from '@/platform'
+import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import { StorageKeyGenerator } from '@/storage/StoreStorage'
 import { trackEvent } from '@/utils/track'
 import { imageGenerationStore } from './imageGenerationStore'
@@ -65,6 +66,7 @@ export function getImageGenerationService(): ImageGenerationService {
       },
       resolveReferenceImage: async (key) => (await createModelDependencies()).storage.getImage(key),
       validateRequest: async (params, signal) => {
+        if(process.env.NODE_ENV!=='test'&&platform.type!=='web'&&!await vaultRuntimeFor(platform).available())throw new Error('Device encryption is unavailable. Configure a secure device screen lock before generating images.')
         if(params.localEdit){if(params.model.provider!=='venice')throw new Error('Local mask editing requires a Venice image editor');const provider=settingsStore.getState().getSettings().providers?.venice||{};const catalog=await queryClient.fetchQuery(providerImageModelsQueryOptions('venice' as import('@shared/types').ModelProviderEnum,{apiKey:provider.apiKey,apiHost:provider.apiHost,venice:provider.venice}));if(catalog.find(row=>row.modelId===params.model.modelId)?.vendorMetadata?.veniceType!=='inpaint')throw new Error('Select a compatible Venice editing model');const source=await currentBlobStorage.get(params.localEdit.sourceKey);if(!source)throw new Error('Local editing source is unavailable');const bitmap=await localImageBitmap(source,signal);bitmap.close()}
         if (params.model.provider === 'chatbox-ai') getLicenseKey()
         const capabilities = await getImageModelCapabilities(
@@ -80,6 +82,7 @@ export function getImageGenerationService(): ImageGenerationService {
         })
       },
       createImageKey: (recordId) => StorageKeyGenerator.picture(`image-gen:${recordId}`),
+      persistReferenceImage:async(data,scope,signal)=>{const vault=vaultRuntimeFor(platform);const supported=await vault.available();if(!supported&&platform.type!=='web'||!supported&&scope)throw new Error('Device encryption is unavailable. Configure a secure device screen lock first.');const key=StorageKeyGenerator.picture('image-creator-ref');if(supported){const {dataUrlBytes}=await import('@/packages/vault/chunk-store');await vault.assets.put(dataUrlBytes(data),{name:'Image reference',mime:/^data:([^;,]+)/.exec(data)?.[1]||'image/png',kind:'image'},scope||'public',key,signal)}else await currentBlobStorage.set(key,data);return key},
       createThumbnail:createImageThumbnail,
       transformImage:(data,record,signal)=>applyLocalImageEdit(data,record,key=>currentBlobStorage.get(key),signal),
       onGenerate: (params, path) =>

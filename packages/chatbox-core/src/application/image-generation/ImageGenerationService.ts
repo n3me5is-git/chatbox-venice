@@ -230,6 +230,7 @@ export class ImageGenerationService {
     const attempt = this.acquire('__starting-image-generation__')
     const releaseReferences = this.protectReferences(params.referenceImages)
     let record: ImageGeneration | undefined
+    const storedReferences:string[]=[];let durable=false
     try {
       if (!params.prompt.trim()) throw new Error('Enter a prompt before generating an image.')
       if (!params.model.provider || !params.model.modelId) throw new Error('Select an image model before generating.')
@@ -241,6 +242,7 @@ export class ImageGenerationService {
         aspectRatio: params.aspectRatio === 'auto' ? undefined : params.aspectRatio,
       }
       await this.initialize()
+      if(this.options.persistReferenceImage)for(let index=0;index<normalized.referenceImages.length;index++){const value=normalized.referenceImages[index];if(value.startsWith('data:image/')){this.assert(attempt);const key=await this.options.persistReferenceImage(value,params.protection,attempt.controller.signal);storedReferences.push(key);normalized.referenceImages[index]=key}}
       record = {
         ...normalized,
         id: this.options.createId?.() ?? uuid(),
@@ -250,6 +252,7 @@ export class ImageGenerationService {
       }
       const created = record
       await this.serialize(() => this.options.storage.create(created))
+      durable=true
       this.emit({ type: 'created', record })
       await options.onRecordCreated?.(record)
       this.assert(attempt)
@@ -264,6 +267,7 @@ export class ImageGenerationService {
       }
       throw error
     } finally {
+      if(!durable)for(const key of storedReferences)await this.options.blobStorage.remove(key).catch(error=>this.options.onError?.(error))
       releaseReferences()
     }
   }

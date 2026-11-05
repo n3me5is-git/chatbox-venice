@@ -1,5 +1,6 @@
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 export const forkEnglish = {
+
   "Project locks control access inside the app, including chat reads, search and changes. They do not encrypt the existing conversation database or external Work Mode files. Venice generations belonging to these chats are moved to this project’s protected media area. Other generated media has its own protection controls.": "Project locks control access inside the app, including chat reads, search and changes. They do not encrypt the existing conversation database or external Work Mode files. Venice generations belonging to these chats are moved to this project’s protected media area. Other generated media has its own protection controls.",
   "Select loaded files": "Select loaded files",
   "Clear selection": "Clear selection",
@@ -520,6 +521,7 @@ export const forkEnglish = {
   "Uncensored": "Uncensored"
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+
   "Project protection": "Protezione progetto",
   "Project": "Progetto",
   "Select a project": "Seleziona un progetto",

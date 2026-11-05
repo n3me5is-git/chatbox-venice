@@ -1,3 +1,4 @@
+import { localText } from '@/packages/local-text'
 import { LibraryFileInput as FileInput } from '@/components/local-library/LibraryFileInput'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
@@ -8,7 +9,7 @@ import { VeniceVoiceCloning, type VoiceService } from './VeniceVoiceCloning'
 import { isSoundEffectsModel, musicDuration, musicOptions, videoInputs } from '@shared/providers/definitions/models/venice/media-capabilities'
 import { Accordion, Alert, Badge, Button, Checkbox, Code, Group, Loader, NumberInput, Paper, SegmentedControl, Select, ScrollArea, SimpleGrid, Slider, Stack, Text, Textarea, TextInput, ThemeIcon, Title } from '@mantine/core'
 import { IconMicrophone, IconMusic, IconPlayerPlay, IconRefresh, IconVideo, IconWaveSine } from '@tabler/icons-react'
-import { useEffect,useRef, useState,useSyncExternalStore } from 'react'
+import { useEffect,useMemo,useRef, useState,useSyncExternalStore } from 'react'
 import { voiceFileDuration,validateVoiceDuration } from '@/packages/voice-file'
 import { installedVaultFor } from '@/packages/vault/runtime'
 import { lockedMediaRecord } from '@/packages/vault/media-records'
@@ -112,7 +113,7 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
           <Select label={ft("Audio format")} allowDeselect={false} value={format} data={[{ value: 'auto', label: selected?.model_spec?.default_format ? ft("Recommended ({{format}})",{format:selected.model_spec.default_format.toUpperCase()}) : ft("Recommended by the model") }, ...formats.map(value => ({ value, label: value.toUpperCase() }))]} onChange={value => setFormat(value || 'auto')} /></SimpleGrid>
         {!model.includes('kokoro') && <Select label={ft("Language")} value={language} allowDeselect={false} data={languages.map(item=>({...item,label:ft(item.label)}))} onChange={value => setLanguage(value || 'auto')} />}
         <Stack gap={5}><Group justify="space-between"><Text size="sm" fw={500}>{ft("Reading speed")}</Text><Text size="sm" c="dimmed">{speed === 1 ? ft("Normal") : `${speed.toLocaleString(i18n.resolvedLanguage || i18n.language || 'en', { maximumFractionDigits: 2 })}×`}</Text></Group><Slider aria-label={ft("Reading speed")} value={speed} onChange={setSpeed} min={0.25} max={4} step={0.05} label={value => `${value.toFixed(2)}×`} /><Group justify="space-between"><Text size="xs" c="dimmed">{ft("Slower")}</Text><Text size="xs" c="dimmed">{ft("Faster")}</Text></Group></Stack>
-        <Group><Button leftSection={<IconPlayerPlay size={15} />} variant="light" size="xs" disabled={!enabled || !model || busy||saveProtected&&!vault?.keys.isUnlocked('app')} onClick={() => void run(async () => { await service.start({ kind: 'speech', model, prompt: ft("Hello! This is a short preview of the voice you selected."), options: speechOptions(),protection:saveProtected?'app':undefined }) })}>{ft("Generate a short preview")}</Button><Text size="xs" c="dimmed">{ft("The preview creates a short generation and may incur a cost.")}</Text></Group>
+        <Group><Button leftSection={<IconPlayerPlay size={15} />} variant="light" size="xs" disabled={!enabled || !model || busy||saveProtected&&!vault?.keys.isUnlocked('app')} onClick={() => void run(async () => { await service.start({ kind: 'speech', model, prompt: ft("Hello! This is a short preview of the voice you selected."), options: speechOptions(),protection:saveProtected?'app':undefined,signal:operation.current?.signal }) })}>{ft("Generate a short preview")}</Button><Text size="xs" c="dimmed">{ft("The preview creates a short generation and may incur a cost.")}</Text></Group>
       </>}
       {kind === 'voice-conversion' && <><Select label={ft("Target voice")} searchable value={voice || null} data={voices} onChange={value=>setVoice(value||'')}/>{spec?.supports_background_noise_removal === true && <Checkbox label={ft("Remove background noise")} checked={instrumental} onChange={e=>setInstrumental(e.currentTarget.checked)}/>}<Text size="xs" c="dimmed">{ft("Conversion preserves the words and delivery of your source recording. Available voices come from the selected model.")}</Text></>}
       {kind === 'transcription' && <Select label={ft("Audio language")} value={language} allowDeselect={false} data={languages.map(item=>({...item,label:ft(item.label)}))} onChange={value => setLanguage(value || 'auto')} />}
@@ -160,6 +161,7 @@ function MediaResult({ record, modelName, service, enabled, run, opened, onToggl
   const {i18n}=useTranslation()
   const [content, setContent] = useState<string | null>(null); const [loadError, setLoadError] = useState('')
   useEffect(() => { if(!opened||record.protectedRecord) {setContent(null);setLoadError('');return} let live = true; void service.content(record).then(value => { if (live) setContent(value) }).catch(() => { if (live) setLoadError(ft("Unable to read local content")) }); return () => { live = false } }, [record.blobKey, record.id, service, opened,record.protectedRecord])
+  const transcript=useMemo(()=>{if(!opened||record.protectedRecord)return {text:null,error:''};try{return{text:record.text||localText(content),error:''}}catch{return{text:null,error:ft('Unable to read local content')}}},[opened,record.protectedRecord,record.text,content])
   if(record.protectedRecord){const vault=installedVaultFor(platform);return <Paper withBorder radius="lg" p="md">{vault?<ScopeUnlock keys={vault.keys} scope={record.protection||'app'} title={ft('Locked creation')}/>:<Text>{ft('Locked creation')}</Text>}</Paper>}
   const safe = content && /^(data:audio\/[\w.+-]+;base64,|data:video\/mp4;base64,)/.test(content) ? content : null
   const statuses = { ready: ft("Ready"), creating: ft("Starting"), queued: ft("Processing"), paused: ft("Paused"), error: ft("Needs attention") }
@@ -167,17 +169,21 @@ function MediaResult({ record, modelName, service, enabled, run, opened, onToggl
     <Group justify="space-between"><Stack gap={2}><Text fw={600}>{ft(names[record.kind])} · {modelName}</Text><Text size="xs" c="dimmed">{new Date(record.createdAt).toLocaleString(i18n.resolvedLanguage || i18n.language || 'en')}</Text></Stack><Badge color={record.status === 'ready' ? 'green' : record.status === 'error' ? 'orange' : 'blue'} variant="light">{statuses[record.status]}</Badge></Group>
     <Text lineClamp={3} style={{ overflowWrap: 'anywhere' }}>{record.prompt}</Text>
     {service.isActive(record.id) && <Group><Loader size="xs" /><Text size="sm">{ft("Your content is being prepared…")}</Text><Button size="xs" variant="default" onClick={() => void run(() => service.pause(record.id))}>{ft("Stop waiting")}</Button></Group>}
-    {record.text && <Paper p="sm" bg="var(--mantine-color-default-hover)"><Text style={{ whiteSpace: 'pre-wrap' }}>{record.text}</Text></Paper>}
-    {record.blobKey && <Button size="xs" variant="light" onClick={onToggle}>{opened?ft("Close preview"):ft("Open preview")}</Button>}
+    {transcript.text && <Paper p="sm" bg="var(--mantine-color-default-hover)"><Text style={{ whiteSpace: 'pre-wrap' }}>{transcript.text}</Text></Paper>}
+    {(record.blobKey||record.text) && <Button size="xs" variant="light" onClick={onToggle}>{opened?ft("Close preview"):ft("Open preview")}</Button>}
     {opened && safe && (record.kind === 'video' ? <video aria-label={ft("Generated video")} controls src={safe} style={{ width: '100%', maxHeight: 500, borderRadius: 8 }} /> : <audio aria-label={ft("Generated audio")} controls src={safe} style={{ width: '100%' }} />)}
-    {loadError && <Text c="red">{loadError}</Text>}
+    {(loadError||transcript.error) && <Text c="red">{loadError||transcript.error}</Text>}
     {record.error && <Alert color="orange">{ft(friendlyMediaError(record.error))}<Accordion variant="default"><Accordion.Item value="error"><Accordion.Control>{ft("Details")}</Accordion.Control><Accordion.Panel><Code block>{record.error}</Code></Accordion.Panel></Accordion.Item></Accordion></Alert>}
     {record.queueId && !service.isActive(record.id) && record.status !== 'ready' && <Button disabled={!enabled} variant="light" onClick={() => void run(() => service.resume(record.id))}>{ft("Resume processing")}</Button>}
     <Group justify="space-between"><Group>
       {onProtectionChange&&!service.isActive(record.id)&&<Button size="xs" variant="default" onClick={()=>void run(()=>onProtectionChange(record.protection?undefined:'app'))}>{record.protection?ft('Make this creation public'):ft('Protect this creation')}</Button>}
-      {(safe || record.text) && <Button size="xs" variant="default" onClick={() => void run(async () => {
-        if (record.text) await platform.exporter.exportTextFile(`Venice-${record.id}.txt`, record.text)
-        else if (safe) await platform.exporter.exportBlob(`Venice-${record.id}.${record.mime === 'video/mp4' ? 'mp4' : record.mime?.includes('wav') ? 'wav' : record.mime?.includes('flac') ? 'flac' : record.mime?.includes('ogg') ? 'ogg' : record.mime?.includes('opus') ? 'opus' : record.mime?.includes('aac') ? 'aac' : record.mime?.includes('pcm') ? 'pcm' : 'mp3'}`, await (await fetch(safe)).blob())
+      {(record.blobKey || record.text) && <Button size="xs" variant="default" onClick={() => void run(async () => {
+        const extension=record.kind==='transcription'||record.mime==='text/plain'?'txt':record.mime==='video/mp4'?'mp4':record.mime?.includes('wav')?'wav':record.mime?.includes('flac')?'flac':record.mime?.includes('ogg')?'ogg':record.mime?.includes('opus')?'opus':record.mime?.includes('aac')?'aac':record.mime?.includes('pcm')?'pcm':'mp3'
+        const name=`Venice-${record.id}.${extension}`,vault=installedVaultFor(platform),header=record.blobKey?await vault?.find(record.blobKey):null
+        if(vault&&header){const controller=new AbortController();const result=await platform.exporter.exportStreamingFile(name,async function*(){for await(const bytes of vault.assets.read(`vault-asset-${header.id}`)){try{yield bytes}finally{bytes.fill(0)}}},record.mime||'application/octet-stream',controller.signal,{requiresStreaming:true});if(!result.boundedMemory)throw new Error(ft('This device did not provide streaming export'));return}
+        if(record.text){await platform.exporter.exportTextFile(name,record.text);return}
+        const value=safe||await service.content(record);if(record.mime==='text/plain'){const text=localText(value);if(text===null)throw new Error(ft('Unable to read local content'));await platform.exporter.exportTextFile(name,text)}
+        else{if(!value||!/^data:(audio\/[\w.+-]+|video\/mp4);base64,/.test(value))throw new Error(ft('Unable to read local content'));await platform.exporter.exportBlob(name,await(await fetch(value)).blob())}
       })}>{ft("Export")}</Button>}
       {record.queueId && !record.remoteCleaned && <Button size="xs" variant="default" disabled={!enabled} onClick={() => void run(() => service.cleanup(record.id))}>{ft("Delete copy on Venice")}</Button>}
     </Group><Button size="xs" color="red" variant="subtle" onClick={() => void run(() => service.remove(record.id))}>{ft("Delete from device")}</Button></Group>

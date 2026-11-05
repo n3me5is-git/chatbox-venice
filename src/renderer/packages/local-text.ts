@@ -1,0 +1,2 @@
+/** Text previews accept only bounded local UTF-8 data, never an external URL. */
+export function localText(data:string|null){if(!data?.startsWith('data:text/plain;base64,'))return null;const raw=data.slice(23);if(raw.length>24*1024*1024||!/^[a-zA-Z0-9+/=\r\n]+$/.test(raw))throw new Error('This transcript exceeds the preview size limit');const decoded=atob(raw);const bytes=new Uint8Array(decoded.length);try{for(let at=0;at<decoded.length;at++)bytes[at]=decoded.charCodeAt(at);return new TextDecoder().decode(bytes)}finally{bytes.fill(0)}}

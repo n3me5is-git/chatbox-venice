@@ -9,6 +9,7 @@ export const veniceConfiguration = () => {
   return { apiKey: provider?.apiKey || '', apiHost: provider?.apiHost, options: provider?.venice || {} }
 }
 export const veniceMediaService = new VeniceMediaService({
+  ensureStorage:process.env.NODE_ENV==='test'?undefined:async()=>{if(platform.type!=='web'&&!await vaultRuntimeFor(platform).available())throw new Error('Device encryption is unavailable. Configure a secure device screen lock before generating media.')},
   putStream: process.env.NODE_ENV === 'test' ? undefined : (id,response,mime,signal)=>vaultRuntimeFor(platform).putStream(id,response,mime,signal),
   readVoices: async () => (await platform.getStoreValue('venice:voice-handles:v1') || []) as VoiceHandle[],
   writeVoices: voices => platform.setStoreValue('venice:voice-handles:v1', voices),

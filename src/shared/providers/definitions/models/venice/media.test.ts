@@ -17,6 +17,9 @@ function setup(handler: (path: string, body: unknown, signal?: AbortSignal) => P
 const services: VeniceMediaService[] = []
 afterEach(() => { services.forEach(service => service.pauseAll()); services.length = 0 })
 describe('Venice media lifecycle without live APIs', () => {
+  it('validates secure storage before making a paid request',async()=>{const s=setup();s.store.ensureStorage=async()=>{throw new Error('Device encryption unavailable')};await expect(s.service.start({kind:'speech',model:'tts',prompt:'hello'})).rejects.toThrow('encryption');expect(s.api).not.toHaveBeenCalled();expect(await s.service.list()).toEqual([])})
+  it('stores new transcriptions as lazy file references when the encrypted streaming host is available',async()=>{const s=setup(async()=>json({text:'Private transcript'}));s.store.putStream=async(key,response,mime)=>{expect(mime).toBe('text/plain');expect(await response.text()).toBe('Private transcript');s.blobs.set(key,'stored encrypted content');return true};const record=await s.service.start({kind:'transcription',model:'asr',prompt:'',file:new File(['sound'],'audio.wav')});expect(record).toMatchObject({status:'ready',mime:'text/plain'});expect(record.blobKey).toBeTruthy();expect(record.text).toBeUndefined();expect(JSON.stringify(await s.service.list())).not.toContain('Private transcript');await s.service.remove(record.id);expect(s.blobs.size).toBe(0)})
+
   it('keeps modules opt-in and master disable blocks all network', async () => {
     const s = setup(); s.config.options = {}; await expect(s.service.start({ kind: 'speech', model: 'tts', prompt: 'hello' })).rejects.toThrow('disabled')
     s.config.options = { enabled: false, audioEnabled: true }; await expect(s.service.catalog()).rejects.toThrow('disabled'); expect(s.api).not.toHaveBeenCalled()

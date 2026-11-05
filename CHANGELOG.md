@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.28.0
+
+See [release notes](docs/releases/v1.28.0.md). Adds encrypted media storage and portable library backup, lazy media/transcript previews and streaming native export, direct chat deletion, independent PIN/device unlock, project access controls, Venice text TEE/E2EE and privacy filters, voice cloning/conversion, local-library attachments, and model-aware image editing with local masks and percent comment points.
+
 ## 1.27.0
 
 See [release notes](docs/releases/v1.27.0.md). Adds per-chat ask/similar/automatic generation approval, reusable per-call image parameters, visible revocation, English release sources and i18n-compatible fork UI with English fallback.

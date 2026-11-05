@@ -75,6 +75,7 @@ export interface ImageGenerationServiceOptions {
   validateRequest?(params: GenerateImageParams, signal: AbortSignal): Promise<void>
   createId?(): string
   createImageKey?(recordId: string): string
+  persistReferenceImage?(data:string,scope:string|undefined,signal:AbortSignal):Promise<string>
   createThumbnail?(data:string,signal:AbortSignal):Promise<string|null>
   transformImage?(data:string,record:ImageGeneration,signal:AbortSignal):Promise<string>
   now?(): number
