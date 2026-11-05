@@ -17,7 +17,7 @@ async function wait(condition, message) {
   while (Date.now() < deadline) { if (browserError) throw browserError; try { const value = await condition(); if (value) return value } catch {} await delay(100) }
   throw new Error(message + (message.includes('Chromium') ? ': ' + chromeLog.slice(-3000) : ''))
 }
-let socket; let serial = 0; const pending = new Map(); const exceptions = []; const requests = []
+let touchMode = false; let socket; let serial = 0; const pending = new Map(); const exceptions = []; const requests = []
 try {
   await wait(async () => (await fetch('http://127.0.0.1:4174/scripts/ui-simulation/')).ok, 'Simulation server did not start')
   const target = await wait(async () => (await (await fetch('http://127.0.0.1:9222/json/list')).json()).find(page => page.type === 'page'), 'Chromium did not start')
@@ -32,15 +32,15 @@ try {
   const cdp = (method, params = {}) => new Promise((resolve, reject) => { const id = ++serial; const timer = setTimeout(() => { pending.delete(id); reject(new Error('CDP timeout: ' + method)) }, 20000); pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value) }, reject: error => { clearTimeout(timer); reject(error) } }); socket.send(JSON.stringify({ id, method, params })) })
   const evaluate = async expression => { const result = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.text); return result.result.value }
   async function click(expression) {
-    await evaluate(`(${expression}).scrollIntoView({block:'center'})`)
     let previous
     const box = await wait(async () => {
-      const current = await evaluate(`(() => { const e = ${expression}; if (!e) return null; const r=e.getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2,width:r.width,height:r.height,viewport:innerHeight} })()`)
-      if (!current || !current.width || !current.height || current.y < 0 || current.y >= current.viewport) return false
+      const current = await evaluate(`(() => { const e = ${expression}; if (!e) return null; e.scrollIntoView({block:'center',behavior:'instant'}); const r=e.getBoundingClientRect(); const x=r.x+r.width/2,y=r.y+r.height/2; const hit=document.elementFromPoint(x,y); return {x,y,width:r.width,height:r.height,viewport:innerHeight,hit:hit===e||e.contains(hit)} })()`)
+      if (!current || !current.width || !current.height || !current.hit || current.y < 0 || current.y >= current.viewport) return false
       const stable = previous && Math.abs(previous.x-current.x) < 0.5 && Math.abs(previous.y-current.y) < 0.5
       previous = current; return stable ? {x:current.x,y:current.y} : false
     }, 'Clickable element did not settle')
-    await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', ...box, button: 'left', clickCount: 1 }); await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', ...box, button: 'left', clickCount: 1 })
+    if (touchMode) { await cdp('Input.dispatchTouchEvent', {type:'touchStart',touchPoints:[box]}); await cdp('Input.dispatchTouchEvent', {type:'touchEnd',touchPoints:[]}) }
+    else { await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', ...box, button: 'left', clickCount: 1 }); await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', ...box, button: 'left', clickCount: 1 }) }
   }
   const byText = text => `[...document.querySelectorAll('button')].find(e => e.textContent.trim() === ${JSON.stringify(text)})`
   const byLabel = label => `document.getElementById([...document.querySelectorAll('label')].find(e => e.textContent === ${JSON.stringify(label)}).htmlFor)`
@@ -60,7 +60,7 @@ try {
   await click(byText('Esporta')); await wait(() => evaluate('window.__simulationExport?.size > 0'), 'Export did not receive local audio')
   await evaluate('window.scrollTo(0,0)'); await writeFile(path.join(output, 'desktop.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: true })).data, 'base64'))
   await cdp('Emulation.setDeviceMetricsOverride', { width: 412, height: 915, deviceScaleFactor: 1, mobile: true })
-  await delay(250)
+  touchMode = true; await cdp('Emulation.setTouchEmulationEnabled', {enabled:true}); await delay(250)
   assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true, 'Mobile UI overflows horizontally')
   await writeFile(path.join(output, 'mobile.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: true })).data, 'base64'))
   await fill('Testo da leggere', 'SIMULATE_ERROR'); await click(byText('Genera voce'))
@@ -73,18 +73,18 @@ try {
   await wait(() => evaluate(`!!document.querySelector('input[placeholder]') && document.body.textContent.includes('Scegli e conferma le immagini')`), 'Image approval did not open')
   assert.equal(await evaluate(`(${byLabel('Modello immagine Venice')}).value`), '', 'HITL must choose an unspecified model')
   await click(byLabel('Modello immagine Venice')); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === 'GPT Flare')`)
+  await click(byLabel('Inquadratura')); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === '16:9')`)
   await click(byLabel('Filtro contenuti')); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === 'Disattivato')`)
   await click(byText('Parametri della singola chiamata')); await fill('Seed per questa generazione', '42')
   await writeFile(path.join(output, 'image-hitl-mobile.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
   await evaluate(`window.__hitlEvents=[]; ['pointerdown','pointerup','click'].forEach(type => document.addEventListener(type, e => window.__hitlEvents.push({type,text:e.target.textContent?.slice(0,100),tag:e.target.tagName,x:e.clientX,y:e.clientY}),true))`)
-  await click(byText('Conferma e genera'))
-  try { await wait(() => evaluate('!!window.__simulationImageChoice'), 'HITL did not return the approved request') }
+  try { await click(byText('Conferma e genera')); await wait(() => evaluate('!!window.__simulationImageChoice'), 'HITL did not return the approved request') }
   catch (error) {
     await writeFile(path.join(output, 'image-hitl-failure.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
     const diagnostic = await evaluate(`({events:window.__hitlEvents,body:document.body.innerText,active:document.activeElement?.outerHTML,buttons:[...document.querySelectorAll('button')].filter(e=>e.textContent.includes('Conferma')).map(e=>({html:e.outerHTML,rect:e.getBoundingClientRect().toJSON()}))})`)
     await writeFile(path.join(output, 'image-hitl-diagnostic.json'), JSON.stringify(diagnostic,null,2)); throw new Error(error.message + ': ' + JSON.stringify(diagnostic))
   }
-  assert.equal(await evaluate('window.__simulationImageChoice.modelId'), 'gpt-flare-image'); assert.equal(await evaluate('window.__simulationImageChoice.extraBody.seed'), 42); assert.equal(await evaluate('window.__simulationImageChoice.extraBody.safe_mode'), false)
+  assert.equal(await evaluate('window.__simulationImageChoice.modelId'), 'gpt-flare-image'); assert.equal(await evaluate('window.__simulationImageChoice.aspectRatio'), '16:9'); assert.equal(await evaluate('window.__simulationImageChoice.extraBody.seed'), 42); assert.equal(await evaluate('window.__simulationImageChoice.extraBody.safe_mode'), false)
   assert.equal(await evaluate('window.__simulationRequestCount'), 4, 'The HITL fixture must not call paid APIs')
   assert.deepEqual(exceptions, [], 'Browser exceptions')
   const external = requests.filter(url => !/^(http:\/\/127\.0\.0\.1:4174\/|data:|blob:)/.test(url))
