@@ -1,3 +1,4 @@
+import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import NiceModal from '@ebay/nice-modal-react'
 import {
   ActionIcon,
@@ -630,7 +631,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                     </ActionIcon>
                   </Flex>
 
-                  {selectedProvider === ModelProviderEnum.Venice && <VeniceImageSettings />}
+                  {selectedProvider === ModelProviderEnum.Venice && <><VeniceBalance /><VeniceImageSettings /></>}
 
                   {/* Toolbar Row */}
                   <Group justify="space-between" align="end" wrap="wrap"><NumberInput label="Immagini per richiesta" description="Ogni immagine può avere un costo" min={1} max={4} value={batchCount} onChange={value => setBatchCount(Math.min(4, Math.max(1, Number(value) || 1)))} w={170} />

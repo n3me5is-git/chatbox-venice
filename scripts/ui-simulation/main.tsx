@@ -1,5 +1,7 @@
+import NiceModal from '@ebay/nice-modal-react'
+import { VeniceImageApproval } from '../../src/renderer/components/venice/VeniceImageApproval'
 import '@mantine/core/styles.css'
-import { Checkbox, MantineProvider } from '@mantine/core'
+import { Button, Checkbox, MantineProvider } from '@mantine/core'
 import { createRoot } from 'react-dom/client'
 import { useState } from 'react'
 import { VeniceStudio } from '../../src/renderer/components/venice/VeniceStudio'
@@ -22,6 +24,6 @@ const service = new VeniceMediaService({ read: async () => structuredClone(recor
 })
 function Simulation() {
   const [enabled, setEnabled] = useState(true)
-  return <MantineProvider><div style={{ padding: 12, background: '#fff3bf' }}>Simulazione locale: nessuna API reale, nessun addebito.<Checkbox label="Modulo audio attivo (simulazione)" checked={enabled} onChange={e => { const value = e.currentTarget.checked; configuration.options.audioEnabled = value; setEnabled(value) }} /></div><VeniceStudio service={service} options={{ ...configuration.options, audioEnabled: enabled }} /></MantineProvider>
+  return <MantineProvider><NiceModal.Provider><div style={{ padding: 12, background: '#fff3bf' }}>Simulazione locale: nessuna API reale, nessun addebito.<Checkbox label="Modulo audio attivo (simulazione)" checked={enabled} onChange={e => { const value = e.currentTarget.checked; configuration.options.audioEnabled = value; setEnabled(value) }} /></div><Button m="sm" variant="light" onClick={() => void NiceModal.show(VeniceImageApproval, { models: [{ modelId: 'gpt-flare-image', displayName: 'GPT Flare', capabilities: { aspectRatio: { values: ['1:1', '16:9'] }, inputReferences: null }, vendorMetadata: { privacy: 'anonymized' } }], request: { prompt: 'Un tramonto sul mare', count: 1 } }).then(choice => { (window as any).__simulationImageChoice = choice })}>Prova scelta immagini</Button><VeniceStudio service={service} options={{ ...configuration.options, audioEnabled: enabled }} /></NiceModal.Provider></MantineProvider>
 }
 createRoot(document.getElementById('root')!).render(<Simulation />)

@@ -20,9 +20,11 @@ Abilita i moduli desiderati in Impostazioni → Provider → Venice, poi apri **
 
 Puoi salvare profili di ricerca/immagini e sceglierli per modello o chat esistente. La priorità è provider → profilo salvato → modello → chat → JSON extra del modello. I permessi dei moduli restano nelle impostazioni del provider. Il supporto Venice ha un interruttore generale; i nuovi moduli sono disattivati finché non li abiliti.
 
-I tool Venice nelle chat in modalità Lavoro sono un'opzione separata: mostrano modelli, preventivi e stato, possono generare media e gestire le generazioni della chat corrente. Le generazioni richiedono conferma per impostazione predefinita; le cancellazioni la richiedono sempre. Nessuna API key viene inviata alle Actions per i test simulati.
+Dalla 1.26.0 l’MCP Venice interno è disponibile quando il provider è configurato e attivo; puoi disattivarlo in Impostazioni → MCP o nel provider Venice. I tool nelle chat in modalità Lavoro mostrano modelli, preventivi e stato, possono generare media e gestire le generazioni della chat corrente. Le immagini richiedono sempre scelta/conferma del modello e dei parametri della singola chiamata. Le altre generazioni richiedono conferma per impostazione predefinita; le cancellazioni la richiedono sempre. Nessuna API key viene inviata alle Actions per i test simulati.
 
 La telemetria è disattivata di default. I servizi opzionali ereditati da Chatbox e gli altri provider possono essere configurati esplicitamente. Vedi [flussi dei dati](docs/fork-privacy.md).
+
+Dalla 1.26.0 Studio include anche immagini, batch/remix/riuso prompt, registrazione dal microfono, ricerca globale Venice, saldo USD/DIEM, schede modello e embeddings per RAG. In Aspetto puoi nascondere Chatbox AI dai selettori. Vedi le [note complete](docs/releases/v1.26.0.md).
 
 ## Build e aggiornamenti
 

@@ -13,13 +13,19 @@ This fork stores chats, provider configuration and generation history locally us
 
 ## Optional audio, video and music
 
-These modules and their chat tools are off until explicitly enabled. Studio opens local history without loading a remote model list. Loading models, quoting, generation, polling and cleanup contact the configured Venice endpoint directly. Transcription uploads the selected file. Speech/video/music prompts and additional parameters are sent to Venice without E2EE. No background paid re-creation happens on startup or failure.
+Audio/video/music modules are off until explicitly enabled. From 1.26.0 the internal Venice MCP is available by default when the provider has a key and is enabled, only to Venice models in Work Mode; it has its own switch in MCP and provider settings. It cannot enable disabled media modules. Image generation always opens a human approval dialog. Studio media history opens locally; its media catalog loads on request. Provider/model and image selectors can refresh the authenticated model catalog, and visible Venice credit widgets request `/billing/balance`. Neither request generates content or incurs an inference request. Loading models, quoting, generation, polling and cleanup contact the configured Venice endpoint directly. Transcription uploads the selected file. Speech/video/music prompts and additional parameters are sent to Venice without E2EE. No background paid re-creation happens on startup or failure.
 
 Queue IDs, model IDs, prompts, status and media are stored locally. A SHA-256 credential fingerprint binds resumable jobs to the original endpoint/key; the media records do not duplicate the API key. Media blobs use their own namespace and explicit deletion. Studio history is currently outside the portable chat/image backup format: export wanted media before resetting or migrating the app. Device encryption, app storage protection and separately created backups remain the user's responsibility.
 
 After video/music bytes are saved successfully, the app requests remote completion/cleanup. A failure leaves the local result and a retry control. Deleting a local record does not implicitly contact Venice. A remote cleanup confirmation represents Venice's response; the client cannot independently verify provider retention. Stopping polling or closing the app does not necessarily cancel a running server job.
 
 Media tools are registered only for Venice models in Work Mode when enabled. List/status/resume/delete are limited to records created for the current chat. Default approval precedes paid generation; destructive tool actions always require approval. Local filesystem tools retain the existing permissions and approvals; their results may be sent to the selected chat model.
+
+The internal MCP uses a client/server pair connected by an in-memory transport inside the app. It does not start a process, open a port or send tool messages to a separate MCP host. API calls still contact Venice directly. Image tool records and status are limited to the current chat; user-selected references and per-call parameters are saved with the image generation. Model names are matched against the available catalog; ambiguity requires user selection.
+
+Microphone recordings stay local until the user submits transcription. Tracks are stopped after recording or leaving the component. Model documentation opens only on a user action; the embedded webpage can contact Venice and its website resources independently of the API.
+
+Venice embeddings send the indexed text to Venice. The app keeps the knowledge-base documents and vector index locally using the existing RAG implementation. Privacy/uncensored icons reproduce provider metadata; they are not a verification of retention or encryption.
 
 ## Delete generated content
 

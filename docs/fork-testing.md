@@ -22,6 +22,8 @@ La prova Chromium monta il componente reale Venice Studio in una pagina di test 
 
 Alla fine della run apri **Artifacts → Venice-UI-simulation**: contiene `desktop.png` (1440×1100), `mobile.png` (412×915), `report.json` e il log del server di test. Gli artifact restano disponibili per 14 giorni. Le schermate sono risultati di una simulazione, non screenshot da un telefono fisico.
 
+Sono inclusi anche salvataggio e riapertura del modal modello, scelte HITL, riconoscimento nomi/ID modello, parametri della sola chiamata, roundtrip MCP in memoria, ricerca globale Venice, payload thinking/embeddings e verifica dei default su un campione pubblico dei 19 modelli musicali. La prova Chromium esercita anche il modal HITL sul formato telefono e salva `image-hitl-mobile.png`; il modello presente in questa fixture è simulato.
+
 ## La prova reale che resta utile
 
 Dopo avere scaricato una release, controlla con la tua chiave almeno una chat con ricerca e fonti cliccabili, una generazione/modifica immagine e i moduli media che intendi usare. I modelli e le loro opzioni dipendono dal catalogo Venice del momento; solo una chiamata reale conferma accesso, disponibilità e risultato. I test non consumano credito per farlo al posto tuo.

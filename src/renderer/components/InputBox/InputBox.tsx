@@ -247,6 +247,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
     const updateCurrentWebBrowsingDisplay = useUIStore((s) => s.updateCurrentWebBrowsingDisplay)
     // Existing sessions keep their own value. New chats additionally inherit
     // the user's last explicit choice before falling back to provider defaults.
+    const globalSearchProvider = useSettingsStore(state => state.extension.webSearch.provider)
     const webBrowsingMode = useMemo(() => {
       return resolveWebBrowsingMode(
         currentSessionId || 'new',
@@ -1681,7 +1682,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
                 document.body
               )}
 
-            {model?.provider === 'venice' && <VeniceBalance />}
+            {(model?.provider === 'venice' || (webBrowsingMode && globalSearchProvider === 'venice')) && <VeniceBalance />}
             {/* Work Mode status row: approval policy + working directories, always visible
                 above the input with their own in-place menus (mirrors the mode panel). */}
             {platform.isDesktopLike && agentModeUIState.isActive && (

@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.26.0
+
+See [release notes](docs/releases/v1.26.0.md). Fixes model profiles and Venice thinking, adds global Venice search, model-aware music/video, native MCP image tools with model selection and per-call HITL approval, Studio images, microphone transcription, credit display and Venice embeddings for RAG.
+
 ## 1.25.0
 
 See [release notes](docs/releases/v1.25.0.md). Adds optional Venice audio/transcription, video and music Studio, local media management, scoped Work Mode tools, reusable profiles, a provider switch, simulated browser/UI checks and personal Android release signing.

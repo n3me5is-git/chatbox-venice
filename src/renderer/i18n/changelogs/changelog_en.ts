@@ -1,4 +1,10 @@
 const changelog = `
+## Chatbox Venice 1.26.0
+1. Fix Venice model profile persistence and native thinking levels
+2. Internal Venice MCP, image model selection and per-call human approval
+3. Global Venice search, Studio images, batch/remix/edit and mobile layout fixes
+4. Model-aware music/video, microphone transcription, credits and RAG embeddings
+
 ## Chatbox Venice 1.25.0
 1. Optional Venice Studio for audio, transcription, video and music/SFX
 2. Local media history, export, resume and explicit remote cleanup
