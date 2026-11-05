@@ -21,7 +21,7 @@ settingsStore.subscribe(() => {
   if (options.enabled === false) veniceMediaService.pauseAll()
   else void veniceMediaService.list().then(records => {
     for (const record of records) {
-      const enabled = record.kind === 'video' ? options.videoEnabled : record.kind === 'music' ? options.musicEnabled : options.audioEnabled
+      const enabled = record.kind === 'video' ? options.videoEnabled : (record.kind === 'music' || record.kind === 'sound-effects') ? options.musicEnabled : options.audioEnabled
       if (!enabled && veniceMediaService.isActive(record.id)) void veniceMediaService.pause(record.id)
     }
   }).catch(() => {})

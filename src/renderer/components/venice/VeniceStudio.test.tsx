@@ -100,3 +100,21 @@ it('does not show references for a text-only video model', async () => {
   show(service); fireEvent.click(screen.getByRole('radio', { name: 'Video' })); fireEvent.click(screen.getByRole('button', { name: "Load models" })); await waitFor(() => expect((screen.getByLabelText("Model", { selector: 'input' }) as HTMLInputElement).value).toBe('Solo testo'))
   expect(screen.queryByLabelText("Start image")).toBeNull(); expect(screen.queryByLabelText("Reference images")).toBeNull()
 })
+
+it('separates music and sound effects and sends a sound-effects job with only supported parameters', async () => {
+  const service = setup(); service.catalog.mockResolvedValue([...models,
+    { id:'song',type:'music',model_spec:{name:'Song model',supports_lyrics:true}},
+    { id:'elevenlabs-sound-effects-v2',type:'music',model_spec:{name:'Effects model',min_duration:1,max_duration:22,default_duration:7,supports_loop:true}},
+  ])
+  show(service); await loadModels(); fireEvent.click(screen.getByRole('radio',{name:'Music'}))
+  await waitFor(()=>expect((screen.getByLabelText('Model',{selector:'input'}) as HTMLInputElement).value).toBe('Song model'))
+  fireEvent.click(screen.getByLabelText('Model',{selector:'input'})); expect(screen.queryByRole('option',{name:'Effects model'})).toBeNull()
+  fireEvent.keyDown(screen.getByLabelText('Model',{selector:'input'}),{key:'Escape'})
+  fireEvent.click(screen.getByRole('radio',{name:'Sound effects'}))
+  await waitFor(()=>expect((screen.getByLabelText('Model',{selector:'input'}) as HTMLInputElement).value).toBe('Effects model'))
+  expect(screen.queryByLabelText('Lyrics (optional)')).toBeNull()
+  fireEvent.click(screen.getByLabelText('Create a seamless loop'))
+  fireEvent.change(screen.getByLabelText('Describe the sound effect'),{target:{value:'Gentle rain on a window'}})
+  fireEvent.click(screen.getByRole('button',{name:'Create sound effects'}))
+  await waitFor(()=>expect(service.start).toHaveBeenCalledWith(expect.objectContaining({kind:'sound-effects',model:'elevenlabs-sound-effects-v2',options:{duration_seconds:7,loop:true}})))
+})

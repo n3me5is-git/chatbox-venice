@@ -1,5 +1,5 @@
 import type { MediaCatalogItem } from './media'
-export const mediaTypes = { speech: 'tts', transcription: 'asr', video: 'video', music: 'music' } as const
+export const mediaTypes = { speech: 'tts', transcription: 'asr', video: 'video', music: 'music', 'sound-effects': 'music' } as const
 export function readableName(id: string) {
   return id.replace(/^(?:tts|asr)[-_]/i, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase())
 }

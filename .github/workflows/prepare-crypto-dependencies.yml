@@ -1,0 +1,31 @@
+name: Prepare audited crypto dependencies
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/prepare-crypto-dependencies.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lockfile:
+    if: github.repository == 'n3me5is-git/chatbox-venice' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Resolve the exact crypto versions used by the official Venice client
+        run: pnpm add -w --save-exact --lockfile-only --ignore-scripts @noble/ciphers@1.3.0 @noble/curves@1.9.7 @noble/hashes@1.8.0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Reviewed-crypto-lockfile
+          path: |
+            package.json
+            pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 7

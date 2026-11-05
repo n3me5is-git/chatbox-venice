@@ -1,5 +1,10 @@
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 export const forkEnglish = {
+  "Sound effects": "Sound effects",
+  "Create sound effects": "Create sound effects",
+  "Describe the sound effect": "Describe the sound effect",
+  "Rain on a window, distant thunder, no music…": "Rain on a window, distant thunder, no music…",
+  "Voice, video, music and sound effects in one place.": "Voice, video, music and sound effects in one place.",
   "Image content filter": "Image content filter",
   "For example: Deep research": "For example: Deep research",
   "Refresh Venice balance": "Refresh Venice balance",
@@ -325,6 +330,11 @@ export const forkEnglish = {
   "Uncensored": "Uncensored"
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+  "Sound effects": "Effetti sonori",
+  "Create sound effects": "Crea effetti sonori",
+  "Describe the sound effect": "Descrivi l’effetto sonoro",
+  "Rain on a window, distant thunder, no music…": "Pioggia su una finestra, tuoni lontani, senza musica…",
+  "Voice, video, music and sound effects in one place.": "Voce, video, musica ed effetti sonori in un unico posto.",
   "Image content filter": "Filtro contenuti nelle immagini",
   "For example: Deep research": "Ad esempio: Ricerca approfondita",
   "Refresh Venice balance": "Aggiorna credito Venice",

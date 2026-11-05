@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { musicOptions, privacyLabels, validateMediaRequest, videoInputs } from './media-capabilities'
+import { isSoundEffectsModel, musicOptions, privacyLabels, validateMediaRequest, videoInputs } from './media-capabilities'
 import type { MediaCatalogItem } from './media'
 const ace = { id: 'ace-step-15', type: 'music', model_spec: { min_duration: 60, max_duration: 210, default_duration: 60, duration_options: [60, 90, 120], supports_lyrics: true, supports_force_instrumental: false } } satisfies MediaCatalogItem
 const eleven = { id: 'elevenlabs-music', type: 'music', model_spec: { min_duration: 3, max_duration: 600, supports_lyrics: false, supports_force_instrumental: true } } satisfies MediaCatalogItem

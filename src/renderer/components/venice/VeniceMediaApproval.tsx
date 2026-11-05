@@ -11,7 +11,7 @@ export const VeniceMediaApproval = NiceModal.create(({ message, sessionId, gener
   useEffect(()=>setMode(sessionApprovals.mode(sessionId)),[sessionId,message,modal.visible])
   const close = (approved: boolean) => { modal.resolve({ approved, mode }); modal.hide() }
   useEffect(()=>{const signal=request?.signal;const abort=()=>close(false);if(signal?.aborted)abort();signal?.addEventListener('abort',abort,{once:true});return()=>signal?.removeEventListener('abort',abort)},[request?.signal])
-  const kinds={speech:'Voice',video:'Video',music:'Music and sounds',transcription:'Transcribe'}
+  const kinds={speech:'Voice',video:'Video',music:'Music','sound-effects':'Sound effects',transcription:'Transcribe'}
   return <AdaptiveModal opened={modal.visible} onClose={() => close(false)} title={t('Venice tool approval')}><Stack>
     {request ? <><Text>{generation ? t('Generate {{kind}} with {{model}}?',{kind:t(kinds[request.kind || 'speech']),model:request.model}) : t(request.action==='delete_local'?'Delete generation {{id}} from this device? The remote copy will remain.':'Delete generation {{id}} on Venice?',{id:request.id})}</Text>{generation&&<><Text size="sm">{t('Content is sent to Venice. Generation may incur a cost.')}</Text><Code block style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{request.prompt}</Code><Code block>{JSON.stringify(request.options || {},null,2)}</Code></>}</> : <Code block>{message}</Code>}
     {generation && <><ApprovalModeOptions value={mode} onChange={setMode} /><Alert color="blue">{t('Automatic approval can generate paid content in this chat without further prompts.')}</Alert></>}

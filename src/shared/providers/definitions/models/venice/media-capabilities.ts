@@ -1,4 +1,13 @@
 import type { MediaCatalogItem, MediaKind } from './media'
+// Venice exposes music, effects and some asynchronous voices under type=music.
+// Prefer explicit catalog categories; known catalog IDs/names cover today's untagged rows.
+export function isSoundEffectsModel(model?: MediaCatalogItem) {
+  const spec = model?.model_spec
+  const category = String(spec?.category || spec?.audio_type || spec?.task_type || '').toLowerCase()
+  if (/^(sound[-_ ]effects?|sfx)$/.test(category)) return true
+  if (/^(music|song|speech|tts|voice)$/.test(category)) return false
+  return model?.id === 'mmaudio-v2-text-to-audio' || /sound[-_ ]effects?|\bsfx\b/i.test(`${model?.id || ''} ${spec?.name || ''}`)
+}
 export function videoInputs(model?: MediaCatalogItem) {
   const c = model?.model_spec?.constraints || {}; const caps = model?.model_spec?.capabilities || {}
   const id = model?.id || ''; const type = String(c.model_type || '')
@@ -29,9 +38,10 @@ export function musicOptions(model: MediaCatalogItem | undefined, value: { secon
 }
 export function validateMediaRequest(kind: MediaKind, body: Record<string, unknown>, model?: MediaCatalogItem) {
   const s = model?.model_spec; if (!s) return
+  if (kind === 'sound-effects' && !isSoundEffectsModel(model)) throw new Error('Choose a sound-effects model from the Venice catalog')
   const prompt = String(body.prompt ?? body.input ?? '')
   if (kind !== 'transcription' && ((s.min_prompt_length && prompt.length < s.min_prompt_length) || (s.prompt_character_limit && prompt.length > s.prompt_character_limit))) throw new Error(`The prompt for this model must contain ${s.min_prompt_length || 1} to ${s.prompt_character_limit || '∞'} characters.`)
-  if (kind === 'music') {
+  if (kind === 'music' || kind === 'sound-effects') {
     for (const [key, flag] of [['force_instrumental', 'supports_force_instrumental'], ['lyrics_prompt', 'supports_lyrics'], ['lyrics_optimizer', 'supports_lyrics_optimizer'], ['loop', 'supports_loop'], ['speed', 'supports_speed'], ['language_code', 'supports_language_code']] as const) {
       if (body[key] !== undefined && s[flag] !== true) throw new Error(`Model ${model.id} does not support ${key}. Open the model details.`)
     }

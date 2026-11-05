@@ -4,7 +4,7 @@ import type { RequestAdapter } from '../../../../types/adapters'
 import { mergeExtraBody } from '../../../../models/utils/extra-body'
 import { assertVeniceEnabled, type VeniceOptions } from './options'
 
-export type MediaKind = 'speech' | 'transcription' | 'video' | 'music'
+export type MediaKind = 'speech' | 'transcription' | 'video' | 'music' | 'sound-effects'
 export type MediaRecord = {
   id: string; kind: MediaKind; model: string; prompt: string; createdAt: number; sessionId?: string;
   status: 'creating' | 'queued' | 'ready' | 'paused' | 'error'; queueId?: string; origin: string;
@@ -22,7 +22,7 @@ export type MediaCatalogItem = { id: string; type: string; model_spec?: { name?:
     pricing?: Record<string, unknown>; supports_lyrics?: boolean; lyrics_required?: boolean; supports_force_instrumental?: boolean; supports_lyrics_optimizer?: boolean; supports_loop?: boolean; supports_language_code?: boolean; supports_speed?: boolean;
     min_duration?: number; max_duration?: number; default_duration?: number; duration_options?: number[]; min_prompt_length?: number; prompt_character_limit?: number; lyrics_character_limit?: number; min_speed?: number; max_speed?: number; [key: string]: unknown } }
 const MAX_BYTES = 128 * 1024 * 1024
-const flags = { speech: 'audioEnabled', transcription: 'audioEnabled', video: 'videoEnabled', music: 'musicEnabled' } as const
+const flags = { speech: 'audioEnabled', transcription: 'audioEnabled', video: 'videoEnabled', music: 'musicEnabled', 'sound-effects': 'musicEnabled' } as const
 export function mediaEnabled(kind: MediaKind, options: VeniceOptions) { return options.enabled !== false && options[flags[kind]] === true }
 export function mediaOrigin(host?: string) {
   const url = new URL(host || 'https://api.venice.ai/api/v1')
@@ -100,13 +100,13 @@ export class VeniceMediaService {
   }
   async quote(input: MediaInput) {
     const config = this.config(input.kind)
-    if (!['video', 'music'].includes(input.kind)) throw new Error('Quotes are available for video and music')
+    if (!['video', 'music', 'sound-effects'].includes(input.kind)) throw new Error('Quotes are available for video and music')
     const allowed = input.kind === 'video' ? ['duration', 'aspect_ratio', 'resolution', 'audio', 'video_url', 'upscale_factor'] : ['duration_seconds', 'character_count']
     const merged = mergeExtraBody({ model: input.model }, input.options || {})
     if (typeof merged.model !== 'string' || !merged.model.trim()) throw new Error('Choose a model')
     const body: Record<string, unknown> = { model: merged.model }
     for (const key of allowed) if (merged[key] !== undefined) body[key] = merged[key]
-    if (input.kind === 'music' && body.character_count === undefined && (await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec?.pricing?.per_thousand_characters) body.character_count = input.prompt.length
+    if ((input.kind === 'music' || input.kind === 'sound-effects') && body.character_count === undefined && (await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec?.pricing?.per_thousand_characters) body.character_count = input.prompt.length
     return (await this.api(config, input.kind === 'video' ? '/video/quote' : '/audio/quote', body)).json()
   }
   async start(input: MediaInput): Promise<MediaRecord> {
@@ -116,7 +116,7 @@ export class VeniceMediaService {
     if (input.kind === 'transcription' && !input.file) throw new Error('Choose an audio or video file')
     const body = mergeExtraBody(input.kind === 'speech' ? { model: input.model, input: input.prompt } : { model: input.model, prompt: input.prompt }, input.options || {})
     if (typeof body.model !== 'string' || !body.model.trim()) throw new Error('The request model must be a non-empty string')
-    const known = (await this.cachedCatalog()).find(item => item.id === body.model && item.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : input.kind))
+    const known = (await this.cachedCatalog()).find(item => item.id === body.model && item.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : input.kind === 'sound-effects' ? 'music' : input.kind))
     validateMediaRequest(input.kind, body, known)
     const record: MediaRecord = { id: uuid(), kind: input.kind, model: String(body.model), prompt: input.prompt, createdAt: Date.now(), sessionId: input.sessionId,
       status: 'creating', origin: config.origin, credentialId: await this.credential(config) }
@@ -126,7 +126,7 @@ export class VeniceMediaService {
     if (input.signal?.aborted) controller.abort()
     try {
       controller.signal.throwIfAborted()
-      if (input.kind === 'video' || input.kind === 'music') {
+      if (input.kind === 'video' || input.kind === 'music' || input.kind === 'sound-effects') {
         const queue = await (await this.api(config, input.kind === 'video' ? '/video/queue' : '/audio/queue', body, controller.signal)).json()
         if (typeof queue.queue_id !== 'string' || !queue.queue_id) throw new Error('Venice did not return a queue ID; do not automatically repeat the paid request')
         await this.patch(record.id, { queueId: queue.queue_id, model: typeof queue.model === 'string' ? queue.model : record.model, status: 'queued' })
