@@ -1,5 +1,7 @@
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 export const forkEnglish = {
+  "Select loaded files": "Select loaded files",
+  "Clear selection": "Clear selection",
   "This local item is no longer available": "This local item is no longer available",
   "Paint the area to change first": "Paint the area to change first",
   "Remix and edit image": "Remix and edit image",
@@ -517,6 +519,7 @@ export const forkEnglish = {
   "Uncensored": "Uncensored"
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+
 
 
 

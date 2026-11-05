@@ -40,7 +40,7 @@ try {
       if (!current || !current.width || !current.height || !current.hit || current.y < 0 || current.y >= current.viewport) return false
       const stable = previous && Math.abs(previous.x-current.x) < 0.5 && Math.abs(previous.y-current.y) < 0.5
       previous = current; return stable ? {x:current.x,y:current.y} : false
-    }, 'Clickable element did not settle: ' + expression)
+    }, 'Clickable element did not settle: ' + expression).catch(async error=>{await writeFile(path.join(output,'click-failure.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'));await writeFile(path.join(output,'click-failure.json'),JSON.stringify(await evaluate(`({body:document.body.innerText,options:[...document.querySelectorAll('[role="option"]')].map(e=>({text:e.textContent,rect:e.getBoundingClientRect().toJSON(),hit:document.elementFromPoint(e.getBoundingClientRect().x+10,e.getBoundingClientRect().y+10)?.outerHTML}))})`),null,2));throw error})
     if (touchMode) { await cdp('Input.dispatchTouchEvent', {type:'touchStart',touchPoints:[box]}); await cdp('Input.dispatchTouchEvent', {type:'touchEnd',touchPoints:[]}) }
     else { await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', ...box, button: 'left', clickCount: 1 }); await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', ...box, button: 'left', clickCount: 1 }) }
   }
