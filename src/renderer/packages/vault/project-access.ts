@@ -62,8 +62,8 @@ export class ProjectAccess {
   protectRows(backend:SessionRowStorePort):SessionRowStorePort {
     const access=this
     const identity=(value:any):string|undefined=>typeof value==='string'?value:value?.sessionId||value?.identity?.sessionId||value?.source?.sessionId||value?.rows?.sessionId||value?.record?.id||value?.id
-    const guard=async(args:any[])=>{const first=args[0];for(const value of Array.isArray(first)?first:[first]){const id=identity(value);if(!id)throw new Error('Cannot determine the project access boundary for this operation');await access.assertSession(id);await access.assertFolder(value?.folderId||value?.record?.folderId)}}
-    const writer=(value:any,sessionId:string)=>new Proxy(value,{get(target,key){const original=Reflect.get(target,key);if(typeof original!=='function')return original;return async(...args:any[])=>{if(key!=='dispose')await access.assertSession(sessionId);try{return await original.apply(target,args)}finally{access.invalidateLibrary()}}}})
+    const guard=async(args:any[])=>{const first=args[0];for(const value of Array.isArray(first)?first:[first]){const id=identity(value);if(!id)throw new Error('Cannot determine the project access boundary for this operation');await access.assertSession(id);await access.assertFolder(value?.folderId||value?.record?.folderId)}for(const value of args.slice(1))if(value&&typeof value==='object')await access.assertFolder(value.folderId||value.record?.folderId)}
+    const writer=(value:any,sessionId:string,folderId?:string)=>new Proxy(value,{get(target,key){const original=Reflect.get(target,key);if(typeof original!=='function')return original;return async(...args:any[])=>{if(key!=='dispose'){await access.assertSession(sessionId);await access.assertFolder(folderId)}try{return await original.apply(target,args)}finally{access.invalidateLibrary()}}}})
     return new Proxy(backend,{get(target,key){const original=Reflect.get(target,key);if(typeof original!=='function')return original;const method=String(key)
       if(method==='initialize')return original.bind(target)
       if(method==='iterateRows')return async function*(request:any){await access.assertSession(request.sessionId);for await(const row of original.call(target,request)){await access.assertSession(request.sessionId);yield row}}
@@ -75,7 +75,7 @@ export class ProjectAccess {
         }
         await guard(args);const result=await original.apply(target,args);await guard(args)
         if(!/^(get|read|list|find|iterate|initialize)/.test(method))access.invalidateLibrary()
-        if(method==='stageRows'||method==='stageImportRows')return writer(result,identity(args[0])!)
+        if(method==='stageRows'||method==='stageImportRows')return writer(result,identity(args[0])!,args[0]?.folderId||args[0]?.record?.folderId)
         return result
       }
     }})

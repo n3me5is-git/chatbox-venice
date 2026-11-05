@@ -3,7 +3,7 @@ import { atomFamily,atomWithStorage } from 'jotai/utils'
 import { useEffect,useState } from 'react'
 
 const MAX_HISTORY_LENGTH = 20
-export const inputBoxHistoryAtom = atomWithStorage<string[]>('input-box-history', [])
+export const inputBoxHistoryAtom = atomWithStorage<string[]>('input-box-history', [], undefined, {getOnInit:true})
 export const privateInputBoxHistoryFamily=atomFamily((_scope:string)=>atom<string[]>([]))
 
 const useInputBoxHistory = (privacyScope?:string|null) => {

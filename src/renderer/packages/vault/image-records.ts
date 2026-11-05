@@ -5,7 +5,7 @@ import { VaultJsonRecords } from './json-records'
 import { VaultLockedError } from './chunk-store'
 import type { AssetHeader } from './chunk-store'
 const alias=(id:string)=>`vault-image-record-${id}`
-export function lockedImageRecord(record:ImageGeneration):ImageGeneration{return {id:record.id,createdAt:record.createdAt,protection:record.protection,protectedRecord:true,prompt:'',referenceImages:[],generatedImages:[],model:{provider:record.model.provider,modelId:''},status:'done'}}
+export function lockedImageRecord(record:ImageGeneration):ImageGeneration{return {id:record.id,createdAt:record.createdAt,protection:record.protection,protectedRecord:true,source:record.source,prompt:'',referenceImages:[],generatedImages:[],model:{provider:record.model.provider,modelId:''},status:'done'}}
 export class ProtectedImageRecords implements ImageGenerationStorage {
   private readonly records:VaultJsonRecords;private tail:Promise<unknown>=Promise.resolve()
   constructor(readonly original:ImageGenerationStorage,private readonly vault:VaultRuntime){this.records=new VaultJsonRecords(vault.assets)}

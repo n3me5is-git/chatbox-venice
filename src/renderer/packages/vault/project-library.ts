@@ -34,7 +34,7 @@ export function projectLibrary(metadata:SessionMetaRepositoryPort,rows:SessionRo
     const publicHistory=store.get(history.inputBoxHistoryAtom);if(!publicHistory.length)return
     const matches=new Set<string>();const inspect=(message:Message)=>{if(message.role!=='user')return;const text=getMessageText(message);for(const entry of publicHistory)if(text.includes(entry))matches.add(entry)}
     for(const meta of await sessions(new Set([folder]))){const commit=await rows.readCommit(meta.id);if(commit){for await(const row of rows.iterateRows({sessionId:meta.id,expectedRevision:commit.revision}))if(row.kind==='message')inspect(row.message.message)}else for await(const message of legacyMessages(await readValue('session:'+meta.id)))inspect(message)}
-    if(matches.size){store.set(history.privateInputBoxHistoryFamily(scope),[...matches]);store.set(history.inputBoxHistoryAtom,publicHistory.filter(entry=>!matches.has(entry)))}
+    if(matches.size){store.set(history.privateInputBoxHistoryFamily(scope),[...new Set([...matches,...store.get(history.privateInputBoxHistoryFamily(scope))])].slice(0,20));store.set(history.inputBoxHistoryAtom,publicHistory.filter(entry=>!matches.has(entry)))}
   }
   return {scan,drafts,beforeProtect}
 }

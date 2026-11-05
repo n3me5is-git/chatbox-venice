@@ -9,6 +9,7 @@ function fixture(){
 }
 const info={name:'Private title',mime:'audio/wav',kind:'audio' as const,prompt:'Sensitive prompt'}
 describe('authenticated media stored in bounded encrypted chunks',()=>{
+ it('cleans expired encrypted backup stages while retaining an active import and unrelated files',async()=>{const f=fixture(),old='00000000-0000-4000-8000-000000000001',active='00000000-0000-4000-8000-000000000002';f.values.set('vault-backup-lease-'+old,JSON.stringify({updatedAt:Date.now()-86400001}));f.values.set('vault-backup-stage-'+old+'-0','old ciphertext');f.values.set('vault-backup-lease-'+active,JSON.stringify({updatedAt:Date.now()}));f.values.set('vault-backup-stage-'+active+'-0','active ciphertext');expect(await f.store.cleanupOrphans()).toBe(1);expect(f.values.has('vault-backup-stage-'+old+'-0')).toBe(false);expect(f.values.has('vault-backup-stage-'+active+'-0')).toBe(true)})
  it('does not publish a download after its protection key has been locked',async()=>{const f=fixture();f.keys.set('private',await aesKey(crypto.getRandomValues(new Uint8Array(32))));async function* source(){yield new Uint8Array([1,2,3]);f.keys.delete('private')}await expect(f.store.put(source(),info,'private','saved')).rejects.toBeInstanceOf(VaultLockedError);expect(f.headers.size).toBe(0);expect(f.values.size).toBe(0)})
  it('writes ciphertext before requesting the next chunk, authenticates sizes, and reconstructs the original data',async()=>{
   const f=fixture();f.keys.set('public',await aesKey(crypto.getRandomValues(new Uint8Array(32))))
