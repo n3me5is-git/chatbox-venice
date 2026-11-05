@@ -1,4 +1,5 @@
-import { Accordion, Alert, Button, FileInput, Group, Stack, Text, TextInput } from '@mantine/core'
+import { LibraryFileInput as FileInput } from '@/components/local-library/LibraryFileInput'
+import { Accordion, Alert, Button, Group, Stack, Text, TextInput } from '@mantine/core'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'

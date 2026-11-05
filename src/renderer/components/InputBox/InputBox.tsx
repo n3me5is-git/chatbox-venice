@@ -1,3 +1,4 @@
+import { forkT as ft } from '@/i18n/fork'
 import { VeniceSessionApprovalButton } from '@/components/venice/VeniceSessionApprovalButton'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { MAX_CHAT_IMAGE_ATTACHMENTS } from '@chatbox/core/application/attachments'
@@ -2004,7 +2005,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
 
               {/* Left Group: Tool Buttons */}
               <Flex align="center" gap={0}>
-                <AttachmentMenu onImageUploadClick={onImageUploadClick} onFileUploadClick={onFileUploadClick} t={t} />
+                <AttachmentMenu onImageUploadClick={onImageUploadClick} onFileUploadClick={onFileUploadClick} onLocalLibraryClick={() => { void import('@/components/local-library/LocalMediaPicker').then(module => module.pickLocalMedia({multiple:true})).then(files => { if(files.length) insertFilesRef.current(files) }).catch(() => toastActions.add(ft("Unable to read the local library"))) }} t={t} />
 
                 <ReasoningControlButton
                   provider={model?.provider}
@@ -2244,8 +2245,9 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
 const AttachmentMenu: React.FC<{
   onImageUploadClick: () => void
   onFileUploadClick: () => void
+  onLocalLibraryClick: () => void
   t: (key: string) => string
-}> = ({ onImageUploadClick, onFileUploadClick, t }) => {
+}> = ({ onImageUploadClick, onFileUploadClick, onLocalLibraryClick, t }) => {
   const isSmallScreen = useIsSmallScreen()
   const toolbarIconSize = isSmallScreen ? 22 : 18
   return (
@@ -2284,6 +2286,7 @@ const AttachmentMenu: React.FC<{
         >
           {t('Select File')}
         </Menu.Item>
+        <Menu.Item leftSection={<IconFolder size={16}/>} onClick={onLocalLibraryClick}>{ft("Choose from local library")}</Menu.Item>
       </Menu.Dropdown>
     </Menu>
   )

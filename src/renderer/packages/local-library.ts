@@ -1,0 +1,33 @@
+import platform from '@/platform'
+import { currentBlobStorage } from '@/adapters/CurrentBlobStorage'
+import { veniceMediaService } from '@/packages/venice/service'
+export type LibraryKind = 'image'|'audio'|'video'|'document'
+export type LocalLibraryItem = { id:string; name:string; kind:LibraryKind; key:string; mime?:string; thumbnail?:string }
+export function acceptsLocalFile(file: Pick<File,'name'|'type'>, accept='') {
+  if(!accept.trim()) return true
+  return accept.split(',').map(value=>value.trim().toLowerCase()).some(value=>value.startsWith('.')?file.name.toLowerCase().endsWith(value):value.endsWith('/*')?file.type.toLowerCase().startsWith(value.slice(0,-1)):file.type.toLowerCase()===value)
+}
+export async function localLibraryPage(kind:LibraryKind,cursor=0):Promise<{items:LocalLibraryItem[];next:number|null}> {
+  if(kind==='image'){
+    const storage=platform.getImageGenerationStorage();await storage.initialize();const page=await storage.getPage(cursor,20)
+    return {items:page.items.flatMap(record=>record.generatedImages.map((key,index)=>({id:`image:${record.id}:${index}`,name:record.prompt.slice(0,100)||'Saved image',kind,key,thumbnail:record.generatedImageThumbnails?.[index]}))),next:page.nextCursor}
+  }
+  if(kind==='audio'||kind==='video'){
+    const records=(await veniceMediaService.list()).filter(record=>record.status==='ready'&&record.blobKey&&(kind==='video'?record.kind==='video':record.kind!=='video'))
+    return {items:records.slice(cursor,cursor+20).map(record=>({id:'media:'+record.id,name:record.prompt.slice(0,100)||record.model,kind,key:record.blobKey!,mime:record.mime})),next:cursor+20<records.length?cursor+20:null}
+  }
+  // Legacy document blobs contain parsed text, not the original PDF/Office binary.
+  const keys=(await platform.listStoreBlobKeys()).filter(key=>key.startsWith('file:'))
+  return {items:keys.slice(cursor,cursor+20).map(key=>({id:key,name:'Saved text attachment',kind,key,mime:'text/plain'})),next:cursor+20<keys.length?cursor+20:null}
+}
+export async function localLibraryFile(item:LocalLibraryItem):Promise<File> {
+  const data=item.key.startsWith('data:')?item.key:await currentBlobStorage.get(item.key)
+  if(!data)throw new Error('This local item is no longer available')
+  if(item.kind==='document'&&!data.startsWith('data:'))return new File([data],item.name+'.txt',{type:'text/plain'})
+  const match=/^data:((?:image|audio|video)\/[\w.+-]+);base64,([a-zA-Z0-9+/=\r\n]+)$/.exec(data)
+  if(!match)throw new Error('Only on-device media can be attached from this library')
+  const binary=atob(match[2]);if(binary.length>128*1024*1024)throw new Error('This item exceeds the local attachment size limit')
+  const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i)
+  const ext=match[1].split('/')[1].replace('mpeg','mp3').replace('jpeg','jpg')
+  return new File([bytes],`Saved-${item.kind}-${item.id.replace(/[^a-zA-Z0-9_-]/g,'').slice(-40)}.${ext}`,{type:match[1]})
+}

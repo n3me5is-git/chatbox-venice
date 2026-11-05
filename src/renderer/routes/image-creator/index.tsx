@@ -559,6 +559,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                 onAddClick={() => fileInputRef.current?.click()}
               />
 
+              <Button size="xs" variant="subtle" onClick={() => { void import('@/components/local-library/LocalMediaPicker').then(module => module.pickLocalMedia({accept:'image/png,image/jpeg,image/webp',multiple:true})).then(files => { if(files.length) return handleImageUpload(files) }).catch(() => toastActions.add(ft("Unable to read the local library"))) }}>{ft("Choose from local library")}</Button>
               <input
                 ref={fileInputRef}
                 type="file"

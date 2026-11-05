@@ -1,5 +1,16 @@
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 export const forkEnglish = {
+  "Unable to read the local library": "Unable to read the local library",
+  "The selected file format is not supported here": "The selected file format is not supported here",
+  "Choose from local library": "Choose from local library",
+  "Files stay on this device until you submit the chat or generation. Only selected items are loaded into memory.": "Files stay on this device until you submit the chat or generation. Only selected items are loaded into memory.",
+  "Library content type": "Library content type",
+  "Audio": "Audio",
+  "Saved text": "Saved text",
+  "Saved document attachments are available as extracted text. Original PDF or Office files must be selected from the device.": "Saved document attachments are available as extracted text. Original PDF or Office files must be selected from the device.",
+  "No saved content in this category": "No saved content in this category",
+  "Show more": "Show more",
+  "Use selected content": "Use selected content",
   "Use my own voice": "Use my own voice",
   "Upload a clean recording of one speaker. The sample is sent to Venice only when you create the voice.": "Upload a clean recording of one speaker. The sample is sent to Venice only when you create the voice.",
   "Minimum sample: {{seconds}} seconds. Venice retains the sample for up to {{days}} days; the saved voice expires automatically.": "Minimum sample: {{seconds}} seconds. Venice retains the sample for up to {{days}} days; the saved voice expires automatically.",
