@@ -144,7 +144,17 @@ export function createRendererBackupResources(workspace: BackupWorkspace): Backu
     },
     async publish(jobId, key) {
       if (ipc) {
+        const vault=process.env.NODE_ENV==='test'?null:(await import('@/packages/vault/runtime')).vaultRuntimeFor(platform)
+        if(vault){await vault.projects.assertApp();const existing=await vault.find(key);if(existing)await vault.keys.key(existing.scope)}
         await ipc.invoke('backup-resource:publish', jobId, key)
+        if(vault&&platform.resourceFiles&&await vault.available()){
+          const stored=await platform.resourceFiles.open(key)
+          if(stored){const resource=await normalized(stored)
+            if(resource.contentType==='binary'&&/^(image|audio|video)\//.test(resource.mimeType)){
+              try{await vault.putBytes(key,chunks(resource.source),resource.mimeType)}finally{await resource.source.close()}
+            }else await resource.source.close()
+          }
+        }
         return
       }
       await platform.setStoreBlob(key, await readStored(await workspace.openFile(`resource:${key}`)))

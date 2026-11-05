@@ -390,8 +390,11 @@ export class ImageGenerationService {
       this.assert(attempt)
       const key = this.options.createImageKey?.(recordId) ?? `picture:image-gen:${recordId}:${uuid()}`
       let associationAttempted = false
+      let thumbnailKey:string|undefined
       try {
         await this.options.blobStorage.set(key, data)
+        this.assert(attempt)
+        if(this.options.createThumbnail){try{const thumbnail=await this.options.createThumbnail(data,attempt.controller.signal);this.assert(attempt);if(thumbnail){thumbnailKey=key+':thumbnail';await this.options.blobStorage.set(thumbnailKey,thumbnail)}}catch(error){thumbnailKey=undefined;this.options.onError?.(error)}}
         this.assert(attempt)
         const record = await this.options.storage.getById(recordId)
         this.assert(attempt)
@@ -399,6 +402,7 @@ export class ImageGenerationService {
         associationAttempted = true
         const updated = await this.options.storage.update(recordId, {
           generatedImages: [...record.generatedImages, key],
+          ...(thumbnailKey||record.generatedImageThumbnails?{generatedImageThumbnails:[...record.generatedImages.map((imageKey,index)=>record.generatedImageThumbnails?.[index]||imageKey),thumbnailKey||key]}:{}),
         })
         if (!updated) throw new Error('Image generation record no longer exists.')
         this.emit({ type: 'updated', record: updated })
@@ -407,7 +411,7 @@ export class ImageGenerationService {
         try {
           const linked =
             associationAttempted && (await this.options.storage.getById(recordId))?.generatedImages.includes(key)
-          if (!linked) await this.options.blobStorage.remove(key)
+          if (!linked) {await this.options.blobStorage.remove(key);if(thumbnailKey)await this.options.blobStorage.remove(thumbnailKey)}
         } catch (cleanupError) {
           this.options.onError?.(cleanupError)
         }

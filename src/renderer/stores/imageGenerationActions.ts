@@ -1,4 +1,5 @@
 import { mergeExtraBody, parseExtraBody } from '@shared/models/utils/extra-body'
+import { createImageThumbnail } from '@/packages/image-thumbnail'
 import {
   type GenerateImageParams,
   type ImageGenerationHandle,
@@ -77,6 +78,7 @@ export function getImageGenerationService(): ImageGenerationService {
         })
       },
       createImageKey: (recordId) => StorageKeyGenerator.picture(`image-gen:${recordId}`),
+      createThumbnail:createImageThumbnail,
       onGenerate: (params, path) =>
         trackEvent('generate_image', {
           provider: normalizePlausibleProvider(params.model.provider),

@@ -74,6 +74,7 @@ export interface ImageGenerationServiceOptions {
   validateRequest?(params: GenerateImageParams, signal: AbortSignal): Promise<void>
   createId?(): string
   createImageKey?(recordId: string): string
+  createThumbnail?(data:string,signal:AbortSignal):Promise<string|null>
   now?(): number
   pollIntervalMs?: number
   onGenerate?(params: GenerateImageParams, path: 'async' | 'direct'): void

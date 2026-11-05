@@ -18,10 +18,10 @@ export function lockApplication():Promise<void>{
   if(pendingLock)return pendingLock
   const vault=vaultRuntimeFor(platform);locking=true;notifyLock();dismissPrivateSurfaces()
   pendingLock=(async()=>{try{
-  const [{rendererApplication},{veniceMediaService},{sessionApprovals},{stopAllMessageGenerations},{getImageGenerationService},{uiStore}]=await Promise.all([import('@/app/renderer-application'),import('@/packages/venice/service'),import('@/packages/venice/session-approvals'),import('@/stores/session/generation-cancellation'),import('@/stores/imageGenerationActions'),import('@/stores/uiStore')])
+  const [{rendererApplication},{veniceMediaService},{sessionApprovals},{stopAllMessageGenerations},{getImageGenerationService},{uiStore},{rendererBackupService}]=await Promise.all([import('@/app/renderer-application'),import('@/packages/venice/service'),import('@/packages/venice/session-approvals'),import('@/stores/session/generation-cancellation'),import('@/stores/imageGenerationActions'),import('@/stores/uiStore'),import('@/app/renderer-backup')])
   uiStore.getState().setPictureShow(null);uiStore.getState().setOpenSearchDialog(false)
   sessionApprovals.clearAll()
-  await Promise.allSettled([getImageGenerationService().cancel(),veniceMediaService.pauseAll(),...rendererApplication.generationRuntime.getGeneratingSessionIds().map(id=>stopAllMessageGenerations(id))])
+  await Promise.allSettled([getImageGenerationService().cancel(),veniceMediaService.pauseAll(),rendererBackupService.cancelAndWait(),...rendererApplication.generationRuntime.getGeneratingSessionIds().map(id=>stopAllMessageGenerations(id))])
   await rendererApplication.queryClient.cancelQueries();rendererApplication.queryClient.clear()
   }finally{vault.keys.lock();locking=false;pendingLock=undefined;notifyLock()}})()
   return pendingLock

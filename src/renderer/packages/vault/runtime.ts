@@ -24,14 +24,17 @@ export class VaultRuntime {
     if(!(await this.keys.capabilities()).encryption)return false
     await this.keys.key('public');return true
   })().catch(error=>{this.ready=undefined;throw error})}
-  async putStream(alias:string,response:Response,mime:string,signal?:AbortSignal){if(!await this.available())return false
-    if(Number(response.headers.get('content-length')||0)>this.assets.maximum){await response.body?.cancel();throw new Error('Media exceeds the encrypted library size limit')}
-    trackBlobWrite(alias);const previous=await this.db.byAlias(alias)
+  async putBytes(alias:string,source:AsyncIterable<Uint8Array>,mime:string,signal?:AbortSignal){if(!await this.available())return false
+    trackBlobWrite(alias);const previous=await this.find(alias)
     const record=alias.startsWith('venice-media:')?await this.media?.get(alias.slice(13)):null
-    const info={...mimeInfo(mime),...(record?{name:record.prompt.slice(0,100)||record.model,prompt:record.prompt,model:record.model,sourceId:record.id}:{})}
-    try{await this.assets.put(responseBytes(response,signal),info,record?.protection||'public',alias,signal)}catch(error){await response.body?.cancel().catch(()=>{});throw error}
+    const info=previous?await this.assets.info(previous):{...mimeInfo(mime),...(record?{name:record.prompt.slice(0,100)||record.model,prompt:record.prompt,model:record.model,sourceId:record.id}:{})}
+    await this.assets.put(source,{...info,mime},previous?.scope||record?.protection||'public',alias,signal)
     if(previous)await this.assets.remove(`vault-asset-${previous.id}`)
     await this.legacy.remove(alias);return true
+  }
+  async putStream(alias:string,response:Response,mime:string,signal?:AbortSignal){if(!await this.available())return false
+    if(Number(response.headers.get('content-length')||0)>this.assets.maximum){await response.body?.cancel();throw new Error('Media exceeds the encrypted library size limit')}
+    try{return await this.putBytes(alias,responseBytes(response,signal),mime,signal)}catch(error){await response.body?.cancel().catch(()=>{});throw error}
   }
   async migrate(alias:string){if(!await this.available())throw new Error('Device encryption is unavailable');if(await this.db.byAlias(alias))return false
     const value=await this.legacy.get(alias);const mime=/^data:((?:image|audio|video)\/[^;,]+);base64,/.exec(value||'')?.[1];if(!value||!mime)return false
@@ -58,10 +61,10 @@ export class VaultRuntime {
     if(platform.copyStoreValue){const original=platform.copyStoreValue.bind(platform);platform.copyStoreValue=async(source,destination)=>{await sessionGuard(source);await sessionGuard(destination);return original(source,destination)}}
     const images=platform.getImageGenerationStorage();const protectedImages=new ProtectedImageRecords(images,this);platform.getImageGenerationStorage=()=>protectedImages
     platform.getStoreBlob=async alias=>{await this.projects.assertApp();const header=await this.find(alias);const value=header?await this.assets.dataUrl(`vault-asset-${header.id}`):await this.legacy.get(alias);await this.projects.assertApp();return value}
-    platform.setStoreBlob=async(alias,value)=>{const mime=/^data:((?:image|audio|video)\/[^;,]+);base64,/.exec(value)?.[1]
+    platform.setStoreBlob=async(alias,value)=>{if(alias.startsWith('picture:')&&!value.startsWith('data:')&&/^[A-Za-z0-9+/=\r\n]+$/.test(value)){const mime=value.startsWith('/9j/')?'image/jpeg':value.startsWith('UklGR')?'image/webp':value.startsWith('R0lGOD')?'image/gif':'image/png';value=`data:${mime};base64,${value}`}const mime=/^data:((?:image|audio|video)\/[^;,]+);base64,/.exec(value)?.[1]
       if(!mime||!await this.available()){await this.legacy.set(alias,value);return}
       const previous=await this.find(alias);const recordId=/^picture:image-gen:([^:]+):/.exec(alias)?.[1];const record=recordId?await protectedImages.getById(recordId):null
-      const info={...mimeInfo(mime),...(record?{name:record.prompt.slice(0,100)||'Saved image',prompt:record.prompt,model:record.model.modelId,sourceId:record.id}:{})}
+      const info={...mimeInfo(mime),...(alias.endsWith(':thumbnail')?{kind:'thumbnail' as const}:{}),...(record?{name:record.prompt.slice(0,100)||'Saved image',prompt:record.prompt,model:record.model.modelId,sourceId:record.id}:{})}
       await this.assets.put(dataUrlBytes(value),info,previous?.scope||record?.protection||'public',alias)
       if(previous)await this.assets.remove(`vault-asset-${previous.id}`);await this.legacy.remove(alias)
     }

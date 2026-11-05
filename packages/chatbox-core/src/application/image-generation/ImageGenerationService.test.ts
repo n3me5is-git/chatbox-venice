@@ -108,6 +108,9 @@ async function existing(f: ReturnType<typeof fixture>, patch: Partial<ImageGener
   return record
 }
 
+it('stores a small local thumbnail beside the image and keeps it aligned with batch outputs',async()=>{const f=fixture({createThumbnail:async()=> 'data:image/webp;base64,VEhVTUI='});const handle=await f.service.start({...params,model:{provider:'venice',modelId:'test-image'}});const record=await handle.completion;expect(record?.status).toBe('done');expect(record?.generatedImageThumbnails).toEqual([record!.generatedImages[0]+':thumbnail']);expect(f.blobs.get(record!.generatedImageThumbnails![0])).toBe('data:image/webp;base64,VEhVTUI=')})
+it('retains a paid image when the optional thumbnail cannot be produced',async()=>{const onError=vi.fn();const f=fixture({createThumbnail:async()=>{throw new Error('Thumbnail decoding failed')},onError});const handle=await f.service.start({...params,model:{provider:'venice',modelId:'test-image'}});const record=await handle.completion;expect(record?.status).toBe('done');expect(record?.generatedImages).toHaveLength(1);expect(f.blobs.has(record!.generatedImages[0])).toBe(true);expect(onError).toHaveBeenCalled()})
+
 beforeEach(() => {
   vi.stubGlobal('AbortController', ReactNativeAbortController)
   vi.stubGlobal('AbortSignal', ReactNativeAbortSignal)
