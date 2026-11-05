@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, copyFileSync } from 'node:fs'
 
 const manifest = 'android/app/src/main/AndroidManifest.xml'
 let xml = readFileSync(manifest, 'utf8')
+if (!xml.includes('android.permission.RECORD_AUDIO')) xml = xml.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" /><application')
 xml = xml.replace('<application', '<application android:usesCleartextTraffic="false"')
 writeFileSync(manifest, xml)
 const version = JSON.parse(readFileSync('release/app/package.json', 'utf8')).version

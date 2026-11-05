@@ -23,6 +23,7 @@ import { registerFileTransferIpc } from './file-transfer-ipc'
  */
 
 import fs from 'node:fs'
+import { execFile } from 'node:child_process'
 import {
   app,
   BrowserWindow,
@@ -938,8 +939,15 @@ ipcMain.handle('getLocale', () => {
     return ''
   }
 })
-ipcMain.handle('openLink', (event, link) => {
-  return shell.openExternal(link)
+ipcMain.handle('openLink', async (event, link, options?: { browser?: string }) => {
+  if (options?.browser !== 'chrome') return shell.openExternal(link)
+  const url = new URL(link)
+  if (url.protocol !== 'https:') throw new Error('Chrome documentation links require HTTPS')
+  if (process.platform !== 'win32') return shell.openExternal(url.href)
+  const roots = [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter((value): value is string => !!value)
+  const chrome = roots.map(root => path.join(root, 'Google', 'Chrome', 'Application', 'chrome.exe')).find(file => fs.existsSync(file))
+  if (!chrome) return shell.openExternal(url.href)
+  await new Promise<void>((resolve, reject) => execFile(chrome, [url.href], { windowsHide: true }, error => error ? reject(error) : resolve()))
 })
 ipcMain.handle('window:is-focused', () => {
   return Boolean(mainWindow?.isFocused())

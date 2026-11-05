@@ -1,3 +1,4 @@
+import { VeniceModelBadges } from '@/components/venice/VeniceModelBadges'
 import { ActionIcon, Flex, Text } from '@mantine/core'
 import { AutomationAdjacentAttr, TestId } from '@shared/automation/testids'
 import type { ProviderModelInfo } from '@shared/types'
@@ -106,6 +107,7 @@ export function ModelRow({
         {detail.name}
       </Text>
       <Flex align="center" gap={mobile ? 6 : 4} className="min-w-0 flex-shrink-0">
+        <VeniceModelBadges metadata={providerModel.vendorMetadata} compact />
         {providerModel.capabilities?.includes('vision') && (
           <ScalableIcon
             icon={IconEye}

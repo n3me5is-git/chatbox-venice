@@ -29,7 +29,7 @@ jobs:
     uses: ./.github/workflows/checks.yml
   build_windows:
     name: Compile Windows app
-    if: github.event_name != 'workflow_dispatch' || inputs.target != 'android'
+    if: "!startsWith(github.event.head_commit.message, 'CHECKS:') && (github.event_name != 'workflow_dispatch' || inputs.target != 'android')"
     needs: checks
     runs-on: windows-latest
     timeout-minutes: 30
@@ -83,7 +83,7 @@ jobs:
           overwrite: true
   build_android_renderer:
     name: Compile Android renderer
-    if: github.event_name != 'workflow_dispatch' || inputs.target != 'windows'
+    if: "!startsWith(github.event.head_commit.message, 'CHECKS:') && (github.event_name != 'workflow_dispatch' || inputs.target != 'windows')"
     needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 30

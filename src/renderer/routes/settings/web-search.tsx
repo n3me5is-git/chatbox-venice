@@ -73,6 +73,7 @@ export function RouteComponent() {
   const { t } = useTranslation()
   const setSettings = useSettingsStore((state) => state.setSettings)
   const extension = useSettingsStore((state) => state.extension)
+  const hideChatbox = useSettingsStore(s => s.hideChatboxProviders === true)
   const licenseKey = useSettingsStore((state) => state.licenseKey)
   const webSearch = extension.webSearch
   const provider = webSearch.provider
@@ -101,12 +102,13 @@ export function RouteComponent() {
               id={fieldId}
               comboboxProps={{ withinPortal: true, withArrow: true }}
               aria-label={t('Search Provider') ?? undefined}
-              data={WEB_SEARCH_PROVIDERS.map((p) => ({ value: p.value, label: p.label }))}
+              data={WEB_SEARCH_PROVIDERS.filter(p => !hideChatbox || p.value !== 'build-in').map((p) => ({ value: p.value, label: p.label }))}
               value={provider}
               onChange={(value) => value && updateWebSearch({ provider: value as WebSearchProviderValue })}
             />
           )}
         />
+        {provider === 'venice' && <SettingRow id="venice-search" label="Motore tramite Venice" description="Usa la chiave configurata nel provider Venice. Le ricerche passano da Venice e possono avere un costo." control={<Select allowDeselect={false} value={webSearch.veniceSearchProvider || 'brave'} data={['brave', 'google', 'exa'].map(value => ({ value, label: value === 'exa' ? 'Exa' : value === 'brave' ? 'Brave' : 'Google' }))} onChange={value => value && updateWebSearch({ veniceSearchProvider: value as 'brave' | 'google' | 'exa' })} />} />}
         {provider === 'searxng' && (
           <CheckedFieldRow
             key="searxng"

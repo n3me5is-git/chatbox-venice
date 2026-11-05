@@ -70,6 +70,7 @@ export const VeniceProfileSchema = z.object({
 
 export const VeniceSettingsSchema = VeniceProfileSchema.extend({
   enabled: z.boolean().optional(),
+  imageToolsEnabled: z.boolean().optional(),
   audioEnabled: z.boolean().optional(),
   videoEnabled: z.boolean().optional(),
   musicEnabled: z.boolean().optional(),
@@ -385,13 +386,14 @@ const ShortcutSettingSchema = z.preprocess(
 
 const ExtensionSettingsSchema = z.object({
   webSearch: z.object({
-    provider: z.enum(['build-in', 'bing', 'tavily', 'bocha', 'querit', 'searxng']).catch('build-in'),
+    provider: z.enum(['build-in', 'bing', 'tavily', 'bocha', 'querit', 'searxng', 'venice']).catch('build-in'),
     tavilyApiKey: z.string().optional(),
     bochaApiKey: z.string().optional(),
     queritApiKey: z.string().optional(),
     queritMaxResults: z.number().optional(),
     queritTimeRange: z.string().nullable().optional(),
     searxngBaseUrl: z.string().optional(),
+    veniceSearchProvider: z.enum(['brave', 'google', 'exa']).optional(),
   }),
   knowledgeBase: z
     .object({
@@ -512,6 +514,7 @@ const DefaultModelSelectionSchema = z
   .catch(undefined)
 
 export const SettingsSchema = GlobalSessionSettingsSchema.extend({
+  hideChatboxProviders: z.boolean().optional().catch(false),
   providers: z.record(z.string(), ProviderSettingsSchema).optional().catch(undefined),
   customProviders: z.array(CustomProviderBaseInfoSchema).optional().catch(undefined),
   favoritedModels: z

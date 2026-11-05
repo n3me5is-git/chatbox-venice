@@ -56,7 +56,7 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
     setExtraBodyText(props.model?.extraBody ? JSON.stringify(props.model.extraBody, null, 2) : '')
     setExtraBodyError(undefined)
     setNativeWebSearch(props.model?.nativeWebSearch ?? false)
-  }, [props])
+  }, [props.model, props.providerId])
 
   const handleTestModel = async () => {
     if (!modelId || !props.providerId) return

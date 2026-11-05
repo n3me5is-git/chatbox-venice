@@ -16,6 +16,7 @@ export interface ImageModelOption {
   displayName: string
   description?: string
   capabilities?: ImageModelCapabilities
+  vendorMetadata?: ProviderModelInfo['vendorMetadata']
 }
 
 const imageModelManifestResponseSchema = z.object({
@@ -56,6 +57,7 @@ export function manualImageModelToOption(model: ProviderModelInfo & { descriptio
     modelId: model.modelId,
     displayName: model.nickname || model.modelId,
     ...(model.description ? { description: model.description } : {}),
+    ...(model.vendorMetadata ? { vendorMetadata: model.vendorMetadata } : {}),
   }
 }
 

@@ -1,3 +1,4 @@
+import { VeniceMCPSettings } from '@/components/venice/VeniceMCPSettings'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { zodValidator } from '@tanstack/zod-adapter'
 import { useEffect, useState } from 'react'
@@ -67,6 +68,7 @@ export function RouteComponent() {
           : t('Tools from MCP servers are available to models that support tool use.')
       }
     >
+      <VeniceMCPSettings />
       <BuiltinServersSection />
       <CustomServersSection installConfig={installConfig} />
     </SettingsPage>

@@ -12,7 +12,7 @@ import { createModelDependencies } from '@/adapters'
 import { currentBlobStorage } from '@/adapters/CurrentBlobStorage'
 import { normalizePlausibleModel, normalizePlausibleProvider } from '@/analytics/plausible'
 import { getLogger } from '@/lib/utils'
-import { getImageModelCapabilities } from '@/packages/image-model-catalog'
+import { providerImageModelsQueryOptions, getImageModelCapabilities } from '@/packages/image-model-catalog'
 import { pollImageTask, submitImageGeneration } from '@/packages/remote'
 import platform from '@/platform'
 import { StorageKeyGenerator } from '@/storage/StoreStorage'
@@ -43,13 +43,23 @@ export function getImageGenerationService(): ImageGenerationService {
         submit: (params) => submitImageGeneration(params, getLicenseKey()),
         poll: (taskId, signal) => pollImageTask(taskId, getLicenseKey(), signal),
       },
-      createModel: async (model) =>
-        getModel(
+      createModel: async (model) => {
+        let settings = settingsStore.getState().getSettings()
+        if (model.provider === 'venice') {
+          const provider = settings.providers?.venice || {}
+          const rows = await queryClient.fetchQuery(providerImageModelsQueryOptions('venice' as import('@shared/types').ModelProviderEnum, { apiKey: provider.apiKey, apiHost: provider.apiHost, venice: provider.venice }))
+          const row = rows.find(row => row.modelId === model.modelId)
+          const saved = provider.models?.find(row => row.modelId === model.modelId)
+          if (!row) throw new Error('Modello immagine Venice non disponibile nel catalogo corrente')
+          settings = { ...settings, providers: { ...settings.providers, venice: { ...provider, models: [...(provider.models || []).filter(row => row.modelId !== model.modelId), { modelId: model.modelId, type: 'image', ...saved, vendorMetadata: row.vendorMetadata }] } } }
+        }
+        return getModel(
           { provider: model.provider, modelId: model.modelId },
-          settingsStore.getState().getSettings(),
+          settings,
           await platform.getConfig(),
           await createModelDependencies()
-        ),
+        )
+      },
       resolveReferenceImage: async (key) => (await createModelDependencies()).storage.getImage(key),
       validateRequest: async (params, signal) => {
         if (params.model.provider === 'chatbox-ai') getLicenseKey()

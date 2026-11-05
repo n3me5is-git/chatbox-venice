@@ -24,7 +24,7 @@ export async function loadProviderImageModels(
   if (provider === ModelProviderEnum.Venice) {
     if (!options.apiKey || options.venice?.enabled === false || settingsStore.getState().providers?.venice?.venice?.enabled === false) return []
     const models = await fetchVeniceModels({ apiKey: options.apiKey, apiHost: options.apiHost, venice: options.venice }, await createModelDependencies())
-    return models.filter((m) => m.type === 'image').map((m) => ({ modelId: m.modelId, displayName: m.nickname || m.modelId, capabilities: getVeniceImageCapabilities(m) }))
+    return models.filter((m) => m.type === 'image').map((m) => ({ modelId: m.modelId, displayName: m.nickname || m.modelId, description: String(m.vendorMetadata?.description || ''), vendorMetadata: m.vendorMetadata, capabilities: getVeniceImageCapabilities(m) }))
   }
   if (provider === ModelProviderEnum.OpenRouter && options.apiKey) {
     try {

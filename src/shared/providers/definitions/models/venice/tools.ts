@@ -7,7 +7,7 @@ type Service = Pick<VeniceMediaService, 'catalog' | 'list' | 'quote' | 'start' |
 type Input = { action: 'catalog' | 'list' | 'quote' | 'generate' | 'status' | 'resume' | 'pause' | 'delete_local' | 'cleanup_remote'; id?: string; kind?: MediaKind; model?: string; prompt?: string; extra_json?: string }
 const summary = (r: MediaRecord) => ({ id: r.id, kind: r.kind, model: r.model, status: r.status, createdAt: r.createdAt, text: r.text, error: r.error, remoteCleaned: r.remoteCleaned })
 export function buildVeniceMediaTools(sessionId: string, service: Service, settings: () => VeniceOptions, confirm: (message: string) => Promise<boolean>): ToolSet {
-  if (settings().enabled === false || !settings().chatToolsEnabled) return {}
+  if (settings().enabled === false || settings().chatToolsEnabled === false) return {}
   return { venice_media: {
     description: 'Optional Venice media tools for this chat only. Generate speech, video, music/SFX; quote video/music; inspect, resume or delete this chat\'s media. Content goes to Venice. Paid generation is never automatically retried. Audio/video are not E2EE. Use catalog for current model IDs. Resume an existing record instead of generating again. Local deletion does not delete the remote copy. Media can be played/exported in Venice Studio. Transcription requires user file selection in Studio.',
     inputSchema: validatedToolSchema({ type: 'object', properties: {

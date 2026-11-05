@@ -21,6 +21,7 @@ interface VeniceCatalogModel {
     availableContextTokens?: number
     capabilities?: Record<string, unknown>
     constraints?: Record<string, unknown>
+    [key: string]: unknown
   }
 }
 
@@ -35,7 +36,7 @@ export async function fetchVeniceModels(
   if (!response.ok) throw new ApiError('Venice model discovery failed', await response.text(), response.status)
   const result = await response.json() as { data?: VeniceCatalogModel[] }
   if (!Array.isArray(result.data)) throw new ApiError('Invalid Venice model catalog')
-  return result.data.filter((item) => ['text', 'image', 'inpaint'].includes(item.type) && !item.model_spec?.offline && !item.id.toLowerCase().includes('e2ee'))
+  return result.data.filter((item) => ['text', 'image', 'inpaint', 'embedding'].includes(item.type) && !item.model_spec?.offline && !item.id.toLowerCase().includes('e2ee'))
     .map((item): ProviderModelInfo => {
       const spec = item.model_spec
       const capabilities: NonNullable<ProviderModelInfo['capabilities']> = []
@@ -45,9 +46,9 @@ export async function fetchVeniceModels(
         if (spec?.capabilities?.supportsFunctionCalling) capabilities.push('tool_use')
         if (spec?.capabilities?.supportsWebSearch) capabilities.push('web_search')
       }
-      return { modelId: item.id, nickname: spec?.name, type: item.type === 'text' ? 'chat' : 'image',
+      return { modelId: item.id, nickname: spec?.name, type: item.type === 'text' ? 'chat' : item.type === 'embedding' ? 'embedding' : 'image',
         contextWindow: spec?.availableContextTokens, capabilities,
-        vendorMetadata: { veniceType: item.type, constraints: spec?.constraints || {}, capabilities: spec?.capabilities || {} },
+        vendorMetadata: { ...spec, veniceType: item.type, constraints: spec?.constraints || {}, capabilities: spec?.capabilities || {} },
       }
     })
 }
@@ -57,7 +58,7 @@ export function getVeniceImageCapabilities(model: ProviderModelInfo): ImageModel
   const constraints = (metadata.constraints || {}) as Record<string, unknown>
   const capabilities = (metadata.capabilities || {}) as Record<string, unknown>
   const editing = metadata.veniceType === 'inpaint'
-  const styleReferences = Boolean(constraints.supportsStyleReferences || capabilities.supportsStyleReferences)
+  const styleReferences = Boolean(metadata.supportsStyleReferences || constraints.supportsStyleReferences || capabilities.supportsStyleReferences)
   const max = editing ? Number(constraints.maxInputImages ?? capabilities.maxInputImages ?? (constraints.combineImages === false ? 1 : 3))
     : Number(constraints.maxStyleReferences ?? 1)
   const ratios = constraints.aspectRatios ?? constraints.aspect_ratios
@@ -84,7 +85,12 @@ export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: Ven
     assertVeniceEnabled(settings || {})
     const endpoint = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
     if (new URL(endpoint).pathname.endsWith('/chat/completions') && typeof init?.body === 'string') {
-      const body = mergeExtraBody({ ...JSON.parse(init.body), venice_parameters: getVeniceParameters(settings) }, extra || {})
+      const parsed = JSON.parse(init.body)
+      const effort = parsed.reasoning_effort ?? parsed.reasoningEffort
+      delete parsed.reasoningEffort
+      const thinking = parsed.enable_thinking
+      delete parsed.enable_thinking
+      const body = mergeExtraBody({ ...parsed, ...(effort !== undefined ? { reasoning_effort: effort } : {}), venice_parameters: { ...getVeniceParameters(settings), ...(thinking !== undefined ? { disable_thinking: !thinking } : {}) } }, extra || {})
       const response = await fetch(url, { ...init, body: JSON.stringify(body) })
       return withVeniceCitations(response)
     }

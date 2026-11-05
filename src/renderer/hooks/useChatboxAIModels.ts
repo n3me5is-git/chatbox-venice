@@ -68,7 +68,9 @@ const useChatboxAIModels = () => {
   const { providerSettings: chatboxAISettings, setProviderSettings } = useProviderSettings(ModelProviderEnum.ChatboxAI)
   const licenseKey = useSettingsStore((state) => state.licenseKey)
 
+  const hideChatbox = useSettingsStore(s => s.hideChatboxProviders === true)
   const { data, ...others } = useQuery({
+    enabled: !hideChatbox,
     queryKey: [CHATBOX_AI_MODELS_QUERY_KEY, language, licenseKey],
     queryFn: async () => {
       const [manifest, modelList] = await Promise.all([

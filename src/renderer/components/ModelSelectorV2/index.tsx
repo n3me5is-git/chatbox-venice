@@ -68,7 +68,10 @@ export const ModelSelectorV2 = forwardRef<HTMLDivElement, ModelSelectorV2Props>(
     const { t } = useTranslation()
     const isMobile = useIsSmallScreen()
     const { providers, favoritedModels, favoriteModel, unfavoriteModel, isFavoritedModel } = useProviders()
-    const { chatboxAIModelList, chatboxAIModels } = useChatboxAIModels()
+    const remoteChatbox = useChatboxAIModels()
+    const hideChatbox = useSettingsStore(state => state.hideChatboxProviders === true)
+    const chatboxAIModelList = hideChatbox ? null : remoteChatbox.chatboxAIModelList
+    const chatboxAIModels = hideChatbox ? [] : remoteChatbox.chatboxAIModels
     const favoritedModelsSetting = useSettingsStore((state) => state.favoritedModels)
     const chatboxAIExcludedModels = useSettingsStore(
       (state) => state.providers?.[ModelProviderEnum.ChatboxAI]?.excludedModels || EMPTY_MODEL_IDS

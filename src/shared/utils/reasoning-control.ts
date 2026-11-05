@@ -12,7 +12,7 @@ import {
 
 // 'default' sends no reasoning-related parameters at all (the provider's server-side
 // default applies); 'off' force-sends the provider's explicit disable parameters.
-export type ReasoningControlLevel = 'default' | 'off' | 'low' | 'medium' | 'high'
+export type ReasoningControlLevel = 'default' | 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 /**
  * Session-level storage for reasoning provider options. `providerOptionsByModel`
@@ -90,12 +90,13 @@ export interface ReasoningControlCapabilities {
     | 'openrouter-reasoning'
     | 'toggle'
     | 'xai-effort'
+    | 'venice-effort'
   disabledReason?: ReasoningControlDisabledReason
 }
 
 export interface ReasoningControlOption {
   level: ReasoningControlLevel
-  label: 'default' | 'off' | 'on' | 'low' | 'medium' | 'high'
+  label: ReasoningControlLevel | 'on'
 }
 
 const DEFAULT_CAPABILITIES: ReasoningControlCapabilities = {
@@ -103,7 +104,7 @@ const DEFAULT_CAPABILITIES: ReasoningControlCapabilities = {
   kind: 'toggle',
 }
 
-type ReasoningEffortLevel = Exclude<ReasoningControlLevel, 'default' | 'off'>
+type ReasoningEffortLevel = 'low' | 'medium' | 'high'
 type DeepSeekReasoningEffort = 'low' | 'high' | 'max'
 
 const CLAUDE_BUDGET_BY_LEVEL: Record<ReasoningEffortLevel, number> = {
@@ -595,6 +596,10 @@ export function getReasoningControlCapabilities(
     return DEFAULT_CAPABILITIES
   }
 
+  if (provider === ModelProviderEnum.Venice) {
+    const caps = model?.vendorMetadata?.capabilities as Record<string, unknown> | undefined
+    return { supported: caps?.supportsReasoningEffort === true || caps?.supportsReasoning === true || !!model?.capabilities?.includes('reasoning'), kind: caps?.supportsReasoningEffort === true ? 'venice-effort' : 'toggle' }
+  }
   const effectiveProvider = getEffectiveProvider(provider, model)
   const isChatboxDeepSeek = isChatboxAIDeepSeekWithOfficialApiStyle(provider, model)
   const disabledReason = getApiStyleDisabledReason(provider, effectiveProvider, model)
@@ -708,6 +713,7 @@ export function getReasoningControlLevel(
   providerOptions?: ProviderOptions
 ): ReasoningControlLevel {
   const level = deriveReasoningControlLevel(provider, model, providerOptions)
+  if (provider === ModelProviderEnum.Venice) return level
   if (level !== 'off') return level
   // Stale options (written by older versions or under another model) can read back as
   // 'off' on a model that no longer offers an off option; report them as 'default' so
@@ -724,6 +730,13 @@ function deriveReasoningControlLevel(
 ): ReasoningControlLevel {
   const capabilities = getReasoningControlCapabilities(provider, model)
   if (!capabilities.supported) return 'default'
+  if (provider === ModelProviderEnum.Venice) {
+    if (providerOptions?.openaiCompatible?.enable_thinking === false) return 'off'
+    const effort = providerOptions?.openaiCompatible?.reasoningEffort
+    if (effort === 'none') return 'off'
+    if (['minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(effort || '')) return effort as ReasoningControlLevel
+    return providerOptions?.openaiCompatible?.enable_thinking === true ? 'high' : 'default'
+  }
 
   const effectiveProvider = getEffectiveProvider(provider, model)
   if (isChatboxAIDeepSeekWithOfficialApiStyle(provider, model)) {
@@ -811,6 +824,14 @@ export function getReasoningControlOptions(
 ): ReasoningControlOption[] {
   const capabilities = getReasoningControlCapabilities(provider, model)
   if (!capabilities.supported) return []
+  if (provider === ModelProviderEnum.Venice) {
+    const caps = model?.vendorMetadata?.capabilities as Record<string, unknown> | undefined
+    if (caps?.supportsReasoningEffort === true) {
+      const values = Array.isArray(caps.reasoningEffortOptions) ? caps.reasoningEffortOptions : ['low', 'medium', 'high']
+      return [{ level: 'default', label: 'default' }, ...values.filter((v): v is string => typeof v === 'string' && ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(v)).map(value => ({ level: (value === 'none' ? 'off' : value) as ReasoningControlLevel, label: (value === 'none' ? 'off' : value) as ReasoningControlLevel }))]
+    }
+    return [{ level: 'default', label: 'default' }, { level: 'off', label: 'off' }, { level: 'high', label: 'on' }]
+  }
 
   const offOption: ReasoningControlOption[] = supportsExplicitDisable(
     capabilities.kind,
@@ -841,6 +862,13 @@ export function getReasoningProviderOptions(
 ): ProviderOptions | undefined {
   const capabilities = getReasoningControlCapabilities(provider, model)
   if (!capabilities.supported) return previous
+  if (provider === ModelProviderEnum.Venice) {
+    if (!getReasoningControlOptions(provider, model).some(option => option.level === level) || level === 'default') return stripReasoningProviderOptions(previous)
+    const effort = capabilities.kind === 'venice-effort'
+    return { ...stripReasoningProviderOptions(previous), openaiCompatible: effort ? { reasoningEffort: level === 'off' ? 'none' : level } : { enable_thinking: level !== 'off' } }
+  }
+  if (level === 'minimal') level = 'low'
+  if (level === 'max' || level === 'xhigh') level = 'high'
 
   const effectiveProvider = getEffectiveProvider(provider, model)
 
@@ -1041,6 +1069,7 @@ export function getOpenAIReasoningEffort(
   modelId: string,
   level: Exclude<ReasoningControlLevel, 'default'>
 ): NonNullable<ProviderOptions['openai']>['reasoningEffort'] {
+  if (level === 'max') return 'xhigh'
   if (level === 'off') {
     return matchesAny(modelId, OPENAI_NONE_EFFORT_MODELS) ? 'none' : 'minimal'
   }

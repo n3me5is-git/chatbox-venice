@@ -1,3 +1,4 @@
+import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { MAX_CHAT_IMAGE_ATTACHMENTS } from '@chatbox/core/application/attachments'
 import { listPendingPauseInteractions } from '@chatbox/core/message-approval'
 import { getSubmitAvailability } from '@chatbox/core/session/action-gates'
@@ -1680,6 +1681,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
                 document.body
               )}
 
+            {model?.provider === 'venice' && <VeniceBalance />}
             {/* Work Mode status row: approval policy + working directories, always visible
                 above the input with their own in-place menus (mirrors the mode panel). */}
             {platform.isDesktopLike && agentModeUIState.isActive && (

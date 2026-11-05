@@ -29,7 +29,7 @@ export function quoteLabel(result: unknown) {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(amount)
 }
 export function friendlyMediaError(error: string) {
-  if (/Usa un’immagine|Impossibile leggere/i.test(error)) return error
+  if (/Usa un’immagine|Impossibile leggere|modello|Durata non|testo della canzone|testo per questo/i.test(error)) return error
   if (/429|rate.?limit/i.test(error)) return 'Troppe richieste in questo momento. Attendi prima di riprovare.'
   if (/401|403|API key|credentials|original.*key/i.test(error)) return 'Controlla la chiave Venice e i permessi del modello nelle impostazioni.'
   if (/JSON|Unexpected token|property name|Invalid JSON|streaming.*settings/i.test(error)) return 'Controlla i parametri nelle opzioni avanzate: il formato non è valido.'

@@ -1,3 +1,4 @@
+import { VeniceModelBadges } from './venice/VeniceModelBadges'
 import { ActionIcon, Combobox, type ComboboxProps, Flex, HoverCard, Text, useCombobox } from '@mantine/core'
 import type { ModelProvider } from '@shared/types'
 import { IconInfoCircle, IconServer } from '@tabler/icons-react'
@@ -90,7 +91,7 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
           className="!rounded-lg !border-[var(--chatbox-border-primary)] !shadow-lg"
           style={{ overflow: 'visible' }}
         >
-          <Combobox.Options mah={400} style={{ overflowY: 'auto' }} className="p-1">
+          <Combobox.Options mah="min(400px, 55dvh)" style={{ overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y' }} data-vaul-no-drag className="p-1">
             {modelGroups.length === 0 ? (
               <Text size="sm" c="dimmed" px="sm" py="xs">
                 {t('No models available')}
@@ -116,6 +117,7 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
                         <Text size="sm" className="min-w-0 flex-1 break-words">
                           {model.displayName}
                         </Text>
+                        <VeniceModelBadges metadata={model.vendorMetadata} compact />
                         {isMobile && detail.description && (
                           <ActionIcon
                             aria-label={t('Model details') as string}

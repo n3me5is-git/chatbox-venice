@@ -1,3 +1,4 @@
+import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { VeniceProfiles } from './VeniceProfiles'
 import { Accordion, Button, NumberInput, Select, SimpleGrid, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
 import type { ProviderSettings } from '@shared/types'
@@ -62,6 +63,7 @@ export function VeniceModuleSettings() {
   return <Stack gap="sm" p="sm">
     <Switch label="Abilita Venice" checked={options.enabled !== false} onChange={e => update({ enabled: e.currentTarget.checked })} />
     <Text size="xs" c="dimmed">Se lo disattivi, le nuove richieste vengono bloccate e l’attesa dei media si interrompe. I contenuti già salvati restano sul dispositivo.</Text>
+    <VeniceBalance />
     <Text fw={600} mt="sm">Che cosa vuoi usare?</Text>
     <SimpleGrid cols={{ base: 1, sm: 2 }}>
       <Switch label="Voce e trascrizione" disabled={options.enabled === false} checked={options.audioEnabled === true} onChange={e => update({ audioEnabled: e.currentTarget.checked })} />
@@ -69,8 +71,8 @@ export function VeniceModuleSettings() {
       <Switch label="Musica ed effetti sonori" disabled={options.enabled === false} checked={options.musicEnabled === true} onChange={e => update({ musicEnabled: e.currentTarget.checked })} />
     </SimpleGrid>
     <Text size="xs" c="dimmed">I moduli abilitati sono disponibili in Venice Studio, nel menu laterale.</Text>
-    <Switch label="Permetti all’assistente di creare media nelle chat in modalità Lavoro" disabled={options.enabled === false} checked={options.chatToolsEnabled === true} onChange={e => update({ chatToolsEnabled: e.currentTarget.checked })} />
-    {options.chatToolsEnabled && <Switch label="Chiedi conferma prima di generare" checked={options.confirmMediaTools !== false} onChange={e => update({ confirmMediaTools: e.currentTarget.checked })} />}
+    <Switch label="MCP interno Venice: strumenti nelle chat in modalità Lavoro" disabled={options.enabled === false} checked={options.chatToolsEnabled !== false} onChange={e => update({ chatToolsEnabled: e.currentTarget.checked })} />
+    {options.chatToolsEnabled !== false && <Switch label="Chiedi conferma prima di generare" checked={options.confirmMediaTools !== false} onChange={e => update({ confirmMediaTools: e.currentTarget.checked })} />}
     <VeniceProfiles />
   </Stack>
 }

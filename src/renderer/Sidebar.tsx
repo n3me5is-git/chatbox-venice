@@ -67,7 +67,7 @@ export default function Sidebar() {
   const language = useLanguage()
   const { providerSettings: veniceSettings } = useProviderSettings('venice')
   const veniceOptions = veniceSettings?.venice || {}
-  const showVeniceStudio = veniceOptions.enabled !== false && (veniceOptions.audioEnabled || veniceOptions.videoEnabled || veniceOptions.musicEnabled)
+  const showVeniceStudio = veniceOptions.enabled !== false && !!veniceSettings?.apiKey
   const navigate = useNavigate()
   const showSidebar = useUIStore((s) => s.showSidebar)
   const hasOverlay = useAtomValue(overlayStackAtom).length > 0

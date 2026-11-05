@@ -1,3 +1,4 @@
+import { validateMediaRequest } from './media-capabilities'
 import { v4 as uuid } from 'uuid'
 import type { RequestAdapter } from '../../../../types/adapters'
 import { mergeExtraBody } from '../../../../models/utils/extra-body'
@@ -17,7 +18,9 @@ export interface MediaStore {
 }
 export type MediaConfiguration = { apiKey: string; apiHost?: string; options: VeniceOptions }
 export type MediaInput = { kind: MediaKind; model: string; prompt: string; options?: Record<string, unknown>; file?: File; sessionId?: string; signal?: AbortSignal }
-export type MediaCatalogItem = { id: string; type: string; model_spec?: { name?: string; description?: string; voices?: string[]; default_voice?: string; supported_formats?: string[]; default_format?: string; constraints?: Record<string, unknown>; capabilities?: Record<string, unknown>; offline?: boolean } }
+export type MediaCatalogItem = { id: string; type: string; model_spec?: { name?: string; description?: string; voices?: string[]; default_voice?: string; supported_formats?: string[]; default_format?: string; constraints?: Record<string, unknown>; capabilities?: Record<string, unknown>; offline?: boolean; privacy?: string; uncensored?: boolean; traits?: string[]; model_sets?: string[]; modelSource?: string;
+    pricing?: Record<string, any>; supports_lyrics?: boolean; lyrics_required?: boolean; supports_force_instrumental?: boolean; supports_lyrics_optimizer?: boolean; supports_loop?: boolean; supports_language_code?: boolean; supports_speed?: boolean;
+    min_duration?: number; max_duration?: number; default_duration?: number; duration_options?: number[]; min_prompt_length?: number; prompt_character_limit?: number; lyrics_character_limit?: number; min_speed?: number; max_speed?: number; [key: string]: unknown } }
 const MAX_BYTES = 128 * 1024 * 1024
 const flags = { speech: 'audioEnabled', transcription: 'audioEnabled', video: 'videoEnabled', music: 'musicEnabled' } as const
 export function mediaEnabled(kind: MediaKind, options: VeniceOptions) { return options.enabled !== false && options[flags[kind]] === true }
@@ -87,7 +90,7 @@ export class VeniceMediaService {
     if (!Array.isArray(all.data) || !Array.isArray(tts.data)) throw new Error('Invalid Venice model catalog')
     const merged = new Map<string, MediaCatalogItem>()
     for (const item of [...all.data, ...tts.data.map((item: MediaCatalogItem) => ({ ...item, type: 'tts' }))] as MediaCatalogItem[]) {
-      if (!item || typeof item.id !== 'string' || item.model_spec?.offline || !['tts', 'asr', 'video', 'music'].includes(item.type)) continue
+      if (!item || typeof item.id !== 'string' || item.model_spec?.offline || !['tts', 'asr', 'video', 'music', 'image', 'inpaint', 'embedding'].includes(item.type)) continue
       const old = merged.get(item.type + ':' + item.id)
       merged.set(item.type + ':' + item.id, { ...old, ...item, model_spec: { ...old?.model_spec, ...item.model_spec } })
     }
@@ -110,8 +113,10 @@ export class VeniceMediaService {
     if (!input.model.trim() || (input.kind !== 'transcription' && !input.prompt.trim())) throw new Error('Choose a model and enter a prompt')
     if (input.file && input.file.size > 25 * 1024 * 1024) throw new Error('Transcription file exceeds 25 MB')
     if (input.kind === 'transcription' && !input.file) throw new Error('Choose an audio or video file')
-    const body = mergeExtraBody(input.kind === 'speech' ? { model: input.model, input: input.prompt, response_format: 'mp3', voice: 'af_sky' } : { model: input.model, prompt: input.prompt }, input.options || {})
+    const body = mergeExtraBody(input.kind === 'speech' ? { model: input.model, input: input.prompt } : { model: input.model, prompt: input.prompt }, input.options || {})
     if (typeof body.model !== 'string' || !body.model.trim()) throw new Error('The request model must be a non-empty string')
+    const known = (await this.cachedCatalog()).find(item => item.id === body.model && item.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : input.kind))
+    validateMediaRequest(input.kind, body, known)
     const record: MediaRecord = { id: uuid(), kind: input.kind, model: String(body.model), prompt: input.prompt, createdAt: Date.now(), sessionId: input.sessionId,
       status: 'creating', origin: config.origin, credentialId: await this.credential(config) }
     await this.mutate(records => [record, ...records]); const controller = new AbortController(); this.active.set(record.id, controller)
@@ -168,7 +173,7 @@ export class VeniceMediaService {
         const response = await this.api(config, record.kind === 'video' ? '/video/retrieve' : '/audio/retrieve', { model: record.model, queue_id: record.queueId, delete_media_on_completion: false }, controller.signal)
         if ((response.headers.get('content-type') || '').includes('application/json')) {
           const status = await response.json()
-          if (['failed', 'error', 'cancelled'].includes(status.status)) throw new Error('Venice generation failed')
+          if (['failed', 'error', 'cancelled'].includes(String(status.status).toLowerCase())) throw new Error('Venice generation failed')
           await abortWait(this.pollMs, controller.signal); continue
         }
         await this.saveBinary(id, response, controller.signal)

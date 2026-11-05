@@ -1,3 +1,4 @@
+import { useVeniceModels } from '@/packages/venice/models'
 import { SystemProviders } from '@shared/defaults'
 import { isUsingOAuth, mergeSharedOAuthProviderSettings } from '@shared/oauth'
 import { ModelProviderEnum, type ProviderInfo } from '@shared/types'
@@ -14,14 +15,18 @@ export const useProviders = () => {
   const setSettings = useSettingsStore((state) => state.setSettings)
   const customProviders = useSettingsStore((state) => state.customProviders)
   const favoritedModelsSetting = useSettingsStore((state) => state.favoritedModels)
+  const hideChatbox = useSettingsStore(state => state.hideChatboxProviders === true)
   const licenseKey = useSettingsStore((state) => state.licenseKey)
   const providerSettingsMap = useSettingsStore((state) => state.providers)
 
+  const { data: veniceModels } = useVeniceModels()
   const allProviderBaseInfos = useMemo(() => [...SystemProviders(), ...(customProviders || [])], [customProviders])
   const providers = useMemo(
     () =>
       allProviderBaseInfos
         .map((p) => {
+          if (hideChatbox && p.id === ModelProviderEnum.ChatboxAI) return null
+          if (p.id === ModelProviderEnum.Venice && providerSettingsMap?.venice?.venice?.enabled === false) return null
           const providerSettings = mergeSharedOAuthProviderSettings(p.id, providerSettingsMap)
           if (p.id === ModelProviderEnum.ChatboxAI && licenseKey) {
             return {
@@ -37,7 +42,8 @@ export const useProviders = () => {
             ((p.isCustom || p.id === ModelProviderEnum.Ollama || p.id === ModelProviderEnum.LMStudio) &&
               providerSettings?.models?.length)
           ) {
-            const baseModels = providerSettings?.models || p.defaultSettings?.models || []
+            const saved = providerSettings?.models || p.defaultSettings?.models || []
+            const baseModels = p.id === ModelProviderEnum.Venice && veniceModels ? (saved.length ? saved.map(model => ({ ...veniceModels.find(remote => remote.modelId === model.modelId), ...model, vendorMetadata: veniceModels.find(remote => remote.modelId === model.modelId)?.vendorMetadata || model.vendorMetadata })) : veniceModels.filter(model => !providerSettings.excludedModels?.includes(model.modelId))) : saved
             return {
               ...p,
               ...providerSettings,
@@ -49,7 +55,7 @@ export const useProviders = () => {
           }
         })
         .filter((p) => !!p),
-    [providerSettingsMap, allProviderBaseInfos, chatboxAIModels, licenseKey]
+    [providerSettingsMap, allProviderBaseInfos, chatboxAIModels, licenseKey, veniceModels, hideChatbox]
   )
 
   const favoritedModels = useMemo(

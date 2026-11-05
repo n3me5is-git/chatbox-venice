@@ -3,11 +3,13 @@ import type { SearchResultItem } from '@shared/types'
 import { truncate } from 'lodash'
 import platform from '@/platform'
 import { getExtensionSettings, getLanguage, getLicenseKey } from '@/stores/settingActions'
+import { settingsStore } from '@/stores/settingsStore'
 import { ChatboxAIAPIError } from '../../../shared/models/errors'
 import type WebSearch from './base'
 import { BingSearch } from './bing'
 import { BingNewsSearch } from './bing-news'
 import { BochaSearch } from './bocha'
+import { VeniceSearch } from './venice'
 import { ChatboxSearch } from './chatbox-search'
 import { QueritSearch } from './querit'
 import { normalizeSearxngBaseUrl, SearxngSearch } from './searxng'
@@ -25,6 +27,12 @@ function getSearchProviders() {
   const language = getLanguage()
 
   switch (provider) {
+    case 'venice': {
+      const configured = settingsStore.getState().getSettings().providers?.venice
+      if (!configured?.apiKey || configured.venice?.enabled === false) throw new Error('Configura e abilita Venice nelle impostazioni dei provider.')
+      selectedProviders.push(new VeniceSearch(configured.apiKey, configured.apiHost, settings.webSearch.veniceSearchProvider || 'brave'))
+      break
+    }
     case 'build-in':
       if (!licenseKey) {
         throw ChatboxAIAPIError.fromCodeName(
@@ -139,7 +147,7 @@ export const webSearchExecutor = async (
   const webSearch = getExtensionSettings().webSearch
   const provider = webSearch.provider
   const cacheIdentity =
-    provider === 'searxng' ? `${provider}:${normalizeSearxngBaseUrl(webSearch.searxngBaseUrl ?? '')}` : provider
+    provider === 'searxng' ? `${provider}:${normalizeSearxngBaseUrl(webSearch.searxngBaseUrl ?? '')}` : provider === 'venice' ? `${provider}:${settingsStore.getState().getSettings().providers?.venice?.apiHost}:${webSearch.veniceSearchProvider}:${settingsStore.getState().getSettings().providers?.venice?.apiKey}` : provider
   const searchResults = await cachified({
     cache,
     key: `search-context:${cacheIdentity}:${query}`,

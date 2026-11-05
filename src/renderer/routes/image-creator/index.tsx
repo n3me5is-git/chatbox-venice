@@ -6,6 +6,8 @@ import {
   Flex,
   Loader,
   Menu,
+  Group,
+  NumberInput,
   ScrollArea,
   Stack,
   Text,
@@ -30,6 +32,8 @@ import { JK_PAGE_NAMES } from '@/analytics/jk-events'
 import { ChatboxWelcomeCard } from '@/components/common/ChatboxWelcomeCard'
 import errorNoticeClasses from '@/components/common/ErrorNotice.module.css'
 import { ImageModelSelect } from '@/components/ImageModelSelect'
+import { VeniceModelInfo } from '@/components/venice/VeniceModelInfo'
+import { VeniceModelBadges } from '@/components/venice/VeniceModelBadges'
 import { VeniceImageSettings } from '@/components/settings/provider/VeniceSettings'
 import { SEND_BUTTON_BLOCKED_CLASS } from '@/components/InputBox/inputSurface'
 import Page from '@/components/layout/Page'
@@ -116,9 +120,9 @@ function InputToolbar({
   const { t } = useTranslation()
 
   return (
-    <Flex align="center" gap={0} className="shrink-0 w-full" justify="space-between">
+    <Flex align="center" gap={0} className="shrink-0 w-full min-w-0" justify="space-between" style={{ overflowX: 'auto', overscrollBehaviorX: 'contain' }} aria-label="Strumenti immagini scorrevoli">
       {/* Left Group: Model, Ratio, Reference */}
-      <Flex align="center" gap={0}>
+      <Flex align="center" gap={0} style={{ flexShrink: 0 }}>
         {/* Model Select */}
         {isSmallScreen ? (
           <UnstyledButton
@@ -218,11 +222,15 @@ function InputToolbar({
    Main Page Component
    ============================================ */
 
-function ImageCreatorPage() {
+function ImageCreatorEmbeddedFrame({ children, right }: { children: React.ReactNode; title?: React.ReactNode; right?: React.ReactNode }) { return <Stack gap="sm" h="75dvh" mih={480}><Group justify="end">{right}</Group>{children}</Stack> }
+export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onlyVenice?: boolean; embedded?: boolean } = {}) {
   const { t } = useTranslation()
   const isSmallScreen = useIsSmallScreen()
   const { providers } = useProviders()
-  const imageModelGroups = useImageModelGroups()
+  const allImageModelGroups = useImageModelGroups()
+  const imageModelGroups = useMemo(() => onlyVenice ? allImageModelGroups.filter(group => group.providerId === 'venice') : allImageModelGroups, [allImageModelGroups, onlyVenice])
+  const Frame = embedded ? ImageCreatorEmbeddedFrame : Page
+  const [batchCount, setBatchCount] = useState(1)
   const hasLicense = useSettingsStore((s) => Boolean(s.licenseKey))
   const hasExpiredLicense = useSettingsStore((s) => s.hasExpiredLicense)
   const isLoggedIn = useAuthInfoStore((s) => Boolean(s.accessToken && s.refreshToken))
@@ -275,6 +283,7 @@ function ImageCreatorPage() {
     [selectedModel, selectedModelCapabilities]
   )
 
+  const selectedOption = imageModelGroups.find(group => group.providerId === selectedProvider)?.models.find(model => model.modelId === selectedModel)
   const currentGeneratingId = useCurrentGeneratingId()
   const currentRecordId = useCurrentRecordId()
   const { data: currentRecord } = useImageGenerationRecord(currentRecordId)
@@ -288,8 +297,8 @@ function ImageCreatorPage() {
   } = useImageGenerationHistory()
 
   const historyCache = useMemo(() => {
-    return historyData?.pages.flatMap((page) => page.items) ?? []
-  }, [historyData])
+    return (historyData?.pages.flatMap((page) => page.items) ?? []).filter(record => !onlyVenice || record.model.provider === 'venice')
+  }, [historyData, onlyVenice])
 
   const isCurrentlyGenerating = currentGeneratingId !== null
 
@@ -333,7 +342,7 @@ function ImageCreatorPage() {
             prompt: prompt.trim(),
             referenceImages: submission.referenceImages,
             model: { provider: selectedProvider, modelId: selectedModel },
-            imageGenerateNum: 1,
+            imageGenerateNum: batchCount,
             aspectRatio: selectedRatio,
             parentIds: submission.parentIds.length > 0 ? submission.parentIds : undefined,
           },
@@ -347,7 +356,7 @@ function ImageCreatorPage() {
     } catch (error) {
       log.error('Failed to generate image:', error)
     }
-  }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, t])
+  }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, batchCount, t])
 
   const handleQuickPromptSubmit = useCallback(
     async (quickPrompt: string) => {
@@ -370,14 +379,14 @@ function ImageCreatorPage() {
             provider: selectedProvider,
             modelId: selectedModel,
           },
-          imageGenerateNum: 1,
+          imageGenerateNum: batchCount,
           aspectRatio: 'auto',
         })
       } catch (error) {
         log.error('Failed to generate image:', error)
       }
     },
-    [selectedProvider, selectedModel, isCurrentlyGenerating, t]
+    [selectedProvider, selectedModel, isCurrentlyGenerating, batchCount, t]
   )
 
   const handleReportGeneratedImage = useCallback(async (record: ImageGeneration) => {
@@ -468,7 +477,7 @@ function ImageCreatorPage() {
   )
 
   return (
-    <Page title={t('Image Creator')} right={headerRight}>
+    <Frame title={t('Image Creator')} right={headerRight}>
       <Flex flex={1} h="100%" className="overflow-hidden relative">
         {/* Main Content Area */}
         <Flex direction="column" flex={1} h="100%" className="overflow-hidden relative">
@@ -500,6 +509,14 @@ function ImageCreatorPage() {
                     </Flex>
                   )}
 
+                  <Group justify="center" wrap="wrap">
+                    <Button size="xs" variant="default" onClick={() => { setPrompt(currentRecord.prompt); textareaRef.current?.focus() }}>Usa lo stesso prompt</Button>
+                    {!!currentRecord.generatedImages.length && <Button size="xs" variant="light" onClick={() => {
+                      const edit = imageModelGroups.flatMap(group => group.models.map(model => ({ group, model }))).find(({ model }) => !!model.capabilities?.inputReferences && (model.capabilities.inputReferences.max || 1) > 0)
+                      if (!edit) { toastActions.add('Seleziona o configura un modello che supporti la modifica delle immagini'); return }
+                      handleModelSelect(edit.group.providerId, edit.model.modelId); setPrompt(currentRecord.prompt); void handleUseAsReference(currentRecord.generatedImages[0], currentRecord.id); textareaRef.current?.focus()
+                    }}>Remix / modifica immagine</Button>}
+                  </Group>
                   <PromptDisplay
                     prompt={currentRecord.prompt}
                     modelDisplayName={getImageModelDisplayName(currentRecord.model)}
@@ -615,6 +632,8 @@ function ImageCreatorPage() {
                   {selectedProvider === ModelProviderEnum.Venice && <VeniceImageSettings />}
 
                   {/* Toolbar Row */}
+                  <Group justify="space-between" align="end" wrap="wrap"><NumberInput label="Immagini per richiesta" description="Ogni immagine può avere un costo" min={1} max={4} value={batchCount} onChange={value => setBatchCount(Math.min(4, Math.max(1, Number(value) || 1)))} w={170} />
+                  {selectedProvider === 'venice' && <><VeniceModelBadges metadata={selectedOption?.vendorMetadata} /><VeniceModelInfo model={selectedOption ? { id: selectedModel, type: String(selectedOption.vendorMetadata?.veniceType || 'image'), model_spec: selectedOption.vendorMetadata } : undefined} /></>}</Group>
                   <InputToolbar
                     isSmallScreen={isSmallScreen}
                     modelGroups={imageModelGroups}
@@ -694,6 +713,6 @@ function ImageCreatorPage() {
           </>
         )}
       </Flex>
-    </Page>
+    </Frame>
   )
 }
