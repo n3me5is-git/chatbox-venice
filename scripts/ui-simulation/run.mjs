@@ -30,7 +30,7 @@ try {
     if (event.method === 'Network.requestWillBeSent') requests.push(event.params.request.url)
   }
   const cdp = (method, params = {}) => new Promise((resolve, reject) => { const id = ++serial; const timer = setTimeout(() => { pending.delete(id); reject(new Error('CDP timeout: ' + method)) }, 20000); pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value) }, reject: error => { clearTimeout(timer); reject(error) } }); socket.send(JSON.stringify({ id, method, params })) })
-  const evaluate = async expression => { const result = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.text); return result.result.value }
+  const evaluate = async expression => { const result = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text); return result.result.value }
   async function click(expression) {
     // Commit edits and let focus/viewport changes settle before measuring a touch target.
     await evaluate(`new Promise(resolve => { if (document.activeElement?.closest('.mantine-NumberInput-root')) document.activeElement.blur(); requestAnimationFrame(() => requestAnimationFrame(resolve)) })`)
@@ -115,6 +115,7 @@ try {
   const stroke=await evaluate(`(()=>{const r=document.querySelector('canvas[aria-label="Edit mask and comment points"]').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`)
   await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[stroke]});await cdp('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:stroke.x,y:stroke.y+25}]});await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
   await click(`[...document.querySelectorAll('label')].findLast(e=>e.textContent==='Comment point')`)
+  await wait(()=>evaluate(`[...document.querySelectorAll('input[value="point"]')].some(e=>e.checked)`),'The comment tool was not selected after painting')
   await click(`document.querySelector('canvas[aria-label="Edit mask and comment points"]')`)
   await fill('Comment for point 1','Make this blue');await fill('Images in this batch','2');await fill('Editing instructions','Change only the painted area')
   await writeFile(path.join(output,'image-editor-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
