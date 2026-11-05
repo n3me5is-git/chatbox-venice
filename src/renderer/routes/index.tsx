@@ -1,4 +1,5 @@
 import NiceModal from '@ebay/nice-modal-react'
+import { ProjectGate } from '@/components/security/ProjectGate'
 import { ActionIcon, Avatar, Box, Divider, Flex, ScrollArea, Space, Stack, Text } from '@mantine/core'
 import {
   type AgentModeEntry,
@@ -60,7 +61,7 @@ const firstChatScenarioDefaultModel = {
 } satisfies Pick<SessionSettings, 'provider' | 'modelId'>
 
 export const Route = createFileRoute('/')({
-  component: Index,
+  component: IndexWithProjectGate,
   validateSearch: zodValidator(
     z.object({
       copilotId: z.string().optional(),
@@ -71,6 +72,7 @@ export const Route = createFileRoute('/')({
   ),
 })
 
+function IndexWithProjectGate(){const {folderId}=Route.useSearch();return <ProjectGate folderId={folderId}><Index/></ProjectGate>}
 function Index() {
   const { t, i18n } = useTranslation()
   const isSmallScreen = useIsSmallScreen()

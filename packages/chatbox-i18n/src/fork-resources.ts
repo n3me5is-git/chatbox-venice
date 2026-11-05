@@ -1,5 +1,21 @@
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 export const forkEnglish = {
+  "Unable to read project protection": "Unable to read project protection",
+  "Unlock this project": "Unlock this project",
+  "Project protection is available in the native app": "Project protection is available in the native app",
+  "Project locks control access inside the app, including chat reads, search and changes. They do not encrypt the existing conversation database or external Work Mode files. Generated media has separate encrypted storage and protection controls.": "Project locks control access inside the app, including chat reads, search and changes. They do not encrypt the existing conversation database or external Work Mode files. Generated media has separate encrypted storage and protection controls.",
+  "Project protection": "Project protection",
+  "No project lock": "No project lock",
+  "Use app unlock": "Use app unlock",
+  "Use a dedicated project PIN": "Use a dedicated project PIN",
+  "Projects using app unlock share the app’s current unlocked state. Configure app unlock methods in Data & Backup first.": "Projects using app unlock share the app’s current unlocked state. Configure app unlock methods in Data & Backup first.",
+  "New project PIN or passphrase": "New project PIN or passphrase",
+  "Enter a new PIN to change it, or leave blank to keep the existing dedicated PIN.": "Enter a new PIN to change it, or leave blank to keep the existing dedicated PIN.",
+  "Save project protection": "Save project protection",
+  "Lock project now": "Lock project now",
+  "Project": "Project",
+  "Select a project": "Select a project",
+  "Protected chat": "Protected chat",
 
   "Set up unlock methods in Settings → Data & Backup first.": "Set up unlock methods in Settings → Data & Backup first.",
   "Locked creation": "Locked creation",
@@ -457,6 +473,7 @@ export const forkEnglish = {
   "Uncensored": "Uncensored"
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+
 
 
   "App lock and protected content": "Blocco app e contenuti protetti",

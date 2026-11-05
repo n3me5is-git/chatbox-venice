@@ -1,4 +1,5 @@
 import { getSessionSearchTarget, clearSessionSearchTarget } from '@/stores/session-search-target'
+import { ProjectGate } from '@/components/security/ProjectGate'
 import { resolveSessionMode } from '@chatbox/core/session/mode-policy'
 import { Box, Button, Loader } from '@mantine/core'
 import type { ModelProvider } from '@shared/types'
@@ -53,7 +54,7 @@ function SessionRouteWithErrorBoundary() {
   const { sessionId } = Route.useParams()
   return (
     <ErrorBoundary key={sessionId} name="session-route" onError={() => sessionStartupRecovery.fail(sessionId)}>
-      <RouteComponent />
+      <ProjectGate key={sessionId} sessionId={sessionId}><RouteComponent /></ProjectGate>
     </ErrorBoundary>
   )
 }

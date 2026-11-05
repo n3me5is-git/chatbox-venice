@@ -1,5 +1,6 @@
 import NiceModal from '@ebay/nice-modal-react'
 import { AppGate } from '@/components/security/AppGate'
+import { useProjectAccessState } from '@/components/security/ProjectGate'
 import {
   Avatar,
   Button,
@@ -74,7 +75,7 @@ import Sidebar from '@/Sidebar'
 import * as atoms from '@/stores/atoms'
 import { getRendererDevLaunchOptions } from '@/utils/dev-launch'
 
-const useSessionHeader = (sessionId: string | null) => rendererApplication.sessionHooks.useSessionHeader(sessionId)
+const useSessionHeader = (sessionId: string | null) => {const access=useProjectAccessState({sessionId});return rendererApplication.sessionHooks.useSessionHeader(access.ready&&!access.locked&&!access.error?sessionId:null)}
 
 function getSessionIdFromPathname(pathname: string): string | null {
   if (!pathname.startsWith('/session/')) return null

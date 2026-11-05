@@ -5,12 +5,14 @@ import { VaultDatabase } from './database'
 import { deviceProtector } from './device'
 import { VaultKeys } from './keys'
 import { ProtectedImageRecords } from './image-records'
+import { ProjectAccess } from './project-access'
 const runtimes=new WeakMap<Platform,VaultRuntime>()
 const mimeInfo=(mime:string,name='Saved content'):AssetInfo=>({name,mime,kind:mime.startsWith('image/')?'image':mime.startsWith('video/')?'video':mime.startsWith('audio/')?'audio':'document'})
 export class VaultRuntime {
   readonly db=new VaultDatabase();readonly keys=new VaultKeys(this.db,deviceProtector());readonly assets:EncryptedChunkStore
   readonly legacy:{get:(key:string)=>Promise<string|null>;set:(key:string,value:string)=>Promise<void>;remove:(key:string)=>Promise<void>;keys:()=>Promise<string[]>}
   private ready:Promise<boolean>|undefined
+  projects!:ProjectAccess
   constructor(private readonly platform:Platform){this.legacy={get:platform.getStoreBlob.bind(platform),set:platform.setStoreBlob.bind(platform),remove:platform.delStoreBlob.bind(platform),keys:platform.listStoreBlobKeys.bind(platform)};this.assets=new EncryptedChunkStore(this.legacy,this.db,scope=>this.keys.key(scope))}
   async find(alias:string){return await this.assets.header(alias)||(this.platform.type==='desktop'&&alias.includes(':')?this.db.byAlias(alias.replace(/:/g,'')):null)}
   available(){return this.ready ||= (async()=>{
@@ -34,6 +36,17 @@ export class VaultRuntime {
     await this.legacy.remove(alias);return true
   }
   install(platform:Platform){
+    const getValue=platform.getStoreValue.bind(platform),setValue=platform.setStoreValue.bind(platform),removeValue=platform.delStoreValue.bind(platform),getAll=platform.getAllStoreValues.bind(platform),setAll=platform.setAllStoreValues.bind(platform)
+    const meta=platform.getSessionMetaStorage(),rows=platform.getSessionRowStore();this.projects=new ProjectAccess(this.db,this.keys,meta,getValue)
+    const guardedMeta=this.projects.protectMetadata(),guardedRows=this.projects.protectRows(rows);platform.getSessionMetaStorage=()=>guardedMeta;platform.getSessionRowStore=()=>guardedRows
+    const sessionGuard=async(key:string)=>{if(key.startsWith('session:'))await this.projects.assertSession(key.slice(8))}
+    platform.getStoreValue=async key=>{await sessionGuard(key);return getValue(key)}
+    platform.setStoreValue=async(key,value)=>{await sessionGuard(key);return setValue(key,value)}
+    platform.delStoreValue=async key=>{await sessionGuard(key);return removeValue(key)}
+    platform.getAllStoreValues=async()=>{const values=await getAll();for(const key of Object.keys(values)){if(!key.startsWith('session:'))continue;const scope=await this.projects.sessionScope(key.slice(8));if(scope&&!this.keys.isUnlocked(scope))delete values[key]}return values}
+    platform.setAllStoreValues=async values=>{for(const key of Object.keys(values))await sessionGuard(key);return setAll(values)}
+    if(platform.delStoreValues){const original=platform.delStoreValues.bind(platform);platform.delStoreValues=async keys=>{for(const key of keys)await sessionGuard(key);return original(keys)}}
+    if(platform.copyStoreValue){const original=platform.copyStoreValue.bind(platform);platform.copyStoreValue=async(source,destination)=>{await sessionGuard(source);await sessionGuard(destination);return original(source,destination)}}
     const images=platform.getImageGenerationStorage();const protectedImages=new ProtectedImageRecords(images,this);platform.getImageGenerationStorage=()=>protectedImages
     platform.getStoreBlob=async alias=>{const header=await this.find(alias);return header?this.assets.dataUrl(`vault-asset-${header.id}`):this.legacy.get(alias)}
     platform.setStoreBlob=async(alias,value)=>{const mime=/^data:((?:image|audio|video)\/[^;,]+);base64,/.exec(value)?.[1]
@@ -48,4 +61,5 @@ export class VaultRuntime {
   }
 }
 export function vaultRuntimeFor(platform:Platform){let runtime=runtimes.get(platform);if(!runtime){runtime=new VaultRuntime(platform);runtimes.set(platform,runtime)}return runtime}
+export const installedVaultFor=(platform:Platform)=>runtimes.get(platform)
 export function installVaultStorage(platform:Platform){vaultRuntimeFor(platform).install(platform)}

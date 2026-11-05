@@ -1,0 +1,12 @@
+// @vitest-environment jsdom
+import { MantineProvider } from '@mantine/core'
+import { cleanup,fireEvent,render,screen,waitFor } from '@testing-library/react'
+import { afterEach,expect,it,vi } from 'vitest'
+const state=vi.hoisted(()=>({unlocked:false,version:0,listeners:new Set<()=>void>(),scope:vi.fn(async()=> 'project:one' as string|null)}))
+vi.mock('@/platform',()=>({default:{}}))
+vi.mock('@/packages/vault/runtime',()=>{const vault={projects:{sessionScope:state.scope,folderScope:state.scope},keys:{subscribe:(listener:()=>void)=>{state.listeners.add(listener);return()=>{state.listeners.delete(listener)}},snapshot:()=>state.version,isUnlocked:()=>state.unlocked,status:async()=>({configured:true,pin:true,biometric:false,unlocked:state.unlocked,retryAt:0}),unlock:async()=>{state.unlocked=true;state.version++;for(const listener of state.listeners)listener()}}};return{installedVaultFor:()=>vault}})
+import { ProjectGate } from './ProjectGate'
+Object.defineProperty(window,'matchMedia',{writable:true,value:vi.fn(()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()}))})
+afterEach(()=>{cleanup();state.unlocked=false;state.version=0;state.listeners.clear();state.scope.mockReset();state.scope.mockResolvedValue('project:one')})
+it('does not mount conversation content or its hooks until the project is unlocked',async()=>{const mounted=vi.fn();function Content(){mounted();return <div>Private conversation</div>}render(<MantineProvider><ProjectGate sessionId="one"><Content/></ProjectGate></MantineProvider>);expect(mounted).not.toHaveBeenCalled();const pin=await screen.findByLabelText('PIN or passphrase');expect(screen.queryByText('Private conversation')).toBeNull();fireEvent.change(pin,{target:{value:'123456'}});fireEvent.click(screen.getByRole('button',{name:'Unlock'}));await screen.findByText('Private conversation');expect(mounted).toHaveBeenCalled()})
+it('waits for the new project policy when navigation changes instead of showing the previous unlocked route',async()=>{state.scope.mockResolvedValueOnce(null);const view=render(<MantineProvider><ProjectGate folderId="public"><div>Conversation contents</div></ProjectGate></MantineProvider>);await screen.findByText('Conversation contents');state.scope.mockImplementation(()=>new Promise(()=>{}));view.rerender(<MantineProvider><ProjectGate folderId="private"><div>New private contents</div></ProjectGate></MantineProvider>);expect(screen.queryByText('New private contents')).toBeNull()})

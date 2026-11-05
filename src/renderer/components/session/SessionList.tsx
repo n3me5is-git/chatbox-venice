@@ -21,6 +21,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import NiceModal from '@ebay/nice-modal-react'
+import { forkT as ft } from '@/i18n/fork'
 import { Button, Flex, Text, UnstyledButton } from '@mantine/core'
 import { AutomationAdjacentAttr, TestId } from '@shared/automation/testids'
 import type { SessionFolder, SessionMetaRecord } from '@shared/types'
@@ -31,6 +32,7 @@ import {
   IconFolderOpen,
   IconGripVertical,
   IconLoader2,
+  IconLock,
   IconMessagePlus,
   IconPencil,
   IconPlus,
@@ -613,6 +615,7 @@ function FolderHeader(props: {
     if (isSmallScreen) setShowSidebar(false)
   }
   const menuItems: ActionMenuItemProps[] = [
+    {text:ft('Project protection'),icon:IconLock,onClick:()=>void import('@/components/security/ProjectProtection').then(module=>module.showProjectProtection(folder.id))},
     { text: t('New Chat'), icon: IconMessagePlus, onClick: startChat },
     { text: t('Rename'), icon: IconPencil, onClick: () => void rename() },
     {
