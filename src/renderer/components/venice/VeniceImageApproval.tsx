@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
-import { ApprovalModeSelect } from './VeniceSessionApprovals'
+import { ApprovalModeOptions } from './VeniceSessionApprovals'
 import { sessionApprovals, type ApprovalMode } from '@/packages/venice/session-approvals'
 import NiceModal, { useModal } from '@ebay/nice-modal-react'
 import { Accordion, Alert, Button, FileInput, Group, NumberInput, Select, Stack, Text, Textarea } from '@mantine/core'
@@ -42,7 +42,7 @@ export const VeniceImageApproval = NiceModal.create(({ models, request, signal, 
     <Group grow><Select label={ft("Content filter")} comboboxProps={{ withinPortal: false }} allowDeselect={false} value={safeMode} data={[{ value: 'default', label: ft("Model settings") }, { value: 'on', label: ft("On") }, { value: 'off', label: ft("Off") }]} onChange={value => setSafeMode(value || 'default')} /><Select label={ft("Image format")} comboboxProps={{ withinPortal: false }} allowDeselect={false} value={format} data={[{ value: 'default', label: ft("Default") }, { value: 'png', label: 'PNG' }, { value: 'jpeg', label: 'JPEG' }, { value: 'webp', label: 'WebP' }]} onChange={value => setFormat(value || 'default')} /></Group>
     <Accordion><Accordion.Item value="call"><Accordion.Control>{ft("Parameters for this call")}</Accordion.Control><Accordion.Panel><Stack gap="sm"><Text size="xs" c="dimmed">{ft("Only this call is changed. Empty fields keep the model defaults.")}</Text>{model?.vendorMetadata?.veniceType !== 'inpaint' && <NumberInput label={ft("Seed for this generation")} value={seed} onChange={setSeed} />}<Textarea label={ft("Extra parameters for this call (JSON)")} value={extra} onChange={e => setExtra(e.currentTarget.value)} autosize minRows={2} /></Stack></Accordion.Panel></Accordion.Item></Accordion>
     <Text size="sm">{ft("You authorize {{count}} paid generations with the selected model. Content is sent to Venice.", {count})}</Text>
-    {sessionId && <ApprovalModeSelect value={approvalMode} onChange={setApprovalMode} />}
+    {sessionId && <ApprovalModeOptions value={approvalMode} onChange={setApprovalMode} />}
     {error && <Alert color="red">{error}</Alert>}<Group justify="end"><Button variant="default" onClick={cancel}>{ft("Cancel")}</Button><Button disabled={!model || !prompt.trim()} onClick={() => void confirm()}>{ft("Confirm and generate")}</Button></Group>
   </Stack></AdaptiveModal>
 })

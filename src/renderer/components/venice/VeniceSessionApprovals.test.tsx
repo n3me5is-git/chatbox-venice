@@ -7,7 +7,7 @@ import {VeniceSessionApprovals} from './VeniceSessionApprovals'
 afterEach(()=>{cleanup();sessionApprovals.clear('ui-chat');sessionApprovals.clear('other')})
 it('changes only this chat and resets immediately from the visible controls',()=>{
  render(<MantineProvider><VeniceSessionApprovals sessionId="ui-chat"/></MantineProvider>)
- fireEvent.click(screen.getByLabelText('Generation approval for this chat',{selector:'input'}));fireEvent.click(screen.getByRole('option',{name:'Automatically approve generations'}))
+ fireEvent.click(screen.getByRole('radio',{name:'Automatically approve generations'}))
  expect(sessionApprovals.mode('ui-chat')).toBe('automatic');expect(sessionApprovals.mode('other')).toBe('ask')
  fireEvent.click(screen.getByRole('button',{name:'Reset approvals for this chat'}));expect(sessionApprovals.mode('ui-chat')).toBe('ask')
 })

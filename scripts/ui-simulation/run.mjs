@@ -76,7 +76,7 @@ try {
   await click(byLabel("Aspect ratio")); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === '16:9')`)
   await click(byLabel("Content filter")); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === "Off")`)
   await click(byText("Parameters for this call")); await fill("Seed for this generation", '42')
-  await click(byLabel('Generation approval for this chat')); await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.trim()==='Remember similar generations after approval')`)
+  await click(byLabel('Remember similar generations after approval'))
   await delay(500)
   await writeFile(path.join(output, 'image-hitl-mobile.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
   await evaluate(`window.__hitlEvents=[]; ['pointerdown','pointerup','click'].forEach(type => document.addEventListener(type, e => window.__hitlEvents.push({type,text:e.target.textContent?.slice(0,100),tag:e.target.tagName,x:e.clientX,y:e.clientY}),true))`)

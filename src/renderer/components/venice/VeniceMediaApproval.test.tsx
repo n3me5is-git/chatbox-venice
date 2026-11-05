@@ -12,10 +12,10 @@ afterEach(()=>{cleanup();vi.unstubAllGlobals();sessionApprovals.clear('first');s
 it('keeps mode changes as a draft until approval and resets the dialog for the next chat',async()=>{
  render(<MantineProvider><NiceModal.Provider/></MantineProvider>);let pending:Promise<unknown>
  act(()=>{pending=NiceModal.show(VeniceMediaApproval,{sessionId:'first',message:'same',generation:true})})
- fireEvent.click(await screen.findByLabelText('Generation approval for this chat',{selector:'input'}));fireEvent.click(screen.getByRole('option',{name:'Automatically approve generations'}));fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
+ fireEvent.click(await screen.findByRole('radio',{name:'Automatically approve generations'}));fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
  expect(await pending!).toMatchObject({approved:false,mode:'automatic'});expect(sessionApprovals.mode('first')).toBe('ask')
  act(()=>{pending=NiceModal.show(VeniceMediaApproval,{sessionId:'second',message:'same',generation:true})})
- expect((await screen.findByLabelText('Generation approval for this chat',{selector:'input'}) as HTMLInputElement).value).toBe('Ask every time')
+ expect((await screen.findByRole('radio',{name:'Ask every time'}) as HTMLInputElement).checked).toBe(true)
  fireEvent.click(screen.getByRole('button',{name:'Approve'}));expect(await pending!).toMatchObject({approved:true,mode:'ask'})
 })
 it('cancels on abort and never grants permissions from a cancelled dialog',async()=>{
