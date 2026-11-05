@@ -1,3 +1,4 @@
+import { forkT as ft } from '@/i18n/fork'
 import { Capacitor } from '@capacitor/core'
 import { resolveSessionMode } from '@chatbox/core/session/mode-policy'
 import { ActionIcon, Badge, Button, Divider, Group, Stack, Switch, Text, UnstyledButton } from '@mantine/core'
@@ -154,8 +155,8 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
 
   if (page === 'venice') return <Stack p="md" gap="sm" style={{ maxHeight: '70dvh', overflowY: 'auto' }}>
     <Button variant="subtle" onClick={() => setPage('main')}>{t('Back')}</Button>
-    {sessionId === 'new' ? <Text size="sm">Crea la chat per impostare un profilo dedicato.</Text> : <VeniceProfileEditor options={providerOptions?.venice || {}} value={header?.settings?.veniceProfile || {}} onChange={value => { void rendererApplication.sessions.updateSessionHeader(sessionId, current => { if (!current) throw new Error('Session not found'); return { ...current, settings: { ...current.settings, veniceProfile: value } } }) }} />}
-    <Button variant="default" onClick={() => { onClose(); navigateToSettings('/provider/venice') }}>Impostazioni provider Venice</Button>
+    {sessionId === 'new' ? <Text size="sm">{ft("Create the chat to set a dedicated profile.")}</Text> : <VeniceProfileEditor options={providerOptions?.venice || {}} value={header?.settings?.veniceProfile || {}} onChange={value => { void rendererApplication.sessions.updateSessionHeader(sessionId, current => { if (!current) throw new Error('Session not found'); return { ...current, settings: { ...current.settings, veniceProfile: value } } }) }} />}
+    <Button variant="default" onClick={() => { onClose(); navigateToSettings('/provider/venice') }}>{ft("Venice provider settings")}</Button>
   </Stack>
 
   if (page === 'memory') {
@@ -381,7 +382,7 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
         <Stack gap={2}>
           <Text size="sm">{t('Web Search')}</Text>
           <Text size="xs" c="dimmed">
-            {usesNativeSearch ? (providerId === 'venice' ? `Venice · ${veniceOptions.webSearch || 'off'}` : 'Parametri del modello') : webProvider}
+            {usesNativeSearch ? (providerId === 'venice' ? `Venice · ${veniceOptions.webSearch || 'off'}` : ft("Model parameters")) : webProvider}
           </Text>
         </Stack>
         <Switch

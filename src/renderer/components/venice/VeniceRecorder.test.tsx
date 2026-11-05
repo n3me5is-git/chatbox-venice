@@ -14,7 +14,7 @@ it('records locally, stops the microphone and waits for a separate transcription
   }
   vi.stubGlobal('MediaRecorder', Recorder)
   render(<MantineProvider><VeniceRecorder onRecorded={onRecorded} /></MantineProvider>)
-  fireEvent.click(screen.getByRole('button', { name: 'Registra dal microfono' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Termina registrazione' }))
+  fireEvent.click(screen.getByRole('button', { name: "Record from microphone" }))
+  fireEvent.click(await screen.findByRole('button', { name: "Stop recording" }))
   await waitFor(() => expect(onRecorded).toHaveBeenCalledOnce()); expect(onRecorded.mock.calls[0][0]).toBeInstanceOf(File); expect(stop).toHaveBeenCalledOnce()
 })

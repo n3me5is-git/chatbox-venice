@@ -19,14 +19,14 @@ it('keeps Venice dropdown selections through a modal rerender and saves/reopens 
   const model = { modelId: 'venice-chat', type: 'chat' as const, veniceProfile: {} }
   let saved: Promise<unknown>
   act(() => { saved = NiceModal.show(ModelEdit, { providerId: 'venice', model }) })
-  fireEvent.click(await screen.findByLabelText('Quando cercare sul web', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Ad ogni messaggio' }))
-  fireEvent.click(screen.getByLabelText('Motore di ricerca', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Exa' }))
+  fireEvent.click(await screen.findByLabelText('When to search the web', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'For every message' }))
+  fireEvent.click(screen.getByLabelText('Search engine', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Exa' }))
   // Updating NiceModal's wrapper props must not reset the draft for the same model.
   act(() => { void NiceModal.show(ModelEdit, { providerId: 'venice', model }) })
-  await waitFor(() => expect((screen.getByLabelText('Motore di ricerca', { selector: 'input' }) as HTMLInputElement).value).toBe('Exa'))
+  await waitFor(() => expect((screen.getByLabelText('Search engine', { selector: 'input' }) as HTMLInputElement).value).toBe('Exa'))
   fireEvent.click(screen.getByRole('button', { name: 'Save' }))
   const result = ProviderModelInfoSchema.parse(await saved!)
   expect(result.veniceProfile).toMatchObject({ webSearch: 'on', searchProvider: 'exa' })
   act(() => { void NiceModal.show(ModelEdit, { providerId: 'venice', model: result }) })
-  await waitFor(() => expect((screen.getByLabelText('Motore di ricerca', { selector: 'input' }) as HTMLInputElement).value).toBe('Exa'))
+  await waitFor(() => expect((screen.getByLabelText('Search engine', { selector: 'input' }) as HTMLInputElement).value).toBe('Exa'))
 })

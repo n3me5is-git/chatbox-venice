@@ -1,3 +1,4 @@
+import { forkT as ft } from '@/i18n/fork'
 import { Switch, Box, Button, FileButton, Flex, SegmentedControl, Slider, Text } from '@mantine/core'
 import { TestId } from '@shared/automation/testids'
 import { type Language, Theme } from '@shared/types'
@@ -92,7 +93,7 @@ export function RouteComponent() {
       title={t('Appearance')}
       description={t('Theme, text size, avatars and background. Changes apply immediately.')}
     >
-      <SettingRow id="hide-chatbox-providers" label="Nascondi Chatbox AI nei selettori" description="Mostra i modelli dei provider configurati e nasconde il catalogo e i servizi Chatbox AI. Non elimina chiavi o impostazioni." control={<Switch aria-label="Nascondi Chatbox AI nei selettori" checked={settings.hideChatboxProviders === true} onChange={event => setSettings({ hideChatboxProviders: event.currentTarget.checked })} />} />
+      <SettingRow id="hide-chatbox-providers" label={ft("Hide Chatbox AI in selectors")} description={ft("Show configured providers and hide the Chatbox AI catalog and services. Keys and settings are kept.")} control={<Switch aria-label={ft("Hide Chatbox AI in selectors")} checked={settings.hideChatboxProviders === true} onChange={event => setSettings({ hideChatboxProviders: event.currentTarget.checked })} />} />
       <fieldset className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0">
         <SettingsSection>
           <SettingRow

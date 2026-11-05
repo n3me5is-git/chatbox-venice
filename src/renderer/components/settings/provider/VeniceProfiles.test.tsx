@@ -11,15 +11,15 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 describe('Venice profile UI', () => {
   it('selects explicit moderation false and can restore inherited settings', () => {
     const onChange = vi.fn(); render(<MantineProvider><VeniceProfileEditor options={{}} value={{ webSearch: 'on' }} onChange={onChange} /></MantineProvider>)
-    fireEvent.click(screen.getByLabelText('Filtro contenuti nelle immagini', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Disattivato' }))
+    fireEvent.click(screen.getByLabelText('Content filter nelle immagini', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: "Off" }))
     expect(onChange).toHaveBeenCalledWith({ webSearch: 'on', imageSafeMode: false })
-    fireEvent.click(screen.getByRole('button', { name: 'Ripristina impostazioni generali' })); expect(onChange).toHaveBeenLastCalledWith({})
+    fireEvent.click(screen.getByRole('button', { name: "Reset to general settings" })); expect(onChange).toHaveBeenLastCalledWith({})
   })
   it('saves valid named profiles without API calls and rejects permission flags', () => {
     render(<MantineProvider><VeniceProfiles /></MantineProvider>)
-    fireEvent.click(screen.getByRole('button', { name: 'I tuoi profili' })); fireEvent.click(screen.getByRole('button', { name: 'Opzioni avanzate del profilo' }));
-    fireEvent.change(screen.getByLabelText('Nome profilo'), { target: { value: 'Ricerca privata' } }); fireEvent.change(screen.getByLabelText('Opzioni del profilo JSON'), { target: { value: '{"webSearch":"on","imageSafeMode":false}' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Salva profilo' })); expect(state.save).toHaveBeenCalledWith({ venice: { profiles: [expect.objectContaining({ name: 'Ricerca privata', options: { webSearch: 'on', imageSafeMode: false } })] } })
-    state.save.mockClear(); fireEvent.change(screen.getByLabelText('Opzioni del profilo JSON'), { target: { value: '{"audioEnabled":true}' } }); fireEvent.click(screen.getByRole('button', { name: 'Salva profilo' })); expect(screen.getByRole('alert')).toBeTruthy(); expect(state.save).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: "Your profiles" })); fireEvent.click(screen.getByRole('button', { name: "Advanced profile options" }));
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: 'Ricerca privata' } }); fireEvent.change(screen.getByLabelText("Profile options JSON"), { target: { value: '{"webSearch":"on","imageSafeMode":false}' } })
+    fireEvent.click(screen.getByRole('button', { name: "Save profile" })); expect(state.save).toHaveBeenCalledWith({ venice: { profiles: [expect.objectContaining({ name: 'Ricerca privata', options: { webSearch: 'on', imageSafeMode: false } })] } })
+    state.save.mockClear(); fireEvent.change(screen.getByLabelText("Profile options JSON"), { target: { value: '{"audioEnabled":true}' } }); fireEvent.click(screen.getByRole('button', { name: "Save profile" })); expect(screen.getByRole('alert')).toBeTruthy(); expect(state.save).not.toHaveBeenCalled()
   })
 })

@@ -1,3 +1,4 @@
+import { forkEnglish, withForkTranslations } from './fork-resources'
 import ar from './locales/ar/translation.json'
 import de from './locales/de/translation.json'
 import en from './locales/en/translation.json'
@@ -14,23 +15,23 @@ import tr from './locales/tr/translation.json'
 import zhHans from './locales/zh-Hans/translation.json'
 import zhHant from './locales/zh-Hant/translation.json'
 
-export type TranslationKey = keyof typeof en
+export type TranslationKey = keyof (typeof en & typeof forkEnglish)
 export { type I18nLanguage, languageNameMap, languages, supportedLanguages } from './languages'
 
 export const translationResources = {
-  en: { translation: en },
-  'zh-Hans': { translation: zhHans },
-  'zh-Hant': { translation: zhHant },
-  ja: { translation: ja },
-  ko: { translation: ko },
-  ru: { translation: ru },
-  de: { translation: de },
-  fr: { translation: fr },
-  'pt-PT': { translation: ptPT },
-  es: { translation: es },
-  ar: { translation: ar },
-  'it-IT': { translation: itIT },
-  sv: { translation: sv },
-  'nb-NO': { translation: nbNO },
-  tr: { translation: tr },
+  en: { translation: withForkTranslations("en", en) },
+  'zh-Hans': { translation: withForkTranslations("zh-Hans", zhHans) },
+  'zh-Hant': { translation: withForkTranslations("zh-Hant", zhHant) },
+  ja: { translation: withForkTranslations("ja", ja) },
+  ko: { translation: withForkTranslations("ko", ko) },
+  ru: { translation: withForkTranslations("ru", ru) },
+  de: { translation: withForkTranslations("de", de) },
+  fr: { translation: withForkTranslations("fr", fr) },
+  'pt-PT': { translation: withForkTranslations("pt-PT", ptPT) },
+  es: { translation: withForkTranslations("es", es) },
+  ar: { translation: withForkTranslations("ar", ar) },
+  'it-IT': { translation: withForkTranslations("it-IT", itIT) },
+  sv: { translation: withForkTranslations("sv", sv) },
+  'nb-NO': { translation: withForkTranslations("nb-NO", nbNO) },
+  tr: { translation: withForkTranslations("tr", tr) },
 } as const

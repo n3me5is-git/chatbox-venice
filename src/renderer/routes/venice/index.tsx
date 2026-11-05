@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+import { forkT as ft } from '@/i18n/fork'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { ScrollArea, SegmentedControl, Stack } from '@mantine/core'
@@ -11,9 +13,10 @@ import { ImageCreatorPage } from '@/routes/image-creator/index'
 import type { MediaKind } from '@shared/providers/definitions/models/venice/media'
 export const Route = createFileRoute('/venice/')({ component: StudioRoute })
 function StudioRoute() {
+  useTranslation()
   const { providerSettings } = useProviderSettings('venice')
   const [pane, setPane] = useState('image')
-  return <Page title="Venice Studio"><Stack gap="sm" p="sm" mih={0}><VeniceBalance /><ScrollArea type="auto"><SegmentedControl aria-label="Tipo di creazione Venice" value={pane} onChange={setPane} data={[{ value: 'image', label: 'Immagini' }, { value: 'speech', label: 'Voce' }, { value: 'transcription', label: 'Trascrivi' }, { value: 'video', label: 'Video' }, { value: 'music', label: 'Musica e suoni' }]} /></ScrollArea>
+  return <Page title="Venice Studio"><Stack gap="sm" p="sm" mih={0}><VeniceBalance /><ScrollArea type="auto"><SegmentedControl aria-label={ft("Venice creation type")} value={pane} onChange={setPane} data={[{ value: 'image', label: ft("Images") }, { value: 'speech', label: ft("Voice") }, { value: 'transcription', label: ft("Transcribe") }, { value: 'video', label: 'Video' }, { value: 'music', label: ft("Music and sounds") }]} /></ScrollArea>
     {pane === 'image' ? <ImageCreatorPage onlyVenice embedded /> : <VeniceStudio key={pane} hideTabs initialKind={pane as MediaKind} service={veniceMediaService} options={providerSettings?.venice || {}} openSettings={() => navigateToSettings('/provider/venice')} />}
   </Stack></Page>
 }

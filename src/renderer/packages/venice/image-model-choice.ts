@@ -6,12 +6,12 @@ export function resolveRequestedVeniceImageModel(models: Pick<ImageModelOption, 
     const exactId = models.filter(model => normalize(model.modelId) === key)
     const candidates = exactId.length ? exactId : models.filter(model => normalize(model.displayName) === key)
     if (candidates.length === 1) return { modelId: candidates[0].modelId }
-    return { message: candidates.length ? 'Il nome corrisponde a più modelli: scegli quello desiderato.' : `Il modello “${requested}” non è nel catalogo disponibile. Scegli un modello prima di generare.` }
+    return { requiresChoice: true, message: candidates.length ? ("The name matches multiple models. Choose the one you want.") : "The requested model is not in the available catalog. Choose a model before generating." }
   }
   // The chat model can pass an explicit ID/name. This fallback recognizes only whole
   // catalog names in the prompt; it never guesses a provider from an approximate match.
   const words = (text: string) => text.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
   const haystack = ` ${words(prompt)} `
   const matches = models.filter(model => [model.modelId, model.displayName].some(name => words(name).length >= 5 && haystack.includes(` ${words(name)} `)))
-  return matches.length === 1 ? { modelId: matches[0].modelId } : { message: matches.length ? 'Sono menzionati più modelli: scegli quale usare.' : 'Scegli il modello e controlla le impostazioni della chiamata.' }
+  return matches.length === 1 ? { modelId: matches[0].modelId } : { requiresChoice: matches.length > 1, message: matches.length ? ("Multiple models are mentioned. Choose which one to use.") : ("Choose a model and review this call's settings.") }
 }

@@ -24,10 +24,10 @@ describe('Venice media lifecycle without live APIs', () => {
   it('merges live voice metadata and reads it locally without background requests', async () => {
     const s = setup(); let cache: import('./media').MediaCatalogCache | null = null
     s.store.readCatalog = async () => cache; s.store.writeCatalog = async value => { cache = value }
-    s.api.mockResolvedValueOnce(json({ data: [{ id: 'tts-live', type: 'tts', model_spec: { name: 'Voce naturale' } }, { id: 'video', type: 'video' }] }))
+    s.api.mockResolvedValueOnce(json({ data: [{ id: 'tts-live', type: 'tts', model_spec: { name: 'Voice naturale' } }, { id: 'video', type: 'video' }] }))
       .mockResolvedValueOnce(json({ data: [{ id: 'tts-live', type: 'tts', model_spec: { voices: ['Sara', 'Nicola'], default_voice: 'Sara', supported_formats: ['wav'] } }] }))
     const items = await s.service.catalog()
-    expect(items.find(item => item.id === 'tts-live')).toMatchObject({ model_spec: { name: 'Voce naturale', voices: ['Sara', 'Nicola'], default_voice: 'Sara' } })
+    expect(items.find(item => item.id === 'tts-live')).toMatchObject({ model_spec: { name: 'Voice naturale', voices: ['Sara', 'Nicola'], default_voice: 'Sara' } })
     expect(await s.service.cachedCatalog()).toEqual(items); expect(s.api).toHaveBeenCalledTimes(2)
     expect(JSON.stringify(cache)).not.toContain(s.config.apiKey)
     s.config.apiKey = 'different'; expect(await s.service.cachedCatalog()).toEqual([]); expect(s.api).toHaveBeenCalledTimes(2)

@@ -1,3 +1,4 @@
+import { forkT as ft } from '@/i18n/fork'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import NiceModal from '@ebay/nice-modal-react'
 import {
@@ -512,12 +513,12 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   )}
 
                   <Group justify="center" wrap="wrap">
-                    <Button size="xs" variant="default" onClick={() => { setPrompt(currentRecord.prompt); textareaRef.current?.focus() }}>Usa lo stesso prompt</Button>
+                    <Button size="xs" variant="default" onClick={() => { setPrompt(currentRecord.prompt); textareaRef.current?.focus() }}>{ft("Reuse prompt")}</Button>
                     {!!currentRecord.generatedImages.length && <Button size="xs" variant="light" onClick={() => {
                       const edit = imageModelGroups.filter(group => group.providerId === currentRecord.model.provider).flatMap(group => group.models.map(model => ({ group, model }))).find(({ model }) => !!model.capabilities?.inputReferences && (model.capabilities.inputReferences.max || 1) > 0)
-                      if (!edit) { toastActions.add('Seleziona o configura un modello che supporti la modifica delle immagini'); return }
+                      if (!edit) { toastActions.add(ft("Select or configure a model that supports image editing")); return }
                       handleModelSelect(edit.group.providerId, edit.model.modelId); setPrompt(currentRecord.prompt); void handleUseAsReference(currentRecord.generatedImages[0], currentRecord.id); textareaRef.current?.focus()
-                    }}>Remix / modifica immagine</Button>}
+                    }}>{ft("Remix / edit image")}</Button>}
                   </Group>
                   <PromptDisplay
                     prompt={currentRecord.prompt}
@@ -634,7 +635,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   {selectedProvider === ModelProviderEnum.Venice && <><VeniceBalance /><VeniceImageSettings /></>}
 
                   {/* Toolbar Row */}
-                  <Group justify="space-between" align="end" wrap="wrap"><NumberInput label="Immagini per richiesta" description="Ogni immagine può avere un costo" min={1} max={4} value={batchCount} onChange={value => setBatchCount(Math.min(4, Math.max(1, Number(value) || 1)))} w={170} />
+                  <Group justify="space-between" align="end" wrap="wrap"><NumberInput label="Immagini per richiesta" description={ft("Each image may incur a cost")} min={1} max={4} value={batchCount} onChange={value => setBatchCount(Math.min(4, Math.max(1, Number(value) || 1)))} w={170} />
                   {selectedProvider === 'venice' && <><VeniceModelBadges metadata={selectedOption?.vendorMetadata} /><VeniceModelInfo model={selectedOption ? { id: selectedModel, type: String(selectedOption.vendorMetadata?.veniceType || 'image'), model_spec: selectedOption.vendorMetadata } : undefined} /></>}</Group>
                   <InputToolbar
                     isSmallScreen={isSmallScreen}

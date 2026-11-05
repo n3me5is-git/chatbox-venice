@@ -36,28 +36,28 @@ export function validateMediaRequest(kind: MediaKind, body: Record<string, unkno
       if (body[key] !== undefined && s[flag] !== true) throw new Error(`Il modello ${model.id} non supporta ${key}. Apri la scheda del modello.`)
     }
     const d = musicDuration(model)
-    if (body.duration_seconds !== undefined) { const n = Number(body.duration_seconds); if (!d.supported || !Number.isFinite(n) || n < d.min || n > d.max || (d.choices.length && !d.choices.includes(n))) throw new Error('Durata non consentita dal modello. Apri la scheda del modello.') }
-    if (s.lyrics_required && !String(body.lyrics_prompt || '').trim() && body.lyrics_optimizer !== true) throw new Error('Questo modello richiede il testo della canzone.')
+    if (body.duration_seconds !== undefined) { const n = Number(body.duration_seconds); if (!d.supported || !Number.isFinite(n) || n < d.min || n > d.max || (d.choices.length && !d.choices.includes(n))) throw new Error("This duration is not supported. Open the model details.") }
+    if (s.lyrics_required && !String(body.lyrics_prompt || '').trim() && body.lyrics_optimizer !== true) throw new Error("This model requires lyrics.")
     if (s.lyrics_character_limit && String(body.lyrics_prompt || '').length > s.lyrics_character_limit) throw new Error(`Il testo della canzone supera ${s.lyrics_character_limit} caratteri.`)
-    if (body.lyrics_optimizer === true && body.lyrics_prompt) throw new Error('Scegli testo della canzone oppure creazione automatica del testo.')
+    if (body.lyrics_optimizer === true && body.lyrics_prompt) throw new Error("Choose either lyrics or automatic lyrics generation.")
   }
   if (kind === 'video') {
     const c = s.constraints || {}; const inputs = videoInputs(model)
     for (const [key, values] of [['duration', c.durations], ['aspect_ratio', c.aspect_ratios], ['resolution', c.resolutions]] as const) if (body[key] !== undefined && Array.isArray(values) && values.length && !values.includes(body[key])) throw new Error(`${key} non consentito dal modello. Apri la scheda del modello.`)
     for (const [key, supported] of [['image_url', inputs.start], ['end_image_url', inputs.end], ['reference_image_urls', inputs.references], ['video_url', inputs.video], ['audio', inputs.audio], ['reference_video_urls', inputs.referenceVideos], ['reference_audio_urls', inputs.referenceAudio], ['audio_url', inputs.audioInput]] as const) if (body[key] !== undefined && !supported) throw new Error(`Il modello non supporta ${key}. Scegli un modello compatibile.`)
-    if (inputs.start && !body.image_url) throw new Error('Questo modello richiede un’immagine iniziale.')
-    if (inputs.video && !inputs.references && !body.video_url) throw new Error('Questo modello richiede un video iniziale.')
-    if (inputs.end && !body.end_image_url) throw new Error('Questo modello richiede un’immagine finale.')
+    if (inputs.start && !body.image_url) throw new Error("This model requires a start image.")
+    if (inputs.video && !inputs.references && !body.video_url) throw new Error("This model requires a source video.")
+    if (inputs.end && !body.end_image_url) throw new Error("This model requires an end frame.")
   }
 }
 export function privacyLabels(metadata?: Record<string, unknown>) {
   if (!metadata) return []
   const labels: { label: string; description: string; icon: 'private' | 'anonymous' | 'encrypted' | 'filter' }[] = []
-  if (metadata.privacy === 'private') labels.push({ label: 'Privato', description: 'Elaborazione privata dichiarata da Venice. Non significa E2EE.', icon: 'private' })
-  if (metadata.privacy === 'anonymized' || metadata.privacy === 'anonymous') labels.push({ label: 'Anonimizzato', description: 'Venice protegge l’identità; il fornitore del modello può elaborare i contenuti.', icon: 'anonymous' })
+  if (metadata.privacy === 'private') labels.push({ label: "Private", description: "Private processing declared by Venice. This does not mean E2EE.", icon: 'private' })
+  if (metadata.privacy === 'anonymized' || metadata.privacy === 'anonymous') labels.push({ label: "Anonymized", description: "Venice protects your identity; the model provider may process the content.", icon: 'anonymous' })
   const caps = metadata.capabilities as Record<string, unknown> | undefined
-  if (caps?.supportsE2EE === true || metadata.privacy === 'e2ee') labels.push({ label: 'E2EE non attivo', description: 'Il modello dichiara supporto E2EE; questo client non lo implementa. La richiesta ordinaria usa HTTPS.', icon: 'encrypted' })
+  if (caps?.supportsE2EE === true || metadata.privacy === 'e2ee') labels.push({ label: "E2EE not active", description: "The model advertises E2EE support; this client does not implement it. Standard requests use HTTPS.", icon: 'encrypted' })
   const sets = [...(Array.isArray(metadata.model_sets) ? metadata.model_sets : []), ...(Array.isArray(metadata.traits) ? metadata.traits : [])]
-  if (typeof metadata.uncensored === 'boolean' || sets.includes('uncensored')) labels.push({ label: metadata.uncensored === false ? 'Con filtri' : 'Uncensored', description: 'Indicazione pubblicata nel catalogo Venice; non modifica la moderazione della richiesta.', icon: 'filter' })
+  if (typeof metadata.uncensored === 'boolean' || sets.includes('uncensored')) labels.push({ label: metadata.uncensored === false ? "Filtered" : 'Uncensored', description: "Information from the Venice catalog; it does not change request moderation.", icon: 'filter' })
   return labels
 }

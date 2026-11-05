@@ -1,3 +1,4 @@
+import { forkT as ft } from '@/i18n/fork'
 import { Flex, Select, Text, UnstyledButton } from '@mantine/core'
 import type { Settings } from '@shared/types'
 import { IconCheck, IconX } from '@tabler/icons-react'
@@ -108,7 +109,7 @@ export function RouteComponent() {
             />
           )}
         />
-        {provider === 'venice' && <SettingRow id="venice-search" label="Motore tramite Venice" description="Usa la chiave configurata nel provider Venice. Le ricerche passano da Venice e possono avere un costo." control={<Select allowDeselect={false} value={webSearch.veniceSearchProvider || 'brave'} data={['brave', 'google', 'exa'].map(value => ({ value, label: value === 'exa' ? 'Exa' : value === 'brave' ? 'Brave' : 'Google' }))} onChange={value => value && updateWebSearch({ veniceSearchProvider: value as 'brave' | 'google' | 'exa' })} />} />}
+        {provider === 'venice' && <SettingRow id="venice-search" label="Motore tramite Venice" description={ft("Uses your Venice provider key. Searches go through Venice and may incur a cost.")} control={<Select allowDeselect={false} value={webSearch.veniceSearchProvider || 'brave'} data={['brave', 'google', 'exa'].map(value => ({ value, label: value === 'exa' ? 'Exa' : value === 'brave' ? 'Brave' : 'Google' }))} onChange={value => value && updateWebSearch({ veniceSearchProvider: value as 'brave' | 'google' | 'exa' })} />} />}
         {provider === 'searxng' && (
           <CheckedFieldRow
             key="searxng"

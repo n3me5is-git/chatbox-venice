@@ -1,3 +1,4 @@
+import {withForkTranslations} from './fork-resources'
 import { languageNameMap } from './languages'
 import en from './locales/en/translation.json'
 import zhHans from './locales/zh-Hans/translation.json'
@@ -24,6 +25,6 @@ export const mobileTranslationOverlays = {
 } as const
 
 export const mobileTranslationResources = {
-  en: { translation: { ...en, ...mobileTranslationOverlays.en } },
-  'zh-Hans': { translation: { ...zhHans, ...mobileTranslationOverlays['zh-Hans'] } },
+  en: { translation: withForkTranslations('en',{ ...en, ...mobileTranslationOverlays.en }) },
+  'zh-Hans': { translation: withForkTranslations('zh-Hans',{ ...zhHans, ...mobileTranslationOverlays['zh-Hans'] }) },
 } as const
