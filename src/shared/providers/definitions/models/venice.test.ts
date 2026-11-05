@@ -1,3 +1,4 @@
+import { embed } from 'ai'
 import type { LanguageModelV4 } from '@ai-sdk/provider'
 import type { ModelDependencies } from '@shared/types/adapters'
 import { describe, expect, it, vi } from 'vitest'
@@ -142,7 +143,7 @@ it('uses Venice embeddings directly through the same SDK adapter used by RAG', a
   class EmbeddingVenice extends Venice { embedding() { return this.getTextEmbeddingModel({})! } }
   const api = vi.fn().mockResolvedValue(json({ data: [{ object: 'embedding', embedding: [0.1, 0.2], index: 0 }], model: 'qwen-embedding', usage: { prompt_tokens: 2, total_tokens: 2 } }))
   const model = new EmbeddingVenice({ apiKey: 'test', apiHost: 'https://api.venice.ai/api/v1', model: { modelId: 'qwen-embedding', type: 'embedding' } }, dependencies(api))
-  const result = await model.embedding().doEmbed({ values: ['test document'] })
-  expect(result.embeddings).toEqual([[0.1, 0.2]])
+  const result = await embed({ model: model.embedding(), value: 'test document' })
+  expect(result.embedding).toEqual([0.1, 0.2])
   expect(api.mock.calls[0][0]).toMatchObject({ url: 'https://api.venice.ai/api/v1/embeddings', useProxy: false })
 })

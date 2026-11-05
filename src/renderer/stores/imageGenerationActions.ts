@@ -1,3 +1,4 @@
+import { mergeExtraBody, parseExtraBody } from '@shared/models/utils/extra-body'
 import {
   type GenerateImageParams,
   type ImageGenerationHandle,
@@ -51,7 +52,7 @@ export function getImageGenerationService(): ImageGenerationService {
           const row = rows.find(row => row.modelId === model.modelId)
           const saved = provider.models?.find(row => row.modelId === model.modelId)
           if (!row) throw new Error('Modello immagine Venice non disponibile nel catalogo corrente')
-          settings = { ...settings, providers: { ...settings.providers, venice: { ...provider, models: [...(provider.models || []).filter(row => row.modelId !== model.modelId), { modelId: model.modelId, type: 'image', ...saved, vendorMetadata: row.vendorMetadata }] } } }
+          settings = { ...settings, providers: { ...settings.providers, venice: { ...provider, models: [...(provider.models || []).filter(row => row.modelId !== model.modelId), { modelId: model.modelId, type: 'image', ...saved, extraBody: mergeExtraBody(saved?.extraBody || {}, parseExtraBody(JSON.stringify(model.extraBody || {})) || {}), vendorMetadata: row.vendorMetadata }] } } }
         }
         return getModel(
           { provider: model.provider, modelId: model.modelId },

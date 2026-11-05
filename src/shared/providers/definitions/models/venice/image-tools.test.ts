@@ -4,7 +4,7 @@ import type { VeniceOptions } from './options'
 function setup() {
   const host = { models: vi.fn(async () => [{ modelId: 'model', name: 'Model' }, { modelId: 'user-choice', name: 'Chosen model' }]), previous: vi.fn(async (): Promise<unknown | null> => null), status: vi.fn(async () => ({ status: 'done' })), generate: vi.fn(async () => ({ recordId: 'saved' })), choose: vi.fn(async (): Promise<import('./image-tools').ImageChoice | null> => ({ modelId: 'user-choice', prompt: 'edited by user', count: 2, aspectRatio: '1:1', referenceImages: [] })) }
   const options: VeniceOptions = {}; const tools = buildVeniceImageTools(host, () => options)
-  const call = (input: unknown, signal?: AbortSignal) => (tools.venice_image.execute as (input: unknown, context: { toolCallId: string; messages: never[]; abortSignal?: AbortSignal }) => Promise<unknown>)(input, { toolCallId: 'call', messages: [], abortSignal: signal })
+  const call = (input: unknown, signal?: AbortSignal) => (tools.venice_image.execute as unknown as (input: unknown, context: { toolCallId: string; messages: never[]; abortSignal?: AbortSignal }) => Promise<unknown>)(input, { toolCallId: 'call', messages: [], abortSignal: signal })
   return { host, options, call }
 }
 describe('Venice native image tools', () => {

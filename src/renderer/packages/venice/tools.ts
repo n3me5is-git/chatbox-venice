@@ -3,6 +3,7 @@ import { buildVeniceMediaTools } from '@shared/providers/definitions/models/veni
 import { buildVeniceImageTools } from '@shared/providers/definitions/models/venice/image-tools'
 import { internalVeniceMCP } from '@shared/providers/definitions/models/venice/internal-mcp'
 import { ModelProviderEnum } from '@shared/types'
+import { resolveRequestedVeniceImageModel } from './image-model-choice'
 import { veniceConfiguration, veniceMediaService } from './service'
 import { providerImageModelsQueryOptions } from '@/packages/image-model-catalog'
 import { queryClient } from '@/stores/queryClient'
@@ -25,14 +26,21 @@ export function veniceChatTools(sessionId: string) {
   }
   const imageTools = buildVeniceImageTools({
     models: async () => (await images()).map(row => ({ modelId: row.modelId, name: row.displayName, capabilities: row.capabilities, metadata: row.vendorMetadata })),
-    choose: async (request, signal) => NiceModal.show(VeniceImageApproval, { models: await images(), request, signal }),
+    choose: async (request, signal) => {
+      const before = veniceConfiguration(); const models = await images()
+      const resolved = resolveRequestedVeniceImageModel(models, request.modelId, request.prompt)
+      const choice = await NiceModal.show(VeniceImageApproval, { models, request: { ...request, modelId: resolved.modelId, message: resolved.message }, signal })
+      const current = veniceConfiguration()
+      if (before.apiKey !== current.apiKey || before.apiHost !== current.apiHost) throw new Error('Le credenziali Venice sono cambiate. Conferma nuovamente la richiesta.')
+      return choice
+    },
     previous: saved,
     status: async id => { const record = await getImageGenerationService().getRecord(id); if (!record || record.source?.sessionId !== sessionId) throw new Error('Immagine non trovata in questa chat'); return { recordId: record.id, status: record.status, count: record.generatedImages.length, error: record.error } },
     generate: async (choice, toolCallId) => {
       const key = `${sessionId}:${toolCallId}`; const active = inFlight.get(key); if (active) return active
       const work = (async () => {
         const prior = await saved(toolCallId); if (prior) return prior
-        const handle = await startImageGeneration({ prompt: choice.prompt, model: { provider: 'venice', modelId: choice.modelId }, imageGenerateNum: choice.count, aspectRatio: choice.aspectRatio, referenceImages: choice.referenceImages, source: { type: 'chatbox_cli', sessionId, toolCallId } }, { onRecordCreated: record => platform.setStoreValue(`venice:image-call:${sessionId}:${toolCallId}`, record.id) })
+        const handle = await startImageGeneration({ prompt: choice.prompt, model: { provider: 'venice', modelId: choice.modelId, ...(choice.extraBody ? { extraBody: choice.extraBody } : {}) }, imageGenerateNum: choice.count, aspectRatio: choice.aspectRatio, referenceImages: choice.referenceImages, source: { type: 'chatbox_cli', sessionId, toolCallId } }, { onRecordCreated: record => platform.setStoreValue(`venice:image-call:${sessionId}:${toolCallId}`, record.id) })
         void handle.completion.then(record => { if (record) queueImageTaskCompletion(record, { sessionId, toolCallId }, handle.startedAt) }).catch(error => queueImageTaskCompletionError(handle.recordId, handle.startedAt, { sessionId, toolCallId }, error))
         return saved(toolCallId)
       })()

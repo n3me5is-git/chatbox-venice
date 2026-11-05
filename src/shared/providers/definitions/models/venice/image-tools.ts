@@ -1,7 +1,7 @@
 import type { ToolSet } from 'ai'
 import { validatedToolSchema } from '../../../../validated-tool-schema'
 import type { VeniceOptions } from './options'
-export interface ImageChoice { modelId: string; prompt: string; count: number; aspectRatio: string; referenceImages: string[] }
+export interface ImageChoice { modelId: string; prompt: string; count: number; aspectRatio: string; referenceImages: string[]; extraBody?: Record<string, unknown> }
 export interface VeniceImageToolHost {
   models(): Promise<{ modelId: string; name: string; capabilities?: unknown; metadata?: unknown }[]>;
   choose(request: { modelId?: string; prompt: string; count: number }, signal?: AbortSignal): Promise<ImageChoice | null>;
@@ -11,7 +11,7 @@ export interface VeniceImageToolHost {
 }
 export function buildVeniceImageTools(host: VeniceImageToolHost, settings: () => VeniceOptions): ToolSet {
   return { venice_image: {
-    description: 'Generate or edit images directly through Venice. Use models to inspect the live catalog. Generate always opens a user dialog to choose the model, references, batch count and approve the paid request. Never bypass that choice. Results are saved locally in Image Creator and Venice Studio. Reuse status to inspect a record; never repeat paid generation to poll.',
+    description: 'Generate or edit images directly through Venice. Use models to inspect the live catalog. If the user names a model (for example GPT Flare), resolve that exact catalog name or ID and pass model; do not choose a different model. Ambiguous or missing names are resolved by the user dialog. Generate always opens a user dialog to choose the model, references, batch count and approve the paid request. Never bypass that choice. Results are saved locally in Image Creator and Venice Studio. Reuse status to inspect a record; never repeat paid generation to poll.',
     inputSchema: validatedToolSchema({ type: 'object', properties: { action: { type: 'string', enum: ['models', 'generate', 'status'] }, model: { type: 'string' }, prompt: { type: 'string' }, count: { type: 'integer', minimum: 1, maximum: 4 }, id: { type: 'string' } }, required: ['action'], additionalProperties: false }),
     execute: async (raw, context) => {
       const input = raw as { action: string; model?: string; prompt?: string; count?: number; id?: string }

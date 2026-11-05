@@ -3,6 +3,7 @@ import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { VeniceRecorder } from './VeniceRecorder'
+Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 it('records locally, stops the microphone and waits for a separate transcription action', async () => {
   const stop = vi.fn(); const onRecorded = vi.fn()

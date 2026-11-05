@@ -16,6 +16,7 @@ export interface ImageModelCapabilities {
 export const ImageGenerationModelSchema = z.object({
   provider: z.string(),
   modelId: z.string(),
+  extraBody: z.record(z.string(), z.unknown()).optional(),
 })
 export type ImageGenerationModel = z.infer<typeof ImageGenerationModelSchema>
 
