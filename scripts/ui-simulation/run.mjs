@@ -76,7 +76,14 @@ try {
   await click(byLabel('Filtro contenuti')); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === 'Disattivato')`)
   await click(byText('Parametri della singola chiamata')); await fill('Seed per questa generazione', '42')
   await writeFile(path.join(output, 'image-hitl-mobile.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
-  await click(byText('Conferma e genera')); await wait(() => evaluate('!!window.__simulationImageChoice'), 'HITL did not return the approved request')
+  await evaluate(`window.__hitlEvents=[]; ['pointerdown','pointerup','click'].forEach(type => document.addEventListener(type, e => window.__hitlEvents.push({type,text:e.target.textContent?.slice(0,100),tag:e.target.tagName,x:e.clientX,y:e.clientY}),true))`)
+  await click(byText('Conferma e genera'))
+  try { await wait(() => evaluate('!!window.__simulationImageChoice'), 'HITL did not return the approved request') }
+  catch (error) {
+    await writeFile(path.join(output, 'image-hitl-failure.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
+    const diagnostic = await evaluate(`({events:window.__hitlEvents,body:document.body.innerText,active:document.activeElement?.outerHTML,buttons:[...document.querySelectorAll('button')].filter(e=>e.textContent.includes('Conferma')).map(e=>({html:e.outerHTML,rect:e.getBoundingClientRect().toJSON()}))})`)
+    await writeFile(path.join(output, 'image-hitl-diagnostic.json'), JSON.stringify(diagnostic,null,2)); throw new Error(error.message + ': ' + JSON.stringify(diagnostic))
+  }
   assert.equal(await evaluate('window.__simulationImageChoice.modelId'), 'gpt-flare-image'); assert.equal(await evaluate('window.__simulationImageChoice.extraBody.seed'), 42); assert.equal(await evaluate('window.__simulationImageChoice.extraBody.safe_mode'), false)
   assert.equal(await evaluate('window.__simulationRequestCount'), 4, 'The HITL fixture must not call paid APIs')
   assert.deepEqual(exceptions, [], 'Browser exceptions')
