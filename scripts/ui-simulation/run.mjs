@@ -97,7 +97,7 @@ try {
   await evaluate("window.__simulationSetLanguage('it-IT')"); await wait(()=>evaluate("document.body.textContent.includes('Azzera le approvazioni di questa chat')"),'Live Italian translation did not appear')
   await evaluate("window.__simulationSetLanguage('en')"); await click(byText('Reset approvals for this chat')); await click(byText('Test image selection'))
   await wait(()=>evaluate("document.body.textContent.includes('Choose and confirm images')"),'Reset did not restore human approval')
-  assert.equal(await evaluate(`(${byLabel('Venice image model')}).value`),''); await click(byText('Cancel'))
+  await wait(()=>evaluate(`(${byLabel('Venice image model')}).value === ''`),'Reset did not clear the previous image model'); assert.equal(await evaluate(`(${byText('Confirm and generate')}).disabled`),true); await click(byText('Cancel'))
   assert.equal(await evaluate('window.__simulationRequestCount'), 4, 'The HITL fixture must not call paid APIs')
   assert.deepEqual(exceptions, [], 'Browser exceptions')
   const external = requests.filter(url => !/^(http:\/\/127\.0\.0\.1:4174\/|data:|blob:)/.test(url))
