@@ -9,6 +9,7 @@ function fixture(){
 }
 const info={name:'Private title',mime:'audio/wav',kind:'audio' as const,prompt:'Sensitive prompt'}
 describe('authenticated media stored in bounded encrypted chunks',()=>{
+ it('does not publish a download after its protection key has been locked',async()=>{const f=fixture();f.keys.set('private',await aesKey(crypto.getRandomValues(new Uint8Array(32))));async function* source(){yield new Uint8Array([1,2,3]);f.keys.delete('private')}await expect(f.store.put(source(),info,'private','saved')).rejects.toBeInstanceOf(VaultLockedError);expect(f.headers.size).toBe(0);expect(f.values.size).toBe(0)})
  it('writes ciphertext before requesting the next chunk, authenticates sizes, and reconstructs the original data',async()=>{
   const f=fixture();f.keys.set('public',await aesKey(crypto.getRandomValues(new Uint8Array(32))))
   async function* source(){yield new Uint8Array(1024*1024).fill(7);expect(f.values.size).toBe(1);yield new Uint8Array(1024*1024).fill(8);expect(f.values.size).toBe(2);yield new Uint8Array(17).fill(9)}

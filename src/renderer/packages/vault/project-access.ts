@@ -10,7 +10,18 @@ const POLICY='project-access-v1'
 export class ProjectAccess {
   private cached:Promise<Policies>|undefined
   private appEnabled:Promise<boolean>|undefined
-  constructor(readonly settings:KeySettings,readonly keys:VaultKeys,readonly metadata:SessionMetaRepositoryPort,private readonly readValue:(key:string)=>Promise<unknown>){keys.subscribe(()=>{this.cached=undefined;this.appEnabled=undefined})}
+  private libraryEpoch=0
+  private libraryCache:Promise<Set<string>>|undefined
+  constructor(readonly settings:KeySettings,readonly keys:VaultKeys,readonly metadata:SessionMetaRepositoryPort,private readonly readValue:(key:string)=>Promise<unknown>,private readonly library?:{scan:(folders:ReadonlySet<string>)=>Promise<Set<string>>;beforeProtect?:(folder:string,scope:string)=>Promise<void>}){keys.subscribe(()=>{this.cached=undefined;this.appEnabled=undefined;this.invalidateLibrary()})}
+  invalidateLibrary(){this.libraryEpoch++;this.libraryCache=undefined}
+  /** Library discovery has no selected chat context. Hide references owned by locked projects. */
+  async assertLibraryKey(alias?:string):Promise<void>{await this.assertApp();if(!alias||!this.library)return
+    const epoch=this.libraryEpoch
+    const blocked=await(this.libraryCache ||= (async()=>{const folders=new Set<string>();for(const [folder,policy] of Object.entries(await this.policies()))if(!this.keys.isUnlocked(policy.scope))folders.add(folder);return folders.size?this.library!.scan(folders):new Set<string>()})())
+    if(epoch!==this.libraryEpoch)return this.assertLibraryKey(alias)
+    if(blocked.has(alias)||blocked.has(alias.replace(/:/g,'')))throw new VaultLockedError('project')
+  }
+  async libraryKeyVisible(alias?:string){try{await this.assertLibraryKey(alias);return true}catch(error){if(error instanceof VaultLockedError)return false;throw error}}
   async isApplicationLocked(){const enabled=await(this.appEnabled ||=this.settings.getSetting<boolean>('app-lock-enabled').then(value=>value===true));return enabled&&!this.keys.isUnlocked('app')}
   async assertApp(){if(await this.isApplicationLocked())throw new VaultLockedError('app')}
   policies(){return this.cached ||= this.settings.getSetting<Policies>(POLICY).then(value=>value||{})}
@@ -23,6 +34,7 @@ export class ProjectAccess {
     let policy:Policy|undefined
     if(mode==='app'){await this.keys.key('app');policy={mode,scope:'app'}}
     if(mode==='pin'){const scope='project:'+folderId;const status=await this.keys.status(scope);if(pin)await this.keys.configure(scope,{pin,biometric:false});else if(status.configured)await this.keys.key(scope);else throw new Error('Enter a dedicated project PIN');policy={mode,scope}}
+    if(policy)await this.library?.beforeProtect?.(folderId,policy.scope)
     const next={...await this.policies()};if(policy)next[folderId]=policy;else delete next[folderId];await this.settings.setSetting(POLICY,next);this.cached=undefined;this.keys.refresh()
   }
   async redact(meta:SessionMetaRecord){const scope=await this.folderScope(meta.folderId);if(!await this.isApplicationLocked()&&(!scope||this.keys.isUnlocked(scope)))return meta
@@ -38,6 +50,7 @@ export class ProjectAccess {
         if(method==='delete'||method==='deleteMany')for(const id of method==='delete'?[args[0]]:args[0])await access.assertSession(id)
         if(method==='clear')for(const id of Object.keys(await access.policies()))await access.assertFolder(id)
         const result=await original.apply(target,args)
+        if(!/^(get|read|list|find|iterate|initialize)/.test(method))access.invalidateLibrary()
         if(method==='getById')return result?access.redact(result):null
         if(['getAll','getAllIncludingHidden','getArchived'].includes(method))return Promise.all(result.map((meta:SessionMetaRecord)=>access.redact(meta)))
         if(['getPage','getArchivedPage'].includes(method))return {...result,items:await Promise.all(result.items.map((meta:SessionMetaRecord)=>access.redact(meta)))}
@@ -49,7 +62,7 @@ export class ProjectAccess {
     const access=this
     const identity=(value:any):string|undefined=>typeof value==='string'?value:value?.sessionId||value?.identity?.sessionId||value?.source?.sessionId||value?.rows?.sessionId||value?.record?.id||value?.id
     const guard=async(args:any[])=>{const first=args[0];for(const value of Array.isArray(first)?first:[first]){const id=identity(value);if(!id)throw new Error('Cannot determine the project access boundary for this operation');await access.assertSession(id);await access.assertFolder(value?.folderId||value?.record?.folderId)}}
-    const writer=(value:any,sessionId:string)=>new Proxy(value,{get(target,key){const original=Reflect.get(target,key);if(typeof original!=='function')return original;return async(...args:any[])=>{if(key!=='dispose')await access.assertSession(sessionId);return original.apply(target,args)}}})
+    const writer=(value:any,sessionId:string)=>new Proxy(value,{get(target,key){const original=Reflect.get(target,key);if(typeof original!=='function')return original;return async(...args:any[])=>{if(key!=='dispose')await access.assertSession(sessionId);try{return await original.apply(target,args)}finally{access.invalidateLibrary()}}}})
     return new Proxy(backend,{get(target,key){const original=Reflect.get(target,key);if(typeof original!=='function')return original;const method=String(key)
       if(method==='initialize')return original.bind(target)
       if(method==='iterateRows')return async function*(request:any){await access.assertSession(request.sessionId);for await(const row of original.call(target,request)){await access.assertSession(request.sessionId);yield row}}
@@ -60,6 +73,7 @@ export class ProjectAccess {
           return original.apply(target,args)
         }
         await guard(args);const result=await original.apply(target,args);await guard(args)
+        if(!/^(get|read|list|find|iterate|initialize)/.test(method))access.invalidateLibrary()
         if(method==='stageRows'||method==='stageImportRows')return writer(result,identity(args[0])!)
         return result
       }

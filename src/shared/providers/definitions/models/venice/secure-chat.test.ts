@@ -2,10 +2,11 @@ const concat = (parts: ArrayLike<number>[]) => Buffer.concat(parts.map(part => U
 import { describe, expect, it, vi } from 'vitest'
 import { secp256k1 } from '@noble/curves/secp256k1'
 import { keccak_256 } from '@noble/hashes/sha3'
+import { sha256 } from '@noble/hashes/sha256'
 import { bytesToHex, decryptChunk, deriveSigningAddressFromKey, encryptMessage, generateEphemeralKeyPair } from './crypto'
 import { encryptConversation, secureVeniceChat } from './secure-chat'
 const json=(data:unknown)=>new Response(JSON.stringify(data),{headers:{'content-type':'application/json'}})
-function fixture(options: {badNonce?:boolean;badSignature?:boolean;plaintext?:boolean}={}) {
+function fixture(options: {badNonce?:boolean;badSignature?:boolean;plaintext?:boolean;plainSignature?:boolean;wrongRequest?:boolean}={}) {
  const enclave=generateEphemeralKeyPair(); const address=deriveSigningAddressFromKey(enclave.publicKeyHex)!
  const decrypted:string[]=[]; let sent=''
  const api=vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>{
@@ -19,7 +20,7 @@ function fixture(options: {badNonce?:boolean;badSignature?:boolean;plaintext?:bo
    const client=new Headers(init?.headers).get('X-Venice-TEE-Client-Pub-Key')!
    return json({id:'reply-1',model:'secure-model',created:1,choices:[{index:0,message:{role:'assistant',content:options.plaintext?'Unencrypted':encryptMessage('Encrypted reply',client)},finish_reason:'stop'}]})
   }
-  const text=options.badSignature?'Different reply':'Encrypted reply';const bytes=new TextEncoder().encode(text);const prefix=new TextEncoder().encode(`\x19Ethereum Signed Message:\n${bytes.length}`)
+  const hash=(text:string)=>bytesToHex(sha256(new TextEncoder().encode(text)));const text=options.plainSignature?'Encrypted reply':hash(options.wrongRequest?'Another request':sent)+':'+hash(options.badSignature?'Different reply':'Encrypted reply');const bytes=new TextEncoder().encode(text);const prefix=new TextEncoder().encode(`\x19Ethereum Signed Message:\n${bytes.length}`)
   const signature=secp256k1.sign(keccak_256(Uint8Array.from(concat([prefix,bytes]))),enclave.privateKey)
   return json({model:'secure-model',request_id:'reply-1',text,signature:'0x'+bytesToHex(signature.toBytes('compact'))+(27+signature.recovery).toString(16)})
  })
@@ -33,7 +34,7 @@ describe('Venice encrypted text transport (simulated enclave)',()=>{
   expect(JSON.parse(f.sent()).venice_parameters).toMatchObject({enable_e2ee:true,enable_web_search:'off',include_venice_system_prompt:false})
   expect(await result.text()).toContain('Encrypted reply');expect(f.api).toHaveBeenCalledTimes(3)
  })
- it.each([{badNonce:true},{badSignature:true},{plaintext:true}])('fails closed without plaintext or billable retries: %j',async options=>{
+ it.each([{badNonce:true},{badSignature:true},{plaintext:true},{plainSignature:true},{wrongRequest:true}])('fails closed without plaintext or billable retries: %j',async options=>{
   const f=fixture(options);await expect(secureVeniceChat(f.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{},body,'e2ee')).rejects.toThrow()
   expect(f.api.mock.calls.filter(([url])=>String(url).endsWith('/chat/completions')).length).toBe(options.badNonce?0:1)
  })

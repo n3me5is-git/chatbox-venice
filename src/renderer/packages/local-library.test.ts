@@ -6,6 +6,7 @@ vi.mock('@/adapters/CurrentBlobStorage',()=>({currentBlobStorage:{get:mocks.get}
 vi.mock('@/packages/venice/service',()=>({veniceMediaService:{list:mocks.list}}))
 import { acceptsLocalFile,localLibraryFile,localLibraryPage } from './local-library'
 describe('local library reads selected content only',()=>{
+ it('keeps protected image sessions and audio out of the public legacy tabs even while unlocked',async()=>{mocks.getPage.mockResolvedValue({items:[{id:'secret',prompt:'Private',protection:'app',generatedImages:['private-key']},{id:'ordinary',prompt:'Public',generatedImages:['public-key']}],nextCursor:null});expect((await localLibraryPage('image')).items.map(item=>item.key)).toEqual(['public-key']);mocks.list.mockResolvedValue([{id:'secret',kind:'speech',prompt:'Private',protection:'app',status:'ready',blobKey:'private-audio'},{id:'ordinary',kind:'speech',prompt:'Public',status:'ready',blobKey:'public-audio'}]);expect((await localLibraryPage('audio')).items.map(item=>item.key)).toEqual(['public-audio'])})
  it('lists an image page without reading image bytes',async()=>{
   mocks.get.mockClear();mocks.getPage.mockResolvedValue({items:[{id:'one',prompt:'Sunset',generatedImages:['saved-key'],generatedImageThumbnails:['thumb-key']}],nextCursor:20})
   const page=await localLibraryPage('image');expect(page.items[0]).toMatchObject({key:'saved-key',thumbnail:'thumb-key'});expect(page.next).toBe(20);expect(mocks.get).not.toHaveBeenCalled()

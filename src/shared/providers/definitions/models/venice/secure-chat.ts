@@ -55,7 +55,7 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     if (!response.ok) throw new Error(`Venice secure chat failed (HTTP ${response.status}); no plaintext retry was attempted`)
     const raw = await boundedText(response)
     const streaming = (response.headers.get('content-type') || '').includes('text/event-stream')
-    let completionId = ''; let plain = ''
+    let completionId = ''; let plain = '';let encryptedContent=''
     const decode = (frame: Body) => {
       if (typeof frame.id === 'string') completionId ||= frame.id
       for (const choice of frame.choices || []) {
@@ -63,7 +63,7 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
         if (!message) continue
         if (pair && (message.tool_calls?.length || message.function_call || message.reasoning_content || message.refusal)) throw new Error('The E2EE response contained an unsupported unencrypted field')
         if (typeof message.content === 'string' && message.content) {
-          if (pair) { if (!isHexEncrypted(message.content)) throw new Error('The E2EE response was not encrypted'); message.content = decryptChunk(message.content, pair.privateKey) }
+          if (pair) { if (!isHexEncrypted(message.content)) throw new Error('The E2EE response was not encrypted');encryptedContent+=message.content; message.content = decryptChunk(message.content, pair.privateKey) }
           plain += message.content
         }
       }
@@ -81,10 +81,14 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     const signature = await get(`/tee/signature?model=${encodeURIComponent(body.model)}&request_id=${encodeURIComponent(completionId)}`)
     if (signature.model && signature.model !== body.model || signature.request_id && signature.request_id !== completionId || signature.requested_request_id && signature.requested_request_id !== completionId) throw new Error('TEE signature belongs to another request or model')
     const signatureHex = typeof signature.signature === 'string' ? signature.signature : signature.signature?.value
-    if (typeof signature.text !== 'string' || typeof signatureHex !== 'string') throw new Error('TEE response signature was not available; unverified output was withheld')
-    const direct = verifySignature({ signedText: signature.text, signatureHex, expectedSigningAddress: signingAddress, expectedContent: plain })
-    const hashed = verifySignature({ signedText: signature.text, signatureHex, expectedSigningAddress: signingAddress, expectedRequest: sent, expectedContent: raw })
-    if (!direct.verified && !hashed.verified) throw new Error('TEE response signature did not match the attested key and received content')
+    const payload=signature.payload;const pairText=typeof payload?.request_hash==='string'&&typeof payload?.response_hash==='string'?`${payload.request_hash}:${payload.response_hash}`:undefined
+    const signedText=signature.text??pairText
+    if (typeof signedText !== 'string' || typeof signatureHex !== 'string'||pairText&&pairText!==signedText) throw new Error('TEE response signature was not available or consistent; unverified output was withheld')
+    // E2EE signatures must bind the exact encrypted request, including its fresh
+    // ciphertext. Only hashes are accepted as its signature payload.
+    const direct = mode==='tee'&&verifySignature({ signedText, signatureHex, expectedSigningAddress: signingAddress, expectedContent: plain }).verified
+    const hashed = [raw,plain,...(pair?[encryptedContent]:[])].some(content=>verifySignature({ signedText, signatureHex, expectedSigningAddress: signingAddress, expectedRequest: sent, expectedContent: content }).verified)
+    if (!direct && !hashed) throw new Error('TEE response signature did not bind the attested key, exact request and received content')
     // Release output only after verification. This intentionally buffers secure streams on device.
     const outHeaders = new Headers(response.headers); outHeaders.delete('content-length'); outHeaders.delete('content-encoding')
     return new Response(output, { status: response.status, statusText: response.statusText, headers: outHeaders })

@@ -1,13 +1,15 @@
-import { useAtom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
-import { useState } from 'react'
+import { atom,useAtom } from 'jotai'
+import { atomFamily,atomWithStorage } from 'jotai/utils'
+import { useEffect,useState } from 'react'
 
 const MAX_HISTORY_LENGTH = 20
-const inputBoxHistoryAtom = atomWithStorage<string[]>('input-box-history', [])
+export const inputBoxHistoryAtom = atomWithStorage<string[]>('input-box-history', [])
+export const privateInputBoxHistoryFamily=atomFamily((_scope:string)=>atom<string[]>([]))
 
-const useInputBoxHistory = () => {
+const useInputBoxHistory = (privacyScope?:string|null) => {
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(-1)
-  const [inputBoxHistory, setInputBoxHistory] = useAtom(inputBoxHistoryAtom)
+  const [inputBoxHistory, setInputBoxHistory] = useAtom(privacyScope?privateInputBoxHistoryFamily(privacyScope):inputBoxHistoryAtom)
+  useEffect(()=>setCurrentHistoryIndex(-1),[privacyScope])
 
   const addInputBoxHistory = (input: string) => {
     setInputBoxHistory([input, ...inputBoxHistory.filter((h) => h !== input)].slice(0, MAX_HISTORY_LENGTH))

@@ -607,7 +607,7 @@ export class ImageGenerationService {
         await this.options.storage.delete(id)
         this.unpersistedTasks.delete(id)
         this.emit({ type: 'deleted', id })
-        for (const key of [...record.referenceImages, ...record.generatedImages]) {
+        for (const key of [...record.referenceImages, ...record.generatedImages, ...(record.generatedImageThumbnails || [])]) {
           if (key.startsWith('picture:image-gen:') || key.startsWith('picture:image-creator-ref:')) {
             this.deferredCleanup.add(key)
           }
@@ -637,7 +637,7 @@ export class ImageGenerationService {
       while (cursor !== null) {
         const page: ImageGenerationPage = await this.options.storage.getPage(cursor, 100)
         for (const record of page.items) {
-          for (const key of [...record.referenceImages, ...record.generatedImages]) references.add(key)
+          for (const key of [...record.referenceImages, ...record.generatedImages, ...(record.generatedImageThumbnails || [])]) references.add(key)
         }
         cursor = page.nextCursor
       }

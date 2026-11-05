@@ -60,6 +60,7 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { paddedContentColumnClassName } from '@/components/layout/contentColumn'
 import { AppTooltip as Tooltip } from '@/components/ui/tooltip'
 import useInputBoxHistory from '@/hooks/useInputBoxHistory'
+import { useProjectPrivacy } from '@/components/security/ProjectGate'
 import { useKnowledgeBase } from '@/hooks/useKnowledgeBase'
 import { useProviders } from '@/hooks/useProviders'
 import { useSaveBlob } from '@/hooks/useSaveBlob'
@@ -376,9 +377,10 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
       [updateSkillCommandQuery]
     )
 
-    // Pre-constructed message state (scoped by session)
+    const projectPrivacy=useProjectPrivacy()
+    // Drafts for a new protected project must not reuse the public homepage draft.
     const [preConstructedMessage, setPreConstructedMessage] = useAtom(
-      atoms.inputBoxPreConstructedMessageFamily(currentSessionId || 'new')
+      atoms.inputBoxPreConstructedMessageFamily(projectPrivacy.draftKey || currentSessionId || 'new')
     )
     const preConstructedMessageRef = useRef(preConstructedMessage)
     preConstructedMessageRef.current = preConstructedMessage
@@ -911,7 +913,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
       []
     )
 
-    const { addInputBoxHistory, getPreviousHistoryInput, getNextHistoryInput, resetHistoryIndex } = useInputBoxHistory()
+    const { addInputBoxHistory, getPreviousHistoryInput, getNextHistoryInput, resetHistoryIndex } = useInputBoxHistory(projectPrivacy.scope)
     resetHistoryIndexRef.current = resetHistoryIndex
 
     type SubmitOptions = { allowUnreadySessionAttachments?: boolean; steer?: boolean }

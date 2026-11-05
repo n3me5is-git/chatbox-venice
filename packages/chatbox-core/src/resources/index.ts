@@ -1,6 +1,7 @@
 import { getToolResultImageReference } from '@shared/tool-result-image'
 import { getWorkArtifacts } from '@shared/work-artifacts'
 import type { CopilotDetail, Message, SessionHeader, Settings } from '@shared/types'
+export { iterateRowResourceReferences } from './row-resources'
 
 export interface ResourceReference {
   storageKey: string

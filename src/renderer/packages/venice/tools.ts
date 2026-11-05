@@ -15,6 +15,7 @@ import { queryClient } from '@/stores/queryClient'
 import { getImageGenerationService, startImageGeneration } from '@/stores/imageGenerationActions'
 import { queueImageTaskCompletion, queueImageTaskCompletionError } from '@/packages/chatbox-cli/image-task-follow-up'
 import platform from '@/platform'
+import { installedVaultFor } from '@/packages/vault/runtime'
 import { VeniceImageApproval } from '@/components/venice/VeniceImageApproval'
 const inFlight = new Map<string, Promise<unknown>>()
 export function veniceChatTools(sessionId: string) {
@@ -49,14 +50,16 @@ export function veniceChatTools(sessionId: string) {
       const key = `${sessionId}:${toolCallId}`; const active = inFlight.get(key); if (active) return active
       const work = (async () => {
         const prior = await saved(toolCallId); if (prior) return prior
-        const handle = await startImageGeneration({ prompt: choice.prompt, model: { provider: 'venice', modelId: choice.modelId, ...(choice.extraBody ? { extraBody: choice.extraBody } : {}) }, imageGenerateNum: choice.count, aspectRatio: choice.aspectRatio, referenceImages: choice.referenceImages, source: { type: 'chatbox_cli', sessionId, toolCallId } }, { onRecordCreated: record => platform.setStoreValue(`venice:image-call:${sessionId}:${toolCallId}`, record.id) })
+        const access=installedVaultFor(platform)?.projects;await access?.assertSession(sessionId);const protection=await access?.sessionScope(sessionId)||undefined
+        const handle = await startImageGeneration({ protection, prompt: choice.prompt, model: { provider: 'venice', modelId: choice.modelId, ...(choice.extraBody ? { extraBody: choice.extraBody } : {}) }, imageGenerateNum: choice.count, aspectRatio: choice.aspectRatio, referenceImages: choice.referenceImages, source: { type: 'chatbox_cli', sessionId, toolCallId } }, { onRecordCreated: record => platform.setStoreValue(`venice:image-call:${sessionId}:${toolCallId}`, record.id) })
         void handle.completion.then(record => { if (record) queueImageTaskCompletion(record, { sessionId, toolCallId }, handle.startedAt) }).catch(error => queueImageTaskCompletionError(handle.recordId, handle.startedAt, { sessionId, toolCallId }, error))
         return saved(toolCallId)
       })()
       inFlight.set(key, work); try { return await work } finally { inFlight.delete(key) }
     },
   }, options)
-  const mediaTools = buildVeniceMediaTools(sessionId, veniceMediaService, options, async (message, request) => {
+  const scopedMedia=new Proxy(veniceMediaService,{get(target,key){const fn=Reflect.get(target,key);if(typeof fn!=='function')return fn;return async(...args:any[])=>{const access=installedVaultFor(platform)?.projects;await access?.assertSession(sessionId);if(key==='start')args[0]={...args[0],protection:await access?.sessionScope(sessionId)||undefined};return fn.apply(target,args)}}})
+  const mediaTools = buildVeniceMediaTools(sessionId, scopedMedia, options, async (message, request) => {
     const scope = syncSessionApprovalScope(sessionId)
     const descriptor = request?.action === 'generate' ? {tool:'venice_media', kind:request.kind!, model:request.model!, options:request.options || {}} : undefined
     if (descriptor && sessionApprovals.allows(sessionId, descriptor)) return true

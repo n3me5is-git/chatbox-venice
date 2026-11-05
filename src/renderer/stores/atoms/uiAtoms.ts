@@ -3,7 +3,7 @@ import { atomFamily, atomWithStorage } from 'jotai/utils'
 import type { PreConstructedMessageState } from '../../types/input-box'
 
 // Input box related state
-const defaultPreConstructedMessageState = (): PreConstructedMessageState => ({
+export const defaultPreConstructedMessageState = (): PreConstructedMessageState => ({
   draftMessageId: undefined,
   text: '',
   pictureKeys: [],

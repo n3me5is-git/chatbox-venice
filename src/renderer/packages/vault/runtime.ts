@@ -6,6 +6,7 @@ import { deviceProtector } from './device'
 import { VaultKeys } from './keys'
 import { ProtectedImageRecords } from './image-records'
 import { ProjectAccess } from './project-access'
+import { projectLibrary } from './project-library'
 import { ProtectedMediaRecords } from './media-records'
 import type { MediaRecord } from '@shared/providers/definitions/models/venice/media'
 import type { DeviceProtector } from './device'
@@ -51,11 +52,11 @@ export class VaultRuntime {
   install(platform:Platform){
     const getValue=platform.getStoreValue.bind(platform),setValue=platform.setStoreValue.bind(platform),removeValue=platform.delStoreValue.bind(platform),getAll=platform.getAllStoreValues.bind(platform),setAll=platform.setAllStoreValues.bind(platform)
     const mediaKey='venice:media:records:v1';this.media=new ProtectedMediaRecords({read:async()=>{const value=await getValue(mediaKey);return Array.isArray(value)?value as MediaRecord[]:[]},write:records=>setValue(mediaKey,records)},this)
-    const meta=platform.getSessionMetaStorage(),rows=platform.getSessionRowStore();this.projects=new ProjectAccess(this.db,this.keys,meta,getValue)
+    const meta=platform.getSessionMetaStorage(),rows=platform.getSessionRowStore();this.projects=new ProjectAccess(this.db,this.keys,meta,getValue,projectLibrary(meta,rows,getValue))
     const guardedMeta=this.projects.protectMetadata(),guardedRows=this.projects.protectRows(rows);platform.getSessionMetaStorage=()=>guardedMeta;platform.getSessionRowStore=()=>guardedRows
     const sessionGuard=async(key:string)=>{if(key.startsWith('session:'))await this.projects.assertSession(key.slice(8))}
     platform.getStoreValue=async key=>{if(key===mediaKey){await this.projects.assertApp();return this.media.read()}await sessionGuard(key);const result=await getValue(key);await sessionGuard(key);return result}
-    platform.setStoreValue=async(key,value)=>{if(key===mediaKey){await this.projects.assertApp();if(!Array.isArray(value))throw new Error('Invalid media records');return this.media.write(value)}await sessionGuard(key);return setValue(key,value)}
+    platform.setStoreValue=async(key,value)=>{if(key===mediaKey){await this.projects.assertApp();if(!Array.isArray(value))throw new Error('Invalid media records');return this.media.write(value)}await sessionGuard(key);await setValue(key,value);if(key.startsWith('session:'))this.projects.invalidateLibrary()}
     platform.delStoreValue=async key=>{await sessionGuard(key);return removeValue(key)}
     platform.getAllStoreValues=async()=>{const values=await getAll();for(const key of Object.keys(values)){if(!key.startsWith('session:'))continue;const scope=await this.projects.sessionScope(key.slice(8));if(scope&&!this.keys.isUnlocked(scope))delete values[key]}return values}
     platform.setAllStoreValues=async values=>{for(const key of Object.keys(values))await sessionGuard(key);return setAll(values)}

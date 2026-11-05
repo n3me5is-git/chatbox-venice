@@ -18,14 +18,14 @@ export class EncryptedChunkStore {
     try{
       for await(const bytes of source){signal?.throwIfAborted();header.bytes+=bytes.byteLength;if(header.bytes>this.maximum)throw new Error('Media exceeds the encrypted library size limit');let offset=0;while(offset<bytes.length){const count=Math.min(CHUNK-filled,bytes.length-offset);buffer.set(bytes.subarray(offset,offset+count),filled);filled+=count;offset+=count;if(filled===CHUNK)await flush()}}
       if(!header.bytes)throw new Error('Cannot store an empty media response')
-      if(filled)await flush();signal?.throwIfAborted();header.manifest=await seal(key,new TextEncoder().encode(JSON.stringify({bytes:header.bytes,chunks:header.chunks})),`${id}:manifest`);header.status='ready';await this.index.put(header)
+      if(filled)await flush();signal?.throwIfAborted();await this.scopeKey(scope);header.manifest=await seal(key,new TextEncoder().encode(JSON.stringify({bytes:header.bytes,chunks:header.chunks})),`${id}:manifest`);header.status='ready';await this.index.put(header)
       return `vault-asset-${id}`
     }catch(error){await this.index.remove(id).catch(()=>{});for(let n=0;n<header.chunks;n++)await this.blobs.remove(keyFor(id,n)).catch(()=>{});throw error}finally{buffer.fill(0)}
   }
   async header(ref:string) {return ref.startsWith('vault-asset-')?this.index.get(ref.slice(12)):this.index.byAlias(ref)}
   private async dataKey(header:AssetHeader){checkId(header.id);const raw=await open(await this.scopeKey(header.scope),header.key,`${header.id}:key:${header.scope}:${header.alias||''}`);try{if(raw.length!==32)throw new Error('Invalid encrypted content key');return await aesKey(raw)}finally{raw.fill(0)}}
   async info(header:AssetHeader):Promise<AssetInfo>{const bytes=await open(await this.dataKey(header),header.info,`${header.id}:info`);try{await this.scopeKey(header.scope);return JSON.parse(new TextDecoder().decode(bytes)) as AssetInfo}finally{bytes.fill(0)}}
-  async *read(ref:string):AsyncGenerator<Uint8Array> {
+  async *read(ref:string):AsyncGenerator<Uint8Array<ArrayBuffer>> {
     const header=await this.header(ref);if(!header||header.status!=='ready')throw new Error('This encrypted item is unavailable')
     const key=await this.dataKey(header);let total=0
     if(!header.manifest)throw new Error('Encrypted content has no authenticated manifest')

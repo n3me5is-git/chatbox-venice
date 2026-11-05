@@ -1,17 +1,17 @@
-import { EncryptedChunkStore,type AssetInfo,type CipherBlobStore } from './chunk-store'
+import { EncryptedChunkStore,type AssetHeader,type AssetInfo,type CipherBlobStore } from './chunk-store'
 import { decode64,encode64,open,pinKey,seal,type SealedBytes } from './crypto'
 type BackupRecord={type:'asset';info:AssetInfo;protected:boolean}|{type:'chunk';data:string}|{type:'asset-end';bytes:number;chunks:number}|{type:'end';assets:number;records:number}
 const MAX_LINE=4*1024*1024
 const encoder=new TextEncoder()
 function passwordCheck(password:string){if(password.length<12)throw new Error('Use a backup passphrase of at least 12 characters')}
 /** Every record is AEAD-authenticated with its position; the mandatory footer detects truncation. */
-export async function* exportVault(assets:EncryptedChunkStore,password:string,scopes:ReadonlySet<string>,signal?:AbortSignal):AsyncGenerator<Uint8Array>{
+export async function* exportVault(assets:EncryptedChunkStore,password:string,scopes:ReadonlySet<string>,signal?:AbortSignal,visible?:(header:AssetHeader)=>Promise<boolean>):AsyncGenerator<Uint8Array>{
   passwordCheck(password);const salt=crypto.getRandomValues(new Uint8Array(16));const key=await pinKey(password,salt);const header={format:'chatbox-vault-backup',version:1,salt:encode64(salt)};const prefix=JSON.stringify(header);yield encoder.encode(prefix+'\n');let sequence=0,count=0
   const record=async(value:BackupRecord)=>encoder.encode(JSON.stringify(await seal(key,encoder.encode(JSON.stringify(value)),`${prefix}:${sequence++}`))+'\n')
   for await(const item of assets.index.all()){
-    signal?.throwIfAborted();if(item.status!=='ready'||!scopes.has(item.scope))continue
+    signal?.throwIfAborted();if(item.status!=='ready'||!scopes.has(item.scope)||visible&&!await visible(item))continue
     yield await record({type:'asset',info:await assets.info(item),protected:item.scope!=='public'});let bytes=0,chunks=0
-    for await(const chunk of assets.read(`vault-asset-${item.id}`)){signal?.throwIfAborted();try{yield await record({type:'chunk',data:encode64(chunk)});bytes+=chunk.length;chunks++}finally{chunk.fill(0)}}
+    for await(const chunk of assets.read(`vault-asset-${item.id}`)){signal?.throwIfAborted();try{if(visible&&!await visible(item))throw new Error('A protected project was locked during backup');yield await record({type:'chunk',data:encode64(chunk)});bytes+=chunk.length;chunks++}finally{chunk.fill(0)}}
     yield await record({type:'asset-end',bytes,chunks});count++
   }
   yield await record({type:'end',assets:count,records:sequence})
