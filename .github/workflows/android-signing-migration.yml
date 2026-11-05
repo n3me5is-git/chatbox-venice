@@ -2,7 +2,7 @@ name: Android signing migration
 on:
   push:
     branches: [main]
-    paths: ['scripts/android-migration-recipient.json']
+    paths: ['scripts/android-migration-recipient.json', 'docs/android-signing-verification.json']
   workflow_dispatch:
     inputs:
       operation:
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   recover:
-    if: github.repository == 'n3me5is-git/chatbox-venice' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.operation == 'recover')
+    if: github.repository == 'n3me5is-git/chatbox-venice' && github.ref == 'refs/heads/main' && ((github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'SIGNING:')) || inputs.operation == 'recover')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -48,7 +48,7 @@ jobs:
         if: always()
         run: rm -f "$HOME/.android/debug.keystore"
   verify-and-purge:
-    if: github.repository == 'n3me5is-git/chatbox-venice' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.operation == 'verify-and-purge'
+    if: github.repository == 'n3me5is-git/chatbox-venice' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.operation == 'verify-and-purge') || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'SIGNING:')))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -87,3 +87,4 @@ jobs:
               if (deleted > 1000) throw new Error('Unexpected cache count');
             }
             await core.summary.addRaw('Signing secrets match the pinned Android identity. The legacy keystore cache has been removed. New APKs use repository secrets only.').write();
+
