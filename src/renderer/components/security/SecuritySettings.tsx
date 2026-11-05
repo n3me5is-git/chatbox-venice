@@ -17,6 +17,7 @@ export function SecuritySettings(){
   const save=()=>run(async()=>{if(pinEnabled&&(!pin||pin!==repeat))throw new Error(ft('Enter and confirm the same PIN or passphrase'));await vault.keys.configure('app',{pin:pinEnabled?pin:undefined,biometric:bio});setPin('');setRepeat('');setNotice(ft('Protection settings saved'))})
   return <SettingsSection title={ft('App lock and protected content')}><Stack p="md" gap="sm">
     <Text size="sm" c="dimmed">{ft('Choose a PIN, device unlock, or both. Protected library content stays encrypted when locked. App lock controls access to the whole app; existing ordinary chat databases are not encrypted by this switch.')}</Text>
+    <Text size="xs" c="dimmed">{ft('Locking stops active generations and closes previews and approval dialogs.')}</Text>
     {caps&&!caps.encryption&&<Alert color="yellow">{ft('Device encryption is unavailable. On Android, configure a secure screen lock. Native key protection is available in the Windows and Android apps.')}</Alert>}
     {status?.configured&&!vault.keys.isUnlocked('app')?<ScopeUnlock keys={vault.keys}/>:<>
       <Switch label={ft('Enable PIN or passphrase')} checked={pinEnabled} onChange={event=>setPinEnabled(event.currentTarget.checked)} disabled={busy||!caps?.encryption}/>

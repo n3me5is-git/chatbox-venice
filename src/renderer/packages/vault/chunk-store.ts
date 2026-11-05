@@ -24,7 +24,7 @@ export class EncryptedChunkStore {
   }
   async header(ref:string) {return ref.startsWith('vault-asset-')?this.index.get(ref.slice(12)):this.index.byAlias(ref)}
   private async dataKey(header:AssetHeader){checkId(header.id);const raw=await open(await this.scopeKey(header.scope),header.key,`${header.id}:key:${header.scope}:${header.alias||''}`);try{if(raw.length!==32)throw new Error('Invalid encrypted content key');return await aesKey(raw)}finally{raw.fill(0)}}
-  async info(header:AssetHeader):Promise<AssetInfo>{const bytes=await open(await this.dataKey(header),header.info,`${header.id}:info`);try{return JSON.parse(new TextDecoder().decode(bytes)) as AssetInfo}finally{bytes.fill(0)}}
+  async info(header:AssetHeader):Promise<AssetInfo>{const bytes=await open(await this.dataKey(header),header.info,`${header.id}:info`);try{await this.scopeKey(header.scope);return JSON.parse(new TextDecoder().decode(bytes)) as AssetInfo}finally{bytes.fill(0)}}
   async *read(ref:string):AsyncGenerator<Uint8Array> {
     const header=await this.header(ref);if(!header||header.status!=='ready')throw new Error('This encrypted item is unavailable')
     const key=await this.dataKey(header);let total=0
@@ -36,9 +36,9 @@ export class EncryptedChunkStore {
       const value=await this.blobs.get(keyFor(header.id,n));if(!value)throw new Error('Encrypted content is incomplete')
       const bytes=await open(key,JSON.parse(value),`${header.id}:chunk:${n}`);total+=bytes.length
       if(bytes.length>CHUNK||(n<header.chunks-1&&bytes.length!==CHUNK)||total>header.bytes)throw new Error('Encrypted content length mismatch')
-      yield bytes
+      await this.scopeKey(header.scope);yield bytes
     }
-    if(total!==header.bytes)throw new Error('Encrypted content was truncated')
+    await this.scopeKey(header.scope);if(total!==header.bytes)throw new Error('Encrypted content was truncated')
   }
   async dataUrl(ref:string){const header=await this.header(ref);if(!header) return null;const info=await this.info(header);if(!Number.isSafeInteger(header.bytes)||header.bytes<1||header.bytes>this.maximum)throw new Error('Invalid encrypted content size')
     // Compatibility path for existing image consumers. Downloads/export use chunk iterators.

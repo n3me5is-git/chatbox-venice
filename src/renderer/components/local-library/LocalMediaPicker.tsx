@@ -10,11 +10,13 @@ import { ScopeUnlock } from '@/components/security/ScopeUnlock'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import platform from '@/platform'
 import { useSyncExternalStore } from 'react'
+import { usePrivacyDismiss } from '@/components/security/usePrivacyDismiss'
 export const LocalMediaPicker=NiceModal.create(({accept='',multiple=false}:{accept?:string;multiple?:boolean})=>{
   useTranslation();const modal=useModal();const [kind,setKind]=useState<LibraryKind>('vault');const [items,setItems]=useState<LocalLibraryItem[]>([]);const [next,setNext]=useState<number|null>(null)
   const vault=vaultRuntimeFor(platform);const revision=useSyncExternalStore(vault.keys.subscribe,vault.keys.snapshot,vault.keys.snapshot);const [protection,setProtection]=useState<'public'|'protected'>('public')
   const [selected,setSelected]=useState<string[]>([]);const [busy,setBusy]=useState(false);const [error,setError]=useState('')
   const epoch=useRef(0)
+  usePrivacyDismiss(modal,[])
   const load=async(cursor=0)=>{const token=++epoch.current;setBusy(true);setError('');try{const page=await localLibraryPage(kind,cursor,protection);if(token!==epoch.current)return;setItems(rows=>cursor?[...rows,...page.items]:page.items);setNext(page.next)}catch{if(token===epoch.current)setError(ft('Unable to read the local library'))}finally{if(token===epoch.current)setBusy(false)}}
   useEffect(()=>{if(modal.visible){setSelected([]);setItems([]);void load()}return()=>{epoch.current++}},[kind,modal.visible,protection,revision])
   const cancel=()=>{epoch.current++;modal.resolve([]);modal.hide()}

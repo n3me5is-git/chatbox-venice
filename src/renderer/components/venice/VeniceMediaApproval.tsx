@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MediaApprovalContext } from '@shared/providers/definitions/models/venice/tools'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
+import { usePrivacyDismiss } from '@/components/security/usePrivacyDismiss'
 import { sessionApprovals, type ApprovalMode } from '@/packages/venice/session-approvals'
 import { ApprovalModeOptions } from './VeniceSessionApprovals'
 export const VeniceMediaApproval = NiceModal.create(({ message, sessionId, generation, request }: { message: string; sessionId: string; generation: boolean; request?: MediaApprovalContext }) => {
   const modal = useModal(); const { t } = useTranslation(); const [mode, setMode] = useState<ApprovalMode>(() => sessionApprovals.mode(sessionId))
+  usePrivacyDismiss(modal,{approved:false,mode:'ask'})
   useEffect(()=>setMode(sessionApprovals.mode(sessionId)),[sessionId,message,modal.visible])
   const close = (approved: boolean) => { modal.resolve({ approved, mode }); modal.hide() }
   useEffect(()=>{const signal=request?.signal;const abort=()=>close(false);if(signal?.aborted)abort();signal?.addEventListener('abort',abort,{once:true});return()=>signal?.removeEventListener('abort',abort)},[request?.signal])

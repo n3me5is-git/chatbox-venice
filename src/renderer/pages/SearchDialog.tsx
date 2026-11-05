@@ -44,6 +44,7 @@ export default function SearchDialog() {
     request.current?.abort()
     request.current = null
   }
+  useEffect(()=>{const lock=()=>{cancelSearch();setSearchResult([]);setSearchInput('');setSearchMark('');setOpen(false)};window.addEventListener('chatbox:privacy-lock',lock);return()=>window.removeEventListener('chatbox:privacy-lock',lock)},[])
   useEffect(() => {
     if (!open) {
       request.current?.abort()

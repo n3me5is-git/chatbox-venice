@@ -8,7 +8,10 @@ import { VeniceVoiceCloning, type VoiceService } from './VeniceVoiceCloning'
 import { isSoundEffectsModel, musicDuration, musicOptions, videoInputs } from '@shared/providers/definitions/models/venice/media-capabilities'
 import { Accordion, Alert, Badge, Button, Checkbox, Code, Group, Loader, NumberInput, Paper, SegmentedControl, Select, ScrollArea, SimpleGrid, Slider, Stack, Text, Textarea, TextInput, ThemeIcon, Title } from '@mantine/core'
 import { IconMicrophone, IconMusic, IconPlayerPlay, IconRefresh, IconVideo, IconWaveSine } from '@tabler/icons-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState,useSyncExternalStore } from 'react'
+import { installedVaultFor } from '@/packages/vault/runtime'
+import { lockedMediaRecord } from '@/packages/vault/media-records'
+import { ScopeUnlock } from '@/components/security/ScopeUnlock'
 import type { VeniceOptions } from '@shared/providers/definitions/models/venice/options'
 import { mediaEnabled, type MediaKind, type MediaRecord, type MediaCatalogItem, type VeniceMediaService } from '@shared/providers/definitions/models/venice/media'
 import { audioFormats, friendlyMediaError, mediaTypes, quoteLabel, readableName, supportedValues, voiceChoices } from '@shared/providers/definitions/models/venice/catalog'
@@ -17,6 +20,8 @@ import { privacyAllowed } from '@shared/providers/definitions/models/venice/priv
 import platform from '@/platform'
 
 type Service = Pick<VeniceMediaService, 'list' | 'subscribe' | 'catalog' | 'quote' | 'start' | 'resume' | 'pause' | 'remove' | 'cleanup' | 'content' | 'isActive'> & Partial<Pick<VeniceMediaService, 'cachedCatalog'>> & VoiceService
+const noSubscribe=()=>()=>{}
+const zero=()=>0
 const names: Record<MediaKind, string> = { speech: "Voice", transcription: "Transcribe", video: 'Video', music: "Music", "sound-effects": "Sound effects", "voice-conversion": "Voice conversion" }
 const titles: Record<MediaKind, string> = { speech: "Give your words a voice", transcription: 'Turn audio into text', video: "Turn your idea into a video", music: "Create music", "sound-effects": "Create sound effects", "voice-conversion": "Convert a recording" }
 const actions: Record<MediaKind, string> = { speech: "Generate speech", transcription: "Transcribe file", video: "Create video", music: "Create music", "sound-effects": "Create sound effects", "voice-conversion": "Convert a recording" }
@@ -33,6 +38,8 @@ async function imageDataUrl(file: File) {
 }
 export function VeniceStudio({ service, options, openSettings, initialKind, hideTabs }: { service: Service; options: VeniceOptions; openSettings?: () => void; initialKind?: MediaKind; hideTabs?: boolean }) {
   const {i18n} = useTranslation()
+  const vault=installedVaultFor(platform);const privacyRevision=useSyncExternalStore(vault?.keys.subscribe||noSubscribe,vault?.keys.snapshot||zero,zero)
+  const [saveProtected,setSaveProtected]=useState(false);const [librarySection,setLibrarySection]=useState('public')
   const [kind, setKind] = useState<MediaKind>(() => initialKind || (options.audioEnabled ? 'speech' : options.videoEnabled ? 'video' : options.musicEnabled ? 'music' : 'speech'))
   const [model, setModel] = useState(''); const [prompt, setPrompt] = useState(''); const [voice, setVoice] = useState('')
   const [format, setFormat] = useState('auto'); const [speed, setSpeed] = useState(1); const [language, setLanguage] = useState('auto')
@@ -65,19 +72,20 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
     refresh(); const unsubscribe = service.subscribe(refresh)
     void service.cachedCatalog?.().then(items => { if (live) setCatalog(items) }).catch(() => {})
     return () => { live = false; unsubscribe() }
-  }, [service])
+  }, [service,privacyRevision])
   useEffect(() => { if (!compatible.some(item => item.id === model)) { if (compatible.length) pickModel(compatible[0].id); else if (model) setModel('') } }, [catalog, kind, options.privacyFilter, options.showOtherModels, options.mediaModelIds])
   useEffect(() => setQuote(''), [kind, model, prompt, voice, format, speed, language, duration, seconds, lyrics, instrumental, extra, aspect, resolution, audio, image, endImage, referenceImages, sourceVideo, referenceVideos, referenceAudio, audioFile, loop, optimizer])
   const run = async (work: () => Promise<unknown>) => { setError(''); setBusy(true); try { await work() } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) } }
   const speechOptions = () => ({ voice: voice || undefined, response_format: format === 'auto' ? undefined : format, speed,
     ...(language !== 'auto' && !model.includes('kokoro') ? { language: /qwen|minimax/i.test(model) ? fullLanguages[language] : language } : {}) })
-  const input = async (references = true) => ({ kind, model, prompt, file: file || undefined, options: {
+  const input = async (references = true) => ({ kind, model, prompt, file: file || undefined,protection:saveProtected?'app':undefined, options: {
     ...(kind === 'speech' ? speechOptions() : {}), ...(kind === 'voice-conversion' ? { voice: voice || spec?.default_voice, ...(spec?.supports_background_noise_removal === true ? { remove_background_noise: instrumental } : {}) } : {}), ...(kind === 'transcription' && language !== 'auto' ? { language } : {}),
     ...(kind === 'video' ? { duration, ...(aspect ? { aspect_ratio: aspect } : {}), ...(resolution ? { resolution } : {}), ...(videoSupport.audio ? { audio } : {}), ...(references && videoSupport.start && image ? { image_url: await imageDataUrl(image) } : {}), ...(references && videoSupport.end && endImage ? { end_image_url: await imageDataUrl(endImage) } : {}), ...(references && videoSupport.references && referenceImages.length ? { reference_image_urls: await Promise.all(referenceImages.map(imageDataUrl)) } : {}), ...(videoSupport.video && sourceVideo ? { video_url: await mediaFileDataUrl(sourceVideo, 'video') } : {}), ...(references && videoSupport.referenceVideos && referenceVideos.length ? { reference_video_urls: await Promise.all(referenceVideos.map(file => mediaFileDataUrl(file, 'video'))) } : {}), ...(references && videoSupport.referenceAudio && referenceAudio.length ? { reference_audio_urls: await Promise.all(referenceAudio.map(file => mediaFileDataUrl(file, 'audio'))) } : {}), ...(references && videoSupport.audioInput && audioFile ? { audio_url: await mediaFileDataUrl(audioFile, 'audio') } : {}) } : {}),
     ...((kind === 'music' || kind === 'sound-effects') ? { ...musicOptions(selected, { seconds: Number(seconds), instrumental, lyrics, loop, optimizer, voice, speed, language }) } : {}),
     ...parseExtraBody(extra),
   } })
-  const ready = enabled && !!model && (['transcription','voice-conversion'].includes(kind) ? !!file : !!prompt.trim())
+  const ready = enabled && !!model && (!saveProtected||!!vault?.keys.isUnlocked('app')) && (['transcription','voice-conversion'].includes(kind) ? !!file : !!prompt.trim())
+  const visibleCreations=records.filter(record=>librarySection==='protected'?!!record.protection:!record.protection).map(record=>record.protection&&!vault?.keys.isUnlocked(record.protection)?lockedMediaRecord(record):record)
   const KindIcon = icons[kind]
   return <Stack p={{ base: 'sm', sm: 'lg' }} maw={1000} mx="auto" style={{ width: '100%' }}>
     <Group justify="space-between" gap="sm"><Group gap="sm"><ThemeIcon size={44} radius="xl" variant="light"><KindIcon size={25} /></ThemeIcon><Stack gap={2}><Title order={2}>{ft("Create with Venice")}</Title><Text size="sm" c="dimmed">{ft("Voice, video, music and sound effects in one place.")}</Text></Stack></Group>{openSettings && <Button variant="subtle" size="xs" onClick={openSettings}>{ft("Settings")}</Button>}</Group>
@@ -90,6 +98,7 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
         data={[...compatible.map(item => ({ value: item.id, label: item.model_spec?.name || readableName(item.id) })), ...(!compatible.some(item => item.id === model) && model ? [{ value: model, label: readableName(model) }] : [])]} disabled={!compatible.length && !model} style={{ flex: 1, minWidth: 180 }} onChange={value => value && pickModel(value)} />
         <Button leftSection={<IconRefresh size={16} />} variant="default" disabled={options.enabled === false || busy} onClick={() => void run(async () => setCatalog(await service.catalog()))}>{catalog.length ? ft("Refresh models") : ft("Load models")}</Button></Group>
       <Group justify="space-between"><VeniceModelBadges metadata={selected?.model_spec} /><VeniceModelInfo model={selected} /></Group>
+      {vault&&<><Checkbox label={ft('Save new creations as protected')} checked={saveProtected} onChange={event=>setSaveProtected(event.currentTarget.checked)}/>{saveProtected&&!vault.keys.isUnlocked('app')&&<ScopeUnlock keys={vault.keys}/>}</>}
       {selected?.model_spec?.description && <Text size="sm" c="dimmed">{selected.model_spec.description}</Text>}
       {['transcription','voice-conversion'].includes(kind) ? <><VeniceRecorder onRecorded={setFile} /><FileInput label={kind === 'voice-conversion' ? ft("Recording to convert") : ft("Upload audio or video")} description={kind === 'voice-conversion' ? ft("Up to 25 MB. Choose a format accepted by the selected model; no upload happens until you confirm conversion.") : ft("Up to 25 MB. The file is sent to Venice only when you select Transcribe.")} placeholder={ft("Choose a file from this device")} accept={kind === 'voice-conversion' ? (Array.isArray(spec?.accepted_audio_formats) ? spec.accepted_audio_formats.map(format=>'.'+format).join(',') : 'audio/*') : 'audio/*,video/*'} value={file} onChange={setFile} clearable /></>
         : <Textarea label={kind === 'speech' ? ft("Text to read") : kind === 'video' ? ft("Describe your video") : kind === 'sound-effects' ? ft("Describe the sound effect") : ft("Describe the music or sound")} placeholder={kind === 'speech' ? ft("Type or paste the text you want to hear…") : kind === 'video' ? ft("A walk by the sea, sunset light, slow movement…") : kind === 'sound-effects' ? ft("Rain on a window, distant thunder, no music…") : ft("Relaxing jazz with piano and double bass…")} value={prompt} onChange={e => setPrompt(e.currentTarget.value)} autosize minRows={4} maxRows={10} />}
@@ -99,7 +108,7 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
           <Select label={ft("Audio format")} allowDeselect={false} value={format} data={[{ value: 'auto', label: selected?.model_spec?.default_format ? ft("Recommended ({{format}})",{format:selected.model_spec.default_format.toUpperCase()}) : ft("Recommended by the model") }, ...formats.map(value => ({ value, label: value.toUpperCase() }))]} onChange={value => setFormat(value || 'auto')} /></SimpleGrid>
         {!model.includes('kokoro') && <Select label={ft("Language")} value={language} allowDeselect={false} data={languages.map(item=>({...item,label:ft(item.label)}))} onChange={value => setLanguage(value || 'auto')} />}
         <Stack gap={5}><Group justify="space-between"><Text size="sm" fw={500}>{ft("Reading speed")}</Text><Text size="sm" c="dimmed">{speed === 1 ? ft("Normal") : `${speed.toLocaleString(i18n.resolvedLanguage || i18n.language || 'en', { maximumFractionDigits: 2 })}×`}</Text></Group><Slider aria-label={ft("Reading speed")} value={speed} onChange={setSpeed} min={0.25} max={4} step={0.05} label={value => `${value.toFixed(2)}×`} /><Group justify="space-between"><Text size="xs" c="dimmed">{ft("Slower")}</Text><Text size="xs" c="dimmed">{ft("Faster")}</Text></Group></Stack>
-        <Group><Button leftSection={<IconPlayerPlay size={15} />} variant="light" size="xs" disabled={!enabled || !model || busy} onClick={() => void run(async () => { await service.start({ kind: 'speech', model, prompt: ft("Hello! This is a short preview of the voice you selected."), options: speechOptions() }) })}>{ft("Generate a short preview")}</Button><Text size="xs" c="dimmed">{ft("The preview creates a short generation and may incur a cost.")}</Text></Group>
+        <Group><Button leftSection={<IconPlayerPlay size={15} />} variant="light" size="xs" disabled={!enabled || !model || busy||saveProtected&&!vault?.keys.isUnlocked('app')} onClick={() => void run(async () => { await service.start({ kind: 'speech', model, prompt: ft("Hello! This is a short preview of the voice you selected."), options: speechOptions(),protection:saveProtected?'app':undefined }) })}>{ft("Generate a short preview")}</Button><Text size="xs" c="dimmed">{ft("The preview creates a short generation and may incur a cost.")}</Text></Group>
       </>}
       {kind === 'voice-conversion' && <><Select label={ft("Target voice")} searchable value={voice || null} data={voices} onChange={value=>setVoice(value||'')}/>{spec?.supports_background_noise_removal === true && <Checkbox label={ft("Remove background noise")} checked={instrumental} onChange={e=>setInstrumental(e.currentTarget.checked)}/>}<Text size="xs" c="dimmed">{ft("Conversion preserves the words and delivery of your source recording. Available voices come from the selected model.")}</Text></>}
       {kind === 'transcription' && <Select label={ft("Audio language")} value={language} allowDeselect={false} data={languages.map(item=>({...item,label:ft(item.label)}))} onChange={value => setLanguage(value || 'auto')} />}
@@ -136,16 +145,18 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
       <Group justify="space-between"><Text size="xs" c="dimmed" maw={480}>{ft("Content is sent to Venice and saved on this device. Generation may incur a cost.")}</Text><Group>{['video', 'music', 'sound-effects'].includes(kind) && <Button variant="default" disabled={!enabled || !model || busy || (kind === 'video' && !duration)} onClick={() => void run(async () => setQuote(quoteLabel(await service.quote(await input(false)), i18n.resolvedLanguage || i18n.language || "en")))}>{ft("Show cost")}</Button>}<Button disabled={!ready || busy || (kind === 'video' && !duration)} loading={busy} onClick={() => void run(async () => { await service.start(await input()) })}>{ft(actions[kind])}</Button></Group></Group>
     </Stack></Paper>
     <Group justify="space-between" mt="sm"><Title order={3}>{ft("Your creations")}</Title><Badge variant="light">{ft("Saved on device")}</Badge></Group>
+    {vault&&<SegmentedControl aria-label={ft('Creation history protection')} value={librarySection} onChange={value=>{setLibrarySection(value);setOpenRecordId(null);setVisibleRecords(20)}} data={[{value:'public',label:ft('Public')},{value:'protected',label:ft('Protected')}]}/>}
     {!records.length && <Paper withBorder p="xl" radius="lg"><Stack align="center" gap="xs"><ThemeIcon size={48} variant="light" radius="xl"><KindIcon /></ThemeIcon><Text fw={500}>{ft("Your first creation is waiting")}</Text><Text size="sm" c="dimmed" ta="center">{ft("Your results will appear here. Play, export or delete them whenever you want.")}</Text></Stack></Paper>}
-    {records.slice(0,visibleRecords).map(record => <MediaResult key={record.id} record={record} opened={record.id===openRecordId} onToggle={()=>setOpenRecordId(current=>current===record.id?null:record.id)} modelName={catalog.find(model => model.id === record.model)?.model_spec?.name || readableName(record.model)} service={service} enabled={mediaEnabled(record.kind, options)} run={run} />)}
-    {visibleRecords < records.length && <Button variant="subtle" onClick={()=>setVisibleRecords(count=>count+20)}>{ft("Show more creations")}</Button>}
+    {visibleCreations.slice(0,visibleRecords).map(record => <MediaResult key={record.id} record={record} opened={record.id===openRecordId} onToggle={()=>setOpenRecordId(current=>current===record.id?null:record.id)} modelName={catalog.find(model => model.id === record.model)?.model_spec?.name || readableName(record.model)} service={service} enabled={mediaEnabled(record.kind, options)} run={run} onProtectionChange={vault?async scope=>{await vault.media.setProtection(record.id,scope);vault.keys.refresh()}:undefined}/>)}
+    {visibleRecords < visibleCreations.length && <Button variant="subtle" onClick={()=>setVisibleRecords(count=>count+20)}>{ft("Show more creations")}</Button>}
     <Text size="xs" c="dimmed">{ft("Audio, video and music do not use E2EE. Stopping the wait may not cancel the job or its cost on Venice.")}</Text>
   </Stack>
 }
-function MediaResult({ record, modelName, service, enabled, run, opened, onToggle }: { opened:boolean; onToggle:()=>void; record: MediaRecord; modelName: string; service: Service; enabled: boolean; run: (work: () => Promise<unknown>) => Promise<void> }) {
+function MediaResult({ record, modelName, service, enabled, run, opened, onToggle,onProtectionChange }: { onProtectionChange?:(scope?:string)=>Promise<void>;opened:boolean; onToggle:()=>void; record: MediaRecord; modelName: string; service: Service; enabled: boolean; run: (work: () => Promise<unknown>) => Promise<void> }) {
   const {i18n}=useTranslation()
   const [content, setContent] = useState<string | null>(null); const [loadError, setLoadError] = useState('')
-  useEffect(() => { if(!opened) {setContent(null);setLoadError('');return} let live = true; void service.content(record).then(value => { if (live) setContent(value) }).catch(() => { if (live) setLoadError(ft("Unable to read local content")) }); return () => { live = false } }, [record.blobKey, record.id, service, opened])
+  useEffect(() => { if(!opened||record.protectedRecord) {setContent(null);setLoadError('');return} let live = true; void service.content(record).then(value => { if (live) setContent(value) }).catch(() => { if (live) setLoadError(ft("Unable to read local content")) }); return () => { live = false } }, [record.blobKey, record.id, service, opened,record.protectedRecord])
+  if(record.protectedRecord){const vault=installedVaultFor(platform);return <Paper withBorder radius="lg" p="md">{vault?<ScopeUnlock keys={vault.keys} scope={record.protection||'app'} title={ft('Locked creation')}/>:<Text>{ft('Locked creation')}</Text>}</Paper>}
   const safe = content && /^(data:audio\/[\w.+-]+;base64,|data:video\/mp4;base64,)/.test(content) ? content : null
   const statuses = { ready: ft("Ready"), creating: ft("Starting"), queued: ft("Processing"), paused: ft("Paused"), error: ft("Needs attention") }
   return <Paper withBorder radius="lg" p="md"><Stack gap="sm">
@@ -159,6 +170,7 @@ function MediaResult({ record, modelName, service, enabled, run, opened, onToggl
     {record.error && <Alert color="orange">{ft(friendlyMediaError(record.error))}<Accordion variant="default"><Accordion.Item value="error"><Accordion.Control>{ft("Details")}</Accordion.Control><Accordion.Panel><Code block>{record.error}</Code></Accordion.Panel></Accordion.Item></Accordion></Alert>}
     {record.queueId && !service.isActive(record.id) && record.status !== 'ready' && <Button disabled={!enabled} variant="light" onClick={() => void run(() => service.resume(record.id))}>{ft("Resume processing")}</Button>}
     <Group justify="space-between"><Group>
+      {onProtectionChange&&!service.isActive(record.id)&&<Button size="xs" variant="default" onClick={()=>void run(()=>onProtectionChange(record.protection?undefined:'app'))}>{record.protection?ft('Make this creation public'):ft('Protect this creation')}</Button>}
       {(safe || record.text) && <Button size="xs" variant="default" onClick={() => void run(async () => {
         if (record.text) await platform.exporter.exportTextFile(`Venice-${record.id}.txt`, record.text)
         else if (safe) await platform.exporter.exportBlob(`Venice-${record.id}.${record.mime === 'video/mp4' ? 'mp4' : record.mime?.includes('wav') ? 'wav' : record.mime?.includes('flac') ? 'flac' : record.mime?.includes('ogg') ? 'ogg' : record.mime?.includes('opus') ? 'opus' : record.mime?.includes('aac') ? 'aac' : record.mime?.includes('pcm') ? 'pcm' : 'mp3'}`, await (await fetch(safe)).blob())

@@ -1,5 +1,5 @@
 import NiceModal from '@ebay/nice-modal-react'
-import { AppGate } from '@/components/security/AppGate'
+import { AppGate,AppLockButton } from '@/components/security/AppGate'
 import { useProjectAccessState } from '@/components/security/ProjectGate'
 import {
   Avatar,
@@ -398,7 +398,7 @@ function Root() {
     >
       {platform.isDesktopLike && (getOS() === 'Windows' || getOS() === 'Linux') && <ExitFullscreenButton />}
       <AppTitleBar />
-      <AppGate>
+      <AppLockButton/>
       <BackgroundImageOverlay />
       <Grid container className="min-h-0 flex-1 relative z-[1]">
         <Sidebar />
@@ -479,7 +479,6 @@ function Root() {
       <ErrorBoundary name="settings-modal" fallback={SettingsModalErrorFallback}>
         <SettingsModal />
       </ErrorBoundary>
-      </AppGate>
     </Box>
   )
 }
@@ -783,11 +782,11 @@ export const Route = createRootRoute({
         <AppProviders>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            <NiceModal.Provider>
+            <AppGate><NiceModal.Provider>
               <ErrorBoundary>
                 <Root />
               </ErrorBoundary>
-            </NiceModal.Provider>
+            </NiceModal.Provider></AppGate>
           </ThemeProvider>
         </AppProviders>
       </MantineProvider>

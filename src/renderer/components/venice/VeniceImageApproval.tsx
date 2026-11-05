@@ -4,6 +4,7 @@ import { forkT as ft } from '@/i18n/fork'
 import { ApprovalModeOptions } from './VeniceSessionApprovals'
 import { sessionApprovals, type ApprovalMode } from '@/packages/venice/session-approvals'
 import NiceModal, { useModal } from '@ebay/nice-modal-react'
+import { usePrivacyDismiss } from '@/components/security/usePrivacyDismiss'
 import { Accordion, Alert, Button, Group, NumberInput, Select, Stack, Text, Textarea } from '@mantine/core'
 import { parseExtraBody } from '@shared/models/utils/extra-body'
 import { useEffect, useState } from 'react'
@@ -16,6 +17,7 @@ export const VeniceImageApproval = NiceModal.create(({ models, request, signal, 
   useTranslation()
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>(() => sessionId ? sessionApprovals.mode(sessionId) : 'ask')
   const modal = useModal(); const [modelId, setModelId] = useState(request.modelId && models.some(m => m.modelId === request.modelId) ? request.modelId : '')
+  usePrivacyDismiss(modal,null)
   const [safeMode, setSafeMode] = useState('default'); const [format, setFormat] = useState('default'); const [seed, setSeed] = useState<number | string>(''); const [extra, setExtra] = useState('')
   const [prompt, setPrompt] = useState(request.prompt); const [count, setCount] = useState(request.count); const [ratio, setRatio] = useState('auto'); const [files, setFiles] = useState<File[]>([]); const [error, setError] = useState('')
   const model = models.find(m => m.modelId === modelId); const limits = model?.capabilities?.inputReferences

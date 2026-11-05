@@ -7,6 +7,7 @@ import { assertVeniceEnabled, type VeniceOptions } from './options'
 
 export type MediaKind = 'speech' | 'transcription' | 'video' | 'music' | 'sound-effects' | 'voice-conversion'
 export type MediaRecord = {
+  protection?:string;protectedRecord?:boolean;
   id: string; kind: MediaKind; model: string; prompt: string; createdAt: number; sessionId?: string;
   status: 'creating' | 'queued' | 'ready' | 'paused' | 'error'; queueId?: string; origin: string;
   credentialId: string; blobKey?: string; mime?: string; text?: string; error?: string; remoteCleaned?: boolean;
@@ -21,7 +22,7 @@ export interface MediaStore {
   putBlob(key: string, value: string): Promise<void>; getBlob(key: string): Promise<string | null>; deleteBlob(key: string): Promise<void>;
 }
 export type MediaConfiguration = { apiKey: string; apiHost?: string; options: VeniceOptions }
-export type MediaInput = { kind: MediaKind; model: string; prompt: string; options?: Record<string, unknown>; file?: File; sessionId?: string; signal?: AbortSignal }
+export type MediaInput = { kind: MediaKind; model: string; prompt: string; options?: Record<string, unknown>; file?: File; sessionId?: string; signal?: AbortSignal;protection?:string }
 export type MediaCatalogItem = { id: string; type: string; model_spec?: { name?: string; description?: string; voices?: string[]; default_voice?: string; supported_formats?: string[]; default_format?: string; constraints?: Record<string, unknown>; capabilities?: Record<string, unknown>; offline?: boolean; privacy?: string; uncensored?: boolean; traits?: string[]; model_sets?: string[]; modelSource?: string;
     pricing?: Record<string, unknown>; supports_lyrics?: boolean; lyrics_required?: boolean; supports_force_instrumental?: boolean; supports_lyrics_optimizer?: boolean; supports_loop?: boolean; supports_language_code?: boolean; supports_speed?: boolean;
     min_duration?: number; max_duration?: number; default_duration?: number; duration_options?: number[]; min_prompt_length?: number; prompt_character_limit?: number; lyrics_character_limit?: number; min_speed?: number; max_speed?: number; [key: string]: unknown } }
@@ -127,7 +128,7 @@ export class VeniceMediaService {
     const known = (await this.cachedCatalog()).find(item => item.id === body.model && item.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : ['sound-effects','voice-conversion'].includes(input.kind) ? 'music' : input.kind))
     requireModelPrivacy(known?.model_spec, config.options.privacyFilter)
     validateMediaRequest(input.kind, body, known)
-    const record: MediaRecord = { id: uuid(), kind: input.kind, model: String(body.model), prompt: input.prompt, createdAt: Date.now(), sessionId: input.sessionId,
+    const record: MediaRecord = { id: uuid(), kind: input.kind, model: String(body.model), prompt: input.prompt, createdAt: Date.now(), sessionId: input.sessionId,protection:input.protection,
       status: 'creating', origin: config.origin, credentialId: await this.credential(config) }
     await this.mutate(records => [record, ...records]); const controller = new AbortController(); this.active.set(record.id, controller)
     const onAbort = () => controller.abort()
@@ -211,7 +212,7 @@ export class VeniceMediaService {
     finally { this.active.delete(id); for (const listener of this.listeners) listener() }
   }
   pause(id: string) { this.active.get(id)?.abort(); return this.patch(id, { status: 'paused' }) }
-  pauseAll() { for (const id of this.active.keys()) void this.pause(id).catch(() => {}) }
+  async pauseAll() { await Promise.allSettled([...this.active.keys()].map(id=>this.pause(id))) }
   async cleanup(id: string) {
     const record = (await this.list()).find(item => item.id === id); if (!record?.queueId || record.remoteCleaned) return
     const config = this.config()
