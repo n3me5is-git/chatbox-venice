@@ -9,7 +9,7 @@ const summary = (r: MediaRecord) => ({ id: r.id, kind: r.kind, model: r.model, s
 export function buildVeniceMediaTools(sessionId: string, service: Service, settings: () => VeniceOptions, confirm: (message: string) => Promise<boolean>): ToolSet {
   if (settings().enabled === false || settings().chatToolsEnabled === false) return {}
   return { venice_media: {
-    description: 'Optional Venice media tools for this chat only. Generate speech, video, music/SFX; quote video/music; inspect, resume or delete this chat\'s media. Content goes to Venice. Paid generation is never automatically retried. Audio/video are not E2EE. Use catalog for current model IDs. Resume an existing record instead of generating again. Local deletion does not delete the remote copy. Media can be played/exported in Venice Studio. Transcription requires user file selection in Studio.',
+    description: 'Optional Venice media tools for this chat only. Generate speech, video, music/SFX; quote video/music; inspect, resume or delete this chat\'s media. Content goes to Venice. Paid generation is never automatically retried. Audio/video are not E2EE. Use catalog for current model IDs, then catalog with the selected model ID to inspect its full supported options before generation. Resume an existing record instead of generating again. Local deletion does not delete the remote copy. Media can be played/exported in Venice Studio. Transcription requires user file selection in Studio.',
     inputSchema: validatedToolSchema({ type: 'object', properties: {
       action: { type: 'string', enum: ['catalog', 'list', 'quote', 'generate', 'status', 'resume', 'pause', 'delete_local', 'cleanup_remote'] },
       id: { type: 'string' }, kind: { type: 'string', enum: ['speech', 'video', 'music'] }, model: { type: 'string' }, prompt: { type: 'string' }, extra_json: { type: 'string', description: 'Optional JSON object with vendor parameters' },
@@ -18,7 +18,10 @@ export function buildVeniceMediaTools(sessionId: string, service: Service, setti
       const input = raw as Input
       const allowed = () => { abortSignal?.throwIfAborted(); if (settings().enabled === false || !settings().chatToolsEnabled) throw new Error('Venice chat media tools are disabled') }
       allowed()
-      if (input.action === 'catalog') return service.catalog()
+      if (input.action === 'catalog') {
+        const rows = (await service.catalog()).filter(row => ['tts', 'asr', 'video', 'music'].includes(row.type) && (!input.kind || row.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : input.kind)) && (!input.model || row.id === input.model))
+        return input.model ? rows : rows.map(row => ({ id: row.id, type: row.type, name: row.model_spec?.name, privacy: row.model_spec?.privacy }))
+      }
       if (input.action === 'list') return (await service.list()).filter(r => r.sessionId === sessionId).map(summary)
       if (input.action === 'generate' || input.action === 'quote') {
         if (!input.kind || input.kind === 'transcription' || !input.model || (input.action === 'generate' && !input.prompt)) throw new Error('Specify kind, model and prompt')

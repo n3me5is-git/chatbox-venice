@@ -33,6 +33,7 @@ export type ModelSelectorV2Props = PropsWithChildren<
 export type ChatboxAIModel = ChatboxAIModelList['models'][string]
 
 export type DetailModel = {
+  vendorMetadata?: ProviderModelInfo['vendorMetadata']
   providerId: string
   providerName: string
   modelId: string

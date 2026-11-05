@@ -16,6 +16,7 @@ export function getImageModelDetail(group: ImageModelGroup, model: ImageModelOpt
     name: model.displayName,
     description: model.description?.trim() || undefined,
     type: 'image',
+    vendorMetadata: model.vendorMetadata,
   }
 }
 

@@ -34,7 +34,7 @@ export const AutomationStateAttr = {
   navigationEntryCount: 'data-navigation-entry-count',
 } as const
 
-export type AutomationReasoningLevel = 'default' | 'off' | 'low' | 'medium' | 'high'
+export type AutomationReasoningLevel = 'default' | 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export const TestId = {
   chat: {

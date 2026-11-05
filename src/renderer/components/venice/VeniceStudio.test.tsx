@@ -3,12 +3,12 @@ import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VeniceStudio } from './VeniceStudio'
-import type { MediaRecord } from '@shared/providers/definitions/models/venice/media'
+import type { MediaRecord, MediaCatalogItem } from '@shared/providers/definitions/models/venice/media'
 vi.mock('@/platform', () => ({ default: { exporter: { exportTextFile: vi.fn(), exportBlob: vi.fn() } } }))
 Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) })
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn() })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
-const models = [
+const models: MediaCatalogItem[] = [
   { id: 'tts-kokoro', type: 'tts', model_spec: { name: 'Kokoro', voices: ['if_sara', 'im_nicola'], default_voice: 'if_sara', supported_formats: ['mp3', 'wav'], default_format: 'mp3' } },
   { id: 'tts-other', type: 'tts', model_spec: { name: 'Altra voce', voices: ['Vivian'], default_voice: 'Vivian', supported_formats: ['wav'] } },
   { id: 'video', type: 'video', model_spec: { name: 'Video creativo', constraints: { model_type: 'image-to-video', duration: ['4s', '8s'], aspectRatios: ['16:9', '9:16'] } } },
@@ -83,4 +83,20 @@ describe('Venice Studio simulated user journeys', () => {
     const service = setup([{ ...record, status: 'ready', blobKey: 'blob' }]); service.content.mockResolvedValue('https://tracking.example/video.mp4'); show(service)
     await screen.findByText('Landscape'); expect(screen.queryByLabelText('Video generato')).toBeNull()
   })
+})
+
+it('sends only supported music options and resets duration when the model changes', async () => {
+  const service = setup(); service.catalog.mockResolvedValue([...models, { id: 'ace', type: 'music', model_spec: { name: 'ACE', min_duration: 60, max_duration: 210, default_duration: 60, duration_options: [60, 90], supports_lyrics: true, supports_force_instrumental: false } }, { id: 'eleven', type: 'music', model_spec: { name: 'Eleven', min_duration: 3, max_duration: 600, default_duration: 60, supports_lyrics: false, supports_force_instrumental: true } }])
+  show(service); await loadModels(); fireEvent.click(screen.getByRole('radio', { name: 'Musica' }))
+  expect(await screen.findByText('Sono mostrate solo le opzioni dichiarate da questo modello. Le impostazioni vengono ripristinate quando cambi modello.')).toBeTruthy()
+  expect(screen.queryByLabelText('Solo musica, senza voce')).toBeNull()
+  fireEvent.change(screen.getByLabelText('Descrivi la musica o il suono'), { target: { value: 'Una lunga melodia al pianoforte' } }); fireEvent.click(screen.getByRole('button', { name: 'Crea musica' }))
+  await waitFor(() => expect(service.start).toHaveBeenCalledWith(expect.objectContaining({ model: 'ace', options: { duration_seconds: 60 } })))
+  fireEvent.click(screen.getByLabelText('Modello', { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Eleven' }))
+  expect(screen.queryByLabelText('Testo della canzone (facoltativo)')).toBeNull(); expect(screen.getByLabelText('Solo musica, senza voce')).toBeTruthy()
+})
+it('does not show references for a text-only video model', async () => {
+  const service = setup(); service.catalog.mockResolvedValue([{ id: 'video-text', type: 'video', model_spec: { name: 'Solo testo', constraints: { model_type: 'text-to-video', durations: ['5s'] } } }] as typeof models)
+  show(service); fireEvent.click(screen.getByRole('radio', { name: 'Video' })); fireEvent.click(screen.getByRole('button', { name: 'Carica modelli' })); await waitFor(() => expect((screen.getByLabelText('Modello', { selector: 'input' }) as HTMLInputElement).value).toBe('Solo testo'))
+  expect(screen.queryByLabelText('Immagine iniziale')).toBeNull(); expect(screen.queryByLabelText('Immagini di riferimento')).toBeNull()
 })

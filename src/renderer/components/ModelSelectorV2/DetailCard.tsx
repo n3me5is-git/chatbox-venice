@@ -1,3 +1,4 @@
+import { VeniceModelInfo } from '@/components/venice/VeniceModelInfo'
 import { Badge, Button, Flex, Stack, Text, UnstyledButton } from '@mantine/core'
 import { ModelProviderEnum } from '@shared/types'
 import { IconDatabase, IconSparkles } from '@tabler/icons-react'
@@ -319,7 +320,8 @@ export function DetailCard({
           {model.name}
         </Text>
       </Flex>
-      {model.description && (
+      {model.providerId === 'venice' && <VeniceModelInfo model={{ id: model.modelId, type: String(model.vendorMetadata?.veniceType || (model.type === 'chat' ? 'text' : model.type) || 'text'), model_spec: model.vendorMetadata }} />}
+          {model.description && (
         <Text
           size={mobile ? 'md' : 'sm'}
           c="chatbox-secondary"

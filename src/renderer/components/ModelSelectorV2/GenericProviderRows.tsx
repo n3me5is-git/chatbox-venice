@@ -109,6 +109,7 @@ export function GenericProviderRows({
               modelId: model.modelId,
               name: model.nickname || model.modelId,
               capabilities: model.capabilities,
+              vendorMetadata: model.vendorMetadata,
               disabledReason,
             }
             const detailKey = `${provider.id}/${model.modelId}`

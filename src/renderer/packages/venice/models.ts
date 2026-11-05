@@ -14,7 +14,7 @@ export function useVeniceModels() {
     staleTime: 5 * 60 * 1000, retry: false, queryFn: async () => {
       const models = await fetchVeniceModels({ apiKey: config!.apiKey!, apiHost: config?.apiHost, venice: config?.venice }, await createModelDependencies())
       const state = settingsStore.getState(); const current = state.providers?.venice
-      if (current?.apiKey === config?.apiKey && current?.apiHost === config?.apiHost && current?.venice?.enabled !== false) {
+      if (current && current.apiKey === config?.apiKey && current?.apiHost === config?.apiHost && current?.venice?.enabled !== false) {
         const saved = current.models || []
         const enriched = saved.length ? saved.map(model => { const remote = models.find(row => row.modelId === model.modelId); return remote ? { ...remote, ...model, vendorMetadata: remote.vendorMetadata, capabilities: remote.capabilities } : model }) : models.filter(model => !current.excludedModels?.includes(model.modelId))
         state.setSettings({ providers: { ...state.providers, venice: { ...current, models: enriched } } })

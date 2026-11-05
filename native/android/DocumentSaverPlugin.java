@@ -17,6 +17,17 @@ import java.io.OutputStream;
 @CapacitorPlugin(name = "DocumentSaver")
 public class DocumentSaverPlugin extends Plugin {
     @PluginMethod
+    public void openInChrome(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || !"https".equals(Uri.parse(url).getScheme())) { call.reject("Only HTTPS documentation links are allowed"); return; }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.setPackage("com.android.chrome");
+            getActivity().startActivity(intent);
+            call.resolve();
+        } catch (Exception error) { call.reject("Chrome is not available. Use Open in browser instead.", error); }
+    }
+    @PluginMethod
     public void saveFile(PluginCall call) {
         String source = call.getString("sourceUri");
         if (source == null) { call.reject("Missing source file"); return; }

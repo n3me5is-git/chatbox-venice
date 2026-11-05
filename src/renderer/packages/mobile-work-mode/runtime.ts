@@ -96,7 +96,7 @@ export async function prepareCapacitorWorkMode(
   })
   const web = buildMobileWebTools(request.model, request.webBrowsing)
   const images = capacitorImageTools(request.model, request.session.id, request.signal)
-  const veniceTools = request.model.name === 'Venice' && request.globalSettings.providers?.venice?.venice?.chatToolsEnabled !== false && request.globalSettings.providers.venice.venice.enabled !== false
+  const veniceTools = request.model.name === 'Venice' && request.globalSettings.providers?.venice?.venice?.chatToolsEnabled !== false && request.globalSettings.providers?.venice?.venice?.enabled !== false
     ? (await import('@/packages/venice/tools')).veniceChatTools(request.session.id) : {}
   const { tools, active } = await capacitorWorkMode.createTools(
     {

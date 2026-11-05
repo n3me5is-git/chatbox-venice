@@ -19,7 +19,7 @@ export interface MediaStore {
 export type MediaConfiguration = { apiKey: string; apiHost?: string; options: VeniceOptions }
 export type MediaInput = { kind: MediaKind; model: string; prompt: string; options?: Record<string, unknown>; file?: File; sessionId?: string; signal?: AbortSignal }
 export type MediaCatalogItem = { id: string; type: string; model_spec?: { name?: string; description?: string; voices?: string[]; default_voice?: string; supported_formats?: string[]; default_format?: string; constraints?: Record<string, unknown>; capabilities?: Record<string, unknown>; offline?: boolean; privacy?: string; uncensored?: boolean; traits?: string[]; model_sets?: string[]; modelSource?: string;
-    pricing?: Record<string, any>; supports_lyrics?: boolean; lyrics_required?: boolean; supports_force_instrumental?: boolean; supports_lyrics_optimizer?: boolean; supports_loop?: boolean; supports_language_code?: boolean; supports_speed?: boolean;
+    pricing?: Record<string, unknown>; supports_lyrics?: boolean; lyrics_required?: boolean; supports_force_instrumental?: boolean; supports_lyrics_optimizer?: boolean; supports_loop?: boolean; supports_language_code?: boolean; supports_speed?: boolean;
     min_duration?: number; max_duration?: number; default_duration?: number; duration_options?: number[]; min_prompt_length?: number; prompt_character_limit?: number; lyrics_character_limit?: number; min_speed?: number; max_speed?: number; [key: string]: unknown } }
 const MAX_BYTES = 128 * 1024 * 1024
 const flags = { speech: 'audioEnabled', transcription: 'audioEnabled', video: 'videoEnabled', music: 'musicEnabled' } as const
@@ -106,6 +106,7 @@ export class VeniceMediaService {
     if (typeof merged.model !== 'string' || !merged.model.trim()) throw new Error('Choose a model')
     const body: Record<string, unknown> = { model: merged.model }
     for (const key of allowed) if (merged[key] !== undefined) body[key] = merged[key]
+    if (input.kind === 'music' && body.character_count === undefined && (await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec?.pricing?.per_thousand_characters) body.character_count = input.prompt.length
     return (await this.api(config, input.kind === 'video' ? '/video/quote' : '/audio/quote', body)).json()
   }
   async start(input: MediaInput): Promise<MediaRecord> {
