@@ -33,6 +33,8 @@ export type ImageGenerationSource = z.infer<typeof ImageGenerationSourceSchema>
 export const ImageGenerationSchema = z.object({
   protection: z.string().optional(),
   protectedRecord: z.boolean().optional(),
+  localEdit: z.object({sourceKey:z.string(),maskKey:z.string(),width:z.number().int().positive(),height:z.number().int().positive(),rect:z.object({x:z.number(),y:z.number(),width:z.number().positive(),height:z.number().positive()})}).optional(),
+  unmaskedImages: z.array(z.string()).optional(),
   id: z.string(),
   prompt: z.string(),
   referenceImages: z.array(z.string()), // storage keys

@@ -1,4 +1,5 @@
 import { forkT as ft } from '@/i18n/fork'
+import { VeniceImageEditor } from '@/components/venice/VeniceImageEditor'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { ScopeUnlock,useScopeStatus } from '@/components/security/ScopeUnlock'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
@@ -128,7 +129,7 @@ function InputToolbar({
   const { t } = useTranslation()
 
   return (
-    <Flex align="center" gap={0} className="shrink-0 w-full min-w-0" justify="space-between" style={{ overflowX: 'auto', overscrollBehaviorX: 'contain' }} aria-label="Strumenti immagini scorrevoli">
+    <Flex align="center" gap={0} className="shrink-0 w-full min-w-0" justify="space-between" style={{ overflowX: 'auto', overscrollBehaviorX: 'contain' }} aria-label={ft('Scrollable image tools')}>
       {/* Left Group: Model, Ratio, Reference */}
       <Flex align="center" gap={0} style={{ flexShrink: 0 }}>
         {/* Model Select */}
@@ -533,6 +534,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                     {currentRecord.protectedRecord?<ScopeUnlock keys={vault.keys}/>:<Button size="xs" variant="default" disabled={isCurrentlyGenerating} onClick={()=>void(async()=>{try{if(!currentRecord.protection)await vault.keys.key('app');await platform.getImageGenerationStorage().update(currentRecord.id,{protection:currentRecord.protection?undefined:'app'});await queryClient.invalidateQueries({queryKey:[IMAGE_GEN_QUERY_KEY]});await queryClient.invalidateQueries({queryKey:[IMAGE_GEN_LIST_QUERY_KEY]})}catch(error){toastActions.add(error instanceof Error?error.message:String(error))}})()}>{currentRecord.protection?ft('Make this creation public'):ft('Protect this creation')}</Button>}
                     <Button size="xs" variant="default" onClick={() => { setPrompt(currentRecord.prompt); textareaRef.current?.focus() }}>{ft("Reuse prompt")}</Button>
                     {!!currentRecord.generatedImages.length && <Button size="xs" variant="light" onClick={() => {
+                      if(currentRecord.model.provider==='venice'){void NiceModal.show(VeniceImageEditor,{record:currentRecord,models:imageModelGroups.filter(group=>group.providerId==='venice').flatMap(group=>group.models),onCreated:(id:string)=>imageGenerationStore.getState().setCurrentRecordId(id)});return}
                       const edit = imageModelGroups.filter(group => group.providerId === currentRecord.model.provider).flatMap(group => group.models.map(model => ({ group, model }))).find(({ model }) => !!model.capabilities?.inputReferences && (model.capabilities.inputReferences.max || 1) > 0)
                       if (!edit) { toastActions.add(ft("Select or configure a model that supports image editing")); return }
                       handleModelSelect(edit.group.providerId, edit.model.modelId); setPrompt(currentRecord.prompt); void handleUseAsReference(currentRecord.generatedImages[0], currentRecord.id); textareaRef.current?.focus()

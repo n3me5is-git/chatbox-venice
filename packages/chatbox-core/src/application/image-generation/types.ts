@@ -5,6 +5,7 @@ import type { ImageGeneration, ImageGenerationModel, ImageGenerationSource } fro
 export interface GenerateImageParams {
   /** Optional host storage scope; does not change the provider request. */
   protection?: string
+  localEdit?: ImageGeneration['localEdit']
   prompt: string
   referenceImages: string[]
   model: ImageGenerationModel
@@ -75,6 +76,7 @@ export interface ImageGenerationServiceOptions {
   createId?(): string
   createImageKey?(recordId: string): string
   createThumbnail?(data:string,signal:AbortSignal):Promise<string|null>
+  transformImage?(data:string,record:ImageGeneration,signal:AbortSignal):Promise<string>
   now?(): number
   pollIntervalMs?: number
   onGenerate?(params: GenerateImageParams, path: 'async' | 'direct'): void

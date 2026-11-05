@@ -1,0 +1,7 @@
+import { describe,expect,it } from 'vitest'
+import { compatibleEditModels,pointPrompt } from './image-edit'
+const models=[{modelId:'plain',displayName:'Text to image',capabilities:{aspectRatio:null,inputReferences:null}},{modelId:'style',displayName:'Style reference',capabilities:{aspectRatio:null,inputReferences:{max:3}},vendorMetadata:{veniceType:'image'}},{modelId:'edit',displayName:'Editor',capabilities:{aspectRatio:null,inputReferences:{min:1,max:3}},vendorMetadata:{veniceType:'inpaint'}},{modelId:'requires-two',displayName:'Two references required',capabilities:{aspectRatio:null,inputReferences:{min:2,max:3}},vendorMetadata:{veniceType:'inpaint'}}]
+describe('model-aware local image edits',()=>{
+ it('only exposes models supporting the actual selected editing mode and reference count',()=>{expect(compatibleEditModels(models,'remix').map(row=>row.modelId)).toEqual(['style','edit']);expect(compatibleEditModels(models,'edit').map(row=>row.modelId)).toEqual(['edit']);expect(compatibleEditModels(models,'mask').map(row=>row.modelId)).toEqual(['edit'])})
+ it('maps comment coordinates into the actual crop and excludes comments outside it',()=>{const prompt=pointPrompt('Change the hat',[{x:50,y:25,text:'Make this blue'},{x:90,y:90,text:'Outside the crop'}],{x:25,y:0,width:50,height:50});expect(prompt).toContain('x: 50.0%, y: 50.0%');expect(prompt).toContain('Make this blue');expect(prompt).not.toContain('Outside')})
+})

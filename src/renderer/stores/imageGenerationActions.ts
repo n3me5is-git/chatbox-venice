@@ -1,5 +1,6 @@
 import { mergeExtraBody, parseExtraBody } from '@shared/models/utils/extra-body'
 import { createImageThumbnail } from '@/packages/image-thumbnail'
+import { applyLocalImageEdit,localImageBitmap } from '@/packages/venice/image-edit'
 import {
   type GenerateImageParams,
   type ImageGenerationHandle,
@@ -52,7 +53,7 @@ export function getImageGenerationService(): ImageGenerationService {
           const rows = await queryClient.fetchQuery(providerImageModelsQueryOptions('venice' as import('@shared/types').ModelProviderEnum, { apiKey: provider.apiKey, apiHost: provider.apiHost, venice: provider.venice }))
           const row = rows.find(row => row.modelId === model.modelId)
           const saved = provider.models?.find(row => row.modelId === model.modelId)
-          if (!row) throw new Error('Modello immagine Venice non disponibile nel catalogo corrente')
+          if (!row) throw new Error('Venice image model is unavailable in the current catalog')
           settings = { ...settings, providers: { ...settings.providers, venice: { ...provider, models: [...(provider.models || []).filter(row => row.modelId !== model.modelId), { modelId: model.modelId, type: 'image', ...saved, extraBody: mergeExtraBody(saved?.extraBody || {}, parseExtraBody(JSON.stringify(model.extraBody || {})) || {}), vendorMetadata: row.vendorMetadata }] } } }
         }
         return getModel(
@@ -64,6 +65,7 @@ export function getImageGenerationService(): ImageGenerationService {
       },
       resolveReferenceImage: async (key) => (await createModelDependencies()).storage.getImage(key),
       validateRequest: async (params, signal) => {
+        if(params.localEdit){if(params.model.provider!=='venice')throw new Error('Local mask editing requires a Venice image editor');const provider=settingsStore.getState().getSettings().providers?.venice||{};const catalog=await queryClient.fetchQuery(providerImageModelsQueryOptions('venice' as import('@shared/types').ModelProviderEnum,{apiKey:provider.apiKey,apiHost:provider.apiHost,venice:provider.venice}));if(catalog.find(row=>row.modelId===params.model.modelId)?.vendorMetadata?.veniceType!=='inpaint')throw new Error('Select a compatible Venice editing model');const source=await currentBlobStorage.get(params.localEdit.sourceKey);if(!source)throw new Error('Local editing source is unavailable');const bitmap=await localImageBitmap(source,signal);bitmap.close()}
         if (params.model.provider === 'chatbox-ai') getLicenseKey()
         const capabilities = await getImageModelCapabilities(
           params.model,
@@ -79,6 +81,7 @@ export function getImageGenerationService(): ImageGenerationService {
       },
       createImageKey: (recordId) => StorageKeyGenerator.picture(`image-gen:${recordId}`),
       createThumbnail:createImageThumbnail,
+      transformImage:(data,record,signal)=>applyLocalImageEdit(data,record,key=>currentBlobStorage.get(key),signal),
       onGenerate: (params, path) =>
         trackEvent('generate_image', {
           provider: normalizePlausibleProvider(params.model.provider),

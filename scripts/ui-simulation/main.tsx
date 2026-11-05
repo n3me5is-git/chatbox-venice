@@ -1,3 +1,5 @@
+import { SecuritySimulation } from './security'
+import { showImageEdit,checkLocalMask } from './image-edit'
 import type {ImageChoice} from '../../src/shared/providers/definitions/models/venice/image-tools'
 import type {ApprovalMode} from '../../src/renderer/packages/venice/session-approvals'
 import i18n from '../../src/renderer/i18n'
@@ -33,7 +35,8 @@ const service = new VeniceMediaService({ read: async () => structuredClone(recor
 const imageModels = [{modelId:'gpt-flare-image',displayName:'GPT Flare',capabilities:{aspectRatio:{values:['1:1','16:9']},inputReferences:null},vendorMetadata:{privacy:'anonymized'}}]
 ;(window as any).__simulationSetLanguage=(language:string)=>i18n.changeLanguage(language)
 function Simulation() {
- const [enabled,setEnabled]=useState(true)
+ const [enabled,setEnabled]=useState(true),[security,setSecurity]=useState(false)
+ ;(window as any).__simulationCheckLocalMask=checkLocalMask
  const chooseImage=async()=>{
   const count=((window as any).__simulationImageAttempt||0)+1; (window as any).__simulationImageAttempt=count
   ;(window as any).__simulationImageChoice=null
@@ -44,6 +47,6 @@ function Simulation() {
   ;(window as any).__simulationImageChoice=result?.choice; (window as any).__simulationImageAutomatic=result?.automatic
   ;(window as any).__simulationOtherChatMode=sessionApprovals.mode('other-chat')
  }
- return <MantineProvider><NiceModal.Provider><div style={{padding:12,background:'#fff3bf'}}>Local simulation: no real APIs or charges.<Checkbox label="Audio module enabled (simulation)" checked={enabled} onChange={e=>{const value=e.currentTarget.checked;configuration.options.audioEnabled=value;setEnabled(value)}}/></div><Button m="sm" variant="light" onClick={()=>void chooseImage()}>Test image selection</Button><div style={{padding:12}}><VeniceSessionApprovals sessionId="simulation-chat"/></div><VeniceStudio service={service} options={{...configuration.options,audioEnabled:enabled}}/></NiceModal.Provider></MantineProvider>
+ return <MantineProvider><NiceModal.Provider><div style={{padding:12,background:'#fff3bf'}}>Local simulation: no real APIs or charges.<Checkbox label="Audio module enabled (simulation)" checked={enabled} onChange={e=>{const value=e.currentTarget.checked;configuration.options.audioEnabled=value;setEnabled(value)}}/></div><Button m="sm" onClick={()=>void showImageEdit()}>Test image editing</Button><Button m="sm" onClick={()=>setSecurity(value=>!value)}>Test privacy settings</Button>{security&&<SecuritySimulation/>}<Button m="sm" variant="light" onClick={()=>void chooseImage()}>Test image selection</Button><div style={{padding:12}}><VeniceSessionApprovals sessionId="simulation-chat"/></div><VeniceStudio service={service} options={{...configuration.options,audioEnabled:enabled}}/></NiceModal.Provider></MantineProvider>
 }
 void i18n.changeLanguage('en').then(()=>createRoot(document.getElementById('root')!).render(<Simulation/>))

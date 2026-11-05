@@ -392,6 +392,11 @@ export class ImageGenerationService {
       let associationAttempted = false
       let thumbnailKey:string|undefined
       try {
+        const sourceRecord=await this.options.storage.getById(recordId)
+        if(sourceRecord?.localEdit){
+          try{if(!this.options.transformImage)throw new Error('Local mask editing is unavailable');data=await this.options.transformImage(data,sourceRecord,attempt.controller.signal)}
+          catch(error){this.assert(attempt);const rawKey=key+':unmasked';await this.options.blobStorage.set(rawKey,data);await this.options.storage.update(recordId,{unmaskedImages:[...(sourceRecord.unmaskedImages||[]),rawKey]});throw new Error('Local masking failed. The unmasked provider result was saved in the local library; no paid request was repeated.',{cause:error})}
+        }
         await this.options.blobStorage.set(key, data)
         this.assert(attempt)
         if(this.options.createThumbnail){try{const thumbnail=await this.options.createThumbnail(data,attempt.controller.signal);this.assert(attempt);if(thumbnail){thumbnailKey=key+':thumbnail';await this.options.blobStorage.set(thumbnailKey,thumbnail)}}catch(error){thumbnailKey=undefined;this.options.onError?.(error)}}
@@ -607,7 +612,7 @@ export class ImageGenerationService {
         await this.options.storage.delete(id)
         this.unpersistedTasks.delete(id)
         this.emit({ type: 'deleted', id })
-        for (const key of [...record.referenceImages, ...record.generatedImages, ...(record.generatedImageThumbnails || [])]) {
+        for (const key of [...record.referenceImages, ...record.generatedImages, ...(record.generatedImageThumbnails || []), ...(record.unmaskedImages || []), ...(record.localEdit ? [record.localEdit.sourceKey,record.localEdit.maskKey] : [])]) {
           if (key.startsWith('picture:image-gen:') || key.startsWith('picture:image-creator-ref:')) {
             this.deferredCleanup.add(key)
           }
@@ -637,7 +642,8 @@ export class ImageGenerationService {
       while (cursor !== null) {
         const page: ImageGenerationPage = await this.options.storage.getPage(cursor, 100)
         for (const record of page.items) {
-          for (const key of [...record.referenceImages, ...record.generatedImages, ...(record.generatedImageThumbnails || [])]) references.add(key)
+          if(record.protectedRecord)return // Hidden records may still own a shared reference. Unlock before cleanup.
+          for (const key of [...record.referenceImages, ...record.generatedImages, ...(record.generatedImageThumbnails || []), ...(record.unmaskedImages || []), ...(record.localEdit ? [record.localEdit.sourceKey,record.localEdit.maskKey] : [])]) references.add(key)
         }
         cursor = page.nextCursor
       }

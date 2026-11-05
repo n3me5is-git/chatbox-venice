@@ -3,13 +3,12 @@ import { useEffect,useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
 import platform from '@/platform'
-import { vaultRuntimeFor } from '@/packages/vault/runtime'
+import { vaultRuntimeFor,type VaultRuntime } from '@/packages/vault/runtime'
 import type { DeviceCapabilities } from '@/packages/vault/device'
 import { SettingsSection } from '@/components/settings/SettingsLayout'
 import { ScopeUnlock,useScopeStatus } from './ScopeUnlock'
-import { lockApplication } from './AppGate'
-export function SecuritySettings(){
-  useTranslation();const vault=vaultRuntimeFor(platform);const {status,revision,error:loadError}=useScopeStatus(vault.keys);const [caps,setCaps]=useState<DeviceCapabilities|null>(null);const [pinEnabled,setPinEnabled]=useState(true);const [bio,setBio]=useState(false);const [pin,setPin]=useState('');const [repeat,setRepeat]=useState('');const [enabled,setEnabled]=useState(false);const [background,setBackground]=useState(true);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('')
+export function SecuritySettings({runtime}:{runtime?:Pick<VaultRuntime,'keys'|'db'>}={}){
+  useTranslation();const vault=runtime||vaultRuntimeFor(platform);const {status,revision,error:loadError}=useScopeStatus(vault.keys);const [caps,setCaps]=useState<DeviceCapabilities|null>(null);const [pinEnabled,setPinEnabled]=useState(true);const [bio,setBio]=useState(false);const [pin,setPin]=useState('');const [repeat,setRepeat]=useState('');const [enabled,setEnabled]=useState(false);const [background,setBackground]=useState(true);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('')
   useEffect(()=>{void vault.keys.capabilities().then(setCaps).catch(()=>setError(ft('Device encryption is unavailable')))},[vault])
   useEffect(()=>{let active=true;Promise.all([vault.db.getSetting<boolean>('app-lock-enabled'),vault.db.getSetting<boolean>('lock-on-background')]).then(([enabled,background])=>{if(active){setEnabled(enabled===true);setBackground(background!==false)}}).catch(()=>setError(ft('Unable to read protection settings')));return()=>{active=false}},[vault,revision])
   useEffect(()=>{if(status?.configured){setPinEnabled(status.pin);setBio(status.biometric)}},[status?.configured,status?.pin,status?.biometric])
@@ -24,7 +23,7 @@ export function SecuritySettings(){
       {pinEnabled&&<><PasswordInput label={status?.pin?ft('Change PIN or passphrase (optional)'):ft('New PIN or passphrase')} description={ft('At least 6 digits or a passphrase of 10 characters. Keep a separate encrypted backup; a forgotten PIN cannot be recovered.')} value={pin} onChange={event=>setPin(event.currentTarget.value)} autoComplete="new-password"/><PasswordInput label={ft('Confirm PIN or passphrase')} value={repeat} onChange={event=>setRepeat(event.currentTarget.value)} autoComplete="new-password"/></>}
       <Switch label={ft('Enable biometric or device unlock')} description={caps?.name} checked={bio} onChange={event=>setBio(event.currentTarget.checked)} disabled={busy||!caps?.biometric}/>
       <Button onClick={()=>void save()} loading={busy} disabled={!caps?.encryption||!pinEnabled&&!bio}>{ft('Save unlock methods')}</Button>
-      {status?.configured&&<><Switch label={ft('Require unlock to open the app')} checked={enabled} onChange={event=>{const checked=event.currentTarget.checked;void run(async()=>{await vault.db.setSetting('app-lock-enabled',checked);setEnabled(checked)})}} disabled={busy}/><Switch label={ft('Lock when the app goes into the background')} checked={background} onChange={event=>{const checked=event.currentTarget.checked;void run(async()=>{await vault.db.setSetting('lock-on-background',checked);setBackground(checked)})}} disabled={busy}/><Button variant="default" onClick={()=>void lockApplication()}>{ft('Lock protected content now')}</Button></>}
+      {status?.configured&&<><Switch label={ft('Require unlock to open the app')} checked={enabled} onChange={event=>{const checked=event.currentTarget.checked;void run(async()=>{await vault.db.setSetting('app-lock-enabled',checked);setEnabled(checked)})}} disabled={busy}/><Switch label={ft('Lock when the app goes into the background')} checked={background} onChange={event=>{const checked=event.currentTarget.checked;void run(async()=>{await vault.db.setSetting('lock-on-background',checked);setBackground(checked)})}} disabled={busy}/><Button variant="default" onClick={()=>void import('./AppGate').then(({lockApplication})=>lockApplication())}>{ft('Lock protected content now')}</Button></>}
     </>}{(error||loadError)&&<Alert color="red">{error||loadError}</Alert>}{notice&&<Alert color="green">{notice}</Alert>}
   </Stack></SettingsSection>
 }

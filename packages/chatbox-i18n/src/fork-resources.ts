@@ -1,5 +1,36 @@
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 export const forkEnglish = {
+  "This local item is no longer available": "This local item is no longer available",
+  "Paint the area to change first": "Paint the area to change first",
+  "Remix and edit image": "Remix and edit image",
+  "Source image": "Source image",
+  "Image {{number}}": "Image {{number}}",
+  "Image editing mode": "Image editing mode",
+  "Remix": "Remix",
+  "Edit image": "Edit image",
+  "Paint an edit area": "Paint an edit area",
+  "Compatible image model": "Compatible image model",
+  "No enabled model supports this edit mode. Enable a compatible Venice model or show other provider models.": "No enabled model supports this edit mode. Enable a compatible Venice model or show other provider models.",
+  "Tap the image to add a comment point, or paint an area. Coordinates are percentages of the original image. Editing supports local images up to 8 megapixels.": "Tap the image to add a comment point, or paint an area. Coordinates are percentages of the original image. Editing supports local images up to 8 megapixels.",
+  "Source image preview": "Source image preview",
+  "Edit mask and comment points": "Edit mask and comment points",
+  "Image annotation tool": "Image annotation tool",
+  "Paint": "Paint",
+  "Erase": "Erase",
+  "Comment point": "Comment point",
+  "Brush size": "Brush size",
+  "Clear edit mask": "Clear edit mask",
+  "Venice receives a crop around the painted area. The mask stays on this device and is applied locally to preserve the rest of the image. Comments outside this crop are ignored.": "Venice receives a crop around the painted area. The mask stays on this device and is applied locally to preserve the rest of the image. Comments outside this crop are ignored.",
+  "Point {{number}} · X %": "Point {{number}} · X %",
+  "Y %": "Y %",
+  "Comment for point {{number}}": "Comment for point {{number}}",
+  "Remove point": "Remove point",
+  "Editing instructions": "Editing instructions",
+  "Reuse original prompt": "Reuse original prompt",
+  "Images in this batch": "Images in this batch",
+  "This sends the selected reference and instructions to Venice and may incur a charge. Each batch image is a separate request.": "This sends the selected reference and instructions to Venice and may incur a charge. Each batch image is a separate request.",
+  "Confirm and generate edits": "Confirm and generate edits",
+  "Scrollable image tools": "Scrollable image tools",
   "Change PIN or passphrase (optional)": "Change PIN or passphrase (optional)",
   "App unlock": "App unlock",
   "Protected project": "Protected project",
@@ -486,6 +517,7 @@ export const forkEnglish = {
   "Uncensored": "Uncensored"
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+
 
 
 
