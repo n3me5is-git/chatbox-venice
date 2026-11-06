@@ -36,6 +36,8 @@ Remix/edit controls show compatible models and allow explicit batch approval. Co
 
 ## Verification boundaries
 
+Venice E2EE tools are a separate opt-in transport setting. The default encrypted-tool protocol includes tool schemas, calls and text results in ciphertext; optional native tools expose their current metadata with a warning. These choices do not change local storage protection. Executing search/MCP services receive their arguments. See [search and encrypted tool boundaries](search-and-encrypted-tools.md).
+
 CI tests use synthetic keys/API responses, real browser canvas operations and mocked device-key wrapping. Separate native checks compile the Windows Hello helper and Android Keystore/biometric plugin. They do not verify physical biometric enrollment/unlock, every codec/device, or paid Venice inference. See [testing](fork-testing.md) and [provider data flows](fork-privacy.md).
 
 ## Mobile library and search controls (1.29.0)

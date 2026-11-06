@@ -23,6 +23,7 @@ export async function runSearchReview({click,evaluate,wait,byText,byLabel,cdp,ou
  await writeFile(path.join(output,'native-tool-privacy-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  await click(byText('Cancel'));assert.equal(await evaluate('window.__simulationSearchSettings.e2eeToolsEnabled===true'),false,'Cancel enabled tools')
  await click(track('Tools in encrypted chat'));await click(byText('Enable tools'));await wait(()=>evaluate('window.__simulationSearchSettings.e2eeToolsEnabled===true&&window.__simulationSearchSettings.e2eeToolMode==="encrypted-text"'),'Encrypted tool mode did not save after consent')
+ await wait(()=>evaluate("!document.body.textContent.includes('Allow tools in encrypted chat?')"),'Consent dialog did not finish closing')
  await writeFile(path.join(output,'independent-search-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  await click(byText('Close search review'))
 }

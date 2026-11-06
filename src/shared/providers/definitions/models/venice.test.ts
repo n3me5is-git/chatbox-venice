@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import Venice, { fetchVeniceModels, getVeniceImageCapabilities, getVeniceParameters } from './venice'
 import { withVeniceCitations } from './venice-citations'
 import { prepareVeniceSearch } from './venice-search'
+import { createWebSearchTool } from '../../../web-search-tool'
 
 const json = (data: unknown) => new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } })
 function dependencies(apiRequest = vi.fn()): ModelDependencies {
@@ -160,4 +161,36 @@ it('retains the direct Venice search tool through Chatbox active-tool preparatio
  const model=new Venice({apiKey:'synthetic',apiHost:'https://api.venice.ai/api/v1',model:{modelId:'chat',capabilities:['tool_use']},venice:{webSearch:'auto',searchProvider:'brave'}},dependencies(api))
  const parts=[];for await(const part of model.chatStream([{role:'user',content:'Find the latest information'}],{maxSteps:3,prepareStep:async()=>({activeTools:[]})}))parts.push(part)
  expect(api.mock.calls.some(([request])=>request.url.endsWith('/augment/search'))).toBe(true);expect(parts.some(part=>part.type==='tool-result')).toBe(true)
+})
+
+it.each([false, true])('completes the real SDK global search cycle without replaying failed retrieval (failure=%s)', async (failure) => {
+  const execute = vi.fn(async () => {
+    if (failure) throw new Error('HTTP 429')
+    return { searchResults: [{ title: 'Source', link: 'https://source.example', snippet: 'Verified result' }] }
+  })
+  let completions = 0
+  const api = vi.fn(async (request: import('../../../types/adapters').ApiRequestOptions) => {
+    const body = JSON.parse(String(request.body))
+    const names = (body.tools || []).map((entry: { function: { name: string } }) => entry.function.name)
+    if (completions === 0) expect(names).toContain('web_search')
+    else {
+      if (failure) expect(names).not.toContain('web_search')
+      const history = JSON.stringify(body.messages)
+      expect(history).toContain(failure ? 'Search unavailable for this answer' : 'https://source.example')
+    }
+    const delta = completions++ === 0
+      ? { tool_calls: [{ index: 0, id: 'global-search', type: 'function', function: { name: 'web_search', arguments: '{"query":"latest"}' } }] }
+      : { content: failure ? 'Search unavailable; please try later.' : 'Answer: https://source.example' }
+    const reason = completions === 1 ? 'tool_calls' : 'stop'
+    return new Response(`data: ${JSON.stringify({ id: 'stream', model: 'chat', created: 1, choices: [{ index: 0, delta, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: reason }] })}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+  })
+  const model = new Venice({ apiKey: 'synthetic', apiHost: 'https://api.venice.ai/api/v1', model: { modelId: 'chat', capabilities: ['tool_use'] }, venice: { webSearch: 'off' } }, dependencies(api))
+  const parts = []
+  for await (const part of model.chatStream([{ role: 'user', content: 'Search the web' }], {
+    tools: { web_search: createWebSearchTool(execute) },
+    prepareStep: async () => ({ activeTools: ['web_search'] }),
+  })) parts.push(part)
+  expect(execute).toHaveBeenCalledTimes(1)
+  expect(api).toHaveBeenCalledTimes(2)
+  expect(parts.some(part => part.type === (failure ? 'tool-error' : 'tool-result'))).toBe(true)
 })

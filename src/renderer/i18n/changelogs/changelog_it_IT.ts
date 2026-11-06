@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.30.0
+1. Tool E2EE facoltativi: definizioni, chiamate e risultati testuali cifrati
+2. Function calling nativo alternativo con avviso privacy e verifica delle capacità del modello
+3. Interruttore indipendente per la ricerca Venice e tool separati Brave, Google ed Exa
+4. Protezione dai cicli di ricerche fallite o duplicate e aggiornamento immediato delle capacità MCP
+5. Profili nelle nuove chat, correzioni dei menu mobile e controlli in inglese e italiano
+
 ## Chatbox Venice 1.29.0
 1. Libreria locale nel menu laterale con miniature, anteprime e categorie
 2. Invio va a capo nel prompt immagini; impostazioni avanzate in un pannello dedicato

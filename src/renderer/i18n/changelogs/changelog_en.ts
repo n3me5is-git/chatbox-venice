@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.30.0
+1. Optional E2EE tool messages: encrypted definitions, calls and textual results
+2. Native function calling alternative with explicit privacy warning and model capability checks
+3. Independent Venice search pause switch; separate Brave, Google and Exa tools
+4. Failed/duplicate search loop protection and immediate Work/MCP capability refresh
+5. New-chat search profiles, mobile dropdown fixes and English/Italian controls
+
 ## Chatbox Venice 1.29.0
 1. Sidebar visual library with categories, thumbnails, previews and protected access
 2. Newline on Enter for image prompts; separate advanced settings and complete image display

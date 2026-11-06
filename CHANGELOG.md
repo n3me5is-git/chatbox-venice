@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.30.0
+
+See [release notes](docs/releases/v1.30.0.md). Adds opt-in encrypted tool conversations using the attributed venice-e2ee text protocol, optional native tool metadata with explicit consent, independent chat search switches, three named Venice search engines and bounded search retries. Preserves new-chat profiles and refreshes Work/MCP capabilities immediately.
+
 ## 1.29.0
 
 See [release notes](docs/releases/v1.29.0.md). Repairs Android biometric cipher ordering, inference-key balances, touch panels, model selection, independent search controls and protected previews. Adds the sidebar visual library and complete English/Italian fork strings.

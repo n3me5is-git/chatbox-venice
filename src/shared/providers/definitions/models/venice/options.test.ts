@@ -22,4 +22,16 @@ describe('Venice profile precedence and settings isolation', () => {
     const settings = { enabled: false, musicEnabled: true, profiles: [{ id: 'p', name: 'Preset', options: { imageSafeMode: false } }] }
     expect(VeniceSettingsSchema.parse(settings)).toEqual(settings)
   })
+
+  it('persists independent search controls and encrypted tool consent without granting it through profiles', () => {
+    const settings = {
+      webSearch: 'auto', webSearchEnabled: false, searchToolMode: 'separate',
+      e2eeToolsEnabled: true, e2eeToolMode: 'encrypted-text',
+      profiles: [{ id: 'p', name: 'Research', options: { searchToolMode: 'selected', webSearchEnabled: true } }],
+    }
+    expect(VeniceSettingsSchema.parse(settings)).toEqual(settings)
+    const hostile = { e2eeToolsEnabled: true, e2eeToolMode: 'native' } as never
+    expect(resolveVeniceSettings({ e2eeToolsEnabled: false, e2eeToolMode: 'encrypted-text' }, hostile, hostile))
+      .toMatchObject({ e2eeToolsEnabled: false, e2eeToolMode: 'encrypted-text' })
+  })
 })

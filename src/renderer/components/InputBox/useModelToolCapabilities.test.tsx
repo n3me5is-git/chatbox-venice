@@ -17,6 +17,10 @@ const mocks = vi.hoisted(() => ({
       deepseek: {
         models: [{ modelId: 'deepseek-v4-flash', capabilities: undefined as string[] | undefined }],
       },
+      venice: {
+        models: [{ modelId: 'secure' }],
+        venice: { textPrivacy: 'e2ee', e2eeToolsEnabled: false },
+      },
     },
   },
 }))
@@ -59,6 +63,7 @@ describe('useModelToolCapabilities', () => {
     testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     mocks.agentModeSupported = false
     mocks.registryVersion = 0
+    mocks.settingsState.providers.venice.venice = { textPrivacy: 'e2ee', e2eeToolsEnabled: false }
     mocks.getRegistry.mockReset().mockResolvedValue({})
     mocks.getModel.mockReset().mockImplementation(() => ({
       isSupportToolUse: (scope: string) => scope === 'agent' && mocks.agentModeSupported,
@@ -123,5 +128,19 @@ describe('useModelToolCapabilities', () => {
       expect(result.current.modelSupportsAgentMode).toBe(true)
       expect(mocks.getModel).toHaveBeenCalledTimes(2)
     })
+  })
+
+  it('refreshes Work and MCP capabilities immediately after encrypted tools are enabled', async () => {
+    const { result, rerender } = renderHook(
+      () => useModelToolCapabilities({ provider: 'venice', modelId: 'secure' }, {} as SessionSettings),
+      { wrapper: createWrapper() }
+    )
+    await waitFor(() => expect(result.current.isModelToolCapabilityFetched).toBe(true))
+    expect(result.current.modelSupportsAgentMode).toBe(false)
+    mocks.agentModeSupported = true
+    mocks.settingsState.providers.venice.venice = { textPrivacy: 'e2ee', e2eeToolsEnabled: true }
+    rerender()
+    await waitFor(() => expect(result.current.modelSupportsAgentMode).toBe(true))
+    expect(mocks.getModel).toHaveBeenCalledTimes(2)
   })
 })
