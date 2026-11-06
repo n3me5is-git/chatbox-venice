@@ -1,5 +1,6 @@
 import { VeniceSettingSelect as Select } from '@/components/venice/VeniceSettingSelect'
 import { E2EEToolSettings } from '@/components/venice/E2EEToolSettings'
+import { SecureReceiptSettings } from '@/components/venice/SecureReceiptSettings'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
@@ -83,6 +84,7 @@ export function VeniceModuleSettings() {
     <Select comboboxProps={{withinPortal:false}} label={ft("Secure text chat")} allowDeselect={false} value={options.textPrivacy || 'standard'} data={[{ value: 'standard', label: ft("Standard HTTPS") }, { value: 'tee', label: ft("Require TEE verification") }, { value: 'e2ee', label: ft("Require end-to-end encryption") }]} onChange={value => update({ textPrivacy: value as Options['textPrivacy'] })} />
     <Text size="xs" c="dimmed">{ft('E2EE encrypts text on this device. Native Venice search and multimodal input are unavailable. Client tools can be enabled explicitly below. Secure replies are shown after verification. TEE alone allows Venice to read the prompt.')}</Text>
     {options.textPrivacy==='e2ee'&&<E2EEToolSettings enabled={options.e2eeToolsEnabled===true} mode={options.e2eeToolMode||'encrypted-text'} onChange={(e2eeToolsEnabled,e2eeToolMode)=>update({e2eeToolsEnabled,e2eeToolMode})}/>}
+    {options.textPrivacy&&options.textPrivacy!=='standard'&&<SecureReceiptSettings enabled={options.secureReceiptCompatibility===true} onChange={secureReceiptCompatibility=>update({secureReceiptCompatibility})}/>}
     <Text size="xs" c="dimmed">{ft("Attestation checks follow the Venice CLI: fresh nonce, model identity, debug-mode rejection and key binding. Hardware certificate-chain verification relies on Venice; this app does not independently verify Intel/NVIDIA roots.")}</Text>
     <Text fw={600} mt="sm">{ft("What would you like to use?")}</Text>
     <SimpleGrid cols={{ base: 1, sm: 2 }}>

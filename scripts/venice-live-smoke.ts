@@ -13,7 +13,7 @@ import path from 'node:path'
 const origin='https://api.venice.ai/api/v1'
 let active=false
 type Ledger={date:string;video:number;music:number;speech:number;transcription:number;completions:number;entries:unknown[]}
-export async function runSmoke(command:{action:string;apiKey:string;scratch:string;model?:string;engine?:string;privacy?:'standard'|'e2ee';transport?:'encrypted-text'|'native';options?:Record<string,unknown>}){
+export async function runSmoke(command:{action:string;apiKey:string;scratch:string;model?:string;engine?:string;privacy?:'standard'|'e2ee';transport?:'encrypted-text'|'native';receiptCompatibility?:boolean;options?:Record<string,unknown>}){
  if(active)throw Error('Only one live scenario may run at a time')
  active=true
  const scratch=path.resolve(command.scratch),out=path.resolve(scratch,'../outputs/live-venice-tests')
@@ -58,7 +58,7 @@ export async function runSmoke(command:{action:string;apiKey:string;scratch:stri
   if(['text','tools','search'].includes(command.action)){
    const selected=catalog.find(x=>x.id===command.model&&x.type==='text');if(!selected)throw Error('Choose a current text model')
    const dependencies={request:{apiRequest:request,fetchWithOptions:fetch},storage:{saveImage:async()=>'',getImage:async()=>''},sentry:{captureException:()=>{},withScope:()=>{}},getRemoteConfig:async()=>({}),platformType:'desktop'} as unknown as ModelDependencies
-   const model=new Venice({apiKey:command.apiKey,apiHost:origin,model:{modelId:selected.id,providerId:'venice',capabilities:selected.model_spec.capabilities?.supportsFunctionCalling?['tool_use']:[],vendorMetadata:{...selected.model_spec,veniceType:'text'}},maxOutputTokens:512,venice:{webSearch:command.action==='search'?'auto':'off',searchProvider:(command.engine||'brave') as 'brave',textPrivacy:command.privacy||'standard',e2eeToolsEnabled:command.action==='tools'||command.action==='search',e2eeToolMode:command.transport||'encrypted-text'}},dependencies)
+   const model=new Venice({apiKey:command.apiKey,apiHost:origin,model:{modelId:selected.id,providerId:'venice',capabilities:selected.model_spec.capabilities?.supportsFunctionCalling?['tool_use']:[],vendorMetadata:{...selected.model_spec,veniceType:'text'}},maxOutputTokens:512,venice:{webSearch:command.action==='search'?'auto':'off',searchProvider:(command.engine||'brave') as 'brave',textPrivacy:command.privacy||'standard',e2eeToolsEnabled:command.action==='tools'||command.action==='search',e2eeToolMode:command.transport||'encrypted-text',secureReceiptCompatibility:command.receiptCompatibility===true}},dependencies)
    let executions=0,text=''
    const tools=command.action==='tools'?{local_sum:tool({description:'Add two test integers locally.',inputSchema:z.object({a:z.number(),b:z.number()}),execute:async({a,b})=>{executions++;return{sum:a+b}}})}:undefined
    const prompt=command.action==='tools'?'Call local_sum with a=7 and b=5. After receiving the result, reply with the number 12 only.':command.action==='search'?'Use venice_web_search exactly once for "Venice AI API documentation" and cite one URL from its results.':'Reply with exactly: Live test OK'
@@ -67,7 +67,7 @@ export async function runSmoke(command:{action:string;apiKey:string;scratch:stri
     events.push(part.type);const value=part as unknown as Record<string,unknown>;if(part.type==='text-delta')text+=String(value.text??value.delta??'')
     if(part.type==='error')throw Error(String(value.error))
    }
-   return {action:command.action,model:selected.id,privacy:command.privacy||'standard',transport:command.transport,executions,text:text.slice(0,1000),events,requests}
+   return {action:command.action,model:selected.id,privacy:command.privacy||'standard',transport:command.transport,receiptCompatibility:command.receiptCompatibility===true,executions,text:text.slice(0,1000),events,requests}
   }
   if(!['speech','transcription','music','video','resume','cleanup'].includes(command.action))throw Error('Unknown smoke scenario')
   let records:MediaRecord[]=[];let cache:MediaCatalogCache|null=null

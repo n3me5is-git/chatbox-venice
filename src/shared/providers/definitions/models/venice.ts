@@ -105,7 +105,7 @@ export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: Ven
       requireModelPrivacy(model?.vendorMetadata, settings?.privacyFilter)
       const toolMode=settings?.e2eeToolsEnabled===true?settings.e2eeToolMode||'encrypted-text':false
       if(mode==='e2ee'&&toolMode==='native'&&Array.isArray(body.tools)&&body.tools.length&&(model?.vendorMetadata?.capabilities as Record<string,unknown>|undefined)?.supportsFunctionCalling!==true)throw new ApiError('This model does not declare native function calling. Choose encrypted text tools or another model.')
-      const response = mode ? await secureVeniceChat(fetch, endpoint, init || {}, body, mode, toolMode) : await fetch(url, { ...init, body: JSON.stringify(body) })
+      const response = mode ? await secureVeniceChat(fetch, endpoint, init || {}, body, mode, toolMode, settings?.secureReceiptCompatibility===true) : await fetch(url, { ...init, body: JSON.stringify(body) })
       return withVeniceCitations(response)
     }
     return fetch(url, init)

@@ -5,8 +5,17 @@ import { StorageKeyGenerator } from '@/storage/StoreStorage'
 import { getImageGenerationService } from '@/stores/imageGenerationActions'
 import { queryClient } from '@/stores/queryClient'
 import { MAX_REFERENCE_IMAGES } from '../-components/constants'
+import { localFileOrigin } from '@/packages/local-file-origin'
 
 const log = getLogger('reference-image-draft')
+
+async function persistDraftReference(file:File,key:string,data:string){
+ const origin=localFileOrigin(file)
+ if(origin?.scope&&origin.scope!=='public'){
+  const [{vaultRuntimeFor},{default:platform},{dataUrlBytes}]=await Promise.all([import('@/packages/vault/runtime'),import('@/platform'),import('@/packages/vault/chunk-store')])
+  await vaultRuntimeFor(platform).assets.put(dataUrlBytes(data),{name:file.name,kind:'image',mime:file.type},origin.scope,key)
+ }else await currentBlobStorage.set(key,data)
+}
 
 interface ReferenceImage {
   storageKey: string
@@ -110,7 +119,7 @@ export function useReferenceImageDraft() {
           if (typeof reader.result !== 'string') return
           const storageKey = StorageKeyGenerator.picture('image-creator-ref')
           try {
-            await currentBlobStorage.set(storageKey, reader.result)
+            await persistDraftReference(file, storageKey, reader.result)
           } catch (error) {
             log.error('Failed to store a reference image:', error)
             return
@@ -177,5 +186,20 @@ export function useReferenceImageDraft() {
     }
   }, [clear, removeBlobs])
 
-  return { images, upload, addReference, removeReference, replace, clear, beginSubmission }
+  const cropReference=useCallback(async(storageKey:string)=>{
+    const state=draft.current,epoch=state.uploadEpoch,revision=state.revision
+    const [{localLibraryFile},{cropReferenceFile}]=await Promise.all([import('@/packages/local-library'),import('@/components/venice/ImageReferenceCropper')])
+    const original=await localLibraryFile({id:storageKey,name:'Image reference',key:storageKey,kind:'image'})
+    const file=await cropReferenceFile(original)
+    if(!file||!state.mounted||state.uploadEpoch!==epoch||state.revision!==revision)return
+    const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(Error('Unable to read the reference'));reader.readAsDataURL(file)})
+    const key=StorageKeyGenerator.picture('image-creator-ref')
+    await persistDraftReference(file,key,data)
+    if(!state.mounted||state.uploadEpoch!==epoch||state.revision!==revision){await removeBlobs([key]);return}
+    state.uploads.set(key,'draft');queryClient.setQueryData(['blob',key],data)
+    updateImages(state.images.map(image=>image.storageKey===storageKey?{...image,storageKey:key}:image))
+    if(state.uploads.get(storageKey)==='draft'){state.uploads.delete(storageKey);await removeBlobs([storageKey])}
+  },[removeBlobs,updateImages])
+
+  return { images, upload, addReference, removeReference, replace, clear, beginSubmission, cropReference }
 }

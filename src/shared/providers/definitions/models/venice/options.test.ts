@@ -26,12 +26,12 @@ describe('Venice profile precedence and settings isolation', () => {
   it('persists independent search controls and encrypted tool consent without granting it through profiles', () => {
     const settings = {
       webSearch: 'auto', webSearchEnabled: false, searchToolMode: 'separate',
-      e2eeToolsEnabled: true, e2eeToolMode: 'encrypted-text',
+      e2eeToolsEnabled: true, e2eeToolMode: 'encrypted-text', secureReceiptCompatibility: true,
       profiles: [{ id: 'p', name: 'Research', options: { searchToolMode: 'selected', webSearchEnabled: true } }],
     }
     expect(VeniceSettingsSchema.parse(settings)).toEqual(settings)
-    const hostile = { e2eeToolsEnabled: true, e2eeToolMode: 'native' } as never
-    expect(resolveVeniceSettings({ e2eeToolsEnabled: false, e2eeToolMode: 'encrypted-text' }, hostile, hostile))
-      .toMatchObject({ e2eeToolsEnabled: false, e2eeToolMode: 'encrypted-text' })
+    const hostile = { e2eeToolsEnabled: true, e2eeToolMode: 'native', secureReceiptCompatibility: true } as never
+    expect(resolveVeniceSettings({ e2eeToolsEnabled: false, e2eeToolMode: 'encrypted-text', secureReceiptCompatibility: false }, hostile, hostile))
+      .toMatchObject({ e2eeToolsEnabled: false, e2eeToolMode: 'encrypted-text', secureReceiptCompatibility: false })
   })
 })

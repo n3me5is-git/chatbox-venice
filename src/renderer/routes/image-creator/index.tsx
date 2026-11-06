@@ -274,6 +274,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
     replace: replaceReferenceImages,
     clear: clearReferenceImages,
     beginSubmission,
+    cropReference,
   } = useReferenceImageDraft()
   const picture = useLastUsedModelStore((state) => state.picture)
   const [showHistory, setShowHistory] = useState(true)
@@ -550,6 +551,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
 
               <ReferenceImagesPreview
                 images={referenceImages}
+                onCrop={key=>void cropReference(key).catch(error=>toastActions.add(String(error instanceof Error?error.message:error)))}
                 onRemove={handleRemoveReferenceImage}
                 onAddClick={uploadSource}
               />

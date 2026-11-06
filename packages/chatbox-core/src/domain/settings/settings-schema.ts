@@ -75,6 +75,7 @@ export const VeniceSettingsSchema = VeniceProfileSchema.extend({
   textPrivacy: z.enum(['standard', 'tee', 'e2ee']).optional(),
   e2eeToolsEnabled: z.boolean().optional(),
   e2eeToolMode: z.enum(['encrypted-text', 'native']).optional(),
+  secureReceiptCompatibility: z.boolean().optional(),
   showOtherModels: z.boolean().optional(),
   mediaModelIds: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),

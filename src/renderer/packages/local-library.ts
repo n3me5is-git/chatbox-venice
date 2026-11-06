@@ -2,6 +2,7 @@ import platform from '@/platform'
 import { currentBlobStorage } from '@/adapters/CurrentBlobStorage'
 import { veniceMediaService } from '@/packages/venice/service'
 import { installedVaultFor } from '@/packages/vault/runtime'
+import { markLocalFile } from './local-file-origin'
 export type ContentKind = 'image'|'audio'|'video'|'document'
 export type LibraryKind = ContentKind|'vault'
 export type LocalLibraryItem = { id:string; name:string; kind:ContentKind; key:string; mime?:string; thumbnail?:string;category?:string;scope?:string;bytes?:number;alias?:string;sourceId?:string }
@@ -53,7 +54,7 @@ export async function localLibraryFile(item:LocalLibraryItem):Promise<File> {
   const access=installedVaultFor(platform)?.projects
   if(item.key.startsWith('vault-asset-')){
     const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform);const header=await vault.assets.header(item.key);if(!header)throw new Error('This local item is no longer available');await access?.assertLibraryKey(header.alias);const info=await vault.assets.info(header);const chunks:Uint8Array<ArrayBuffer>[]=[]
-    try{for await(const bytes of vault.assets.read(item.key)){await access?.assertLibraryKey(header.alias);chunks.push(bytes)}await access?.assertLibraryKey(header.alias);const extension=info.mime==='text/plain'?'txt':info.mime.split('/')[1]?.replace('jpeg','jpg').replace('mpeg','mp3')||'bin';return new File(chunks,`Saved-${header.id}.${extension}`,{type:info.mime})}finally{for(const bytes of chunks)bytes.fill(0)}
+    try{for await(const bytes of vault.assets.read(item.key)){await access?.assertLibraryKey(header.alias);chunks.push(bytes)}await access?.assertLibraryKey(header.alias);const extension=info.mime==='text/plain'?'txt':info.mime.split('/')[1]?.replace('jpeg','jpg').replace('mpeg','mp3')||'bin';return markLocalFile(new File(chunks,`Saved-${header.id}.${extension}`,{type:info.mime}),{scope:header.scope,key:item.key})}finally{for(const bytes of chunks)bytes.fill(0)}
   }
   await access?.assertLibraryKey(item.key)
   const data=item.key.startsWith('data:')?item.key:await currentBlobStorage.get(item.key)

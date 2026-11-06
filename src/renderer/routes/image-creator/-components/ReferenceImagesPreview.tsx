@@ -1,17 +1,19 @@
-import { ActionIcon, Flex, Image, Skeleton, UnstyledButton } from '@mantine/core'
+import { ActionIcon, Button, Flex, Image, Skeleton, UnstyledButton } from '@mantine/core'
 import { IconPlus, IconX } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { AppTooltip as Tooltip } from '@/components/ui/tooltip'
 import { useBlob } from '@/hooks/useBlob'
 import { blobToDataUrl, isDirectImageSource, MAX_REFERENCE_IMAGES } from './constants'
+import { forkT as ft } from '@/i18n/fork'
 
 export interface ReferenceImagesPreviewProps {
   images: { storageKey: string }[]
   onRemove: (storageKey: string) => void
   onAddClick: () => void
+  onCrop?: (storageKey:string)=>void
 }
 
-export function ReferenceImagesPreview({ images, onRemove, onAddClick }: ReferenceImagesPreviewProps) {
+export function ReferenceImagesPreview({ images, onRemove, onAddClick, onCrop }: ReferenceImagesPreviewProps) {
   const { t } = useTranslation()
 
   if (images.length === 0) return null
@@ -23,6 +25,7 @@ export function ReferenceImagesPreview({ images, onRemove, onAddClick }: Referen
       {images.map((img) => (
         <div key={img.storageKey} className="shrink-0 pt-2 pr-2">
           <ReferenceImageItem storageKey={img.storageKey} onRemove={onRemove} />
+          {onCrop&&<Button variant="light" size="compact-xs" mt={4} onClick={()=>onCrop(img.storageKey)}>{ft('Crop reference')}</Button>}
         </div>
       ))}
       {canAddMore && (

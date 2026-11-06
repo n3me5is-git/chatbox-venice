@@ -31,7 +31,7 @@ async function boundedText(response: Response) {
   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length }
   return new TextDecoder().decode(bytes)
 }
-export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint: string, init: RequestInit, body: Body, mode: 'tee' | 'e2ee', toolMode: false | 'encrypted-text' | 'native' = false) {
+export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint: string, init: RequestInit, body: Body, mode: 'tee' | 'e2ee', toolMode: false | 'encrypted-text' | 'native' = false, receiptCompatibility = false) {
   const base = endpoint.replace(/\/chat\/completions(?:\?.*)?$/, '')
   const headers = new Headers(init.headers); headers.delete('content-length')
   const nonce = bytesToHex(crypto.getRandomValues(new Uint8Array(32)))
@@ -100,6 +100,7 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     const payload=signature.payload;const pairText=typeof payload?.request_hash==='string'&&typeof payload?.response_hash==='string'?`${payload.request_hash}:${payload.response_hash}`:undefined
     const signedText=signature.text??pairText
     if (typeof signedText !== 'string' || typeof signatureHex !== 'string'||pairText&&pairText!==signedText) throw new Error('TEE response signature was not available or consistent; unverified output was withheld')
+    if (signature.signing_address && String(signature.signing_address).toLowerCase().replace(/^0x/,'')!==signingAddress.toLowerCase().replace(/^0x/,'')) throw new Error('TEE response reported another signing identity')
     // E2EE signatures must bind the exact encrypted request, including its fresh
     // ciphertext. Only hashes are accepted as its signature payload.
     const direct = mode==='tee'&&verifySignature({ signedText, signatureHex, expectedSigningAddress: signingAddress, expectedContent: plain }).verified
@@ -108,13 +109,33 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     // A signature over empty/text-only content must never authenticate public tool arguments.
     const candidates=calls.length?[raw,JSON.stringify(calls),JSON.stringify({content:plain,tool_calls:calls})]:[raw,plain,...(pair?[encryptedContent]:[])]
     const hashed = candidates.some(content=>verifySignature({ signedText, signatureHex, expectedSigningAddress: signingAddress, expectedRequest: sent, expectedContent: content }).verified)
-    if (!direct && !hashed) throw new Error(calls.length?'Native tool data could not be authenticated. Select encrypted tool messages instead; no tool was executed.':'TEE response signature did not bind the attested key, exact request and received content')
+    // Venice's public proxy rewrites requests/responses outside the receipt's byte boundary.
+    // ACI hashes are exact gateway bytes, not canonical JSON and not the outer Venice wire.
+    // Compatibility is explicit provider consent, never an automatic fallback. It authenticates
+    // the signed gateway hash pair, NOT its independent binding to our received payload.
+    const compatible = receiptCompatibility && compatibleGatewayReceipt(signature, completionId, signedText) &&
+      verifySignature({signedText,signatureHex,expectedSigningAddress:signingAddress,expectedContent:signedText}).verified
+    if (!direct && !hashed && !compatible) throw new Error(calls.length?'Native tool data could not be authenticated. Review secure receipt verification in Venice settings; no tool was executed.':'The secure response signature could not be matched to gateway hashes. Review secure receipt verification in Venice settings. Encryption was not disabled.')
     if (pair && toolMode==='encrypted-text') {
       const calls = parseEncryptedToolCalls(plain, tools, toolChoice)
       if (calls) output = exposeVerifiedToolCalls(output, streaming, calls, completionId, body.model)
     }
     // Release output only after verification. This intentionally buffers secure streams on device.
     const outHeaders = new Headers(response.headers); outHeaders.delete('content-length'); outHeaders.delete('content-encoding')
+    outHeaders.set('X-Chatbox-Secure-Receipt', direct||hashed?'payload-bound':'gateway-signature-only')
     return new Response(output, { status: response.status, statusText: response.statusText, headers: outHeaders })
   } finally { pair?.privateKey.fill(0) }
+}
+
+/** Structural cross-checks reduce accidental mix-ups; receipt metadata is NOT a payload proof. */
+function compatibleGatewayReceipt(signature: Body, requestId: string, text: string): boolean {
+  if (!/^[a-f0-9]{64}:[a-f0-9]{64}$/.test(text) || signature.api_version!=='aci/1' || signature.signing_algo!=='ecdsa' || signature.requested_request_id!==requestId) return false
+  const receipt=signature.receipt
+  if (!receipt || receipt.api_version!=='aci/1' || receipt.chat_id!==requestId || receipt.endpoint!=='/v1/chat/completions' || !Array.isArray(receipt.event_log)) return false
+  const request=receipt.event_log.filter((event:Body)=>event?.type==='request.received')
+  const response=receipt.event_log.filter((event:Body)=>event?.type==='response.returned')
+  if(request.length!==1||response.length!==1)return false
+  const [requestHash,responseHash]=text.split(':')
+  return request[0].body_hash===`sha256:${requestHash}` &&
+    ['body_hash','wire_hash','cleartext_hash'].some(field=>response[0][field]===`sha256:${responseHash}`)
 }

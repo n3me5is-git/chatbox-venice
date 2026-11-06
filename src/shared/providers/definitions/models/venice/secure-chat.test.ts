@@ -6,7 +6,7 @@ import { sha256 } from '@noble/hashes/sha256'
 import { bytesToHex, decryptChunk, deriveSigningAddressFromKey, encryptMessage, generateEphemeralKeyPair } from './crypto'
 import { encryptConversation, secureVeniceChat } from './secure-chat'
 const json=(data:unknown)=>new Response(JSON.stringify(data),{headers:{'content-type':'application/json'}})
-function fixture(options: {badNonce?:boolean;badSignature?:boolean;plaintext?:boolean;plainSignature?:boolean;wrongRequest?:boolean}={}) {
+function fixture(options: {badNonce?:boolean;badSignature?:boolean;plaintext?:boolean;plainSignature?:boolean;wrongRequest?:boolean;gateway?:boolean;invalidSigner?:boolean;wrongReceipt?:boolean;wrongReportedSigner?:boolean}={}) {
  const enclave=generateEphemeralKeyPair(); const address=deriveSigningAddressFromKey(enclave.publicKeyHex)!
  const decrypted:string[]=[]; let sent=''
  const api=vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>{
@@ -21,8 +21,11 @@ function fixture(options: {badNonce?:boolean;badSignature?:boolean;plaintext?:bo
    return json({id:'reply-1',model:'secure-model',created:1,choices:[{index:0,message:{role:'assistant',content:options.plaintext?'Unencrypted':encryptMessage('Encrypted reply',client)},finish_reason:'stop'}]})
   }
   const hash=(text:string)=>bytesToHex(sha256(new TextEncoder().encode(text)));const text=options.plainSignature?'Encrypted reply':hash(options.wrongRequest?'Another request':sent)+':'+hash(options.badSignature?'Different reply':'Encrypted reply');const bytes=new TextEncoder().encode(text);const prefix=new TextEncoder().encode(`\x19Ethereum Signed Message:\n${bytes.length}`)
-  const signature=secp256k1.sign(keccak_256(Uint8Array.from(concat([prefix,bytes]))),enclave.privateKey)
-  return json({model:'secure-model',request_id:'reply-1',text,signature:'0x'+bytesToHex(signature.toBytes('compact'))+(27+signature.recovery).toString(16)})
+  const signedText=options.gateway?hash('gateway request')+':'+hash('gateway response'):text
+  const signedBytes=new TextEncoder().encode(signedText),signedPrefix=new TextEncoder().encode(`\x19Ethereum Signed Message:\n${signedBytes.length}`)
+  const signature=secp256k1.sign(keccak_256(Uint8Array.from(concat([signedPrefix,signedBytes]))),options.invalidSigner?generateEphemeralKeyPair().privateKey:enclave.privateKey)
+  const [req,res]=signedText.split(':')
+  return json({model:'secure-model',request_id:'reply-1',text:signedText,signature:'0x'+bytesToHex(signature.toBytes('compact'))+(27+signature.recovery).toString(16),...(options.gateway?{api_version:'aci/1',signing_algo:'ecdsa',signing_address:options.wrongReportedSigner?'0x'+'00'.repeat(20):'0x'+address,requested_request_id:'reply-1',receipt:{api_version:'aci/1',chat_id:options.wrongReceipt?'another-reply':'reply-1',endpoint:'/v1/chat/completions',event_log:[{type:'request.received',body_hash:'sha256:'+req},{type:'response.returned',body_hash:'sha256:'+res}]}}:{})})
  })
  return {api,decrypted,sent:()=>sent,enclave}
 }
@@ -42,5 +45,13 @@ describe('Venice encrypted text transport (simulated enclave)',()=>{
   const key=generateEphemeralKeyPair()
   expect(()=>encryptConversation([{role:'user',content:[{type:'image_url',image_url:{url:'private'}}]}],key.publicKeyHex)).toThrow('attachments')
   expect(()=>encryptConversation([{role:'assistant',content:'text',tool_calls:[{}]}],key.publicKeyHex)).toThrow('tool calls')
+ })
+ it('requires explicit compatibility for a valid attested gateway signature over transformed bytes',async()=>{
+  const strict=fixture({gateway:true});await expect(secureVeniceChat(strict.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{},body,'e2ee')).rejects.toThrow('gateway hashes')
+  const f=fixture({gateway:true});const result=await secureVeniceChat(f.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{},body,'e2ee',false,true)
+  expect(await result.text()).toContain('Encrypted reply');expect(result.headers.get('X-Chatbox-Secure-Receipt')).toBe('gateway-signature-only');expect(f.sent()).not.toContain('Private')
+ })
+ it.each([{invalidSigner:true},{badNonce:true},{plaintext:true},{wrongReceipt:true},{wrongReportedSigner:true}])('does not bypass identity, encryption or receipt checks in compatibility mode: %j',async options=>{
+  const f=fixture({...options,gateway:true});await expect(secureVeniceChat(f.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{},body,'e2ee','encrypted-text',true)).rejects.toThrow()
  })
 })
