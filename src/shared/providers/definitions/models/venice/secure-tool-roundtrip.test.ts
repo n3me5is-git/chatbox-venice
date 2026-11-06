@@ -24,8 +24,8 @@ function fixture({native=false,badSignature=false,weakToolSignature=false,capabi
    const client=new Headers(request.headers).get('X-Venice-TEE-Client-Pub-Key')!
    const first=wires.length===1
    hasNativeCalls=native&&first
-   plain=first&&!native?'<tool_call>{"name":"local_echo","arguments":{"text":"private argument"}}</tool_call>':first?'':'Finished with the local result'
-   const delta=hasNativeCalls?{tool_calls:[{index:0,id:'call-native',type:'function',function:{name:'local_echo',arguments:'{"text":"private argument"}'}}]}:{content:encryptMessage(plain,client)}
+   plain=first&&!native?'<tool_call>{"name":"local_echo","arguments":{"text":"private argument"}}</tool_call>':first?'private assistant commentary':'Finished with the local result'
+   const delta=hasNativeCalls?{content:encryptMessage(plain,client),tool_calls:[{index:0,id:'call-native',type:'function',function:{name:'local_echo',arguments:'{"text":"private argument"}'}}]}:{content:encryptMessage(plain,client)}
    raw=`data: ${JSON.stringify({id:'secure-'+wires.length,model:'secure-model',created:1,choices:[{index:0,delta,finish_reason:null}]})}\n\ndata: ${JSON.stringify({id:'secure-'+wires.length,model:'secure-model',created:1,choices:[{index:0,delta:{},finish_reason:hasNativeCalls?'tool_calls':'stop'}]})}\n\ndata: [DONE]\n\n`
    return new Response(raw,{headers:{'content-type':'text/event-stream'}})
   }
@@ -62,7 +62,8 @@ describe('real SDK encrypted tool round trips with a simulated enclave',()=>{
   const f=fixture({native:true});const parts=await f.run()
   expect(f.execute).toHaveBeenCalledTimes(1);expect(f.wires).toHaveLength(2)
   expect(f.wires[0]).toContain('local_echo');expect(f.wires[1]).toContain('private tool result')
-  expect(f.wires.join('\n')).not.toMatch(/private question|private system/)
+  expect(f.wires.join('\n')).not.toMatch(/private question|private system|private assistant commentary/)
+  expect(f.decrypted.join('\n')).toContain('private assistant commentary')
   expect(parts.some(part=>part.type==='error')).toBe(false)
  })
  it.each([{badSignature:true},{native:true,weakToolSignature:true}])('never executes unauthenticated tool calls or retries in plaintext: %j',async options=>{

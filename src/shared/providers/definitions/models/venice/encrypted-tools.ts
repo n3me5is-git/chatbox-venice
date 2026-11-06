@@ -44,11 +44,14 @@ export function nativeToolMessages(messages: Body[]) {
   const lastUser=messages.findLastIndex(message=>message.role==='user')
   const pending=messages.findLastIndex(message=>message.role==='assistant'&&message.tool_calls?.length)
   const split=pending>lastUser && messages.slice(pending+1).every(message=>message.role==='tool')?pending:messages.length
-  const prior=encryptedToolMessages(messages.slice(0,split),[], 'none')
+  // A native assistant may return encrypted prose beside its public call. Keep
+  // that prose private when reconstructing the pending OpenAI call envelope.
+  const pendingText=split<messages.length?messages[split].content:undefined
+  const prior=encryptedToolMessages([...messages.slice(0,split),...(pendingText?[{role:'assistant',content:pendingText}]:[])],[], 'none')
   return { privateMessages:prior, publicMessages:messages.slice(split).map(message=>{
     const content=typeof message.content==='string'?message.content:message.content==null?null:Array.isArray(message.content)&&message.content.every((part:Body)=>part.type==='text')?message.content.map((part:Body)=>part.text).join('\n'):undefined
     if(content===undefined)throw new Error('Native encrypted chat supports text tool results only')
-    return {...message,role:String(message.role),content}
+    return {...message,role:String(message.role),content:message.role==='assistant'?null:content}
   }) }
 }
 

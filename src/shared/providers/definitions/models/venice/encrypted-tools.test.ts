@@ -16,9 +16,11 @@ describe('venice-e2ee function-call text protocol',()=>{
   expect(output.every(message=>!('tool_calls'in message)&&!('tool_call_id'in message))).toBe(true)
  })
  it('keeps only a pending native call/result public, and folds older rounds back into private text',()=>{
-  const result=nativeToolMessages([{role:'user',content:'private question'},{role:'assistant',content:null,tool_calls:[{id:'call-1',function:{name:'local_echo',arguments:'{}'}}]},{role:'tool',tool_call_id:'call-1',content:'result'}])
+  const result=nativeToolMessages([{role:'user',content:'private question'},{role:'assistant',content:'private assistant commentary',tool_calls:[{id:'call-1',function:{name:'local_echo',arguments:'{}'}}]},{role:'tool',tool_call_id:'call-1',content:'result'}])
   expect(result.publicMessages.map(message=>message.role)).toEqual(['assistant','tool'])
   expect(JSON.stringify(result.publicMessages)).not.toContain('private question')
+  expect(JSON.stringify(result.publicMessages)).not.toContain('private assistant commentary')
+  expect(JSON.stringify(result.privateMessages)).toContain('private assistant commentary')
   const finished=nativeToolMessages([...result.publicMessages,{role:'assistant',content:'private answer'},{role:'user',content:'new question'}])
   expect(finished.publicMessages).toEqual([]);expect(JSON.stringify(finished.privateMessages)).toContain('private answer')
  })
