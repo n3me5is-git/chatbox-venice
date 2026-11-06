@@ -1,3 +1,5 @@
+import { VeniceSearchControl } from '@/components/venice/VeniceSearchControl'
+import { setSearchPermission } from '@shared/providers/definitions/models/venice/search-permissions'
 import { forkT as ft } from '@/i18n/fork'
 import { Capacitor } from '@capacitor/core'
 import { resolveSessionMode } from '@chatbox/core/session/mode-policy'
@@ -94,7 +96,7 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
   const licenseKey = useSettingsStore((s) => s.licenseKey)
   const providerOptions = useSettingsStore(s => providerId ? s.providers?.[providerId] : undefined)
   const usesNativeSearch = providerId !== 'venice' && Boolean(providerOptions?.models?.find(m => m.modelId === modelId)?.nativeWebSearch)
-  const veniceOptions = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, header?.settings?.veniceProfile)
+  const veniceOptions = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, sessionId==='new'?draft.veniceProfile:header?.settings?.veniceProfile)
   const webIssue = !usesNativeSearch && webBrowsingMode && getWebSearchConfigurationIssue(webSearch, licenseKey) !== null
   const webProvider = WEB_SEARCH_PROVIDERS.find((p) => p.value === webSearch.provider)?.label ?? webSearch.provider
   const labels: Record<LocalWorkCapabilityId, string> = {
@@ -155,7 +157,7 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
 
   if (page === 'venice') return <Stack p="md" gap="sm" style={{ maxHeight: '70dvh', overflowY: 'auto' }}>
     <Button variant="subtle" onClick={() => setPage('main')}>{t('Back')}</Button>
-    {sessionId === 'new' ? <Text size="sm">{ft("Create the chat to set a dedicated profile.")}</Text> : <VeniceProfileEditor options={providerOptions?.venice || {}} value={header?.settings?.veniceProfile || {}} onChange={value => { void rendererApplication.sessions.updateSessionHeader(sessionId, current => { if (!current) throw new Error('Session not found'); return { ...current, settings: { ...current.settings, veniceProfile: value } } }) }} />}
+    {<VeniceProfileEditor options={providerOptions?.venice || {}} value={(sessionId==='new'?draft.veniceProfile:header?.settings?.veniceProfile) || {}} onChange={value => { if(sessionId==='new'){setDraft(current=>({...current,veniceProfile:value}));return} void rendererApplication.sessions.updateSessionHeader(sessionId, current => { if (!current) throw new Error('Session not found'); return { ...current, settings: { ...current.settings, veniceProfile: value } } }) }} />}
     <Button variant="default" onClick={() => { onClose(); navigateToSettings('/provider/venice') }}>{ft("Venice provider settings")}</Button>
   </Stack>
 
@@ -378,7 +380,7 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
         </Group>
       </UnstyledButton>
       <Divider />
-      {providerId==='venice'&&<Button variant="light" onClick={()=>setPage('venice')}>{ft('Venice model search')} · {ft(veniceOptions.webSearch==='on'?'For every message':veniceOptions.webSearch==='auto'?'When needed':'Do not search')}</Button>}
+      {providerId==='venice'&&<VeniceSearchControl settings={veniceOptions} onOpen={()=>setPage('venice')} onEnabledChange={enabled=>{setSearchPermission(sessionId,'venice',enabled);if(sessionId==='new')setDraft(current=>({...current,veniceProfile:{...current.veniceProfile,webSearchEnabled:enabled}}));else void rendererApplication.sessions.updateSessionHeader(sessionId,current=>{if(!current)throw new Error('Session not found');return {...current,settings:{...current.settings,veniceProfile:{...current.settings?.veniceProfile,webSearchEnabled:enabled}}}}).catch(()=>toastActions.add(t('Failed to save settings')))}}/>}
       <Text size="xs" c="dimmed">{ft('The Chatbox search tool and Venice model search have independent settings. The tool uses the provider selected here.')}</Text>
       <Group justify="space-between" wrap="nowrap">
         <Stack gap={2}>
@@ -390,7 +392,7 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
         <Switch
           aria-label={String(t('Web Search'))}
           checked={usesNativeSearch ? (providerId === 'venice' ? veniceOptions.webSearch !== 'off' && veniceOptions.webSearch !== undefined : true) : webBrowsingMode}
-          disabled={busy || saving || (usesNativeSearch && providerId !== 'venice')}
+          disabled={saving || (usesNativeSearch && providerId !== 'venice')}
           onChange={(event) => usesNativeSearch ? setPage('venice') : onWebBrowsingChange(event.currentTarget.checked)}
         />
       </Group>

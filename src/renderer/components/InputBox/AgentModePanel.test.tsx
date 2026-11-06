@@ -892,3 +892,12 @@ describe('AgentModePanel platform-unavailable capabilities', () => {
 })
 
 test('keeps the Venice native search controls separate from the global retrieval toggle',()=>{Object.assign(mocks.settingsState,{providers:{venice:{apiKey:'synthetic',venice:{webSearch:'on',searchProvider:'brave'}}}});const changed=vi.fn();const view=renderPanel({providerId:'venice',modelId:'chat',webBrowsingMode:false,onWebBrowsingChange:changed});expect(screen.getByText('Venice model search')).toBeTruthy();const control=screen.getByTestId('web-search-toggle');if(!control)throw Error('Global search toggle is missing');fireEvent.click(control);expect(changed).toHaveBeenCalledWith(true)})
+
+test('turns the global Venice-backed search off independently of the model search',()=>{
+ Object.assign(mocks.settingsState,{providers:{venice:{apiKey:'synthetic',venice:{webSearch:'on',searchProvider:'brave'}}}})
+ const changed=vi.fn(),props={providerId:'venice',modelId:'chat',webBrowsingMode:true,onWebBrowsingChange:changed}
+ const view=renderPanel(props);fireEvent.click(screen.getByTestId(TestId.chat.webSearchToggle));expect(changed).toHaveBeenCalledWith(false)
+ view.rerender(<MantineProvider><AgentModePanel {...defaultProps} {...props} webBrowsingMode={false}/></MantineProvider>)
+ expect((screen.getByTestId(TestId.chat.webSearchToggle) as HTMLInputElement).checked).toBe(false)
+ expect((screen.getByLabelText('Enable Venice search for this chat') as HTMLInputElement).checked).toBe(true)
+})

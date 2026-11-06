@@ -1,4 +1,5 @@
 import type { LocalWorkCapabilityId } from '@shared/mobile-work/capabilities'
+import { setSearchPermission } from '@shared/providers/definitions/models/venice/search-permissions'
 import type {
   AgentModeEntry,
   AgentModeValue,
@@ -93,6 +94,7 @@ export const uiStore = createStore(
         newSessionState: {} as {
           knowledgeBase?: Pick<KnowledgeBase, 'id' | 'name'>
           webBrowsing?: boolean
+          veniceProfile?: import('@shared/types').SessionSettings['veniceProfile']
           localWorkCapabilities?: LocalWorkCapabilityId[]
           // Working directories bound before the session is persisted; transferred into the
           // created session's settings on first submit (see routes/index.tsx).
@@ -303,6 +305,7 @@ export const uiStore = createStore(
         },
 
         setSessionWebBrowsing: (sessionId: string, enabled: boolean) => {
+          setSearchPermission(sessionId, 'global', enabled)
           set((state) => ({
             sessionWebBrowsingMap: updateSessionWebBrowsingMap(state.sessionWebBrowsingMap, sessionId, enabled),
             newSessionWebBrowsingDefault: enabled,
@@ -344,6 +347,7 @@ export const uiStore = createStore(
               ? currentWebBrowsingDisplay.value
               : (get().sessionWebBrowsingMap[sessionId] ?? false)
           const newValue = !currentValue
+          setSearchPermission(sessionId, 'global', newValue)
           set((state) => ({
             sessionWebBrowsingMap: updateSessionWebBrowsingMap(state.sessionWebBrowsingMap, sessionId, newValue),
             newSessionWebBrowsingDefault: newValue,

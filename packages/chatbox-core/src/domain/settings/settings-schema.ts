@@ -44,6 +44,8 @@ export const AgentModeEntrySchema = z.object({
 export const VeniceProfileSchema = z.object({
     profileId: z.string().optional(),
     webSearch: z.enum(['off', 'auto', 'on']).optional().catch(undefined),
+    webSearchEnabled: z.boolean().optional().catch(undefined),
+    searchToolMode: z.enum(['selected', 'separate']).optional().catch(undefined),
     searchProvider: z.enum(['native', 'brave', 'google', 'exa']).optional().catch(undefined),
     webScraping: z.boolean().optional().catch(undefined),
     webCitations: z.boolean().optional().catch(undefined),
@@ -71,6 +73,8 @@ export const VeniceProfileSchema = z.object({
 export const VeniceSettingsSchema = VeniceProfileSchema.extend({
   privacyFilter: z.enum(['all', 'private', 'tee']).optional(),
   textPrivacy: z.enum(['standard', 'tee', 'e2ee']).optional(),
+  e2eeToolsEnabled: z.boolean().optional(),
+  e2eeToolMode: z.enum(['encrypted-text', 'native']).optional(),
   showOtherModels: z.boolean().optional(),
   mediaModelIds: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),

@@ -11,7 +11,8 @@ export function resolveVeniceSettings(base: VeniceOptions = {}, model?: VenicePr
   return { ...merged, enabled: base.enabled, audioEnabled: base.audioEnabled, videoEnabled: base.videoEnabled,
     musicEnabled: base.musicEnabled, chatToolsEnabled: base.chatToolsEnabled,
     confirmMediaTools: base.confirmMediaTools, privacyFilter: base.privacyFilter, textPrivacy: base.textPrivacy,
-    showOtherModels: base.showOtherModels, mediaModelIds: base.mediaModelIds } as VeniceOptions
+    showOtherModels: base.showOtherModels, mediaModelIds: base.mediaModelIds,
+    e2eeToolsEnabled: base.e2eeToolsEnabled, e2eeToolMode: base.e2eeToolMode } as VeniceOptions
 }
 export function assertVeniceEnabled(options: VeniceOptions) {
   if (options.enabled === false) throw new Error('Venice support is disabled in provider settings')

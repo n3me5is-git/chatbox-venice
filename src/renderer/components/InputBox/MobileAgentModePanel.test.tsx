@@ -325,3 +325,12 @@ describe('Mobile Agent Mode memory', () => {
 })
 
 test('exposes both model-native Venice search settings and the Chatbox retrieval toggle',()=>{const changed=vi.fn();render(panel({providerId:'venice',modelId:'chat',onWebBrowsingChange:changed}));expect(screen.getByRole('button',{name:/Venice model search/})).toBeTruthy();fireEvent.click(screen.getByRole('switch',{name:'Web Search'}));expect(changed).toHaveBeenCalledWith(true);fireEvent.click(screen.getByRole('button',{name:'Web Search Settings'}));expect(mocks.navigate).toHaveBeenCalledWith('/web-search')})
+
+test('allows the global search toggle to turn off during an active mobile reply',()=>{
+ Object.assign(mocks.settings,{providers:{venice:{apiKey:'synthetic',venice:{webSearch:'auto',searchProvider:'brave'}}}})
+ mocks.active=true;const changed=vi.fn(),props={providerId:'venice',modelId:'chat',webBrowsingMode:true,onWebBrowsingChange:changed}
+ const view=render(panel(props));const input=screen.getByLabelText('Web Search') as HTMLInputElement
+ expect(input.disabled).toBe(false);fireEvent.click(input);expect(changed).toHaveBeenCalledWith(false)
+ view.rerender(panel({...props,webBrowsingMode:false}));expect((screen.getByLabelText('Web Search') as HTMLInputElement).checked).toBe(false)
+ expect((screen.getByLabelText('Enable Venice search for this chat') as HTMLInputElement).checked).toBe(true)
+})

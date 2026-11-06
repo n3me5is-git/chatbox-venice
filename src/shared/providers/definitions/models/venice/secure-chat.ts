@@ -1,13 +1,14 @@
 import { bytesToHex, decryptChunk, deriveSigningAddressFromKey, encryptMessage, generateEphemeralKeyPair, isHexEncrypted, verifySignature } from './crypto'
 import { buildTeeVerificationResult, evaluateE2EEAttestationPolicy, evaluateTEEAttestationPolicy, type TeeAttestationResponse } from './tee'
+import { encryptedToolMessages, exposeVerifiedToolCalls, nativeToolMessages, parseEncryptedToolCalls } from './encrypted-tools'
 
 type Body = Record<string, any>
 const MAX_RESPONSE = 16 * 1024 * 1024
 const safeOptions = new Set(['model','messages','stream','stream_options','max_tokens','max_completion_tokens','temperature','top_p','frequency_penalty','presence_penalty','stop','seed','reasoning_effort','venice_parameters'])
 
 /** The official protocol encrypts user/system messages. Pack history into encrypted user content
- * so prior assistant replies are never resent in plaintext. Tools and attachments are deliberately
- * rejected until an encrypted protocol for their complete payload exists. */
+ * so prior assistant replies are never resent in plaintext. The optional local tool bridge
+ * converts tool definitions/history to text before entering this text-only boundary. */
 export function encryptConversation(messages: Body[], key: string) {
   if (!Array.isArray(messages) || !messages.length) throw new Error('E2EE requires text messages')
   const text = messages.map(message => {
@@ -30,7 +31,7 @@ async function boundedText(response: Response) {
   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length }
   return new TextDecoder().decode(bytes)
 }
-export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint: string, init: RequestInit, body: Body, mode: 'tee' | 'e2ee') {
+export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint: string, init: RequestInit, body: Body, mode: 'tee' | 'e2ee', toolMode: false | 'encrypted-text' | 'native' = false) {
   const base = endpoint.replace(/\/chat\/completions(?:\?.*)?$/, '')
   const headers = new Headers(init.headers); headers.delete('content-length')
   const nonce = bytesToHex(crypto.getRandomValues(new Uint8Array(32)))
@@ -44,9 +45,15 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
   const pair = mode === 'e2ee' ? generateEphemeralKeyPair() : undefined
   try {
     const request: Body = { ...body, venice_parameters: { ...body.venice_parameters, enable_e2ee: mode === 'e2ee' } }
+    const tools = Array.isArray(body.tools) ? body.tools : []
+    const toolChoice = body.tool_choice
     if (pair) {
-      if (Object.keys(request).some(key => !safeOptions.has(key))) throw new Error('E2EE does not allow tool definitions, schemas or additional request fields')
-      request.messages = encryptConversation(body.messages, evidence.signingKey!)
+      if (toolMode==='encrypted-text') { delete request.tools; delete request.tool_choice; delete request.parallel_tool_calls }
+      if (Object.keys(request).some(key => !safeOptions.has(key) && !(toolMode==='native'&&['tools','tool_choice','parallel_tool_calls'].includes(key)))) throw new Error('E2EE does not allow tool definitions, schemas or additional request fields')
+      if(toolMode==='native'){
+        const native=nativeToolMessages(body.messages)
+        request.messages=[...encryptConversation(native.privateMessages,evidence.signingKey!),...native.publicMessages]
+      }else request.messages = encryptConversation(toolMode==='encrypted-text' ? encryptedToolMessages(body.messages, tools, toolChoice) : body.messages, evidence.signingKey!)
       request.venice_parameters = { enable_e2ee: true, include_venice_system_prompt: false, enable_web_search: 'off', enable_web_scraping: false, enable_x_search: false, enable_web_citations: false, include_search_results_in_stream: false, strip_thinking_response: true }
       headers.set('X-Venice-TEE-Client-Pub-Key', pair.publicKeyHex); headers.set('X-Venice-TEE-Model-Pub-Key', evidence.signingKey!); headers.set('X-Venice-TEE-Signing-Algo', 'ecdsa')
     }
@@ -56,12 +63,21 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     const raw = await boundedText(response)
     const streaming = (response.headers.get('content-type') || '').includes('text/event-stream')
     let completionId = ''; let plain = '';let encryptedContent=''
+    const nativeCalls=new Map<number,Body>()
     const decode = (frame: Body) => {
       if (typeof frame.id === 'string') completionId ||= frame.id
       for (const choice of frame.choices || []) {
         const message = choice.delta || choice.message
         if (!message) continue
-        if (pair && (message.tool_calls?.length || message.function_call || message.reasoning_content || message.refusal)) throw new Error('The E2EE response contained an unsupported unencrypted field')
+        if (pair && (message.tool_calls?.length && toolMode!=='native' || message.function_call || message.reasoning_content || message.refusal)) throw new Error('The E2EE response contained an unsupported unencrypted field')
+        if(pair&&toolMode==='native')for(const [index,call] of (message.tool_calls||[]).entries()){
+          const key=call.index??index, previous=nativeCalls.get(key)||{id:'',type:'function',function:{name:'',arguments:''}}
+          if(call.id)previous.id=call.id
+          if(call.function?.name)previous.function.name+=call.function.name
+          if(call.function?.arguments)previous.function.arguments+=call.function.arguments
+          if(previous.function.arguments.length>64*1024||nativeCalls.size>=8&&!nativeCalls.has(key))throw new Error('Native tool response exceeds the local size limit')
+          nativeCalls.set(key,previous)
+        }
         if (typeof message.content === 'string' && message.content) {
           if (pair) { if (!isHexEncrypted(message.content)) throw new Error('The E2EE response was not encrypted');encryptedContent+=message.content; message.content = decryptChunk(message.content, pair.privateKey) }
           plain += message.content
@@ -87,8 +103,16 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     // E2EE signatures must bind the exact encrypted request, including its fresh
     // ciphertext. Only hashes are accepted as its signature payload.
     const direct = mode==='tee'&&verifySignature({ signedText, signatureHex, expectedSigningAddress: signingAddress, expectedContent: plain }).verified
-    const hashed = [raw,plain,...(pair?[encryptedContent]:[])].some(content=>verifySignature({ signedText, signatureHex, expectedSigningAddress: signingAddress, expectedRequest: sent, expectedContent: content }).verified)
-    if (!direct && !hashed) throw new Error('TEE response signature did not bind the attested key, exact request and received content')
+    const calls=[...nativeCalls.values()]
+    if(calls.some(call=>!call.id||!tools.some(tool=>tool.type==='function'&&tool.function?.name===call.function.name)))throw new Error('The secure response requested an unavailable native tool')
+    // A signature over empty/text-only content must never authenticate public tool arguments.
+    const candidates=calls.length?[raw,JSON.stringify(calls),JSON.stringify({content:plain,tool_calls:calls})]:[raw,plain,...(pair?[encryptedContent]:[])]
+    const hashed = candidates.some(content=>verifySignature({ signedText, signatureHex, expectedSigningAddress: signingAddress, expectedRequest: sent, expectedContent: content }).verified)
+    if (!direct && !hashed) throw new Error(calls.length?'Native tool data could not be authenticated. Select encrypted tool messages instead; no tool was executed.':'TEE response signature did not bind the attested key, exact request and received content')
+    if (pair && toolMode==='encrypted-text') {
+      const calls = parseEncryptedToolCalls(plain, tools, toolChoice)
+      if (calls) output = exposeVerifiedToolCalls(output, streaming, calls, completionId, body.model)
+    }
     // Release output only after verification. This intentionally buffers secure streams on device.
     const outHeaders = new Headers(response.headers); outHeaders.delete('content-length'); outHeaders.delete('content-encoding')
     return new Response(output, { status: response.status, statusText: response.statusText, headers: outHeaders })

@@ -3,12 +3,13 @@ import { assertVeniceEnabled } from './venice/options'
 import { ApiError } from '../../../models/errors'
 import { createFetchWithProxy } from '../../../models/utils/fetch-proxy'
 import { mergeExtraBody } from '../../../models/utils/extra-body'
-import type { ProviderModelInfo, ProviderSettings, ImageModelCapabilities } from '../../../types'
+import type { ProviderModelInfo, ProviderSettings, ImageModelCapabilities, ToolUseScope } from '../../../types'
 import type { ModelDependencies } from '../../../types/adapters'
 import { withVeniceCitations } from './venice-citations'
 import { prepareVeniceSearch } from './venice-search'
 import { privacyAllowed, requireModelPrivacy, supportsTee } from './venice/privacy'
 import { secureVeniceChat } from './venice/secure-chat'
+import { effectiveVeniceSearch, guardSearchTools, isSearchTool } from './venice/search-policy'
 import type { ModelMessage, ToolSet } from 'ai'
 import type { CallChatCompletionOptions, ChatStreamOptions, ModelStreamPart } from '../../../models/types'
 
@@ -71,8 +72,9 @@ export function getVeniceImageCapabilities(model: ProviderModelInfo): ImageModel
 }
 
 export function getVeniceParameters(settings: VeniceSettings = {}) {
+  settings = effectiveVeniceSearch(settings)
   return {
-    enable_web_search: settings.searchProvider && settings.searchProvider !== 'native' ? 'off' : settings.webSearch ?? 'off',
+    enable_web_search: settings.searchToolMode === 'separate' || settings.searchProvider && settings.searchProvider !== 'native' ? 'off' : settings.webSearch ?? 'off',
     enable_web_scraping: settings.webScraping ?? false,
     enable_web_citations: settings.webCitations ?? true,
     include_search_results_in_stream: settings.webCitations ?? true,
@@ -101,7 +103,9 @@ export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: Ven
       const mode = settings?.textPrivacy && settings.textPrivacy !== 'standard' ? settings.textPrivacy : settings?.privacyFilter === 'tee' ? 'tee' : undefined
       if ((settings?.privacyFilter && settings.privacyFilter !== 'all' || mode) && body.model !== model?.modelId) throw new Error('Model overrides cannot bypass Venice privacy settings')
       requireModelPrivacy(model?.vendorMetadata, settings?.privacyFilter)
-      const response = mode ? await secureVeniceChat(fetch, endpoint, init || {}, body, mode) : await fetch(url, { ...init, body: JSON.stringify(body) })
+      const toolMode=settings?.e2eeToolsEnabled===true?settings.e2eeToolMode||'encrypted-text':false
+      if(mode==='e2ee'&&toolMode==='native'&&body.tools?.length&&(model?.vendorMetadata?.capabilities as Record<string,unknown>|undefined)?.supportsFunctionCalling!==true)throw new ApiError('This model does not declare native function calling. Choose encrypted text tools or another model.')
+      const response = mode ? await secureVeniceChat(fetch, endpoint, init || {}, body, mode, toolMode) : await fetch(url, { ...init, body: JSON.stringify(body) })
       return withVeniceCitations(response)
     }
     return fetch(url, init)
@@ -113,7 +117,12 @@ export default class Venice extends OpenAICompatible {
   public options: VeniceOptions
   // Native model search and Chatbox's configured retrieval tool are independent.
   // Advertising native search unconditionally used to suppress the global search tool.
-  public override get usesNativeWebSearch() { return this.options.venice?.textPrivacy === 'e2ee' }
+  public override get usesNativeWebSearch() { return this.options.venice?.textPrivacy === 'e2ee' && this.options.venice?.e2eeToolsEnabled !== true }
+
+  public override isSupportToolUse(scope?: ToolUseScope) {
+    if (this.options.venice?.textPrivacy === 'e2ee') return this.options.venice.e2eeToolsEnabled === true && (this.options.venice.e2eeToolMode!=='native'||(this.options.model.vendorMetadata?.capabilities as Record<string,unknown>|undefined)?.supportsFunctionCalling===true)
+    return super.isSupportToolUse(scope)
+  }
 
   constructor(options: VeniceOptions, dependencies: ModelDependencies) {
     assertVeniceEnabled(options.venice || {})
@@ -129,16 +138,22 @@ export default class Venice extends OpenAICompatible {
   }
 
   public override async chat(messages: ModelMessage[], options: CallChatCompletionOptions) {
-    const prepared = this.options.venice?.textPrivacy === 'e2ee' ? { messages } : await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
-    return super.chat(prepared.messages, { ...options, tools: { ...options.tools, ...prepared.tools } })
+    const prepared = this.usesNativeWebSearch ? { messages } : await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
+    const guard = guardSearchTools({ ...options.tools, ...prepared.tools }, options.sessionId)
+    return super.chat(prepared.messages, { ...options, tools: guard.tools, maxSteps: options.maxSteps ?? (Object.keys(guard.tools).some(isSearchTool) ? 12 : this.options.venice?.e2eeToolsEnabled ? 32 : undefined) })
   }
 
   public override async *chatStream<T extends ToolSet>(messages: ModelMessage[], options: ChatStreamOptions): AsyncGenerator<ModelStreamPart<T>> {
-    const prepared = this.options.venice?.textPrivacy === 'e2ee' ? { messages } : await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
+    const prepared = this.usesNativeWebSearch ? { messages } : await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
     const nativeTools=Object.keys(prepared.tools||{})
     const originalStep=options.prepareStep
-    yield* super.chatStream<T>(prepared.messages, { ...options, tools: { ...options.tools, ...prepared.tools },
-      ...(originalStep&&nativeTools.length?{prepareStep:async step=>{const result=await originalStep(step);return result?.activeTools?{...result,activeTools:[...new Set([...result.activeTools,...nativeTools])]}:result}}:{}) })
+    const guard = guardSearchTools({ ...options.tools, ...prepared.tools }, options.sessionId)
+    yield* super.chatStream<T>(prepared.messages, { ...options, tools: guard.tools,
+      maxSteps: options.maxSteps ?? (Object.keys(guard.tools).some(isSearchTool) ? 12 : this.options.venice?.e2eeToolsEnabled ? 32 : undefined),
+      prepareStep: async step => {
+        const result = await originalStep?.(step)
+        return { ...result, activeTools: guard.active([...new Set([...(result?.activeTools || Object.keys(guard.tools)), ...nativeTools])]) }
+      } })
   }
 
   public override listModels(): Promise<ProviderModelInfo[]> { return fetchVeniceModels(this.options, this.dependencies) }

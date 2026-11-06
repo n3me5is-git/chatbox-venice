@@ -1,3 +1,5 @@
+import { VeniceSearchControl } from '@/components/venice/VeniceSearchControl'
+import { setSearchPermission } from '@shared/providers/definitions/models/venice/search-permissions'
 import { forkT as ft } from '@/i18n/fork'
 import { resolveSessionMode } from '@chatbox/core/session/mode-policy'
 import {
@@ -221,8 +223,10 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
   )
   const workModeCapabilitiesDisabled = agentModeUIState.capabilitiesDisabled
 
+  const draftVeniceProfile = useUIStore(s=>s.newSessionState.veniceProfile)
+  const setVeniceDraft = useUIStore(s=>s.setNewSessionState)
   const providerOptions = useSettingsStore((s) => providerId ? s.providers?.[providerId] : undefined)
-  const resolvedVenice = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, currentSession?.settings?.veniceProfile)
+  const resolvedVenice = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, isNewSession ? draftVeniceProfile : currentSession?.settings?.veniceProfile)
   const usesNativeSearch = providerId !== 'venice' && Boolean(providerOptions?.models?.find((m) => m.modelId === modelId)?.nativeWebSearch)
   const nativeSearchEnabled = providerId === 'venice'
     ? Boolean((resolvedVenice.webSearch ?? 'off') !== 'off' || resolvedVenice.xSearch || resolvedVenice.webScraping)
@@ -777,7 +781,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
     if (page === 'venice-search' || page === 'web-search' && usesNativeSearch) {
       return <>
         <SubPanelHeader title={t('Provider native search')} />
-        {providerId === 'venice' ? <Stack p="sm">{isNewSession ? <Text size="sm">{ft("Create the chat to set a dedicated profile. Provider and model settings apply for now.")}</Text> : <VeniceProfileEditor options={providerOptions?.venice || {}} value={currentSession?.settings?.veniceProfile || {}} onChange={value => { void rendererApplication.sessions.updateSessionHeader(sessionId, current => { if (!current) throw new Error('Session not found'); return { ...current, settings: { ...current.settings, veniceProfile: value } } }) }} />}</Stack> : <Text size="sm" p="sm">{t('Search is configured in the selected model extra request JSON.')}</Text>}
+        {providerId === 'venice' ? <Stack p="sm">{<VeniceProfileEditor options={providerOptions?.venice || {}} value={(isNewSession?draftVeniceProfile:currentSession?.settings?.veniceProfile) || {}} onChange={value => { if(isNewSession){setVeniceDraft(current=>({...current,veniceProfile:value}));return} void rendererApplication.sessions.updateSessionHeader(sessionId, current => { if (!current) throw new Error('Session not found'); return { ...current, settings: { ...current.settings, veniceProfile: value } } }) }} />}</Stack> : <Text size="sm" p="sm">{t('Search is configured in the selected model extra request JSON.')}</Text>}
       </>
     }
     if (page === 'web-search') {
@@ -1114,7 +1118,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
           <div>
             <Divider my={4} mx="sm" label={t('Built-in')} labelPosition="left" />
 
-{providerId==='venice'&&<ExtensionRow icon={<IconWorldWww size={16}/>} label={ft('Venice model search')} subtitle={ft(resolvedVenice.webSearch==='on'?'For every message':resolvedVenice.webSearch==='auto'?'When needed':'Do not search')+' · '+(resolvedVenice.searchProvider||'Venice')} active={page==='venice-search'} page="venice-search" subPanelAlign="top" rightContent={<IconChevronRight size={14}/>}/>}
+{providerId==='venice'&&<VeniceSearchControl settings={resolvedVenice} onOpen={()=>setPage('venice-search')} onEnabledChange={enabled=>{setSearchPermission(sessionId,'venice',enabled);if(isNewSession)setVeniceDraft(current=>({...current,veniceProfile:{...current.veniceProfile,webSearchEnabled:enabled}}));else void rendererApplication.sessions.updateSessionHeader(sessionId,current=>{if(!current)throw new Error('Session not found');return {...current,settings:{...current.settings,veniceProfile:{...current.settings?.veniceProfile,webSearchEnabled:enabled}}}}).catch(()=>toastActions.add(t('Failed to save settings')))}}/>}
             <ExtensionRow
               icon={
                 <IconWorldWww

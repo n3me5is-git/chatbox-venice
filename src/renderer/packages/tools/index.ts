@@ -1,3 +1,4 @@
+import { forkT as ft } from '@/i18n/fork'
 import { BUILT_IN_BROWSER_TOOL_NAME, builtInBrowserCommandOf } from '@shared/built-in-browser'
 import { KNOWLEDGE_BASE_TOOL_NAME, knowledgeBaseCommandOf } from '@shared/tools/knowledge-base'
 import { t } from 'i18next'
@@ -42,6 +43,8 @@ function getChatboxCliToolName(input: unknown): string {
 }
 
 export function getToolName(toolName: string, input?: unknown): string {
+  const engine=toolName.match(/^venice_web_search_(brave|google|exa)$/)?.[1]
+  if(engine)return ft('Venice search: {{engine}}',{engine:engine==='exa'?'Exa':engine==='brave'?'Brave':'Google'})
   if (toolName === 'chatbox_cli') return getChatboxCliToolName(input)
   if (toolName === BUILT_IN_BROWSER_TOOL_NAME) {
     switch (builtInBrowserCommandOf(input)) {

@@ -1,3 +1,4 @@
+import { E2EEToolSettings } from '@/components/venice/E2EEToolSettings'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
@@ -22,6 +23,8 @@ export function VeniceSearchSettings() {
       <Select comboboxProps={{withinPortal:false}} label={ft("When to search")} allowDeselect={false} value={options.webSearch ?? 'off'} data={[{ value: 'off', label: ft("Do not search") }, { value: 'auto', label: ft("When needed") }, { value: 'on', label: ft("For every message") }]} onChange={value => update({ webSearch: value as Options['webSearch'] })} />
       <Select comboboxProps={{withinPortal:false}} label={ft("Search engine")} allowDeselect={false} value={options.searchProvider ?? 'native'} data={[{ value: 'native', label: ft("Venice (built in)") }, { value: 'brave', label: 'Brave' }, { value: 'google', label: 'Google' }, { value: 'exa', label: 'Exa' }]} onChange={value => update({ searchProvider: value as Options['searchProvider'] })} />
     </SimpleGrid>
+    <Switch label={ft('Expose separate search engines')} description={ft('Make Brave, Google and Exa available as separate named tools.')} checked={options.searchToolMode==='separate'} onChange={event=>update({searchToolMode:event.currentTarget.checked?'separate':'selected'})}/>
+    <Text size="xs" c="dimmed">{ft('In every-message mode the selected engine searches first. Separate tools use Brave for that initial search when Venice integrated is selected.')}</Text>
     <Switch label={ft("Show source links")} checked={options.webCitations ?? true} onChange={e => update({ webCitations: e.currentTarget.checked })} />
     <Switch label={ft("Read web pages I share in chat")} checked={options.webScraping ?? false} onChange={e => update({ webScraping: e.currentTarget.checked })} />
     <Text size="xs" c="dimmed">{ft("Search uses Venice and may incur an extra cost. Automatic search depends on the selected model.")}</Text>
@@ -77,7 +80,8 @@ export function VeniceModuleSettings() {
     <Switch label={ft("Show other models from Venice")} description={ft("Include the current provider catalog even when only some models were selected. Privacy restrictions still apply.")} checked={options.showOtherModels === true} onChange={e => update({ showOtherModels: e.currentTarget.checked })} />
     <Select comboboxProps={{withinPortal:false}} label={ft("Privacy Only")} allowDeselect={false} value={options.privacyFilter || 'all'} data={[{ value: 'all', label: ft("All privacy levels") }, { value: 'private', label: ft("At least Private") }, { value: 'tee', label: ft("TEE or E2EE models only") }]} onChange={value => update({ privacyFilter: value as Options['privacyFilter'] })} />
     <Select comboboxProps={{withinPortal:false}} label={ft("Secure text chat")} allowDeselect={false} value={options.textPrivacy || 'standard'} data={[{ value: 'standard', label: ft("Standard HTTPS") }, { value: 'tee', label: ft("Require TEE verification") }, { value: 'e2ee', label: ft("Require end-to-end encryption") }]} onChange={value => update({ textPrivacy: value as Options['textPrivacy'] })} />
-    <Text size="xs" c="dimmed">{ft("E2EE encrypts text on this device. Attachments, tools and web search are unavailable in this mode. Secure replies are shown after verification. TEE alone allows Venice to read the prompt.")}</Text>
+    <Text size="xs" c="dimmed">{ft('E2EE encrypts text on this device. Native Venice search and multimodal input are unavailable. Client tools can be enabled explicitly below. Secure replies are shown after verification. TEE alone allows Venice to read the prompt.')}</Text>
+    {options.textPrivacy==='e2ee'&&<E2EEToolSettings enabled={options.e2eeToolsEnabled===true} mode={options.e2eeToolMode||'encrypted-text'} onChange={(e2eeToolsEnabled,e2eeToolMode)=>update({e2eeToolsEnabled,e2eeToolMode})}/>}
     <Text size="xs" c="dimmed">{ft("Attestation checks follow the Venice CLI: fresh nonce, model identity, debug-mode rejection and key binding. Hardware certificate-chain verification relies on Venice; this app does not independently verify Intel/NVIDIA roots.")}</Text>
     <Text fw={600} mt="sm">{ft("What would you like to use?")}</Text>
     <SimpleGrid cols={{ base: 1, sm: 2 }}>

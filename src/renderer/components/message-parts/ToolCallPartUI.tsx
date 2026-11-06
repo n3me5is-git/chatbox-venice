@@ -1,3 +1,4 @@
+import { isSearchTool } from '@shared/providers/definitions/models/venice/search-policy'
 import { isApprovalPauseReason } from '@chatbox/core/message-approval'
 import NiceModal from '@ebay/nice-modal-react'
 import { Alert, Box, Button, Code, Collapse, Group, Paper, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core'
@@ -234,6 +235,9 @@ function usePausedStepElementRegistration(
 const toolIconMap: Record<string, React.ElementType> = {
   web_search: IconWorld,
   venice_web_search: IconWorld,
+  venice_web_search_brave: IconWorld,
+  venice_web_search_google: IconWorld,
+  venice_web_search_exa: IconWorld,
   terminal: IconTerminal,
   code_search: IconFileSearch,
   file_search: IconFileSearch,
@@ -1269,7 +1273,7 @@ export const ToolCallPartUI: FC<{ part: MessageToolCallPart } & ToolCallActionCo
       </Box>
     )
   }
-  if ((part.toolName === 'web_search' || part.toolName === 'venice_web_search')) {
+  if (isSearchTool(part.toolName)) {
     return <WebSearchGroupUI parts={[part]} />
   }
   if (isPageReadPart(part)) {
@@ -1438,7 +1442,7 @@ const TimelineToolCallDetail: FC<{ part: MessageToolCallPart }> = ({ part }) => 
   if (part.state === 'paused') {
     return <PausedToolCallDetails part={part} />
   }
-  if ((part.toolName === 'web_search' || part.toolName === 'venice_web_search')) {
+  if (isSearchTool(part.toolName)) {
     return <WebSearchDetails part={part} />
   }
   if (isPageReadPart(part)) {
