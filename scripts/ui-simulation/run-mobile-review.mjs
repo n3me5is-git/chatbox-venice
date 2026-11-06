@@ -24,8 +24,11 @@ export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fi
  await wait(()=>evaluate(`document.body.textContent.includes('Protect this creation')`),'Long press did not expose history protection actions')
  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27})
  const body=`[...document.querySelectorAll('.mantine-Drawer-body')].findLast(e=>e.getBoundingClientRect().height>0)`
- const point=await evaluate(`(()=>{const e=${body};e.scrollTop=0;const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height*0.7}})()`)
- await cdp('Input.synthesizeScrollGesture',{...point,yDistance:-500,xDistance:0,gestureSourceType:'touch',speed:500});await delay(500)
+ const point=await evaluate(`(()=>{const e=${body};e.scrollTop=0;const r=e.getBoundingClientRect();return{x:r.right-10,y:r.y+r.height*0.8,distance:Math.min(450,r.height*0.6)}})()`)
+ await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:point.x,y:point.y}]})
+ for(let step=1;step<=10;step++){await cdp('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:point.x,y:point.y-point.distance*step/10}]});await delay(35)}
+ await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await delay(500)
+ await writeFile(path.join(output,'touch-scroll-metrics.json'),JSON.stringify(await evaluate(`({body:{height:(${body}).clientHeight,scrollHeight:(${body}).scrollHeight,scrollTop:(${body}).scrollTop},active:document.activeElement?.outerHTML})`),null,2))
  assert.equal(await evaluate(`(${body}).scrollTop>100`),true,'The settings panel did not scroll vertically with touch')
  await writeFile(path.join(output,'reported-mobile-panels.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  await click(byText('Close reported issues'));await wait(()=>evaluate(`!document.body.textContent.includes('Bottom of scrollable panel')`),'Reported issues panel did not close')

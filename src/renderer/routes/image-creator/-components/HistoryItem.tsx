@@ -22,7 +22,7 @@ export function HistoryItem({ record, isActive, isMobile, modelDisplayName, onCl
   const [deletePopoverOpened, setDeletePopoverOpened] = useState(false)
   const [actionsOpened,setActionsOpened]=useState(false)
   useOverlayManager(actionsOpened,()=>setActionsOpened(false))
-  const hold=useRef<ReturnType<typeof setTimeout>|null>(null),held=useRef(false)
+  const hold=useRef<ReturnType<typeof setTimeout>|null>(null),held=useRef(false),downPoint=useRef({x:0,y:0})
   const stopHold=()=>{if(hold.current)clearTimeout(hold.current);hold.current=null}
   const changeProtection=async()=>{
     const [{requestProtectedAccess},{default:platform},{queryClient}]=await Promise.all([import('@/components/security/requestUnlock'),import('@/platform'),import('@/stores/queryClient')])
@@ -68,8 +68,8 @@ export function HistoryItem({ record, isActive, isMobile, modelDisplayName, onCl
         aria-label={ft('Preview {{name}}',{name:record.prompt||ft('Locked creation')})}
         onClick={()=>{if(held.current){held.current=false;return}onClick()}}
         onContextMenu={event=>{event.preventDefault();setActionsOpened(true)}}
-        onPointerDown={()=>{held.current=false;hold.current=setTimeout(()=>{held.current=true;setActionsOpened(true)},550)}}
-        onPointerUp={stopHold} onPointerCancel={stopHold} onPointerMove={stopHold}
+        onPointerDown={event=>{downPoint.current={x:event.clientX,y:event.clientY};held.current=false;hold.current=setTimeout(()=>{held.current=true;setActionsOpened(true)},550)}}
+        onPointerUp={stopHold} onPointerCancel={stopHold} onPointerMove={event=>{if(Math.hypot(event.clientX-downPoint.current.x,event.clientY-downPoint.current.y)>8)stopHold()}}
         style={{ borderWidth: 1, borderStyle: 'solid' }}
         className={`w-full aspect-square rounded-lg overflow-hidden transition-colors duration-150 ${
           isActive

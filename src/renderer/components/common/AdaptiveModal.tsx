@@ -17,8 +17,8 @@ export function AdaptiveModal({ opened, onClose, onExitTransitionEnd, children, 
     return (
       <ManagedDrawer opened={opened} onClose={onClose} title={title} position="bottom" size="auto"
         onExitTransitionEnd={onExitTransitionEnd} closeOnEscape={props.closeOnEscape} closeOnClickOutside={props.closeOnClickOutside}
-        styles={{content:{maxHeight:'92dvh',display:'flex',flexDirection:'column',borderRadius:'16px 16px 0 0'},
-          header:{flexShrink:0},body:{minHeight:0,overflowY:'auto',overscrollBehavior:'contain',touchAction:'pan-y',paddingBottom:'max(16px, env(safe-area-inset-bottom))'}}}>
+        styles={{content:{maxHeight:'92dvh',overflow:'hidden',display:'flex',flexDirection:'column',borderRadius:'16px 16px 0 0'},
+          header:{flexShrink:0},body:{flex:'1 1 auto',maxHeight:'calc(92dvh - 64px)',minHeight:0,overflowY:'auto',overscrollBehavior:'contain',touchAction:'pan-y',WebkitOverflowScrolling:'touch',paddingBottom:'max(16px, env(safe-area-inset-bottom))'}}}>
         {children}
       </ManagedDrawer>
     )

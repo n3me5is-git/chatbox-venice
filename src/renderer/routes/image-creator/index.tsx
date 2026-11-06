@@ -382,38 +382,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
     }
   }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, batchCount, t,saveProtected,vault])
 
-  const handleQuickPromptSubmit = useCallback(
-    async (quickPrompt: string) => {
-      if (isCurrentlyGenerating) return
-      if (!selectedModel) {
-        toastActions.add(t('Please select a model'))
-        return
-      }
-
-      if (selectedProvider === ModelProviderEnum.ChatboxAI && !settingsStore.getState().licenseKey) {
-        toastActions.add(t('Please log in to Chatbox AI first'))
-        return
-      }
-
-      try {
-        if(saveProtected)await vault.keys.key('app')
-        await createAndGenerate({
-          prompt: quickPrompt,
-          protection:saveProtected?'app':undefined,
-          referenceImages: [],
-          model: {
-            provider: selectedProvider,
-            modelId: selectedModel,
-          },
-          imageGenerateNum: batchCount,
-          aspectRatio: 'auto',
-        })
-      } catch (error) {
-        log.error('Failed to generate image:', error)
-      }
-    },
-    [selectedProvider, selectedModel, isCurrentlyGenerating, batchCount, t,saveProtected,vault]
-  )
+  const handleQuickPromptSubmit = useCallback((quickPrompt:string)=>{if(isCurrentlyGenerating)return;setPrompt(quickPrompt);textareaRef.current?.focus()},[isCurrentlyGenerating])
 
   const handleReportGeneratedImage = useCallback(async (record: ImageGeneration) => {
     const contentId = [
