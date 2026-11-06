@@ -20,6 +20,9 @@ export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fi
  await click(byText('Model details and options'));await wait(()=>evaluate(`document.body.textContent.includes('Input / 1M tokens')`),'Readable pricing did not open')
  assert.equal(await evaluate('window.__simulationBack()'),true);await wait(()=>evaluate(`!document.body.textContent.includes('Technical catalog data')`),'Back did not close the top model details');assert.equal(await evaluate(`!!(${byLabel('Project protection')})`),true)
  const target=`[...document.querySelectorAll('button')].findLast(e=>e.getAttribute('aria-label')==='Preview History context action test')`
+ // The preceding model drawer can still be animating after its text disappears.
+ // Use the shared visibility/hit-test gate before measuring the real long press.
+ await click(target)
  const p=await evaluate(`(()=>{const e=${target};e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`)
  await delay(300);await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[p]});await delay(650);await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
  await wait(()=>evaluate(`document.body.textContent.includes('Protect this creation')`),'Long press did not expose history protection actions')
