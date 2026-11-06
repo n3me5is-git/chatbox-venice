@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.29.0
+
+See [release notes](docs/releases/v1.29.0.md). Repairs Android biometric cipher ordering, inference-key balances, touch panels, model selection, independent search controls and protected previews. Adds the sidebar visual library and complete English/Italian fork strings.
+
 ## 1.28.1
 
 See [release notes](docs/releases/v1.28.1.md). Fixes dedicated project PIN selection when unlocking image history, clears PIN input between protected areas and preserves brush drags inside the mobile image editor.

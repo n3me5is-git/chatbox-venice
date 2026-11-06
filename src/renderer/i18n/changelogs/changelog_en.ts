@@ -1,4 +1,15 @@
 const changelog = `
+## Chatbox Venice 1.29.0
+1. Sidebar visual library with categories, thumbnails, previews and protected access
+2. Newline on Enter for image prompts; separate advanced settings and complete image display
+3. Mobile dropdown/scroll/Back fixes, readable model details and catalog privacy badges
+4. USD/DIEM balances with inference keys; independent model and Chatbox search controls
+5. Queued speech under Voice, separate music/SFX and explicit English/Italian fork strings
+
+## Chatbox Venice 1.28.0–1.28.1
+1. Encrypted media library, portable backups and app/project unlock
+2. Optional TEE/E2EE text, voice conversion/cloning and local masked image editing
+
 ## Chatbox Venice 1.27.0
 1. Per-chat generation approval: always ask, remember similar requests, or automatic
 2. Reuse approved image parameters and revoke permissions from the chat

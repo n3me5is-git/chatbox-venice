@@ -18,7 +18,13 @@ Windows installers are unsigned. New versions use a release-mode APK signed for 
 4. Configure native search in the chat's search panel or in Venice settings. Choose integrated Venice chat search, Brave, Google, Exa, or X search on compatible models. Modes are Off, Automatic and Always search. Automatic Brave/Google/Exa search requires tool calling; Always search also works without tools.
 5. Open Venice image settings in Image Creator for moderation, output format, size, resolution, quality, seed, steps, CFG scale and other supported options. Editing models accept reference images. Model capabilities and constraints still apply.
 
-Venice's integrated chat search and its standalone retrieval APIs expose different options. Brave/Google/Exa choices use Venice's `/augment/search` API directly; they are not Chatbox search providers. X search takes precedence when enabled. Search and prompt enhancement can incur additional Venice charges.
+Venice's integrated chat search and its standalone retrieval APIs expose different options. Brave/Google/Exa choices use Venice's `/augment/search` API directly. Separately, Settings → Web Search → Venice configures the Chatbox retrieval tool and its backend. The two sets of controls are independent. X search takes precedence when enabled. Search and prompt enhancement can incur additional Venice charges.
+
+## Library and mobile controls
+
+Open **Local media library** in the sidebar for categorized thumbnails, previews and public/protected files. Upload offers Device or Local library from a single control. Image prompts insert a newline on Enter; the explicit button starts generation. Advanced image settings open separately so the result remains visible. Protected previews ask for authentication. Image history offers creation actions and long press; Studio history follows the current media category.
+
+Find **Hide Chatbox AI in selectors** in Settings → Providers or Appearance. Venice approval policy is in conversation settings. Model lists can be filtered by type and privacy, with catalog badges inside the options. All registered fork UI strings have English and Italian resources; other supported locales use English fallback.
 
 ## Optional media and chat tools
 

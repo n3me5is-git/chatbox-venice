@@ -37,3 +37,11 @@ Open **Artifacts → Venice-UI-simulation** in a successful run: `desktop.png` (
 Use the published release and your own key to verify model access, chat search/citations, image generation/editing and the media modules you need. Availability, prices and accepted options can change; only a live call verifies access and inference.
 
 On Windows/Android, check installation/update, playback/codecs, microphone permissions, export destinations and reopening. Simulated tests do not certify all devices. Export important data before a migration or reinstall.
+
+## 1.29.0 regression coverage
+
+The mobile browser journey now mounts the production project-protection selector, categorized Venice selector, model details, multiline image prompt, image-history actions and the visual library inside the shared AdaptiveModal. It sends touch events, checks saved choices and dropdown focus, routes Back through the production overlay registry, scrolls the panel with a touch gesture, and verifies that Enter cannot invoke the explicit image-generation action. The library fixture uses real AES-GCM storage and PIN derivation with synthetic files and a simulated device wrapper. It checks image previews, category filtering, moving a file to protected storage and authentication on re-entry. Extra screenshots are `reported-mobile-panels.png` and `visual-library-mobile.png`.
+
+The Native security checks workflow also runs Android instrumentation against API 34 and 35 emulators. The production device-key creation method creates a non-exportable Keystore key, reloads it, decrypts authenticated test ciphertext and rejects a modified ciphertext. This tests the Android Keystore service, not physical biometric enrollment or fingerprint recognition. Hosted emulator screen locks are synthetic test configuration and are unrelated to release signing secrets.
+
+Every registered fork UI string must have an explicit Italian translation with matching interpolation placeholders. New English strings remain the fallback for other supported locales. Provider-supplied catalog descriptions and raw diagnostic/catalog data retain the provider's language.

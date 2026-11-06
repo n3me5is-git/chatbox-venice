@@ -37,3 +37,11 @@ Remix/edit controls show compatible models and allow explicit batch approval. Co
 ## Verification boundaries
 
 CI tests use synthetic keys/API responses, real browser canvas operations and mocked device-key wrapping. Separate native checks compile the Windows Hello helper and Android Keystore/biometric plugin. They do not verify physical biometric enrollment/unlock, every codec/device, or paid Venice inference. See [testing](fork-testing.md) and [provider data flows](fork-privacy.md).
+
+## Mobile library and search controls (1.29.0)
+
+Open **Local media library** in the sidebar to browse files by category, preview them, or move a creation between public and protected storage. Public means no additional app unlock; native media still uses the encrypted device storage described above. Upload controls offer **From this device** and **From local library**. The Data & Backup page retains cleanup, migration and encrypted backup tools.
+
+Protected previews have a view-level authentication gate. This is independent of the scope keys held by an active task: closing a protected library/creation view requires authentication again on re-entry without silently canceling unrelated work that still owns a key. App/project locking still stops the relevant active work and clears private surfaces.
+
+Android authenticates a biometric cipher before adding associated data. Newly created keys use `setUnlockedDeviceRequired` only on Android 15+, following the Android platform guidance for earlier OS bugs. Existing keys are never regenerated as a recovery shortcut. If an old key cannot be opened after a device/lock-screen change, restore an encrypted backup; the app does not substitute a new key.

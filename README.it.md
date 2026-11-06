@@ -10,6 +10,10 @@ Fork di Chatbox Community Edition con dati locali, parametri vendor per modello 
 
 In Impostazioni → Provider → Venice inserisci la API key, premi Fetch e aggiungi i modelli desiderati. Per la ricerca puoi scegliere Venice integrata, Brave, Google, Exa e, sui modelli compatibili, X. Le richieste passano direttamente dalle API Venice. Le modalità sono disattivata, automatica e sempre attiva; la ricerca automatica con un backend scelto richiede un modello con tool calling.
 
+Dalla 1.29.0 la **Libreria multimediale locale** è nel menu laterale: miniature, anteprime, categorie e aree pubblica/protetta. Il pulsante di caricamento propone dispositivo o libreria locale. Invio nel prompt immagini va a capo; solo il pulsante esplicito avvia la generazione. Le impostazioni avanzate si aprono in un pannello dedicato. Le creazioni protette richiedono lo sblocco della vista.
+
+La ricerca del modello Venice è separata dallo strumento di ricerca Chatbox: per quest’ultimo vai in Impostazioni → Ricerca web → Venice e scegli Brave, Google o Exa. Le approvazioni Venice sono nelle impostazioni della conversazione. **Nascondi Chatbox AI nei selettori** è disponibile in Impostazioni → Provider e in Aspetto. Tutte le stringhe del fork hanno una traduzione italiana esplicita, con inglese predefinito per gli altri casi.
+
 Nel generatore immagini compaiono le impostazioni Venice: moderazione, ricerca web, formato, dimensioni, risoluzione, qualità, seed, step, CFG, stile e altri controlli. I modelli di editing richiedono immagini di riferimento. Le opzioni disponibili dipendono dal modello.
 
 Nei provider custom puoi specificare un JSON aggiuntivo per ogni modello, ad esempio `{"moderation":"low"}` per le immagini compatibili OpenAI. Gli oggetti vengono uniti ricorsivamente e gli array sostituiti. Per creare varianti dello stesso modello usa un ID locale diverso e specifica il vero ID nel campo `model` del JSON. L'opzione ricerca nativa esclude i tool di ricerca Chatbox.

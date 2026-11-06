@@ -4,6 +4,7 @@ import { initReactI18next } from 'react-i18next'
 
 import { authErrorOverrides } from './auth-error-overrides'
 import changelogEn from './changelogs/changelog_en'
+import changelogIt from './changelogs/changelog_it_IT'
 import changelogZhHans from './changelogs/changelog_zh_Hans'
 import changelogZhHant from './changelogs/changelog_zh_Hant'
 
@@ -39,6 +40,9 @@ export function changelog() {
       return changelogZhHans
     case 'zh-Hant':
       return changelogZhHant
+    case 'it-IT':
+    case 'it':
+      return changelogIt
     case 'en':
       return changelogEn
     default:
