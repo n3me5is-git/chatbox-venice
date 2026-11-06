@@ -66,9 +66,8 @@ describe('real SDK encrypted tool round trips with a simulated enclave',()=>{
   expect(parts.some(part=>part.type==='error')).toBe(false)
  })
  it.each([{badSignature:true},{native:true,weakToolSignature:true}])('never executes unauthenticated tool calls or retries in plaintext: %j',async options=>{
-  const f=fixture(options);const parts=await f.run()
+  const f=fixture(options);await expect(f.run()).rejects.toThrow(/signature|authenticated/)
   expect(f.execute).not.toHaveBeenCalled();expect(f.wires).toHaveLength(1)
-  expect(parts.some(part=>part.type==='error')).toBe(true)
  })
  it('requires the catalog capability for native mode while allowing the encrypted text protocol separately',()=>{
   expect(fixture({native:true,capability:false}).model.isSupportToolUse()).toBe(false)

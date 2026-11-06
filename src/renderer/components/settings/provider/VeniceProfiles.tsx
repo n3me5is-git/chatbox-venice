@@ -1,6 +1,7 @@
+import { VeniceSettingSelect as Select } from '@/components/venice/VeniceSettingSelect'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
-import { Accordion, Alert, Button, Group, Select, SimpleGrid, Stack, Text, Textarea, TextInput } from '@mantine/core'
+import { Accordion, Alert, Button, Group, SimpleGrid, Stack, Text, Textarea, TextInput } from '@mantine/core'
 import { useState } from 'react'
 import { VeniceProfileSchema } from '@shared/types/settings'
 import type { VeniceOptions, VeniceProfile } from '@shared/providers/definitions/models/venice/options'

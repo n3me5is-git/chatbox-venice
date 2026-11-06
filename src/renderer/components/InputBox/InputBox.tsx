@@ -692,14 +692,17 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
 
     // When agent mode is on, block models that don't support agent tools in the model selector.
     const agentModeDisabledMessage = t('This model does not support Agent Mode')
+    const veniceToolPolicy=useSettingsStore(state=>state.providers?.venice?.venice)
+    const encryptedTextTools=veniceToolPolicy?.textPrivacy==='e2ee'&&veniceToolPolicy.e2eeToolsEnabled===true&&veniceToolPolicy.e2eeToolMode!=='native'
     const modelDisabledCheck = useCallback(
       (m: ProviderModelInfo) => {
         if (agentModeEntry.value !== 'on') return undefined
+        if(encryptedTextTools&&(m.providerId==='venice'||m.vendorMetadata?.veniceType==='text')&&(m.vendorMetadata?.capabilities as Record<string,unknown>|undefined)?.supportsE2EE===true)return undefined
         if (!m.capabilities?.includes('tool_use')) return agentModeDisabledMessage
         if (isDeepSeekWeakToolUse(m.modelId, 'agent')) return agentModeDisabledMessage
         return undefined
       },
-      [agentModeDisabledMessage, agentModeEntry.value]
+      [agentModeDisabledMessage, agentModeEntry.value, encryptedTextTools]
     )
 
     // Check model tool use capabilities for agent mode and file handling.

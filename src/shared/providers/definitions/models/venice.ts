@@ -104,7 +104,7 @@ export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: Ven
       if ((settings?.privacyFilter && settings.privacyFilter !== 'all' || mode) && body.model !== model?.modelId) throw new Error('Model overrides cannot bypass Venice privacy settings')
       requireModelPrivacy(model?.vendorMetadata, settings?.privacyFilter)
       const toolMode=settings?.e2eeToolsEnabled===true?settings.e2eeToolMode||'encrypted-text':false
-      if(mode==='e2ee'&&toolMode==='native'&&body.tools?.length&&(model?.vendorMetadata?.capabilities as Record<string,unknown>|undefined)?.supportsFunctionCalling!==true)throw new ApiError('This model does not declare native function calling. Choose encrypted text tools or another model.')
+      if(mode==='e2ee'&&toolMode==='native'&&Array.isArray(body.tools)&&body.tools.length&&(model?.vendorMetadata?.capabilities as Record<string,unknown>|undefined)?.supportsFunctionCalling!==true)throw new ApiError('This model does not declare native function calling. Choose encrypted text tools or another model.')
       const response = mode ? await secureVeniceChat(fetch, endpoint, init || {}, body, mode, toolMode) : await fetch(url, { ...init, body: JSON.stringify(body) })
       return withVeniceCitations(response)
     }
@@ -140,7 +140,7 @@ export default class Venice extends OpenAICompatible {
   public override async chat(messages: ModelMessage[], options: CallChatCompletionOptions) {
     const prepared = this.usesNativeWebSearch ? { messages } : await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
     const guard = guardSearchTools({ ...options.tools, ...prepared.tools }, options.sessionId)
-    return super.chat(prepared.messages, { ...options, tools: guard.tools, maxSteps: options.maxSteps ?? (Object.keys(guard.tools).some(isSearchTool) ? 12 : this.options.venice?.e2eeToolsEnabled ? 32 : undefined) })
+    return super.chat(prepared.messages, { ...options, tools: guard.tools, maxSteps: options.maxSteps ?? (Object.keys(guard.tools).some(isSearchTool) ? options.agentMode?32:12 : this.options.venice?.textPrivacy==='e2ee'&&this.options.venice?.e2eeToolsEnabled ? 32 : undefined) })
   }
 
   public override async *chatStream<T extends ToolSet>(messages: ModelMessage[], options: ChatStreamOptions): AsyncGenerator<ModelStreamPart<T>> {
@@ -149,7 +149,7 @@ export default class Venice extends OpenAICompatible {
     const originalStep=options.prepareStep
     const guard = guardSearchTools({ ...options.tools, ...prepared.tools }, options.sessionId)
     yield* super.chatStream<T>(prepared.messages, { ...options, tools: guard.tools,
-      maxSteps: options.maxSteps ?? (Object.keys(guard.tools).some(isSearchTool) ? 12 : this.options.venice?.e2eeToolsEnabled ? 32 : undefined),
+      maxSteps: options.maxSteps ?? (Object.keys(guard.tools).some(isSearchTool) ? options.agentMode?32:12 : this.options.venice?.textPrivacy==='e2ee'&&this.options.venice?.e2eeToolsEnabled ? 32 : undefined),
       prepareStep: async step => {
         const result = await originalStep?.(step)
         return { ...result, activeTools: guard.active([...new Set([...(result?.activeTools || Object.keys(guard.tools)), ...nativeTools])]) }

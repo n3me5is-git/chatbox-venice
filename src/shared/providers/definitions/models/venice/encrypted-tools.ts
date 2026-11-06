@@ -14,7 +14,7 @@ export function encryptedToolMessages(messages: Body[], tools: Body[], choice: u
       throw new Error('E2EE does not support image, audio, video or file attachments')
     }).join('\n') : undefined
     if (content === undefined) throw new Error('Unsupported encrypted tool content')
-    return { ...message, content }
+    return { ...message, role: String(message.role), content }
   })
   const protocol = buildToolSystemPrompt(tools as ToolDefinition[], (choice ?? 'auto') as ToolChoice)
   const rendered = renderToolMessages(normalized).map(message => ({ role: message.role==='tool'?'user':message.role, content: message.content }))
@@ -48,7 +48,7 @@ export function nativeToolMessages(messages: Body[]) {
   return { privateMessages:prior, publicMessages:messages.slice(split).map(message=>{
     const content=typeof message.content==='string'?message.content:message.content==null?null:Array.isArray(message.content)&&message.content.every((part:Body)=>part.type==='text')?message.content.map((part:Body)=>part.text).join('\n'):undefined
     if(content===undefined)throw new Error('Native encrypted chat supports text tool results only')
-    return {...message,content}
+    return {...message,role:String(message.role),content}
   }) }
 }
 

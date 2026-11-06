@@ -1,4 +1,5 @@
-import { Alert, Button, Group, Select, Stack, Switch, Text } from '@mantine/core'
+import { VeniceSettingSelect as Select } from '@/components/venice/VeniceSettingSelect'
+import { Alert, Button, Group, Stack, Switch, Text } from '@mantine/core'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
@@ -8,7 +9,7 @@ type ToolMode='encrypted-text'|'native'
 export function E2EEToolSettings({enabled,mode='encrypted-text',onChange}:{enabled:boolean;mode?:ToolMode;onChange:(enabled:boolean,mode:ToolMode)=>void}) {
   useTranslation();const [opened,setOpened]=useState(false),[pending,setPending]=useState<ToolMode>(mode)
   const data=[{value:'encrypted-text',label:ft('Encrypted tool messages')},{value:'native',label:ft('Native tools with visible metadata')}]
-  return <Stack gap="xs"><Switch label={ft('Tools in encrypted chat')} description={ft('Search and MCP tools with explicit privacy controls.')} checked={enabled} onChange={event=>{if(event.currentTarget.checked){setPending(mode);setOpened(true)}else onChange(false,mode)}}/>
+  return <Stack gap="xs"><Switch aria-label={ft('Tools in encrypted chat')} label={ft('Tools in encrypted chat')} description={ft('Search and MCP tools with explicit privacy controls.')} checked={enabled} onChange={event=>{if(event.currentTarget.checked){setPending(mode);setOpened(true)}else onChange(false,mode)}}/>
     {enabled&&<Select comboboxProps={{withinPortal:false}} label={ft('Tool transport')} data={data} value={mode} allowDeselect={false} onChange={value=>{if(value){setPending(value as ToolMode);setOpened(true)}}}/>}
     <AdaptiveModal opened={opened} onClose={()=>setOpened(false)} title={ft('Allow tools in encrypted chat?')}><Stack>
       <Select comboboxProps={{withinPortal:false}} label={ft('Tool transport')} data={data} value={pending} allowDeselect={false} onChange={value=>value&&setPending(value as ToolMode)}/>

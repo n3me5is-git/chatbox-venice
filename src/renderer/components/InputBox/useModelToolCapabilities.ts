@@ -21,13 +21,14 @@ export function useModelToolCapabilities(
   currentSessionMergedSettings: SessionSettings
 ) {
   const modelRegistryVersion = useModelRegistryVersion()
+  const veniceToolPolicy=useSettingsStore(state=>model?.provider==='venice'?state.providers?.venice?.venice:undefined)
   const configuredModel = useSettingsStore((state) =>
     model
       ? state.providers?.[model.provider]?.models?.find((candidate) => candidate.modelId === model.modelId)
       : undefined
   )
   const query = useQuery<ModelToolCapabilities>({
-    queryKey: ['model-tool-capability', model?.provider, model?.modelId, configuredModel, modelRegistryVersion],
+    queryKey: ['model-tool-capability', model?.provider, model?.modelId, configuredModel, veniceToolPolicy, modelRegistryVersion],
     queryFn: async () => {
       if (!model?.provider || !model.modelId) {
         return { agentMode: false, readFile: false }
