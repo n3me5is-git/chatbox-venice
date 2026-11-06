@@ -85,7 +85,7 @@ export function VeniceModuleSettings() {
     <Text size="xs" c="dimmed">{ft('E2EE encrypts text on this device. Native Venice search and multimodal input are unavailable. Client tools can be enabled explicitly below. Secure replies are shown after verification. TEE alone allows Venice to read the prompt.')}</Text>
     {options.textPrivacy==='e2ee'&&<E2EEToolSettings enabled={options.e2eeToolsEnabled===true} mode={options.e2eeToolMode||'encrypted-text'} onChange={(e2eeToolsEnabled,e2eeToolMode)=>update({e2eeToolsEnabled,e2eeToolMode})}/>}
     {options.textPrivacy&&options.textPrivacy!=='standard'&&<SecureReceiptSettings enabled={options.secureReceiptCompatibility===true} onChange={secureReceiptCompatibility=>update({secureReceiptCompatibility})}/>}
-    <Text size="xs" c="dimmed">{ft("Attestation checks follow the Venice CLI: fresh nonce, model identity, debug-mode rejection and key binding. Hardware certificate-chain verification relies on Venice; this app does not independently verify Intel/NVIDIA roots.")}</Text>
+    <Text size="xs" c="dimmed">{ft("Model attestation checks use a fresh nonce, model identity, debug-mode rejection and key binding. Model hardware verification relies on Venice. Separate NEAR gateway signatures use local Intel-chain verification; model software measurements and NVIDIA roots are not independently verified.")}</Text>
     <Text fw={600} mt="sm">{ft("What would you like to use?")}</Text>
     <SimpleGrid cols={{ base: 1, sm: 2 }}>
       <Switch label={ft("Voice and transcription")} disabled={options.enabled === false} checked={options.audioEnabled === true} onChange={e => update({ audioEnabled: e.currentTarget.checked })} />

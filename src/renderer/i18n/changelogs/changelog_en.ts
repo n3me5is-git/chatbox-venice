@@ -4,7 +4,7 @@ const changelog = `
 2. Venice Studio background removal and 2×/4× upscaling; protected local outputs
 3. Clear model prices by billing unit and explicit video cost estimates
 4. Live E2EE quote-format fixes and optional compatible gateway receipts with a privacy warning
-5. Real API verification of text, encrypted tools, short audio/music and one five-second video
+5. Real API verification of text, encrypted tools, short audio/music and one short video test
 
 ## Chatbox Venice 1.30.0
 1. Optional E2EE tool messages: encrypted definitions, calls and textual results

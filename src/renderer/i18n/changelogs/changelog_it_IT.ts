@@ -4,7 +4,7 @@ const changelog = `
 2. Rimozione sfondo e ingrandimento 2×/4× in Venice Studio; output locali protetti
 3. Prezzi dei modelli per unità di fatturazione e preventivi video espliciti
 4. Correzioni E2EE verificate dal vivo e ricevute del gateway compatibili facoltative con avviso privacy
-5. Prove API reali di testo, tool cifrati, brevi audio e musica e un video di cinque secondi
+5. Prove API reali di testo, tool cifrati, brevi audio e musica e un solo video breve
 
 ## Chatbox Venice 1.30.0
 1. Tool E2EE facoltativi: definizioni, chiamate e risultati testuali cifrati
