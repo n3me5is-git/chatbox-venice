@@ -33,7 +33,7 @@ describe('Venice direct API integration', () => {
     const sent = JSON.parse(api.mock.calls[0][0].body)
     expect(sent.venice_parameters).toMatchObject({ enable_web_search: 'on', enable_web_scraping: true, include_venice_system_prompt: false })
     expect(JSON.stringify(result)).toContain('https://example.com')
-    expect(model.usesNativeWebSearch).toBe(true)
+    expect(model.usesNativeWebSearch).toBe(false)
   })
   it('carries search citations across split SSE frames into the SDK text stream', async () => {
     const frames = [

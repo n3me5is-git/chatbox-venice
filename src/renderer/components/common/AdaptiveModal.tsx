@@ -1,8 +1,7 @@
 import type { ModalProps as MantineModalProps } from '@mantine/core'
-import { Button, type ButtonProps, Flex, Stack, Text } from '@mantine/core'
+import { Button, type ButtonProps, Flex, Stack } from '@mantine/core'
 import type { HTMLAttributes, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Drawer } from 'vaul'
 import { useIsSmallScreen } from '@/hooks/useScreenChange'
 import { Modal, Drawer as ManagedDrawer } from '../layout/Overlay'
 

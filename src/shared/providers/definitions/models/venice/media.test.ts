@@ -114,3 +114,10 @@ describe('Venice media lifecycle without live APIs', () => {
     const s = setup(); await expect(s.service.start({ kind: 'speech', model: 'tts', prompt: 'hello', options: { model: false } })).rejects.toThrow('model'); expect(s.api).not.toHaveBeenCalled()
   })
 })
+
+it('uses audio queue/retrieve/complete for advanced TTS without mixing it into music',async()=>{
+ const s=setup(async(path,body)=>{if(path==='/audio/queue'){expect(body).toMatchObject({model:'elevenlabs-tts-v4',prompt:'Speak these words',voice:'Aria'});expect(body).not.toHaveProperty('input');return json({queue_id:'voice-job'})}if(path==='/audio/retrieve')return new Response('audio',{headers:{'content-type':'audio/mpeg'}});if(path==='/audio/complete')return json({success:true});throw new Error('Wrong endpoint: '+path)})
+ s.store.readCatalog=async()=>({origin:'https://api.venice.ai/api/v1',credentialId:Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s.config.apiKey))),b=>b.toString(16).padStart(2,'0')).join(''),items:[{id:'elevenlabs-tts-v4',type:'music',model_spec:{voices:['Aria']}}]})
+ const record=await s.service.start({kind:'speech',model:'elevenlabs-tts-v4',prompt:'Speak these words',options:{voice:'Aria'}});await vi.waitFor(async()=>expect((await s.service.list())[0]).toMatchObject({kind:'speech',status:'ready'}));expect(s.api.mock.calls.some(([request])=>request.url.endsWith('/audio/speech'))).toBe(false);expect(record.kind).toBe('speech')
+ await expect(s.service.start({kind:'music',model:'elevenlabs-tts-v4',prompt:'A tune'})).rejects.toThrow('content category')
+})

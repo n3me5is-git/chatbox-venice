@@ -129,7 +129,10 @@ export class VeniceMediaService {
     if (input.kind === 'voice-conversion' && !input.file) throw new Error('Choose an audio recording to convert')
     const body = mergeExtraBody(input.kind === 'speech' ? { model: input.model, input: input.prompt } : { model: input.model, prompt: input.prompt }, input.options || {})
     if (typeof body.model !== 'string' || !body.model.trim()) throw new Error('The request model must be a non-empty string')
-    const known = (await this.cachedCatalog()).find(item => item.id === body.model && mediaCategory(item) === input.kind)
+    const catalog = await this.cachedCatalog()
+    const catalogMatch=catalog.find(item=>item.id===body.model)
+    if(catalogMatch&&mediaCategory(catalogMatch)!==input.kind)throw new Error('Choose a model from the selected content category')
+    const known = catalog.find(item => item.id === body.model && mediaCategory(item) === input.kind)
     const queuedSpeech=input.kind==='speech'&&known?.type==='music'
     if(queuedSpeech){body.prompt=body.input;delete body.input}
     requireModelPrivacy(known?.model_spec, config.options.privacyFilter)

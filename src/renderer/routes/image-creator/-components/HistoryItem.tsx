@@ -1,7 +1,7 @@
-import { ActionIcon, Button, Flex, Image, Popover, Skeleton, Stack, Text, UnstyledButton } from '@mantine/core'
+import { ActionIcon, Button, Flex, Image, Menu, Popover, Skeleton, Stack, Text, UnstyledButton } from '@mantine/core'
 import type { ImageGeneration } from '@shared/types'
-import { IconPhoto, IconPhotoOff, IconTrash } from '@tabler/icons-react'
-import { useCallback, useState } from 'react'
+import { IconDots, IconPhoto, IconPhotoOff, IconTrash } from '@tabler/icons-react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
 import { useBlob } from '@/hooks/useBlob'
@@ -19,6 +19,15 @@ export interface HistoryItemProps {
 export function HistoryItem({ record, isActive, isMobile, modelDisplayName, onClick, onDelete }: HistoryItemProps) {
   const { t } = useTranslation()
   const [deletePopoverOpened, setDeletePopoverOpened] = useState(false)
+  const [actionsOpened,setActionsOpened]=useState(false)
+  const hold=useRef<ReturnType<typeof setTimeout>|null>(null),held=useRef(false)
+  const stopHold=()=>{if(hold.current)clearTimeout(hold.current);hold.current=null}
+  const changeProtection=async()=>{
+    const [{requestProtectedAccess},{default:platform},{queryClient}]=await Promise.all([import('@/components/security/requestUnlock'),import('@/platform'),import('@/stores/queryClient')])
+    if(!await requestProtectedAccess(record.protection||'app'))return
+    try{await platform.getImageGenerationStorage().update(record.id,{protection:record.protection?undefined:'app'});await queryClient.invalidateQueries()}
+    catch{const {add}=await import('@/stores/toastActions');add(ft('Unable to update creation protection'))}
+  }
   const firstImage = record.generatedImages[0]
   const firstThumbnail = record.generatedImageThumbnails?.find((thumbnail,index)=>thumbnail&&thumbnail!==record.generatedImages[index])
 
@@ -54,7 +63,10 @@ export function HistoryItem({ record, isActive, isMobile, modelDisplayName, onCl
     <Stack gap={4} className="w-full">
       {/* Thumbnail — clickable */}
       <UnstyledButton
-        onClick={onClick}
+        onClick={()=>{if(held.current){held.current=false;return}onClick()}}
+        onContextMenu={event=>{event.preventDefault();setActionsOpened(true)}}
+        onPointerDown={()=>{held.current=false;hold.current=setTimeout(()=>{held.current=true;setActionsOpened(true)},550)}}
+        onPointerUp={stopHold} onPointerCancel={stopHold} onPointerMove={stopHold}
         style={{ borderWidth: 1, borderStyle: 'solid' }}
         className={`w-full aspect-square rounded-lg overflow-hidden transition-colors duration-150 ${
           isActive
@@ -92,6 +104,7 @@ export function HistoryItem({ record, isActive, isMobile, modelDisplayName, onCl
           )}
         </Stack>
 
+        <Menu opened={actionsOpened} onChange={setActionsOpened} withinPortal={false} position="bottom-end"><Menu.Target><ActionIcon size="sm" variant="subtle" aria-label={ft('Creation actions')} onClick={()=>setActionsOpened(value=>!value)}><IconDots size={16}/></ActionIcon></Menu.Target><Menu.Dropdown><Menu.Item onClick={onClick}>{ft('Open preview')}</Menu.Item><Menu.Item onClick={()=>void changeProtection()}>{record.protection?ft('Make this creation public'):ft('Protect this creation')}</Menu.Item><Menu.Item color="red" onClick={()=>{if(window.confirm(t('Delete this record?')||''))onDelete(record.id)}}>{ft('Delete from device')}</Menu.Item></Menu.Dropdown></Menu>
         {isMobile ? (
           <ActionIcon
             variant="transparent"

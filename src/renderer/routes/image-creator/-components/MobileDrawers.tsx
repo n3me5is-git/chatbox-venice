@@ -1,3 +1,4 @@
+import {useOverlayManager} from '@/components/layout/Overlay'
 import { VeniceModelBadges } from '@/components/venice/VeniceModelBadges'
 import { ActionIcon, Box, Flex, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core'
 import type { ImageGeneration } from '@shared/types'
@@ -47,6 +48,7 @@ export function MobileHistoryDrawer({
   onDelete,
 }: MobileHistoryDrawerProps) {
   const { t } = useTranslation()
+  useOverlayManager(open,()=>onOpenChange(false))
 
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} noBodyStyles>
@@ -79,7 +81,7 @@ export function MobileHistoryDrawer({
             </ActionIcon>
           </Flex>
 
-          <Box flex={1}>
+          <Box flex={1} mih={0}>
             <HistoryListContent
               historyCache={historyCache}
               historyLoading={historyLoading}
@@ -124,6 +126,7 @@ export function MobileModelDrawer({
   onSelect,
 }: MobileModelDrawerProps) {
   const { t } = useTranslation()
+  useOverlayManager(open,()=>onOpenChange(false))
   const [detail, setDetail] = useState<DetailModel | null>(null)
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null)
 
@@ -241,6 +244,7 @@ export interface MobileRatioDrawerProps {
 
 export function MobileRatioDrawer({ open, onOpenChange, options, selectedRatio, onSelect }: MobileRatioDrawerProps) {
   const { t } = useTranslation()
+  useOverlayManager(open,()=>onOpenChange(false))
 
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} noBodyStyles>

@@ -1,3 +1,4 @@
+import {useOverlayManager} from './layout/Overlay'
 import type { SelectProps as MantineSelectProps } from '@mantine/core'
 import { Button, Select, Stack, Text } from '@mantine/core'
 import { useState } from 'react'
@@ -11,6 +12,7 @@ export interface AdaptiveSelectProps extends Omit<MantineSelectProps, 'onChange'
 export function AdaptiveSelect(props: AdaptiveSelectProps) {
   const isSmallScreen = useIsSmallScreen()
   const [drawerOpened, setDrawerOpened] = useState(false)
+  useOverlayManager(drawerOpened,()=>setDrawerOpened(false))
   // A select labelled by the row around it names its drawer with its accessible name.
   const title = props.label ?? props['aria-label']
 

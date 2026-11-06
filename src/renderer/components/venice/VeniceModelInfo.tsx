@@ -31,7 +31,7 @@ export function VeniceModelInfo({model}:{model?:MediaCatalogItem}){
  if(!model)return null
  const spec=model.model_spec||{},locale=i18n.resolvedLanguage||i18n.language||'en'
  const docs=`https://docs.venice.ai/api-reference/endpoint/${paths[model.type]||'models/list'}`
- const card='https://venice.ai/models'
+ const card=`https://venice.ai/models/${encodeURIComponent(model.id)}`
  const open=(url:string)=>{setError('');void openVeniceDocumentation(url).catch(()=>setError(ft('Unable to open documentation. Use Open in browser.')))}
  const options=Object.fromEntries(Object.entries(spec).filter(([key])=>/^(supports_|min_|max_|default_|duration|supported_formats|voices|lyrics_required|prompt_character_limit|lyrics_character_limit|accepted_audio)/.test(key)))
  return <><Button size="xs" variant="subtle" onClick={()=>setOpened(true)}>{ft('Model details and options')}</Button>
@@ -39,8 +39,8 @@ export function VeniceModelInfo({model}:{model?:MediaCatalogItem}){
    <Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{model.id} · {ft(categoryLabels[mediaCategory(model)]||model.type)}</Text>
    <VeniceModelBadges metadata={spec}/>{spec.description&&<Text size="sm">{spec.description}</Text>}
    <Text size="xs" c="dimmed">{ft('Privacy, filters, pricing and parameters are declared by Venice. A missing option is not a verified capability.')}</Text>
-   <Group><Button size="xs" onClick={()=>open(docs)}>{ft('API documentation')}</Button><Button size="xs" variant="default" onClick={()=>open(card)}>{ft('Venice model library')}</Button><Button size="xs" variant="subtle" onClick={()=>void platform.openLink(docs)}>{ft('Open in browser')}</Button></Group>
-   {error&&<Alert color="orange">{error}</Alert>}
+   <Group><Button size="xs" onClick={()=>open(card)}>{ft('Venice model page')}</Button><Button size="xs" onClick={()=>open(docs)}>{ft('API documentation')}</Button><Button size="xs" variant="default" onClick={()=>open('https://venice.ai/models')}>{ft('Venice model library')}</Button><Button size="xs" variant="subtle" onClick={()=>void platform.openLink(docs)}>{ft('Open in browser')}</Button></Group>
+   {error&&<Alert color="orange">{ft(error)}</Alert>}
    <Title order={5}>{ft('Pricing')}</Title>{spec.pricing?<Facts value={spec.pricing} locale={locale}/>:<Text size="sm" c="dimmed">{ft('Pricing is not declared in this catalog. Use Show cost before generating queued media.')}</Text>}
    <Title order={5}>{ft('Options allowed by the catalog')}</Title><Facts value={{...spec.constraints,...options}} locale={locale}/>
    <Accordion><Accordion.Item value="raw"><Accordion.Control>{ft('Technical catalog data')}</Accordion.Control><Accordion.Panel><Code block style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(spec,null,2)}</Code></Accordion.Panel></Accordion.Item></Accordion>

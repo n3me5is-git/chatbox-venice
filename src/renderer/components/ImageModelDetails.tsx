@@ -30,13 +30,13 @@ export function ImageModelDetailDrawer({
   onRestoreFocus: () => void
 }) {
   const { t } = useTranslation()
-  const isTopOverlay = useOverlayManager(!!model)
+  const isTopOverlay = useOverlayManager(!!model,onClose)
   return (
     <Drawer.Root open={!!model} onOpenChange={(open) => !open && onClose()} noBodyStyles autoFocus>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-chatbox-background-mask-overlay" />
         <Drawer.Content
-          className="fixed bottom-0 left-0 right-0 outline-none"
+          className="fixed bottom-0 left-0 right-0 outline-none max-h-[90dvh] overflow-y-auto"
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             onRestoreFocus()

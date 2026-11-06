@@ -1,3 +1,4 @@
+import {useOverlayManager} from '../layout/Overlay'
 import { Combobox, Flex, SegmentedControl, Stack, Text, TextInput, useCombobox } from '@mantine/core'
 import { TestId } from '@shared/automation/testids'
 import { ModelProviderEnum } from '@shared/types'
@@ -81,9 +82,11 @@ export const ModelSelectorV2 = forwardRef<HTMLDivElement, ModelSelectorV2Props>(
     const setActiveTab = useUIStore((state) => state.setModelSelectorTab)
     const [search, setSearch] = useState('')
     const [mobileOpen, setMobileOpen] = useState(false)
+  useOverlayManager(mobileOpen,()=>setMobileOpen(false))
     const [advancedExpanded, setAdvancedExpanded] = useState(false)
     const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => new Set())
     const [mobileDetail, setMobileDetail] = useState<DetailModel | null>(null)
+  useOverlayManager(!!mobileDetail,()=>setMobileDetail(null))
     const [desktopDetail, setDesktopDetail] = useState<DesktopDetailState | null>(null)
     const desktopDropdownRef = useRef<HTMLDivElement>(null)
     const desktopDetailRef = useRef<HTMLDivElement>(null)

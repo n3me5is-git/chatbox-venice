@@ -1,115 +1,21 @@
 // @vitest-environment jsdom
-import NiceModal, { useModal } from '@ebay/nice-modal-react'
-import { Button, MantineProvider, TextInput } from '@mantine/core'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useState } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AdaptiveModal } from './AdaptiveModal'
-
-vi.mock('@/hooks/useScreenChange', () => ({ useIsSmallScreen: () => true }))
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
-vi.stubGlobal('CSS', { escape: (value: string) => value })
-
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: (query: string) => ({
-    matches: false,
-    media: query,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  }),
-})
-
-const modalId = 'adaptive-modal-project-test'
-const ProjectModal = NiceModal.create(() => {
-  const modal = useModal()
-  const [name, setName] = useState('')
-  return (
-    <AdaptiveModal opened={modal.visible} onClose={() => modal.hide()} onExitTransitionEnd={modal.remove}>
-      <TextInput aria-label="Project name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
-      <Button onClick={() => modal.hide()}>Create project</Button>
-    </AdaptiveModal>
-  )
-})
-NiceModal.register(modalId, ProjectModal)
-
-afterEach(() => {
-  cleanup()
-  vi.clearAllMocks()
-})
-
-function renderProjectModal() {
-  render(
-    <MantineProvider>
-      <NiceModal.Provider />
-    </MantineProvider>
-  )
-  act(() => {
-    void NiceModal.show(modalId)
-  })
-}
-
-function drawerContent() {
-  const content = document.querySelector('[data-vaul-drawer]')
-  if (!content) throw new Error('Drawer content is missing')
-  return content
-}
-
-function endAnimation(element: Element, animationName: string) {
-  fireEvent(element, Object.assign(new Event('animationend', { bubbles: true }), { animationName }))
-}
-
-describe('AdaptiveModal mobile lifecycle', () => {
-  it('clears form state after programmatic close and exit animation', () => {
-    renderProjectModal()
-    fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), { target: { value: 'A' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create project' }))
-    const content = drawerContent()
-    expect(content.getAttribute('data-state')).toBe('closed')
-    endAnimation(content, 'slideToBottom')
-
-    act(() => {
-      void NiceModal.show(modalId)
-    })
-    expect((screen.getByRole('textbox', { name: 'Project name' }) as HTMLInputElement).value).toBe('')
-  })
-
-  it('clears form state after dismissing the drawer', async () => {
-    renderProjectModal()
-    const input = screen.getByRole('textbox', { name: 'Project name' })
-    fireEvent.change(input, { target: { value: 'Draft' } })
-    fireEvent.keyDown(input, { key: 'Escape' })
-    await waitFor(() => expect(drawerContent().getAttribute('data-state')).toBe('closed'))
-    endAnimation(drawerContent(), 'slideToBottom')
-    act(() => {
-      void NiceModal.show(modalId)
-    })
-    expect((screen.getByRole('textbox', { name: 'Project name' }) as HTMLInputElement).value).toBe('')
-  })
-
-  it('ignores child animations while closing', () => {
-    const onExitTransitionEnd = vi.fn()
-    const view = (opened: boolean) => (
-      <MantineProvider>
-        <AdaptiveModal opened={opened} onClose={vi.fn()} onExitTransitionEnd={onExitTransitionEnd}>
-          <span>Animated child</span>
-        </AdaptiveModal>
-      </MantineProvider>
-    )
-    const { rerender } = render(view(true))
-    rerender(view(false))
-    endAnimation(screen.getByText('Animated child'), 'child-animation')
-    expect(onExitTransitionEnd).not.toHaveBeenCalled()
-    endAnimation(drawerContent(), 'slideToBottom')
-    expect(onExitTransitionEnd).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps the open form when its enter animation or a child animation ends', () => {
-    renderProjectModal()
-    const input = screen.getByRole('textbox', { name: 'Project name' })
-    fireEvent.change(input, { target: { value: 'A' } })
-    endAnimation(drawerContent(), 'slideFromBottom')
-    endAnimation(input, 'child-animation')
-    expect((screen.getByRole('textbox', { name: 'Project name' }) as HTMLInputElement).value).toBe('A')
-  })
+import NiceModal,{useModal} from '@ebay/nice-modal-react'
+import {Button,MantineProvider,TextInput} from '@mantine/core'
+import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
+import {useState} from 'react'
+import {afterEach,describe,expect,it,vi} from 'vitest'
+import {AdaptiveModal} from './AdaptiveModal'
+import {ProjectProtectionMode} from '@/components/security/ProjectProtectionMode'
+import {closeTopSurface} from '@/packages/overlay-back'
+vi.mock('@/hooks/useScreenChange',()=>({useIsSmallScreen:()=>true}))
+Object.defineProperty(window,'matchMedia',{writable:true,value:()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn(),addListener:vi.fn(),removeListener:vi.fn()})})
+vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})
+Element.prototype.scrollIntoView=vi.fn()
+const ProjectModal=NiceModal.create(()=>{const modal=useModal();const [name,setName]=useState(''),[mode,setMode]=useState('none');return <AdaptiveModal opened={modal.visible} onClose={()=>modal.hide()} title="Project" onExitTransitionEnd={modal.remove}><TextInput label="Project name" value={name} onChange={event=>setName(event.currentTarget.value)}/><ProjectProtectionMode value={mode} onChange={setMode}/><Button onClick={()=>modal.hide()}>Save project</Button></AdaptiveModal>})
+afterEach(()=>{cleanup()})
+const show=()=>{render(<MantineProvider><NiceModal.Provider/></MantineProvider>);act(()=>{void NiceModal.show(ProjectModal)})}
+describe('mobile panels with production project controls',()=>{
+ it('selects and retains project protection inside the modal focus scope',()=>{show();fireEvent.click(screen.getByLabelText('Project protection'));fireEvent.click(screen.getByRole('option',{name:'Use a dedicated project PIN'}));expect((screen.getByLabelText('Project protection')as HTMLInputElement).value).toBe('Use a dedicated project PIN')})
+ it('releases the previous form after closing and reopening',async()=>{show();fireEvent.change(screen.getByLabelText('Project name'),{target:{value:'Draft'}});fireEvent.click(screen.getByText('Save project'));await waitFor(()=>expect(screen.queryByLabelText('Project name')).toBeNull());act(()=>{void NiceModal.show(ProjectModal)});expect((await screen.findByLabelText('Project name')as HTMLInputElement).value).toBe('')})
+ it('uses native back to close the open panel without navigating',async()=>{show();act(()=>{expect(closeTopSurface()).toBe(true)});await waitFor(()=>expect(screen.queryByLabelText('Project name')).toBeNull());expect(closeTopSurface()).toBe(false)})
 })

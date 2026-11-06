@@ -46,6 +46,6 @@ export const VeniceImageApproval = NiceModal.create(({ models, request, signal, 
     <Accordion><Accordion.Item value="call"><Accordion.Control>{ft("Parameters for this call")}</Accordion.Control><Accordion.Panel><Stack gap="sm"><Text size="xs" c="dimmed">{ft("Only this call is changed. Empty fields keep the model defaults.")}</Text>{model?.vendorMetadata?.veniceType !== 'inpaint' && <NumberInput label={ft("Seed for this generation")} value={seed} onChange={setSeed} />}<Textarea label={ft("Extra parameters for this call (JSON)")} value={extra} onChange={e => setExtra(e.currentTarget.value)} autosize minRows={2} /></Stack></Accordion.Panel></Accordion.Item></Accordion>
     <Text size="sm">{ft("You authorize {{count}} paid generations with the selected model. Content is sent to Venice.", {count})}</Text>
     {sessionId && <ApprovalModeOptions value={approvalMode} onChange={setApprovalMode} />}
-    {error && <Alert color="red">{error}</Alert>}<Group justify="end"><Button variant="default" onClick={cancel}>{ft("Cancel")}</Button><Button disabled={!model || !prompt.trim()} onClick={() => void confirm()}>{ft("Confirm and generate")}</Button></Group>
+    {error && <Alert color="red">{ft(error)}</Alert>}<Group justify="end"><Button variant="default" onClick={cancel}>{ft("Cancel")}</Button><Button disabled={!model || !prompt.trim()} onClick={() => void confirm()}>{ft("Confirm and generate")}</Button></Group>
   </Stack></AdaptiveModal>
 })

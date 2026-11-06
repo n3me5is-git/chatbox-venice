@@ -6,19 +6,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VeniceStudio } from './VeniceStudio'
 import type { MediaRecord, MediaCatalogItem } from '@shared/providers/definitions/models/venice/media'
 vi.mock('@/platform', () => ({ default: { exporter: { exportTextFile: vi.fn(), exportBlob: vi.fn() } } }))
-Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) })
+Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener:vi.fn(), removeListener:vi.fn() })) })
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn() })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 const models: MediaCatalogItem[] = [
   { id: 'tts-kokoro', type: 'tts', model_spec: { name: 'Kokoro', voices: ['if_sara', 'im_nicola'], default_voice: 'if_sara', supported_formats: ['mp3', 'wav'], default_format: 'mp3' } },
-  { id: 'tts-other', type: 'tts', model_spec: { name: 'Altra voce', voices: ['Vivian'], default_voice: 'Vivian', supported_formats: ['wav'] } },
+  { id: 'tts-other', type: 'tts', model_spec: { name: /Altra voce/, voices: ['Vivian'], default_voice: 'Vivian', supported_formats: ['wav'] } },
   { id: 'video', type: 'video', model_spec: { name: 'Video creativo', constraints: { model_type: 'image-to-video', duration: ['4s', '8s'], aspectRatios: ['16:9', '9:16'] } } },
 ]
 const record = { id: 'one', kind: 'video', model: 'video', prompt: 'Landscape', createdAt: 1, status: 'paused', queueId: 'q1', origin: 'https://api.venice.ai/api/v1', credentialId: 'hash' } satisfies MediaRecord
 function setup(records: MediaRecord[] = []) {
-  return { list: vi.fn().mockResolvedValue(records), subscribe: vi.fn(() => () => {}), cachedCatalog: vi.fn().mockResolvedValue([]), catalog: vi.fn().mockResolvedValue(models), quote: vi.fn().mockResolvedValue({ quote: 0.75 }), start: vi.fn().mockResolvedValue(record), resume: vi.fn(), pause: vi.fn(), remove: vi.fn(), cleanup: vi.fn(), content: vi.fn(async (): Promise<string | null> => null), isActive: vi.fn(() => false) }
+  return { testKind:records[0]?.kind, list: vi.fn().mockResolvedValue(records), subscribe: vi.fn(() => () => {}), cachedCatalog: vi.fn().mockResolvedValue([]), catalog: vi.fn().mockResolvedValue(models), quote: vi.fn().mockResolvedValue({ quote: 0.75 }), start: vi.fn().mockResolvedValue(record), resume: vi.fn(), pause: vi.fn(), remove: vi.fn(), cleanup: vi.fn(), content: vi.fn(async (): Promise<string | null> => null), isActive: vi.fn(() => false) }
 }
-function show(service: ReturnType<typeof setup>, options = { audioEnabled: true, videoEnabled: true, musicEnabled: true }) { return render(<MantineProvider><VeniceStudio service={service} options={options} /></MantineProvider>) }
+function show(service: ReturnType<typeof setup>, options = { audioEnabled: true, videoEnabled: true, musicEnabled: true }) { return render(<MantineProvider><VeniceStudio initialKind={service.testKind} service={service} options={options} /></MantineProvider>) }
 async function loadModels() { fireEvent.click(screen.getByRole('button', { name: "Load models" })); await waitFor(() => expect((screen.getByLabelText("Model", { selector: 'input' }) as HTMLInputElement).value).toBe('Kokoro')) }
 describe('Venice Studio simulated user journeys', () => {
   it('opens local history without network, and keeps technical settings collapsed', async () => {
@@ -38,7 +38,7 @@ describe('Venice Studio simulated user journeys', () => {
   })
   it('resets incompatible voice and format choices when choosing another model', async () => {
     const service = setup(); show(service); await loadModels()
-    fireEvent.click(screen.getByLabelText("Model", { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Altra voce' }))
+    fireEvent.click(screen.getByLabelText("Model", { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: /Altra voce/ }))
     expect((screen.getByLabelText("Voice to use", { selector: 'input' }) as HTMLInputElement).value).toContain('Vivian')
     fireEvent.click(screen.getByLabelText("Audio format", { selector: 'input' })); expect(screen.queryByRole('option', { name: 'MP3' })).toBeNull(); expect(screen.getByRole('option', { name: 'WAV' })).toBeTruthy()
     expect(service.start).not.toHaveBeenCalled()
@@ -89,13 +89,13 @@ describe('Venice Studio simulated user journeys', () => {
 })
 
 it('sends only supported music options and resets duration when the model changes', async () => {
-  const service = setup(); service.catalog.mockResolvedValue([...models, { id: 'ace', type: 'music', model_spec: { name: 'ACE', min_duration: 60, max_duration: 210, default_duration: 60, duration_options: [60, 90], supports_lyrics: true, supports_force_instrumental: false } }, { id: 'eleven', type: 'music', model_spec: { name: 'Eleven', min_duration: 3, max_duration: 600, default_duration: 60, supports_lyrics: false, supports_force_instrumental: true } }])
+  const service = setup(); service.catalog.mockResolvedValue([...models, { id: 'ace', type: 'music', model_spec: { name: 'ACE', min_duration: 60, max_duration: 210, default_duration: 60, duration_options: [60, 90], supports_lyrics: true, supports_force_instrumental: false } }, { id: 'eleven', type: 'music', model_spec: { name: /Eleven/, min_duration: 3, max_duration: 600, default_duration: 60, supports_lyrics: false, supports_force_instrumental: true } }])
   show(service); await loadModels(); fireEvent.click(screen.getByRole('radio', { name: "Music" }))
   expect(await screen.findByText("Only options declared by this model are shown. Settings reset when you change models.")).toBeTruthy()
   expect(screen.queryByLabelText("Instrumental only")).toBeNull()
   fireEvent.change(screen.getByLabelText("Describe the music or sound"), { target: { value: 'Una lunga melodia al pianoforte' } }); fireEvent.click(screen.getByRole('button', { name: "Create music" }))
   await waitFor(() => expect(service.start).toHaveBeenCalledWith(expect.objectContaining({ model: 'ace', options: { duration_seconds: 60 } })))
-  fireEvent.click(screen.getByLabelText("Model", { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: 'Eleven' }))
+  fireEvent.click(screen.getByLabelText("Model", { selector: 'input' })); fireEvent.click(screen.getByRole('option', { name: /Eleven/ }))
   expect(screen.queryByLabelText("Lyrics (optional)")).toBeNull(); expect(screen.getByLabelText("Instrumental only")).toBeTruthy()
 })
 it('does not show references for a text-only video model', async () => {

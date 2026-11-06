@@ -1,3 +1,4 @@
+import {ImagePromptField} from '@/components/venice/ImagePromptField'
 import { ProtectedPreviewGate } from '@/components/security/ProtectedPreviewGate'
 import { chooseUploadSource } from '@/components/local-library/UploadSource'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
@@ -23,7 +24,6 @@ import {
   ScrollArea,
   Stack,
   Text,
-  Textarea,
   UnstyledButton,
 } from '@mantine/core'
 import type { ImageGeneration, ImageGenerationModel } from '@shared/types'
@@ -600,7 +600,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                 <Stack gap="xs">
                   {/* Input Row */}
                   <Flex align="flex-end" gap={4}>
-                    <Textarea
+                    <ImagePromptField
                       ref={textareaRef}
                       placeholder={t('Describe the image you want to create...') || ''}
                       value={prompt}

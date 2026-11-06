@@ -8,6 +8,8 @@ import { veniceMediaService } from '@/packages/venice/service'
 import type { MediaCatalogItem } from '@shared/providers/definitions/models/venice/media'
 import type { ProviderSettings } from '@shared/types'
 import { useProviderSettings } from '@/stores/settingsStore'
+import { VeniceModelOption,categoryLabels } from '@/components/venice/VeniceModelSelect'
+import { mediaCategory,privacyLabels } from '@shared/providers/definitions/models/venice/media-capabilities'
 type Options = NonNullable<ProviderSettings['venice']>
 export function VeniceSearchSettings() {
   useTranslation()
@@ -92,11 +94,19 @@ export function VeniceModuleSettings() {
 }
 function VeniceMediaModelSelection({ options, update }: { options: Options; update: (value: Partial<Options>) => void }) {
   const [catalog, setCatalog] = useState<MediaCatalogItem[]>([])
+  const [category,setCategory]=useState('all'),[privacy,setPrivacy]=useState('all')
+  const media=catalog.filter(model=>['tts','asr','music','video'].includes(model.type))
+  const visible=media.filter(model=>(category==='all'||mediaCategory(model)===category)&&(privacy==='all'||privacyLabels(model.model_spec).some(item=>privacy==='private'?item.label==='Private':privacy==='e2ee'?item.label==='E2EE capable':privacy==='tee'?item.label==='TEE available':privacy==='uncensored'?item.label==='Uncensored':item.label==='Anonymized')))
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   useEffect(() => { let live = true; void veniceMediaService.cachedCatalog().then(rows => { if (live) setCatalog(rows) }).catch(() => {}); return () => { live = false } }, [])
   return <Accordion><Accordion.Item value="media-models"><Accordion.Control>{ft("Models shown in Venice Studio")}</Accordion.Control><Accordion.Panel><Stack gap="sm">
     <Button variant="default" size="xs" loading={busy} disabled={options.enabled === false} onClick={async () => { setBusy(true); setError(''); try { setCatalog(await veniceMediaService.catalog()) } catch { setError(ft("Unable to load the Venice model catalog")) } finally { setBusy(false) } }}>{ft("Refresh models")}</Button>
-    <MultiSelect comboboxProps={{withinPortal:false}} label={ft("Selected audio and video models")} searchable clearable disabled={options.showOtherModels === true} value={options.mediaModelIds || []} data={catalog.filter(model => ['tts','asr','music','video'].includes(model.type)).map(model => ({ value: model.id, label: `${model.model_spec?.name || model.id} · ${model.type}` }))} onChange={mediaModelIds => update({ mediaModelIds })} />
+    <SimpleGrid cols={{base:1,sm:2}}><Select comboboxProps={{withinPortal:false}} label={ft('Model type')} value={category} onChange={value=>setCategory(value||'all')} data={[{value:'all',label:ft('All types')},...Array.from(new Set(media.map(mediaCategory))).map(value=>({value,label:ft(categoryLabels[value]||value)}))]}/><Select comboboxProps={{withinPortal:false}} label={ft('Privacy and filters')} value={privacy} onChange={value=>setPrivacy(value||'all')} data={[{value:'all',label:ft('All privacy levels')},{value:'private',label:ft('Private')},{value:'anonymous',label:ft('Anonymized')},{value:'tee',label:ft('TEE available')},{value:'e2ee',label:ft('E2EE capable')},{value:'uncensored',label:ft('Uncensored')}]}/></SimpleGrid>
+    <MultiSelect comboboxProps={{withinPortal:false}} maxDropdownHeight={320} label={ft("Selected audio and video models")} searchable clearable disabled={options.showOtherModels === true} value={options.mediaModelIds || []}
+      data={media.map(model=>({value:model.id,label:model.model_spec?.name||model.id,disabled:!visible.includes(model)}))}
+      filter={({options:rows,search})=>rows.filter(row=>'value'in row&&visible.some(model=>model.id===row.value)&&`${row.label} ${row.value}`.toLowerCase().includes(search.toLowerCase()))}
+      renderOption={({option})=><VeniceModelOption model={media.find(model=>model.id===option.value)!}/>}
+      onChange={mediaModelIds => update({ mediaModelIds })} />
     <Button variant="subtle" size="xs" onClick={() => update({ mediaModelIds: undefined })}>{ft("Use all available media models")}</Button>
     <Text size="xs" c="dimmed">{ft("Show other models from Venice temporarily includes the full catalog without changing your selection.")}</Text>
     {error && <Text size="xs" c="red">{error}</Text>}

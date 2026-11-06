@@ -1,3 +1,4 @@
+import {ProjectProtectionMode} from './ProjectProtectionMode'
 import NiceModal,{useModal} from '@ebay/nice-modal-react'
 import { Alert,Button,Group,PasswordInput,Select,Stack,Text } from '@mantine/core'
 import { useEffect,useState } from 'react'
@@ -25,10 +26,10 @@ function Controls({folderId}:{folderId:string}){
   const locked=!!scope&&!vault.keys.isUnlocked(scope)
   return <Stack gap="sm"><Text size="sm" c="dimmed">{ft('Project locks control access inside the app, including chat reads, search and changes. They do not encrypt the existing conversation database or external Work Mode files. Venice generations belonging to these chats are moved to this project’s protected media area. Other generated media has its own protection controls.')}</Text>
     {locked&&<ScopeUnlock keys={vault.keys} scope={scope!} title={ft('Unlock this project')}/>}
-    <Select comboboxProps={{withinPortal:false}} label={ft('Project protection')} value={mode} onChange={value=>setMode(value||'none')} disabled={!ready||busy||locked} data={[{value:'none',label:ft('No project lock')},{value:'app',label:ft('Use app unlock')},{value:'pin',label:ft('Use a dedicated project PIN')}]}/>
+    <ProjectProtectionMode value={mode} onChange={setMode} disabled={!ready||busy||locked}/>
     {mode==='app'&&<><Text size="sm">{ft('Projects using app unlock share the app’s current unlocked state. Configure app unlock methods in Data & Backup first.')}</Text>{!vault.keys.isUnlocked('app')&&<ScopeUnlock keys={vault.keys}/>}</>}
     {mode==='pin'&&!locked&&<><PasswordInput label={ft('New project PIN or passphrase')} description={ft('Enter a new PIN to change it, or leave blank to keep the existing dedicated PIN.')} value={pin} onChange={event=>setPin(event.currentTarget.value)} autoComplete="new-password"/><PasswordInput label={ft('Confirm PIN or passphrase')} value={repeat} onChange={event=>setRepeat(event.currentTarget.value)} autoComplete="new-password"/></>}
-    <Group><Button loading={busy} disabled={!ready||locked} onClick={()=>void save()}>{ft('Save project protection')}</Button>{scope&&!locked&&<Button variant="default" disabled={busy} onClick={()=>void lock()}>{ft('Lock project now')}</Button>}</Group>{error&&<Alert color="red">{error}</Alert>}
+    <Group><Button loading={busy} disabled={!ready||locked} onClick={()=>void save()}>{ft('Save project protection')}</Button>{scope&&!locked&&<Button variant="default" disabled={busy} onClick={()=>void lock()}>{ft('Lock project now')}</Button>}</Group>{error&&<Alert color="red">{ft(error)}</Alert>}
   </Stack>
 }
 export function ProjectProtectionSettings(){

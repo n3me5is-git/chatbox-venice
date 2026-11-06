@@ -1,3 +1,4 @@
+import {useOverlayManager} from './layout/Overlay'
 import { VeniceModelBadges } from './venice/VeniceModelBadges'
 import { ActionIcon, Combobox, type ComboboxProps, Flex, HoverCard, Text, useCombobox } from '@mantine/core'
 import type { ModelProvider } from '@shared/types'
@@ -48,7 +49,7 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
     const [mobileDetail, setMobileDetail] = useState<DetailModel | null>(null)
     const [detailResetKey, setDetailResetKey] = useState(0)
     const openingDetailRef = useRef(false)
-    const modalContent = isMobile ? targetNode?.closest<HTMLElement>('.mantine-Modal-content') : null
+    const modalContent = isMobile ? targetNode?.closest<HTMLElement>('.mantine-Modal-content,.mantine-Drawer-content,[data-vaul-drawer]') : null
 
     const combobox = useCombobox({
       opened,
@@ -63,6 +64,8 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
     useEffect(() => {
       if (!combobox.dropdownOpened) setDetailResetKey((key) => key + 1)
     }, [combobox.dropdownOpened])
+
+    useOverlayManager(combobox.dropdownOpened,()=>combobox.closeDropdown())
 
     const handleOptionSubmit = (val: string) => {
       const { provider, modelId } = JSON.parse(val) as { provider: string; modelId: string }

@@ -24,6 +24,6 @@ export function SecuritySettings({runtime}:{runtime?:Pick<VaultRuntime,'keys'|'d
       <Switch label={ft('Enable biometric or device unlock')} description={caps?.name} checked={bio} onChange={event=>setBio(event.currentTarget.checked)} disabled={busy||!caps?.biometric&&!bio}/>
       <Button onClick={()=>void save()} loading={busy} disabled={!caps?.encryption||!pinEnabled&&!bio}>{ft('Save unlock methods')}</Button>
       {status?.configured&&<><Switch label={ft('Require unlock to open the app')} checked={enabled} onChange={event=>{const checked=event.currentTarget.checked;void run(async()=>{await vault.db.setSetting('app-lock-enabled',checked);setEnabled(checked)})}} disabled={busy}/><Switch label={ft('Lock when the app goes into the background')} checked={background} onChange={event=>{const checked=event.currentTarget.checked;void run(async()=>{await vault.db.setSetting('lock-on-background',checked);setBackground(checked)})}} disabled={busy}/><Button variant="default" onClick={()=>void import('./AppGate').then(({lockApplication})=>lockApplication())}>{ft('Lock protected content now')}</Button></>}
-    </>}{(error||loadError)&&<Alert color="red">{error||loadError}</Alert>}{notice&&<Alert color="green">{notice}</Alert>}
+    </>}{(error||loadError)&&<Alert color="red">{ft(error||loadError)}</Alert>}{notice&&<Alert color="green">{notice}</Alert>}
   </Stack></SettingsSection>
 }

@@ -36,7 +36,7 @@ export function withOverlayManager<P extends { opened?: boolean; closeOnEscape?:
   const WrappedComponent = (props: P) => {
     const isTopOverlay = useOverlayManager(props.opened, props.closeOnEscape === false ? () => {} : props.onClose)
 
-    return <Component closeOnEscape={isTopOverlay} {...props} />
+    return <Component {...props} closeOnEscape={props.closeOnEscape !== false && isTopOverlay} />
   }
 
   WrappedComponent.displayName = displayName || `withOverlayManager(${Component.displayName})`

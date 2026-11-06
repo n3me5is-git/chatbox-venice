@@ -25,6 +25,6 @@ export function VeniceVoiceCloning({ service, model, enabled, onChoose }: { serv
     <Button disabled={!enabled||!file||!service.createVoice} loading={busy} onClick={()=>void perform(async()=>{const controller=new AbortController();operation.current=controller;validateVoiceDuration(await voiceFileDuration(file!,controller.signal),spec.min_sample_seconds||5,spec.max_sample_seconds||300);controller.signal.throwIfAborted();const voice=await service.createVoice!(model.id,file!,name,controller.signal);setVoices(rows=>[...rows,voice]);setFile(null);onChoose(voice.id)})}>{ft('Create voice from sample')}</Button>
     {voices.map(voice=><Group key={voice.id} justify="space-between"><Button variant="light" size="xs" onClick={()=>onChoose(voice.id)}>{voice.name}</Button><Button variant="subtle" size="xs" onClick={()=>void perform(async()=>{await service.removeVoice?.(voice.id);setVoices(rows=>rows.filter(row=>row.id!==voice.id))})}>{ft('Remove saved voice')}</Button></Group>)}
     <Text size="xs" c="dimmed">{ft('Removing a saved voice deletes its local reference. Venice currently documents automatic expiry of samples, not an immediate deletion API.')}</Text>
-    {error&&<Alert color="red">{error}</Alert>}
+    {error&&<Alert color="red">{ft(error)}</Alert>}
   </Stack></Accordion.Panel></Accordion.Item></Accordion>
 }

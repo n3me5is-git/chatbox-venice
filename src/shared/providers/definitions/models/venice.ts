@@ -113,7 +113,7 @@ export default class Venice extends OpenAICompatible {
   public options: VeniceOptions
   // Native model search and Chatbox's configured retrieval tool are independent.
   // Advertising native search unconditionally used to suppress the global search tool.
-  public override get usesNativeWebSearch() { return (this.options.venice?.webSearch ?? 'off') !== 'off' }
+  public override get usesNativeWebSearch() { return this.options.venice?.textPrivacy === 'e2ee' }
 
   constructor(options: VeniceOptions, dependencies: ModelDependencies) {
     assertVeniceEnabled(options.venice || {})
@@ -135,7 +135,10 @@ export default class Venice extends OpenAICompatible {
 
   public override async *chatStream<T extends ToolSet>(messages: ModelMessage[], options: ChatStreamOptions): AsyncGenerator<ModelStreamPart<T>> {
     const prepared = this.options.venice?.textPrivacy === 'e2ee' ? { messages } : await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
-    yield* super.chatStream<T>(prepared.messages, { ...options, tools: { ...options.tools, ...prepared.tools } })
+    const nativeTools=Object.keys(prepared.tools||{})
+    const originalStep=options.prepareStep
+    yield* super.chatStream<T>(prepared.messages, { ...options, tools: { ...options.tools, ...prepared.tools },
+      ...(originalStep&&nativeTools.length?{prepareStep:async step=>{const result=await originalStep(step);return result?.activeTools?{...result,activeTools:[...new Set([...result.activeTools,...nativeTools])]}:result}}:{}) })
   }
 
   public override listModels(): Promise<ProviderModelInfo[]> { return fetchVeniceModels(this.options, this.dependencies) }

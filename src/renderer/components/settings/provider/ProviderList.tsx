@@ -1,4 +1,6 @@
-import { Button, Flex, Image, Indicator, ScrollArea, Stack, Text } from '@mantine/core'
+import {forkT as ft} from '@/i18n/fork'
+import {useSettingsStore} from '@/stores/settingsStore'
+import { Button, Flex, Image, Indicator, ScrollArea, Switch, Stack, Text } from '@mantine/core'
 import { AutomationAdjacentAttr, TestId } from '@shared/automation/testids'
 import { ModelProviderEnum, type ProviderBaseInfo } from '@shared/types'
 import { IconChevronRight, IconPlus } from '@tabler/icons-react'
@@ -20,6 +22,7 @@ interface ProviderListProps {
 
 export function ProviderList({ providers, onAddProvider }: ProviderListProps) {
   const { t } = useTranslation()
+  const hideChatbox=useSettingsStore(s=>s.hideChatboxProviders===true),setSettings=useSettingsStore(s=>s.setSettings)
   const isSmallScreen = useIsSmallScreen()
   const routerState = useRouterState()
 
@@ -120,7 +123,7 @@ export function ProviderList({ providers, onAddProvider }: ProviderListProps) {
           ))}
         </Stack>
       </ScrollArea>
-      <Stack gap="xs" mx="md" my="sm">
+      <Stack gap="xs" mx="md" my="sm"><Switch label={ft('Hide Chatbox AI in selectors')} description={ft('Show only your configured providers in model menus.')} checked={hideChatbox} onChange={event=>setSettings({hideChatboxProviders:event.currentTarget.checked})}/>
         <Button
           data-testid={TestId.settings.addProvider}
           variant="outline"
