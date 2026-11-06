@@ -890,3 +890,5 @@ describe('AgentModePanel platform-unavailable capabilities', () => {
     ).toBeTruthy()
   })
 })
+
+test('keeps the Venice native search controls separate from the global retrieval toggle',()=>{Object.assign(mocks.settingsState,{providers:{venice:{apiKey:'synthetic',venice:{webSearch:'on',searchProvider:'brave'}}}});const changed=vi.fn();const view=renderPanel({providerId:'venice',modelId:'chat',webBrowsingMode:false,onWebBrowsingChange:changed});expect(screen.getByText('Venice model search')).toBeTruthy();const control=screen.getByTestId('web-search-toggle');if(!control)throw Error('Global search toggle is missing');fireEvent.click(control);expect(changed).toHaveBeenCalledWith(true)})

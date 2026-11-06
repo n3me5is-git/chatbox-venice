@@ -323,3 +323,5 @@ describe('Mobile Agent Mode memory', () => {
     expect(mocks.navigate).not.toHaveBeenCalled()
   })
 })
+
+test('exposes both model-native Venice search settings and the Chatbox retrieval toggle',()=>{const changed=vi.fn();render(panel({providerId:'venice',modelId:'chat',onWebBrowsingChange:changed}));expect(screen.getByRole('button',{name:/Venice model search/})).toBeTruthy();fireEvent.click(screen.getByRole('switch',{name:'Web Search'}));expect(changed).toHaveBeenCalledWith(true);fireEvent.click(screen.getByRole('button',{name:'Web Search Settings'}));expect(mocks.navigate).toHaveBeenCalledWith('/web-search')})

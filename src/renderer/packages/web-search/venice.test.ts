@@ -10,3 +10,5 @@ describe('Venice global web search', () => {
     const request = api.mock.calls[0][0]; expect(request).toMatchObject({ url: 'https://api.venice.ai/api/v1/augment/search', useProxy: false, retry: 0 }); expect(JSON.parse(request.body)).toMatchObject({ search_provider: 'exa' })
   })
 })
+
+it.each(['brave','google','exa'])('sends global Venice retrieval to the selected %s engine',async engine=>{api.mockResolvedValueOnce(Response.json({results:[]}));await new VeniceSearch('synthetic-key','https://api.venice.ai/api/v1',engine).search('query');expect(JSON.parse(api.mock.calls.at(-1)![0].body)).toMatchObject({query:'query',search_provider:engine})})

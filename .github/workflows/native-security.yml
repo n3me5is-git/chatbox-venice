@@ -100,8 +100,12 @@ jobs:
           disable-animations: true
           script: |
             adb shell locksettings set-pin 123456
-            adb shell input keyevent 82
-            cd android && ./gradlew :app:connectedDebugAndroidTest --no-daemon
+            adb shell input keyevent 224
+            adb shell input swipe 500 1600 500 300 400
+            adb shell input text 123456
+            adb shell input keyevent 66
+            adb shell wm dismiss-keyguard
+            cd android && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.n3me5is.chatboxvenice.VaultKeyDeviceTest --no-daemon
       - name: Save Android device test reports
         if: always()
         uses: actions/upload-artifact@v4
