@@ -26,11 +26,12 @@ export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fi
  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27})
  await wait(()=>evaluate(`![...document.querySelectorAll('[role="menu"]')].some(e=>e.getClientRects().length)`),'History menu did not close before scrolling')
  const body=`[...document.querySelectorAll('.mantine-Drawer-body')].findLast(e=>e.getBoundingClientRect().height>0)`
- const point=await evaluate(`(()=>{const e=${body};e.scrollTop=0;const r=e.getBoundingClientRect();return{x:r.right-10,y:r.y+r.height*0.8,distance:Math.min(450,r.height*0.6)}})()`)
+ // Start inside the content, not on Chromium's native scrollbar gutter.
+ const point=await evaluate(`(()=>{const e=${body};e.scrollTop=0;const r=e.getBoundingClientRect();const x=r.left+e.clientWidth/2,y=r.y+r.height*0.8;return{x,y,distance:Math.min(450,r.height*0.6),hit:document.elementFromPoint(x,y)?.outerHTML}})()`)
  await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:point.x,y:point.y}]})
  for(let step=1;step<=10;step++){await cdp('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:point.x,y:point.y-point.distance*step/10}]});await delay(35)}
  await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await delay(500)
- await writeFile(path.join(output,'touch-scroll-metrics.json'),JSON.stringify(await evaluate(`({body:{height:(${body}).clientHeight,scrollHeight:(${body}).scrollHeight,scrollTop:(${body}).scrollTop},active:document.activeElement?.outerHTML})`),null,2))
+ await writeFile(path.join(output,'touch-scroll-metrics.json'),JSON.stringify({point,...await evaluate(`({body:{height:(${body}).clientHeight,scrollHeight:(${body}).scrollHeight,scrollTop:(${body}).scrollTop},ancestors:(()=>{const a=[];for(let e=${body};e;e=e.parentElement){const s=getComputedStyle(e);a.push({tag:e.tagName,class:e.className,touchAction:s.touchAction,overflow:s.overflow})}return a})(),active:document.activeElement?.outerHTML})`)},null,2))
  assert.equal(await evaluate(`(${body}).scrollTop>100`),true,'The settings panel did not scroll vertically with touch')
  await writeFile(path.join(output,'reported-mobile-panels.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  await click(byText('Close reported issues'));await wait(()=>evaluate(`!document.body.textContent.includes('Bottom of scrollable panel')`),'Reported issues panel did not close')
