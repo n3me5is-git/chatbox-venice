@@ -55,7 +55,7 @@ export function nativeToolMessages(messages: Body[]) {
   }) }
 }
 
-/** Called only AFTER the enclave signature has authenticated the original text. */
+/** Called only AFTER decryption and the explicitly selected receipt verification policy. */
 export function exposeVerifiedToolCalls(output: string, streaming: boolean, calls: EncryptedToolCall[], id: string, model: string) {
   if (!streaming) {
     const frame = JSON.parse(output)

@@ -3,7 +3,7 @@ import { bytesToHex, parseHex, verifyKeyBinding, deriveSigningAddressFromKey } f
 
 
 
-export type TeeAttestationResponse = { verified?: boolean; nonce: string; model: string; intel_quote?: string; signing_address?: string; signing_key?: string; signing_public_key?: string; nvidia_payload?: string; server_verification?: ServerVerification; tee_provider?: string }
+export type TeeAttestationResponse = { verified?: boolean; nonce: string; model: string; intel_quote?: string; signing_address?: string; signing_key?: string; signing_public_key?: string; nvidia_payload?: string; server_verification?: ServerVerification; tee_provider?: string; upstream_model?:string }
 
 export const NRAS_ATTEST_URL = 'https://nras.attestation.nvidia.com/v3/attest/gpu'
 

@@ -1,6 +1,7 @@
 import { bytesToHex, decryptChunk, deriveSigningAddressFromKey, encryptMessage, generateEphemeralKeyPair, isHexEncrypted, verifySignature } from './crypto'
 import { buildTeeVerificationResult, evaluateE2EEAttestationPolicy, evaluateTEEAttestationPolicy, type TeeAttestationResponse } from './tee'
 import { encryptedToolMessages, exposeVerifiedToolCalls, nativeToolMessages, parseEncryptedToolCalls } from './encrypted-tools'
+import { nearGatewaySigningAddress } from './near-gateway'
 
 type Body = Record<string, any>
 const MAX_RESPONSE = 16 * 1024 * 1024
@@ -100,21 +101,25 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     const payload=signature.payload;const pairText=typeof payload?.request_hash==='string'&&typeof payload?.response_hash==='string'?`${payload.request_hash}:${payload.response_hash}`:undefined
     const signedText=signature.text??pairText
     if (typeof signedText !== 'string' || typeof signatureHex !== 'string'||pairText&&pairText!==signedText) throw new Error('TEE response signature was not available or consistent; unverified output was withheld')
-    if (signature.signing_address && String(signature.signing_address).toLowerCase().replace(/^0x/,'')!==signingAddress.toLowerCase().replace(/^0x/,'')) throw new Error('TEE response reported another signing identity')
+    let responseSigningAddress=signingAddress
+    if (signature.signing_address && String(signature.signing_address).toLowerCase().replace(/^0x/,'')!==signingAddress.toLowerCase().replace(/^0x/,'')) {
+      if(evidence.teeProvider!=='near-ai'||signature.tee_provider!=='near-ai'||signature.signature_kind!=='gateway')throw new Error('TEE response reported another signing identity')
+      responseSigningAddress=await nearGatewaySigningAddress(fetch,report.upstream_model,String(signature.signing_address),init.signal)
+    }
     // E2EE signatures must bind the exact encrypted request, including its fresh
     // ciphertext. Only hashes are accepted as its signature payload.
-    const direct = mode==='tee'&&verifySignature({ signedText, signatureHex, expectedSigningAddress: signingAddress, expectedContent: plain }).verified
+    const direct = mode==='tee'&&verifySignature({ signedText, signatureHex, expectedSigningAddress: responseSigningAddress, expectedContent: plain }).verified
     const calls=[...nativeCalls.values()]
     if(calls.some(call=>!call.id||!tools.some(tool=>tool.type==='function'&&tool.function?.name===call.function.name)))throw new Error('The secure response requested an unavailable native tool')
     // A signature over empty/text-only content must never authenticate public tool arguments.
     const candidates=calls.length?[raw,JSON.stringify(calls),JSON.stringify({content:plain,tool_calls:calls})]:[raw,plain,...(pair?[encryptedContent]:[])]
-    const hashed = candidates.some(content=>verifySignature({ signedText, signatureHex, expectedSigningAddress: signingAddress, expectedRequest: sent, expectedContent: content }).verified)
+    const hashed = candidates.some(content=>verifySignature({ signedText, signatureHex, expectedSigningAddress: responseSigningAddress, expectedRequest: sent, expectedContent: content }).verified)
     // Venice's public proxy rewrites requests/responses outside the receipt's byte boundary.
     // ACI hashes are exact gateway bytes, not canonical JSON and not the outer Venice wire.
     // Compatibility is explicit provider consent, never an automatic fallback. It authenticates
     // the signed gateway hash pair, NOT its independent binding to our received payload.
     const compatible = receiptCompatibility && compatibleGatewayReceipt(signature, completionId, signedText) &&
-      verifySignature({signedText,signatureHex,expectedSigningAddress:signingAddress,expectedContent:signedText}).verified
+      verifySignature({signedText,signatureHex,expectedSigningAddress:responseSigningAddress,expectedContent:signedText}).verified
     if (!direct && !hashed && !compatible) throw new Error(calls.length?'Native tool data could not be authenticated. Review secure receipt verification in Venice settings; no tool was executed.':'The secure response signature could not be matched to gateway hashes. Review secure receipt verification in Venice settings. Encryption was not disabled.')
     if (pair && toolMode==='encrypted-text') {
       const calls = parseEncryptedToolCalls(plain, tools, toolChoice)
@@ -129,6 +134,7 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
 
 /** Structural cross-checks reduce accidental mix-ups; receipt metadata is NOT a payload proof. */
 function compatibleGatewayReceipt(signature: Body, requestId: string, text: string): boolean {
+  if(signature.tee_provider==='near-ai'&&signature.signature_kind==='gateway')return /^[a-f0-9]{64}:[a-f0-9]{64}$/.test(text)&&signature.signing_algo==='ecdsa'&&signature.requested_request_id===requestId
   if (!/^[a-f0-9]{64}:[a-f0-9]{64}$/.test(text) || signature.api_version!=='aci/1' || signature.signing_algo!=='ecdsa' || signature.requested_request_id!==requestId) return false
   const receipt=signature.receipt
   if (!receipt || receipt.api_version!=='aci/1' || receipt.chat_id!==requestId || receipt.endpoint!=='/v1/chat/completions' || !Array.isArray(receipt.event_log)) return false

@@ -8,7 +8,7 @@ import Venice from '../venice'
 import { bytesToHex,decryptChunk,deriveSigningAddressFromKey,encryptMessage,generateEphemeralKeyPair } from './crypto'
 import type { ModelDependencies } from '../../../../types/adapters'
 
-function fixture({native=false,badSignature=false,weakToolSignature=false,capability=true}={}){
+function fixture({native=false,badSignature=false,weakToolSignature=false,capability=true,gateway=false,invalidSigner=false}={}){
  const enclave=generateEphemeralKeyPair(),address=deriveSigningAddressFromKey(enclave.publicKeyHex)!
  const wires:string[]=[],decrypted:string[]=[],events:string[]=[]
  let sent='',raw='',plain='',hasNativeCalls=false
@@ -32,16 +32,17 @@ function fixture({native=false,badSignature=false,weakToolSignature=false,capabi
   if(url.pathname.endsWith('/tee/signature')){
    events.push('signature')
    const hash=(value:string)=>bytesToHex(sha256(new TextEncoder().encode(value)))
-   const signed=hash(sent)+':'+hash(badSignature?'tampered':hasNativeCalls&&!weakToolSignature?raw:plain)
+   const signed=gateway?hash('gateway request '+wires.length)+':'+hash('gateway response '+wires.length):hash(sent)+':'+hash(badSignature?'tampered':hasNativeCalls&&!weakToolSignature?raw:plain)
    const bytes=new TextEncoder().encode(signed),prefix=new TextEncoder().encode(`\x19Ethereum Signed Message:\n${bytes.length}`)
    const payload=new Uint8Array(prefix.length+bytes.length);payload.set(prefix);payload.set(bytes,prefix.length)
-   const signature=secp256k1.sign(keccak_256(payload),enclave.privateKey)
-   return Response.json({model:'secure-model',request_id:url.searchParams.get('request_id'),text:signed,signature:'0x'+bytesToHex(signature.toBytes('compact'))+(27+signature.recovery).toString(16)})
+   const signature=secp256k1.sign(keccak_256(payload),invalidSigner?generateEphemeralKeyPair().privateKey:enclave.privateKey)
+   const [req,res]=signed.split(':');const id=url.searchParams.get('request_id')
+   return Response.json({model:'secure-model',request_id:id,text:signed,signature:'0x'+bytesToHex(signature.toBytes('compact'))+(27+signature.recovery).toString(16),...(gateway?{api_version:'aci/1',signing_algo:'ecdsa',signing_address:'0x'+address,requested_request_id:id,receipt:{api_version:'aci/1',chat_id:id,endpoint:'/v1/chat/completions',event_log:[{type:'request.received',body_hash:'sha256:'+req},{type:'response.returned',wire_hash:'sha256:'+res}]}}:{})})
   }
   throw Error('Unexpected mock endpoint')
  })
  const dependencies={request:{apiRequest:api,fetchWithOptions:vi.fn()},storage:{saveImage:vi.fn(),getImage:vi.fn()},sentry:{captureException:vi.fn(),withScope:vi.fn()},getRemoteConfig:vi.fn(),platformType:'desktop'} as unknown as ModelDependencies
- const model=new Venice({apiKey:'synthetic',apiHost:'https://api.venice.ai/api/v1',model:{modelId:'secure-model',capabilities:['tool_use'],vendorMetadata:{privacy:'private',capabilities:{supportsTeeAttestation:true,supportsE2EE:true,supportsFunctionCalling:capability}}},venice:{textPrivacy:'e2ee',e2eeToolsEnabled:true,e2eeToolMode:native?'native':'encrypted-text'}},dependencies)
+ const model=new Venice({apiKey:'synthetic',apiHost:'https://api.venice.ai/api/v1',model:{modelId:'secure-model',capabilities:['tool_use'],vendorMetadata:{privacy:'private',capabilities:{supportsTeeAttestation:true,supportsE2EE:true,supportsFunctionCalling:capability}}},venice:{textPrivacy:'e2ee',e2eeToolsEnabled:true,e2eeToolMode:native?'native':'encrypted-text',secureReceiptCompatibility:gateway}},dependencies)
  const execute=vi.fn(async({text}:{text:string})=>{expect(events).toContain('signature');events.push('execute');return {result:'private tool result: '+text}})
  const tools={local_echo:tool({description:'Read a local value',inputSchema:z.object({text:z.string()}),execute})}
  const run=async()=>{const parts=[];for await(const part of model.chatStream([{role:'system',content:'private system'},{role:'user',content:'private question'}],{tools,maxSteps:3}))parts.push(part);return parts}
@@ -49,6 +50,12 @@ function fixture({native=false,badSignature=false,weakToolSignature=false,capabi
 }
 
 describe('real SDK encrypted tool round trips with a simulated enclave',()=>{
+ it('uses explicit gateway receipts for encrypted tool/result cycles while keeping schemas and results encrypted',async()=>{
+  const f=fixture({gateway:true});const parts=await f.run();expect(f.execute).toHaveBeenCalledTimes(1);expect(f.wires).toHaveLength(2);expect(f.wires.join('\n')).not.toMatch(/local_echo|private argument|private tool result/);expect(parts.some(part=>part.type==='error')).toBe(false)
+ })
+ it('never dispatches a tool with an invalid attested signature even when compatibility is enabled',async()=>{
+  const f=fixture({gateway:true,invalidSigner:true});await expect(f.run()).rejects.toThrow(/signature/);expect(f.execute).not.toHaveBeenCalled();expect(f.wires).toHaveLength(1)
+ })
  it('executes a local/MCP-shaped tool and re-encrypts its result, without exposing schemas or history',async()=>{
   const f=fixture();const parts=await f.run()
   expect(f.execute).toHaveBeenCalledTimes(1);expect(f.wires).toHaveLength(2)

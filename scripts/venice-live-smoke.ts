@@ -28,6 +28,9 @@ export async function runSmoke(command:{action:string;apiKey:string;scratch:stri
   const catalog=JSON.parse(await readFile(path.join(scratch,'venice-live-catalog.json'),'utf8')).data as {id:string;type:string;model_spec:Record<string,any>}[]
   const request:ModelDependencies['request']['apiRequest']=async input=>{
    const url=new URL(input.url)
+   if(url.origin==='https://cloud-api.near.ai'&&url.pathname==='/v1/attestation/report'&&input.method==='GET'&&!new Headers(input.headers).has('Authorization')){
+    const started=Date.now(),response=await fetch(url,{method:'GET',headers:input.headers,signal:input.signal as unknown as AbortSignal||AbortSignal.timeout(20000),redirect:'error'});requests.push({path:'NEAR public gateway attestation',status:response.status,ms:Date.now()-started});return response
+   }
    if(url.origin!=='https://api.venice.ai'||!url.pathname.startsWith('/api/v1/'))throw Error('Unexpected live endpoint')
    const body=typeof input.body==='string'?JSON.parse(input.body):null
    const endpoint=url.pathname.slice('/api/v1'.length)

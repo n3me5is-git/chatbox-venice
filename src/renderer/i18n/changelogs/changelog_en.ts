@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.31.0
+1. Local cropping for image references, with touch controls and preserved transparency
+2. Venice Studio background removal and 2×/4× upscaling; protected local outputs
+3. Clear model prices by billing unit and explicit video cost estimates
+4. Live E2EE quote-format fixes and optional compatible gateway receipts with a privacy warning
+5. Real API verification of text, encrypted tools, short audio/music and one five-second video
+
 ## Chatbox Venice 1.30.0
 1. Optional E2EE tool messages: encrypted definitions, calls and textual results
 2. Native function calling alternative with explicit privacy warning and model capability checks

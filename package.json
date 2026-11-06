@@ -327,6 +327,7 @@
     "zustand": "^5.0.6"
   },
   "dependencies": {
+    "@phala/dcap-qvl": "0.7.1",
     "@libsql/client": "^0.15.6",
     "@mastra/core": "^0.13.2",
     "@mastra/libsql": "^0.13.2",

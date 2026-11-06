@@ -47,3 +47,10 @@ Open **Local media library** in the sidebar to browse files by category, preview
 Protected previews have a view-level authentication gate. This is independent of the scope keys held by an active task: closing a protected library/creation view requires authentication again on re-entry without silently canceling unrelated work that still owns a key. App/project locking still stops the relevant active work and clears private surfaces.
 
 Android authenticates a biometric cipher before adding associated data. Newly created keys use `setUnlockedDeviceRequired` only on Android 15+, following the Android platform guidance for earlier OS bugs. Existing keys are never regenerated as a recovery shortcut. If an old key cannot be opened after a device/lock-screen change, restore an encrypted backup; the app does not substitute a new key.
+
+
+## Reference cropping and image processing
+
+Reference crops run on the device, preserve PNG alpha and leave the original file intact. Cropped protected-library attachments inherit their source scope; draft references use the encrypted asset store. Opening a source still decodes the selected image, bounded to 8 megapixels for cropping.
+
+Venice Studio image tools upload the selected original or crop only after explicit confirmation, via HTTPS rather than text E2EE. Background removal and 2×/4× upscaling save a new image-generation record. New native output streams into the authenticated encrypted asset store with the chosen protection scope; protected output uses the existing preview re-authentication gate. These operations do not erase source images or bypass existing library backup, cleanup and protection controls. Background-removal prices may be unavailable in the catalog; unknown is never shown as free.

@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.31.0
+
+See [release notes](docs/releases/v1.31.0.md). Adds local reference cropping, Venice background removal/upscaling with protected local outputs, explicit model prices and video quotes. Repairs Phala/NEAR AI quote transport padding and adds opt-in compatible gateway receipt verification after live E2EE investigation.
+
 ## 1.30.0
 
 See [release notes](docs/releases/v1.30.0.md). Adds opt-in encrypted tool conversations using the attributed venice-e2ee text protocol, optional native tool metadata with explicit consent, independent chat search switches, three named Venice search engines and bounded search retries. Preserves new-chat profiles and refreshes Work/MCP capabilities immediately.
