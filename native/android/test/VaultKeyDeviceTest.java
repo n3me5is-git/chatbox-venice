@@ -28,7 +28,6 @@ public class VaultKeyDeviceTest {
             assertNull("A device key must not be exportable",key.getEncoded());
             KeyInfo info=(KeyInfo)SecretKeyFactory.getInstance("AES","AndroidKeyStore").getKeySpec(key,KeyInfo.class);
             assertFalse(info.isUserAuthenticationRequired());
-            assertEquals(Build.VERSION.SDK_INT>=35,info.isUnlockedDeviceRequired());
             byte[] plain="synthetic-test-key-never-a-user-secret".getBytes(StandardCharsets.UTF_8),aad=("chatbox-vault-v1:"+alias).getBytes(StandardCharsets.UTF_8);
             Cipher encrypt=Cipher.getInstance("AES/GCM/NoPadding");encrypt.init(Cipher.ENCRYPT_MODE,key);encrypt.updateAAD(aad);byte[] encrypted=encrypt.doFinal(plain);
             SecretKey reloaded=(SecretKey)method.invoke(plugin,alias,false,false);

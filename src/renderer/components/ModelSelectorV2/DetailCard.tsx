@@ -321,6 +321,7 @@ export function DetailCard({
           {model.name}
         </Text>
       </Flex>
+      {model.type==='image'&&<VeniceModelBadges metadata={model.vendorMetadata}/>}
       {model.providerId === 'venice' && <VeniceModelInfo model={{ id: model.modelId, type: String(model.vendorMetadata?.veniceType || (model.type === 'chat' ? 'text' : model.type) || 'text'), model_spec: model.vendorMetadata }} />}
           {model.description && (
         <Text

@@ -8,6 +8,7 @@ import {
   Flex,
   Group,
   Loader,
+  Select,
   Stack,
   Switch,
   Text,
@@ -84,6 +85,7 @@ function isNestedRowControlEvent(event: { target: EventTarget | null }) {
 type PanelPage =
   | 'main'
   | 'web-search'
+  | 'venice-search'
   | 'memory'
   | 'code-execution'
   | 'skills'
@@ -221,11 +223,13 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
 
   const providerOptions = useSettingsStore((s) => providerId ? s.providers?.[providerId] : undefined)
   const resolvedVenice = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, currentSession?.settings?.veniceProfile)
-  const usesNativeSearch = providerId === 'venice' || Boolean(providerOptions?.models?.find((m) => m.modelId === modelId)?.nativeWebSearch)
+  const usesNativeSearch = providerId !== 'venice' && Boolean(providerOptions?.models?.find((m) => m.modelId === modelId)?.nativeWebSearch)
   const nativeSearchEnabled = providerId === 'venice'
     ? Boolean((resolvedVenice.webSearch ?? 'off') !== 'off' || resolvedVenice.xSearch || resolvedVenice.webScraping)
     : usesNativeSearch
   // Web Search state
+  const hideChatbox=useSettingsStore(s=>s.hideChatboxProviders===true)
+  const engine=useSettingsStore(s=>s.extension.webSearch.veniceSearchProvider||'brave')
   const webSearchProvider = useSettingsStore((s) => s.extension.webSearch.provider)
   const setSettings = useSettingsStore((s) => s.setSettings)
   const licenseKey = useSettingsStore((s) => s.licenseKey)
@@ -770,7 +774,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
 
   // --- Sub-panel content ---
   const renderSubPanel = () => {
-    if (page === 'web-search' && usesNativeSearch) {
+    if (page === 'venice-search' || page === 'web-search' && usesNativeSearch) {
       return <>
         <SubPanelHeader title={t('Provider native search')} />
         {providerId === 'venice' ? <Stack p="sm">{isNewSession ? <Text size="sm">{ft("Create the chat to set a dedicated profile. Provider and model settings apply for now.")}</Text> : <VeniceProfileEditor options={providerOptions?.venice || {}} value={currentSession?.settings?.veniceProfile || {}} onChange={value => { void rendererApplication.sessions.updateSessionHeader(sessionId, current => { if (!current) throw new Error('Session not found'); return { ...current, settings: { ...current.settings, veniceProfile: value } } }) }} />}</Stack> : <Text size="sm" p="sm">{t('Search is configured in the selected model extra request JSON.')}</Text>}
@@ -781,7 +785,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
         <>
           <SubPanelHeader title={t('Web Search')} settingsPath="/web-search" />
           <Divider my={4} />
-          {WEB_SEARCH_PROVIDERS.map((provider) => {
+          {WEB_SEARCH_PROVIDERS.filter(provider=>!hideChatbox||provider.value!=='build-in').map((provider) => {
             const available = isProviderAvailable(provider.value)
             const isSelected = webSearchProvider === provider.value
             return (
@@ -819,6 +823,8 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
               </Tooltip>
             )
           })}
+          {webSearchProvider==='venice'&&<Select comboboxProps={{withinPortal:false}} mx="sm" label={ft('Search engine through Venice')} value={engine} data={[{value:'brave',label:'Brave'},{value:'google',label:'Google'},{value:'exa',label:'Exa'}]} onChange={value=>{if(value)setSettings(draft=>{draft.extension.webSearch.veniceSearchProvider=value as 'brave'|'google'|'exa'})}}/>}
+          <Text size="xs" c="dimmed" p="sm">{ft('The Chatbox search tool and Venice model search have independent settings. The tool uses the provider selected here.')}</Text>
         </>
       )
     }
@@ -1108,6 +1114,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
           <div>
             <Divider my={4} mx="sm" label={t('Built-in')} labelPosition="left" />
 
+{providerId==='venice'&&<ExtensionRow icon={<IconWorldWww size={16}/>} label={ft('Venice model search')} subtitle={ft(resolvedVenice.webSearch==='on'?'For every message':resolvedVenice.webSearch==='auto'?'When needed':'Do not search')+' · '+(resolvedVenice.searchProvider||'Venice')} active={page==='venice-search'} page="venice-search" subPanelAlign="top" rightContent={<IconChevronRight size={14}/>}/>}
             <ExtensionRow
               icon={
                 <IconWorldWww
@@ -1148,15 +1155,6 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
                       size="xs"
                       onChange={(e) => {
                         const enabled = e.currentTarget.checked
-                        if (providerId === 'venice') {
-                          setSettings((draft) => {
-                            draft.providers ??= {}
-                            draft.providers.venice ??= {}
-                            draft.providers.venice.venice = { ...draft.providers.venice.venice, webSearch: enabled ? 'on' : 'off',
-                              ...(enabled ? {} : { xSearch: false, webScraping: false }) }
-                          })
-                          return
-                        }
                         trackWebSearchClick(
                           {
                             sessionId,

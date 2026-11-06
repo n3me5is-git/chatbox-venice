@@ -7,5 +7,5 @@ export function deviceProtector():DeviceProtector {
   if(typeof window!=='undefined'&&window.electronAPI){const ipc=window.electronAPI;return {capabilities:()=>ipc.invoke('vault:key-capabilities'),protect:(value,biometric)=>ipc.invoke('vault:wrap-key',value,biometric),unprotect:value=>ipc.invoke('vault:unwrap-key',value)}}
   const plugin=registerPlugin<NativeVault>('VaultKey')
   const labels=()=>({title:ft('Unlock Chatbox Venice'),subtitle:ft('Access protected content'),cancel:ft('Cancel')})
-  return {capabilities:async()=>{try{return await plugin.capabilities()}catch{return {encryption:false,biometric:false,name:ft('Device key store')}}},protect:async(value,biometric)=>(await plugin.protect({value,biometric,...labels()})).value,unprotect:async value=>(await plugin.unprotect({value,...labels()})).value}
+  return {capabilities:async()=>{try{const caps=await plugin.capabilities();return {...caps,name:ft(caps.name)}}catch{return {encryption:false,biometric:false,name:ft('Device key store')}}},protect:async(value,biometric)=>(await plugin.protect({value,biometric,...labels()})).value,unprotect:async value=>(await plugin.unprotect({value,...labels()})).value}
 }

@@ -93,7 +93,7 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
   const webSearch = useSettingsStore((s) => s.extension.webSearch)
   const licenseKey = useSettingsStore((s) => s.licenseKey)
   const providerOptions = useSettingsStore(s => providerId ? s.providers?.[providerId] : undefined)
-  const usesNativeSearch = providerId === 'venice' || Boolean(providerOptions?.models?.find(m => m.modelId === modelId)?.nativeWebSearch)
+  const usesNativeSearch = providerId !== 'venice' && Boolean(providerOptions?.models?.find(m => m.modelId === modelId)?.nativeWebSearch)
   const veniceOptions = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, header?.settings?.veniceProfile)
   const webIssue = !usesNativeSearch && webBrowsingMode && getWebSearchConfigurationIssue(webSearch, licenseKey) !== null
   const webProvider = WEB_SEARCH_PROVIDERS.find((p) => p.value === webSearch.provider)?.label ?? webSearch.provider
@@ -378,6 +378,8 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
         </Group>
       </UnstyledButton>
       <Divider />
+      {providerId==='venice'&&<Button variant="light" onClick={()=>setPage('venice')}>{ft('Venice model search')} · {ft(veniceOptions.webSearch==='on'?'For every message':veniceOptions.webSearch==='auto'?'When needed':'Do not search')}</Button>}
+      <Text size="xs" c="dimmed">{ft('The Chatbox search tool and Venice model search have independent settings. The tool uses the provider selected here.')}</Text>
       <Group justify="space-between" wrap="nowrap">
         <Stack gap={2}>
           <Text size="sm">{t('Web Search')}</Text>
@@ -401,7 +403,6 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
         variant="subtle"
         size="xs"
         onClick={() => {
-          if (providerId === 'venice') { setPage('venice'); return }
           onClose()
           navigateToSettings(usesNativeSearch ? `/provider/${providerId}` : '/web-search')
         }}

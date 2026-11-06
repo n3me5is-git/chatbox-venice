@@ -78,7 +78,7 @@ const AgentModeButton: FC<AgentModeButtonProps> = ({
   const webSearchConfiguration = useSettingsStore((state) => state.extension.webSearch)
   const licenseKey = useSettingsStore((state) => state.licenseKey)
   const providerModels = useSettingsStore((s) => providerId ? s.providers?.[providerId]?.models : undefined)
-  const nativeSearch = providerId === 'venice' || providerModels?.find((m) => m.modelId === modelId)?.nativeWebSearch
+  const nativeSearch = providerId !== 'venice' && providerModels?.find((m) => m.modelId === modelId)?.nativeWebSearch
   const hasWebSearchWarning =
     !nativeSearch && webBrowsingMode && getWebSearchConfigurationIssue(webSearchConfiguration, licenseKey) !== null
   const settingsOpened =

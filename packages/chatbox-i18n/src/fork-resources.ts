@@ -602,6 +602,10 @@ export const forkEnglish = {
 "E2EE capable":"E2EE capable",
 "Supports hardware-enclave attestation. Secure text settings control verification; TEE alone does not hide prompts from Venice.":"Supports hardware-enclave attestation. Secure text settings control verification; TEE alone does not hide prompts from Venice.",
 "Supports end-to-end encryption. Enable secure text chat in Venice settings; this badge describes capability, not the current connection.":"Supports end-to-end encryption. Enable secure text chat in Venice settings; this badge describes capability, not the current connection.",
+"Venice model search":"Venice model search",
+"The Chatbox search tool and Venice model search have independent settings. The tool uses the provider selected here.":"The Chatbox search tool and Venice model search have independent settings. The tool uses the provider selected here.",
+"Choose a model from the selected content category":"Choose a model from the selected content category",
+"Device biometrics":"Device biometrics",
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
 
@@ -1345,6 +1349,7 @@ Object.assign(forkTranslations['it-IT'],{
   "DIEM": "DIEM"
 })
 Object.assign(forkTranslations['it-IT'],{"TEE available":"TEE disponibile","E2EE capable":"Supporta E2EE","Supports hardware-enclave attestation. Secure text settings control verification; TEE alone does not hide prompts from Venice.":"Supporta l’attestazione di un’enclave hardware. La verifica dipende dalle impostazioni della chat sicura; la sola TEE non nasconde i prompt a Venice.","Supports end-to-end encryption. Enable secure text chat in Venice settings; this badge describes capability, not the current connection.":"Supporta la cifratura end-to-end. Abilita la chat sicura nelle impostazioni Venice; il badge indica una capacità, non lo stato della connessione."})
+Object.assign(forkTranslations['it-IT'],{"Venice model search":"Ricerca del modello Venice","The Chatbox search tool and Venice model search have independent settings. The tool uses the provider selected here.":"Lo strumento di ricerca di Chatbox e la ricerca del modello Venice hanno impostazioni indipendenti. Lo strumento usa il provider selezionato qui.","Choose a model from the selected content category":"Scegli un modello della categoria di contenuto selezionata","Device biometrics":"Biometria del dispositivo"})
 export function withForkTranslations<T extends Record<string,string>>(language: string, original: T) {
   return {...forkEnglish,...original,...forkTranslations[language]}
 }

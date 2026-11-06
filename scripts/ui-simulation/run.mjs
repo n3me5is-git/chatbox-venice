@@ -18,7 +18,7 @@ async function wait(condition, message) {
   while (Date.now() < deadline) { if (browserError) throw browserError; try { const value = await condition(); if (value) return value } catch {} await delay(100) }
   throw new Error(message + (message.includes('Chromium') ? ': ' + chromeLog.slice(-3000) : ''))
 }
-let touchMode = false; let socket; let serial = 0; const pending = new Map(); const exceptions = []; const requests = []
+let cdp,evaluate;let touchMode = false; let socket; let serial = 0; const pending = new Map(); const exceptions = []; const requests = []
 try {
   await wait(async () => (await fetch('http://127.0.0.1:4174/scripts/ui-simulation/')).ok, 'Simulation server did not start')
   const target = await wait(async () => (await (await fetch('http://127.0.0.1:9222/json/list')).json()).find(page => page.type === 'page'), 'Chromium did not start')
@@ -30,8 +30,8 @@ try {
     if (event.method === 'Runtime.exceptionThrown') exceptions.push(event.params.exceptionDetails.text + ': ' + (event.params.exceptionDetails.exception?.description || ''))
     if (event.method === 'Network.requestWillBeSent') requests.push(event.params.request.url)
   }
-  const cdp = (method, params = {}) => new Promise((resolve, reject) => { const id = ++serial; const timer = setTimeout(() => { pending.delete(id); reject(new Error('CDP timeout: ' + method)) }, 20000); pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value) }, reject: error => { clearTimeout(timer); reject(error) } }); socket.send(JSON.stringify({ id, method, params })) })
-  const evaluate = async expression => { const result = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text); return result.result.value }
+  cdp = (method, params = {}) => new Promise((resolve, reject) => { const id = ++serial; const timer = setTimeout(() => { pending.delete(id); reject(new Error('CDP timeout: ' + method)) }, 20000); pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value) }, reject: error => { clearTimeout(timer); reject(error) } }); socket.send(JSON.stringify({ id, method, params })) })
+  evaluate = async expression => { const result = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text); return result.result.value }
   async function click(expression) {
     // Commit edits and let focus/viewport changes settle before measuring a touch target.
     await evaluate(`new Promise(resolve => { if (document.activeElement?.closest('.mantine-NumberInput-root')) document.activeElement.blur(); requestAnimationFrame(() => requestAnimationFrame(resolve)) })`)
@@ -76,7 +76,7 @@ try {
   await click(byText('Test image selection'))
   await wait(() => evaluate(`!!document.querySelector('input[placeholder]') && document.body.textContent.includes("Choose and confirm images")`), 'Image approval did not open')
   assert.equal(await evaluate(`(${byLabel("Venice image model")}).value`), '', 'HITL must choose an unspecified model')
-  await click(byLabel("Venice image model")); await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.trim() === 'GPT Flare')`)
+  await click(byLabel("Venice image model")); await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.includes('GPT Flare'))`)
   await click(byLabel("Aspect ratio")); await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.trim() === '16:9')`)
   await click(byLabel("Content filter")); await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.trim() === "Off")`)
   await click(byText("Parameters for this call")); await fill("Seed for this generation", '42')
@@ -109,7 +109,7 @@ try {
   assert.deepEqual(pixels.inside,[0,0,255,255],'The model edit was not composited inside the mask')
   await click(byText('Test image editing'));await wait(()=>evaluate("document.body.textContent.includes('Remix and edit image')"),'Image editor did not open')
   await click(`[...document.querySelectorAll('label')].findLast(e=>e.textContent==='Paint an edit area')`)
-  await click(byLabel('Compatible image model'));await wait(()=>evaluate(`!![...document.querySelectorAll('[role="option"]')].find(e=>e.textContent==='Compatible editor')`),'Compatible model did not appear')
+  await click(byLabel('Compatible image model'));await wait(()=>evaluate(`!![...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('Compatible editor'))`),'Compatible model did not appear')
   assert.equal(await evaluate(`[...document.querySelectorAll('[role="option"]')].some(e=>e.textContent.includes('Unsupported')||e.textContent.includes('Style reference'))`),false,'Incompatible edit model is selectable')
   await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent==='Compatible editor')`)
   await click(`document.querySelector('canvas[aria-label="Edit mask and comment points"]')`)
@@ -139,6 +139,9 @@ try {
   assert.deepEqual(external, [], 'UI simulation made an unexpected external request')
   await writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, viewports: ['1440x1100', '412x915'], assertions: ['no automatic API calls', 'load catalog', 'choose a live model voice', 'generate audio', 'export local media', 'show error without retry', 'disable module', 'delete local media', 'no horizontal mobile overflow', 'image HITL selection', 'per-call moderation and seed approval', 'similar generation approval', 'chat approval isolation', 'approval reset', 'live language change', 'canvas mask preserves outside pixels', 'compatible edit model filtering', 'percent comment points', 'mobile mask brush drag', 'batch editing approval', 'PIN setup and wrong PIN rejection', 'independent PIN and device unlock settings', 'simulated device unlock', 'production project dropdown touch selection', 'Back closes dropdown before panel', 'catalog option privacy badges', 'Enter inserts newline without generation', 'readable model pricing', 'history long press actions', 'touch scroll of allowed settings', 'encrypted visual library preview', 'library category filtering', 'protect library item', 'protected library re-authentication', 'Back preserves route', 'no browser exceptions', 'no external requests'], requests: await evaluate('window.__simulationRequestCount'), exceptions }, null, 2))
   console.log('Venice Studio browser simulation passed; desktop/mobile screenshots saved.')
+} catch(error) {
+  if(cdp&&evaluate){try{await writeFile(path.join(output,'failure.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'));await writeFile(path.join(output,'failure.json'),JSON.stringify(await evaluate('({body:document.body.innerText,dialogs:[...document.querySelectorAll('[role="dialog"]')].map(e=>e.outerHTML.slice(0,10000))})'),null,2))}catch{}}
+  throw error
 } finally {
   socket?.close(); chrome.kill('SIGTERM'); vite.kill('SIGTERM'); await writeFile(path.join(output, 'vite.log'), serverLog); await writeFile(path.join(output, 'chrome.log'), chromeLog)
 }
