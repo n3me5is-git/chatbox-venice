@@ -111,7 +111,7 @@ try {
   await click(`[...document.querySelectorAll('label')].findLast(e=>e.textContent==='Paint an edit area')`)
   await click(byLabel('Compatible image model'));await wait(()=>evaluate(`!![...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('Compatible editor'))`),'Compatible model did not appear')
   assert.equal(await evaluate(`[...document.querySelectorAll('[role="option"]')].some(e=>e.textContent.includes('Unsupported')||e.textContent.includes('Style reference'))`),false,'Incompatible edit model is selectable')
-  await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent==='Compatible editor')`)
+  await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('Compatible editor'))`)
   await click(`document.querySelector('canvas[aria-label="Edit mask and comment points"]')`)
   const stroke=await evaluate(`(()=>{const r=document.querySelector('canvas[aria-label="Edit mask and comment points"]').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`)
   await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[stroke]});await cdp('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:stroke.x,y:stroke.y+25}]});await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
