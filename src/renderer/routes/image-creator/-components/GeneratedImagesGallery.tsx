@@ -3,7 +3,8 @@ import { IconDownload, IconMaximize, IconMessageReport, IconPhoto, IconPhotoOff 
 import { useQuery } from '@tanstack/react-query'
 import type PhotoSwipe from 'photoswipe'
 import type { UIElementData } from 'photoswipe'
-import { memo, useCallback, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { registerBackSurface } from '@/packages/overlay-back'
 import { useTranslation } from 'react-i18next'
 import { Gallery, Item as GalleryItem } from 'react-photoswipe-gallery'
 import { AppTooltip as Tooltip } from '@/components/ui/tooltip'
@@ -31,6 +32,8 @@ export const GeneratedImagesGallery = memo(function GeneratedImagesGallery({
   imageKeysRef.current = imageKeys
   const isSmallScreen = useIsSmallScreen()
   const fetchBlob = useFetchBlob()
+  const viewer=useRef<PhotoSwipe|null>(null),removeBack=useRef<(()=>void)|undefined>()
+  useEffect(()=>{const lock=()=>{viewer.current?.destroy();viewer.current=null;removeBack.current?.()};window.addEventListener('chatbox:privacy-lock',lock);return()=>{window.removeEventListener('chatbox:privacy-lock',lock);removeBack.current?.()}},[])
 
   const uiElements: UIElementData[] = [
     {
@@ -69,7 +72,7 @@ export const GeneratedImagesGallery = memo(function GeneratedImagesGallery({
   ]
 
   return (
-    <Gallery uiElements={uiElements}>
+    <Gallery uiElements={uiElements} onOpen={instance=>{viewer.current=instance;removeBack.current?.();const remove=registerBackSurface('image-viewer-'+crypto.randomUUID(),()=>instance.close());removeBack.current=remove;instance.on('close',remove);instance.on('destroy',()=>{remove();if(viewer.current===instance)viewer.current=null})}}>
       <Flex gap="md" wrap="wrap" justify="center" className="w-full">
         {imageKeys.map((keyOrUrl, index) => (
           <GeneratedImageGalleryItem

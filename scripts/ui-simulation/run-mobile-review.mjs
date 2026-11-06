@@ -6,7 +6,7 @@ export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fi
  await click(byText('Test reported mobile issues'));await wait(()=>evaluate(`!!document.querySelector('input[value="No project lock"]')`),'Production project control did not open')
  await click(byLabel('Project protection'));await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent==='Use a dedicated project PIN')`)
  assert.equal(await evaluate('window.__simulationProjectMode'),'pin','Touch selection did not persist the dedicated project PIN mode')
- await click(byLabel('Project protection'));await evaluate('window.__simulationBack()');await wait(()=>evaluate(`!document.querySelector('[role="option"]')`),'Back did not close the project dropdown');assert.equal(await evaluate(`!!(${byLabel('Project protection')})`),true,'Back closed the parent panel')
+ await click(byLabel('Project protection'));await evaluate('window.__simulationBack()');await wait(()=>evaluate(`![...document.querySelectorAll('[role="option"]')].some(e=>e.getClientRects().length)`),'Back did not close the project dropdown');assert.equal(await evaluate(`!!(${byLabel('Project protection')})`),true,'Back closed the parent panel')
  await click(byLabel('Catalog model'));await wait(()=>evaluate(`!![...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('E2EE capable')&&e.textContent.includes('Private')&&e.textContent.includes('Uncensored'))`),'Catalog options omitted privacy/E2EE/filter badges')
  await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('Anonymous image model'))`)
  assert.equal(await evaluate(`(${byLabel('Catalog model')}).value`),'Anonymous image model')

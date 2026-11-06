@@ -1,3 +1,4 @@
+import {registerBackSurface} from '@/packages/overlay-back'
 import {
   Box,
   Button,
@@ -48,24 +49,7 @@ function openNotificationLink(url: string) {
 
 function onMobileBackButton(callback: () => void) {
   if (platform.type !== 'mobile') return () => undefined
-  let cancelled = false
-  let removeListener: (() => void) | undefined
-
-  void import('@capacitor/app')
-    .then(({ App }) => App.addListener('backButton', callback))
-    .then((handle) => {
-      if (cancelled) {
-        void handle.remove()
-        return
-      }
-      removeListener = () => void handle.remove()
-    })
-    .catch((error) => console.warn('Failed to listen for mobile back button:', error))
-
-  return () => {
-    cancelled = true
-    removeListener?.()
-  }
+  return registerBackSurface('client-notification',callback)
 }
 
 const defaultDependencies: ClientNotificationWindowDependencies = {

@@ -1,3 +1,4 @@
+import {registerBackSurface} from '@/packages/overlay-back'
 import {forkT as ft} from '@/i18n/fork'
 import { registerPlugin } from '@capacitor/core'
 import { Box, Button, Flex, Image, NavLink, Stack, Text } from '@mantine/core'
@@ -82,6 +83,7 @@ export default function Sidebar() {
   const sidebarWidth = useSidebarWidth()
 
   const isSmallScreen = useIsSmallScreen()
+  useEffect(()=>isSmallScreen&&showSidebar?registerBackSurface('sidebar',()=>setShowSidebar(false)):undefined,[isSmallScreen,showSidebar,setShowSidebar])
   const showDownloadApp = CHATBOX_BUILD_PLATFORM === 'web'
   const webAppDownloadPromptVisible = useWebAppDownloadPromptVisible()
   const showDesktopDownloadCard = showDownloadApp && !isSmallScreen && webAppDownloadPromptVisible

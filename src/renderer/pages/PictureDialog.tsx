@@ -1,3 +1,4 @@
+import {useOverlayManager} from '@/components/layout/Overlay'
 import CloseIcon from '@mui/icons-material/Close'
 import SaveIcon from '@mui/icons-material/Save'
 import { Fab, useTheme } from '@mui/material'
@@ -45,6 +46,7 @@ function _PictureDialog(props: {
       : undefined
 
   const onClose = () => setPictureShow(null)
+  const isTopOverlay=useOverlayManager(true,onClose)
   const onSaveDefault = async () => {
     if (!picture) {
       return
@@ -69,11 +71,11 @@ function _PictureDialog(props: {
   // 点击 Esc 关闭
   const onKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && isTopOverlay) {
         onClose()
       }
     },
-    [onClose]
+    [onClose,isTopOverlay]
   )
   useEffect(() => {
     window.addEventListener('keydown', onKeyDown)

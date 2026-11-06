@@ -99,6 +99,8 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: |
+            adb shell settings put system screen_off_timeout 1800000
+            adb shell svc power stayon true
             adb shell locksettings set-pin 123456
             adb shell input keyevent 224
             adb shell input swipe 500 1600 500 300 400
