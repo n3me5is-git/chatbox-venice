@@ -41,6 +41,10 @@ export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fi
  const category=label=>`[...document.querySelectorAll('label')].findLast(e=>e.textContent===${JSON.stringify(label)})`
  await click(category('Music'));await wait(()=>evaluate(`document.body.textContent.includes('Local music sample')&&!document.querySelector('[aria-label="Preview Local orange landscape"]')`),'Music category did not filter the library')
  await click(category('Images'));await wait(()=>evaluate(`!!document.querySelector('[aria-label="Preview Local orange landscape"]')`),'Images category did not return the image')
+ await click(`document.querySelector('[aria-label="Creation actions"]')`)
+ assert.equal(await evaluate('window.__simulationBack()'),true)
+ await wait(()=>evaluate(`![...document.querySelectorAll('[role="menu"]')].some(e=>e.getClientRects().length)`),'Back did not close library actions before the library panel')
+ assert.equal(await evaluate(`!!document.querySelector('[aria-label="Preview Local orange landscape"]')`),true,'Back from library actions closed the whole library')
  await click(`document.querySelector('[aria-label="Creation actions"]')`);await click(byText('Protect this creation'))
  await wait(()=>evaluate(`!!document.querySelector('input[autocomplete="current-password"]')`),'Protecting a public library item did not request an unlock')
  await fill('PIN or passphrase','123456');await click(byText('Unlock'));await wait(()=>evaluate(`!document.querySelector('[aria-label="Preview Local orange landscape"]')`),'Protected image stayed in the public library')
