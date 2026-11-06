@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict'
+import {writeFile} from 'node:fs/promises'
+import path from 'node:path'
+export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fill,delay,output}){
+ const originalURL=await evaluate('location.href')
+ await click(byText('Test reported mobile issues'));await wait(()=>evaluate(`!!document.querySelector('input[value="No project lock"]')`),'Production project control did not open')
+ await click(byLabel('Project protection'));await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent==='Use a dedicated project PIN')`)
+ assert.equal(await evaluate('window.__simulationProjectMode'),'pin','Touch selection did not persist the dedicated project PIN mode')
+ await click(byLabel('Project protection'));await evaluate('window.__simulationBack()');await wait(()=>evaluate(`!document.querySelector('[role="option"]')`),'Back did not close the project dropdown');assert.equal(await evaluate(`!!(${byLabel('Project protection')})`),true,'Back closed the parent panel')
+ await click(byLabel('Catalog model'));await wait(()=>evaluate(`!![...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('E2EE capable')&&e.textContent.includes('Private')&&e.textContent.includes('Uncensored'))`),'Catalog options omitted privacy/E2EE/filter badges')
+ await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('Anonymous image model'))`)
+ assert.equal(await evaluate(`(${byLabel('Catalog model')}).value`),'Anonymous image model')
+ await click(byLabel('Catalog model'));await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('Private secure model'))`)
+ await fill('Paid image prompt','First line')
+ await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',text:'\r',unmodifiedText:'\r',windowsVirtualKeyCode:13});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+ assert.equal(await evaluate(`(${byLabel('Paid image prompt')}).value`),'First line\n','Enter did not insert a newline')
+ assert.equal(await evaluate('window.__simulationExplicitImages||0'),0,'Enter started a paid image generation')
+ await click(byText('Explicit image generation'));assert.equal(await evaluate('window.__simulationExplicitImages'),1)
+ await click(byText('Model details and options'));await wait(()=>evaluate(`document.body.textContent.includes('Input / 1M tokens')`),'Readable pricing did not open')
+ assert.equal(await evaluate('window.__simulationBack()'),true);await wait(()=>evaluate(`!document.body.textContent.includes('Technical catalog data')`),'Back did not close the top model details');assert.equal(await evaluate(`!!(${byLabel('Project protection')})`),true)
+ const target=`[...document.querySelectorAll('button')].findLast(e=>e.getAttribute('aria-label')==='Preview History context action test')`
+ const p=await evaluate(`(()=>{const e=${target};e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`)
+ await delay(300);await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[p]});await delay(650);await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
+ await wait(()=>evaluate(`document.body.textContent.includes('Protect this creation')`),'Long press did not expose history protection actions')
+ await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27})
+ const body=`[...document.querySelectorAll('.mantine-Drawer-body')].findLast(e=>e.getBoundingClientRect().height>0)`
+ const point=await evaluate(`(()=>{const e=${body};e.scrollTop=0;const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height*0.7}})()`)
+ await cdp('Input.synthesizeScrollGesture',{...point,yDistance:-500,xDistance:0,gestureSourceType:'touch',speed:500});await delay(500)
+ assert.equal(await evaluate(`(${body}).scrollTop>100`),true,'The settings panel did not scroll vertically with touch')
+ await writeFile(path.join(output,'reported-mobile-panels.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+ await click(byText('Close reported issues'));await wait(()=>evaluate(`!document.body.textContent.includes('Bottom of scrollable panel')`),'Reported issues panel did not close')
+ await click(byText('Test visual library'));await wait(()=>evaluate(`!!document.querySelector('[aria-label="Preview Local orange landscape"]')`),'Encrypted local image missing from visual library')
+ await click(`document.querySelector('[aria-label="Preview Local orange landscape"]')`);await wait(()=>evaluate(`!!document.querySelector('img[alt="Local orange landscape"]')`),'Library image preview did not show local pixels')
+ assert.equal(await evaluate('window.__simulationBack()'),true);await wait(()=>evaluate(`!document.querySelector('img[alt="Local orange landscape"]')`),'Back did not close the library preview')
+ const category=label=>`[...document.querySelectorAll('label')].findLast(e=>e.textContent===${JSON.stringify(label)})`
+ await click(category('Music'));await wait(()=>evaluate(`document.body.textContent.includes('Local music sample')&&!document.querySelector('[aria-label="Preview Local orange landscape"]')`),'Music category did not filter the library')
+ await click(category('Images'));await wait(()=>evaluate(`!!document.querySelector('[aria-label="Preview Local orange landscape"]')`),'Images category did not return the image')
+ await click(`document.querySelector('[aria-label="Creation actions"]')`);await click(byText('Protect this creation'))
+ await wait(()=>evaluate(`!!document.querySelector('input[autocomplete="current-password"]')`),'Protecting a public library item did not request an unlock')
+ await fill('PIN or passphrase','123456');await click(byText('Unlock'));await wait(()=>evaluate(`!document.querySelector('[aria-label="Preview Local orange landscape"]')`),'Protected image stayed in the public library')
+ await click(category('Protected library'));await wait(()=>evaluate(`!!document.querySelector('input[autocomplete="current-password"]')`),'Entering the protected library did not ask for authentication')
+ await fill('PIN or passphrase','123456');await click(byText('Unlock'));await wait(()=>evaluate(`!!document.querySelector('[aria-label="Preview Local orange landscape"]')`),'Protected library did not reveal the unlocked image')
+ await writeFile(path.join(output,'visual-library-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+ assert.equal(await evaluate('window.__simulationBack()'),true);await wait(()=>evaluate(`!document.body.textContent.includes('Visual library regression')`),'Back did not close the library panel')
+ assert.equal(await evaluate('location.href'),originalURL,'Panel back navigation changed the app route')
+}

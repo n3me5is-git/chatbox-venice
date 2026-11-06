@@ -63,6 +63,7 @@ export function HistoryItem({ record, isActive, isMobile, modelDisplayName, onCl
     <Stack gap={4} className="w-full">
       {/* Thumbnail — clickable */}
       <UnstyledButton
+        aria-label={ft('Preview {{name}}',{name:record.prompt||ft('Locked creation')})}
         onClick={()=>{if(held.current){held.current=false;return}onClick()}}
         onContextMenu={event=>{event.preventDefault();setActionsOpened(true)}}
         onPointerDown={()=>{held.current=false;hold.current=setTimeout(()=>{held.current=true;setActionsOpened(true)},550)}}

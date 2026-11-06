@@ -83,6 +83,6 @@ export class VaultRuntime {
     platform.listStoreBlobKeys=async()=>[...new Set([...(await this.legacy.keys()).filter(key=>!/^vault-v1-[a-f0-9-]{36}-chunk-\d+$/.test(key)),...await this.db.aliases()])]
   }
 }
-export function vaultRuntimeFor(platform:Platform){let runtime=runtimes.get(platform);if(!runtime){runtime=new VaultRuntime(platform);runtimes.set(platform,runtime)}return runtime}
+export function vaultRuntimeFor(platform:Platform,options?:ConstructorParameters<typeof VaultRuntime>[1]){let runtime=runtimes.get(platform);if(!runtime){runtime=new VaultRuntime(platform,options);runtimes.set(platform,runtime)}return runtime}
 export const installedVaultFor=(platform:Platform)=>runtimes.get(platform)
 export function installVaultStorage(platform:Platform){vaultRuntimeFor(platform).install(platform)}

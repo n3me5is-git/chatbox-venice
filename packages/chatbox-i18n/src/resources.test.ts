@@ -42,3 +42,6 @@ describe('shared translation resources', () => {
     }
   })
 })
+
+import {forkEnglish,forkTranslations} from './fork-resources'
+it('requires an explicit Italian translation for every fork UI string',()=>{for(const [key,value]of Object.entries(forkEnglish)){expect(forkTranslations['it-IT'][key],key).toBeTruthy();expect(placeholders(forkTranslations['it-IT'][key]),key).toEqual(placeholders(value))}})

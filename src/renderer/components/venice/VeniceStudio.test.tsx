@@ -11,7 +11,7 @@ beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserv
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 const models: MediaCatalogItem[] = [
   { id: 'tts-kokoro', type: 'tts', model_spec: { name: 'Kokoro', voices: ['if_sara', 'im_nicola'], default_voice: 'if_sara', supported_formats: ['mp3', 'wav'], default_format: 'mp3' } },
-  { id: 'tts-other', type: 'tts', model_spec: { name: /Altra voce/, voices: ['Vivian'], default_voice: 'Vivian', supported_formats: ['wav'] } },
+  { id: 'tts-other', type: 'tts', model_spec: { name: 'Altra voce', voices: ['Vivian'], default_voice: 'Vivian', supported_formats: ['wav'] } },
   { id: 'video', type: 'video', model_spec: { name: 'Video creativo', constraints: { model_type: 'image-to-video', duration: ['4s', '8s'], aspectRatios: ['16:9', '9:16'] } } },
 ]
 const record = { id: 'one', kind: 'video', model: 'video', prompt: 'Landscape', createdAt: 1, status: 'paused', queueId: 'q1', origin: 'https://api.venice.ai/api/v1', credentialId: 'hash' } satisfies MediaRecord
@@ -89,7 +89,7 @@ describe('Venice Studio simulated user journeys', () => {
 })
 
 it('sends only supported music options and resets duration when the model changes', async () => {
-  const service = setup(); service.catalog.mockResolvedValue([...models, { id: 'ace', type: 'music', model_spec: { name: 'ACE', min_duration: 60, max_duration: 210, default_duration: 60, duration_options: [60, 90], supports_lyrics: true, supports_force_instrumental: false } }, { id: 'eleven', type: 'music', model_spec: { name: /Eleven/, min_duration: 3, max_duration: 600, default_duration: 60, supports_lyrics: false, supports_force_instrumental: true } }])
+  const service = setup(); service.catalog.mockResolvedValue([...models, { id: 'ace', type: 'music', model_spec: { name: 'ACE', min_duration: 60, max_duration: 210, default_duration: 60, duration_options: [60, 90], supports_lyrics: true, supports_force_instrumental: false } }, { id: 'eleven', type: 'music', model_spec: { name: 'Eleven', min_duration: 3, max_duration: 600, default_duration: 60, supports_lyrics: false, supports_force_instrumental: true } }])
   show(service); await loadModels(); fireEvent.click(screen.getByRole('radio', { name: "Music" }))
   expect(await screen.findByText("Only options declared by this model are shown. Settings reset when you change models.")).toBeTruthy()
   expect(screen.queryByLabelText("Instrumental only")).toBeNull()

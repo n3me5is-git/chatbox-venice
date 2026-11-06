@@ -1,3 +1,6 @@
+import {MobileReviewSimulation} from './mobile-review'
+import {QueryClient,QueryClientProvider} from '@tanstack/react-query'
+const testQueryClient=new QueryClient()
 import { SecuritySimulation } from './security'
 import { showImageEdit,checkLocalMask } from './image-edit'
 import type {ImageChoice} from '../../src/shared/providers/definitions/models/venice/image-tools'
@@ -47,6 +50,6 @@ function Simulation() {
   ;(window as any).__simulationImageChoice=result?.choice; (window as any).__simulationImageAutomatic=result?.automatic
   ;(window as any).__simulationOtherChatMode=sessionApprovals.mode('other-chat')
  }
- return <MantineProvider><NiceModal.Provider><div style={{padding:12,background:'#fff3bf'}}>Local simulation: no real APIs or charges.<Checkbox label="Audio module enabled (simulation)" checked={enabled} onChange={e=>{const value=e.currentTarget.checked;configuration.options.audioEnabled=value;setEnabled(value)}}/></div><Button m="sm" onClick={()=>void showImageEdit()}>Test image editing</Button><Button m="sm" onClick={()=>setSecurity(value=>!value)}>Test privacy settings</Button>{security&&<SecuritySimulation/>}<Button m="sm" variant="light" onClick={()=>void chooseImage()}>Test image selection</Button><div style={{padding:12}}><VeniceSessionApprovals sessionId="simulation-chat"/></div><VeniceStudio service={service} options={{...configuration.options,audioEnabled:enabled}}/></NiceModal.Provider></MantineProvider>
+ return <QueryClientProvider client={testQueryClient}><MantineProvider><NiceModal.Provider><MobileReviewSimulation/><div style={{padding:12,background:'#fff3bf'}}>Local simulation: no real APIs or charges.<Checkbox label="Audio module enabled (simulation)" checked={enabled} onChange={e=>{const value=e.currentTarget.checked;configuration.options.audioEnabled=value;setEnabled(value)}}/></div><Button m="sm" onClick={()=>void showImageEdit()}>Test image editing</Button><Button m="sm" onClick={()=>setSecurity(value=>!value)}>Test privacy settings</Button>{security&&<SecuritySimulation/>}<Button m="sm" variant="light" onClick={()=>void chooseImage()}>Test image selection</Button><div style={{padding:12}}><VeniceSessionApprovals sessionId="simulation-chat"/></div><VeniceStudio service={service} options={{...configuration.options,audioEnabled:enabled}}/></NiceModal.Provider></MantineProvider></QueryClientProvider>
 }
 void i18n.changeLanguage('en').then(()=>createRoot(document.getElementById('root')!).render(<Simulation/>))

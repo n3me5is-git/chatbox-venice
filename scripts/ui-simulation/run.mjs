@@ -1,3 +1,4 @@
+import {runMobileReview} from './run-mobile-review.mjs'
 import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -44,7 +45,7 @@ try {
     if (touchMode) { await cdp('Input.dispatchTouchEvent', {type:'touchStart',touchPoints:[box]}); await cdp('Input.dispatchTouchEvent', {type:'touchEnd',touchPoints:[]}) }
     else { await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', ...box, button: 'left', clickCount: 1 }); await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', ...box, button: 'left', clickCount: 1 }) }
   }
-  const byText = text => `[...document.querySelectorAll('button')].find(e => e.textContent.trim() === ${JSON.stringify(text)})`
+  const byText = text => `[...document.querySelectorAll('button')].findLast(e => e.textContent.trim() === ${JSON.stringify(text)})`
   const switchTrack = label => `[...document.querySelectorAll('.mantine-Switch-root')].find(e=>e.querySelector('.mantine-Switch-label')?.textContent===${JSON.stringify(label)})?.querySelector('.mantine-Switch-track')`
   const byLabel = label => `document.getElementById([...document.querySelectorAll('label')].findLast(e => e.textContent === ${JSON.stringify(label)}).htmlFor)`
   const fill = async (label, value) => { await evaluate(`(${byLabel(label)}).focus()`); await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 }); await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 }); await cdp('Input.insertText', { text: value }) }
@@ -56,7 +57,7 @@ try {
   await click(byText("Load models")); await wait(() => evaluate('window.__simulationRequestCount === 2'), 'Catalog button did not work')
   await wait(() => evaluate(`!!document.querySelector('input[value="Kokoro"]')`), 'Model was not selected')
   await click(byLabel("Voice to use"))
-  await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === 'Nicola · Italian')`)
+  await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.trim() === 'Nicola · Italian')`)
   await fill("Text to read", 'Local test without real APIs')
   await click(byText("Generate speech")); await wait(() => evaluate(`!!(${byText("Open preview")})`), 'Preview control did not appear'); await click(byText("Open preview")); await wait(() => evaluate(`!!document.querySelector('audio[aria-label="Generated audio"]')`), 'Generated audio did not appear')
   assert.equal(await evaluate('window.__simulationLastBody.voice'), 'im_nicola', 'Selected voice did not reach the request')
@@ -71,13 +72,13 @@ try {
   assert.equal(await evaluate('window.__simulationRequestCount'), 4, 'Failed generation must not be retried')
   await click(byLabel('Audio module enabled (simulation)'))
   assert.equal(await evaluate(`(${byText("Generate speech")}).disabled`), true, 'Disabled module still allows generation')
-  await click(`[...document.querySelector('audio').closest('.mantine-Paper-root').querySelectorAll('button')].find(e => e.textContent.trim() === "Delete from device")`); await wait(() => evaluate(`!document.querySelector('audio')`), 'Local deletion did not remove media')
+  await click(`[...document.querySelector('audio').closest('.mantine-Paper-root').querySelectorAll('button')].findLast(e => e.textContent.trim() === "Delete from device")`); await wait(() => evaluate(`!document.querySelector('audio')`), 'Local deletion did not remove media')
   await click(byText('Test image selection'))
   await wait(() => evaluate(`!!document.querySelector('input[placeholder]') && document.body.textContent.includes("Choose and confirm images")`), 'Image approval did not open')
   assert.equal(await evaluate(`(${byLabel("Venice image model")}).value`), '', 'HITL must choose an unspecified model')
-  await click(byLabel("Venice image model")); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === 'GPT Flare')`)
-  await click(byLabel("Aspect ratio")); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === '16:9')`)
-  await click(byLabel("Content filter")); await click(`[...document.querySelectorAll('[role="option"]')].find(e => e.textContent.trim() === "Off")`)
+  await click(byLabel("Venice image model")); await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.trim() === 'GPT Flare')`)
+  await click(byLabel("Aspect ratio")); await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.trim() === '16:9')`)
+  await click(byLabel("Content filter")); await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.trim() === "Off")`)
   await click(byText("Parameters for this call")); await fill("Seed for this generation", '42')
   await evaluate(`window.__radioEvents=[]; ['pointerdown','pointerup','click','change'].forEach(type=>document.addEventListener(type,e=>window.__radioEvents.push({type,tag:e.target.tagName,name:e.target.name,value:e.target.value,checked:e.target.checked}),true))`)
   await click(`[...document.querySelectorAll('label')].findLast(e=>e.textContent==='Remember similar generations after approval')`)
@@ -132,10 +133,11 @@ try {
   await click(byText('Use device unlock'));await wait(()=>evaluate(`!!(${byText('Save unlock methods')})`),'Simulated device unlock failed')
   assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'),true,'Privacy settings overflow on mobile')
   assert.equal(await evaluate('window.__simulationRequestCount'),4,'Privacy and edit simulation made a real service request')
+  await runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fill,delay,output})
   assert.deepEqual(exceptions, [], 'Browser exceptions')
   const external = requests.filter(url => !/^(http:\/\/127\.0\.0\.1:4174\/|data:|blob:)/.test(url))
   assert.deepEqual(external, [], 'UI simulation made an unexpected external request')
-  await writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, viewports: ['1440x1100', '412x915'], assertions: ['no automatic API calls', 'load catalog', 'choose a live model voice', 'generate audio', 'export local media', 'show error without retry', 'disable module', 'delete local media', 'no horizontal mobile overflow', 'image HITL selection', 'per-call moderation and seed approval', 'similar generation approval', 'chat approval isolation', 'approval reset', 'live language change', 'canvas mask preserves outside pixels', 'compatible edit model filtering', 'percent comment points', 'mobile mask brush drag', 'batch editing approval', 'PIN setup and wrong PIN rejection', 'independent PIN and device unlock settings', 'simulated device unlock', 'no browser exceptions', 'no external requests'], requests: await evaluate('window.__simulationRequestCount'), exceptions }, null, 2))
+  await writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, viewports: ['1440x1100', '412x915'], assertions: ['no automatic API calls', 'load catalog', 'choose a live model voice', 'generate audio', 'export local media', 'show error without retry', 'disable module', 'delete local media', 'no horizontal mobile overflow', 'image HITL selection', 'per-call moderation and seed approval', 'similar generation approval', 'chat approval isolation', 'approval reset', 'live language change', 'canvas mask preserves outside pixels', 'compatible edit model filtering', 'percent comment points', 'mobile mask brush drag', 'batch editing approval', 'PIN setup and wrong PIN rejection', 'independent PIN and device unlock settings', 'simulated device unlock', 'production project dropdown touch selection', 'Back closes dropdown before panel', 'catalog option privacy badges', 'Enter inserts newline without generation', 'readable model pricing', 'history long press actions', 'touch scroll of allowed settings', 'encrypted visual library preview', 'library category filtering', 'protect library item', 'protected library re-authentication', 'Back preserves route', 'no browser exceptions', 'no external requests'], requests: await evaluate('window.__simulationRequestCount'), exceptions }, null, 2))
   console.log('Venice Studio browser simulation passed; desktop/mobile screenshots saved.')
 } finally {
   socket?.close(); chrome.kill('SIGTERM'); vite.kill('SIGTERM'); await writeFile(path.join(output, 'vite.log'), serverLog); await writeFile(path.join(output, 'chrome.log'), chromeLog)

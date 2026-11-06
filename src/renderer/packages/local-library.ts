@@ -13,7 +13,7 @@ export async function localLibraryPage(kind:LibraryKind,cursor=0,protection:'pub
   const access=installedVaultFor(platform)?.projects
   if(kind==='vault'){
     const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform);const items:LocalLibraryItem[]=[];let next:number|null=cursor;let scanned=0
-    do{const page=await vault.db.page(protection==='public'?'public':undefined,next,20);next=page.next
+    do{const page=await vault.db.page(protection==='public'?'public':undefined,next,20,protection==='protected'?allowedScopes:undefined);next=page.next
       for(const header of page.items){if(protection==='protected'&&(header.scope==='public'||allowedScopes&&!allowedScopes.has(header.scope))||header.alias?.endsWith(':thumbnail')||!vault.keys.isUnlocked(header.scope)||access&&!await access.libraryKeyVisible(header.alias))continue
         const info=await vault.assets.info(header);if(!['image','audio','video','document'].includes(info.kind))continue
         let type:string=info.kind,thumbnail:string|undefined,name=info.name
@@ -27,12 +27,13 @@ export async function localLibraryPage(kind:LibraryKind,cursor=0,protection:'pub
     }while(next!==null&&items.length<20&&scanned<1000)
     return {items,next}
   }
+  if(category!=='all'&&kind!=='vault'&&((kind==='image'&&category!=='image')||(kind==='video'&&category!=='video')||(kind==='document'&&category!=='document')))return {items:[],next:null}
   if(kind==='image'){
     const storage=platform.getImageGenerationStorage();await storage.initialize();const page=await storage.getPage(cursor,20)
     const items:LocalLibraryItem[]=[];for(const record of page.items){if(record.protection)continue;for(const [index,key] of record.generatedImages.entries())if(!access||await access.libraryKeyVisible(key))items.push({id:`image:${record.id}:${index}`,name:record.prompt.slice(0,100)||'Saved image',kind,key,thumbnail:record.generatedImageThumbnails?.[index]})}return {items,next:page.nextCursor}
   }
   if(kind==='audio'||kind==='video'){
-    const records=(await veniceMediaService.list()).filter(record=>!record.protection&&record.status==='ready'&&record.blobKey&&record.kind!=='transcription'&&(kind==='video'?record.kind==='video':record.kind!=='video'))
+    const records=(await veniceMediaService.list()).filter(record=>!record.protection&&record.status==='ready'&&record.blobKey&&record.kind!=='transcription'&&(kind==='video'?record.kind==='video':record.kind!=='video')&&(category==='all'||category==='audio'||record.kind===category))
     if(access)for(let n=records.length-1;n>=0;n--)if(!await access.libraryKeyVisible(records[n].blobKey))records.splice(n,1)
     return {items:records.slice(cursor,cursor+20).map(record=>({id:'media:'+record.id,name:record.prompt.slice(0,100)||record.model,kind,key:record.blobKey!,mime:record.mime})),next:cursor+20<records.length?cursor+20:null}
   }

@@ -3,7 +3,7 @@ import { IconDots, IconLock, IconMusic, IconPhoto, IconVideo } from '@tabler/ico
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
-import { localLibraryFile, localLibraryPage, moveLibraryItem, type LibraryKind, type LocalLibraryItem } from '@/packages/local-library'
+import { acceptsLocalFile, localLibraryFile, localLibraryPage, moveLibraryItem, type LibraryKind, type LocalLibraryItem } from '@/packages/local-library'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import platform from '@/platform'
 import { ImageInStorage } from '@/components/Image'
@@ -19,12 +19,15 @@ export function LocalMediaBrowser({accept='',multiple=false,onChoose,browse=fals
  const epoch=useRef(0),previewURL=useRef<string|null>(null),previewEpoch=useRef(0)
  const closePreview=()=>{previewEpoch.current++;if(previewURL.current)URL.revokeObjectURL(previewURL.current);previewURL.current=null;setPreview(null);setPreviewBusy(false)}
  const load=async(cursor=0)=>{const token=++epoch.current;setBusy(true);setError('');try{const page=await localLibraryPage(kind,cursor,section,category,scopes);if(token!==epoch.current)return;setItems(rows=>cursor?[...rows,...page.items]:page.items);setNext(page.next)}catch(error){if(token===epoch.current)setError(error instanceof Error?error.message:ft('Unable to read the local library'))}finally{if(token===epoch.current)setBusy(false)}}
- useEffect(()=>{setItems([]);setSelected([]);closePreview();void load();return()=>{epoch.current++;closePreview()}},[kind,section,category,revision,scopes])
+ useEffect(()=>{setItems([]);setSelected([]);void load();return()=>{epoch.current++}},[kind,section,category,revision,scopes])
+ useEffect(()=>{closePreview()},[kind,section,category,scopes])
+ useEffect(()=>{if(preview?.item.scope&&!vault.keys.isUnlocked(preview.item.scope))closePreview()},[revision])
+ useEffect(()=>()=>closePreview(),[])
  useEffect(()=>{const lock=()=>{setScopes(new Set());closePreview();setSelected([])};window.addEventListener('chatbox:privacy-lock',lock);return()=>window.removeEventListener('chatbox:privacy-lock',lock)},[])
  const open=async(item:LocalLibraryItem)=>{closePreview();const token=previewEpoch.current;setPreviewBusy(true);setError('');try{if(item.scope&&item.scope!=='public'&&!await requestProtectedAccess(item.scope))return;const file=await localLibraryFile(item);if(token!==previewEpoch.current)return;previewURL.current=URL.createObjectURL(file);setPreview({url:previewURL.current,item})}catch(error){if(token===previewEpoch.current)setError(error instanceof Error?error.message:ft('Unable to read local content'))}finally{if(token===previewEpoch.current)setPreviewBusy(false)}}
  const protect=async(item:LocalLibraryItem)=>{setBusy(true);setError('');try{if(!await requestProtectedAccess(item.scope&&item.scope!=='public'?item.scope:'app'))return;await moveLibraryItem(item,item.scope&&item.scope!=='public'?'public':'app');await load()}catch(error){setError(error instanceof Error?error.message:ft('Unable to read the local library'))}finally{setBusy(false)}}
- const choose=async()=>{setBusy(true);setError('');try{const files:File[]=[];for(const item of items.filter(item=>selected.includes(item.id)))files.push(await localLibraryFile(item));onChoose?.(files)}catch(error){setError(error instanceof Error?error.message:ft('Unable to read the local library'))}finally{setBusy(false)}}
- const filtered=items.filter(item=>!accept||accept.split(',').some(a=>{const t=a.trim();return t.endsWith('/*')?item.mime?.startsWith(t.slice(0,-1)):t.startsWith('.')?item.mime?.includes(t.slice(1)):item.mime===t}))
+ const choose=async()=>{const token=epoch.current;setBusy(true);setError('');try{const files:File[]=[];for(const item of items.filter(item=>selected.includes(item.id)))files.push(await localLibraryFile(item));if(token===epoch.current)onChoose?.(files)}catch(error){setError(error instanceof Error?error.message:ft('Unable to read the local library'))}finally{setBusy(false)}}
+ const filtered=items.filter(item=>acceptsLocalFile({type:item.mime||'',name:item.name+'.'+(item.mime?.split('/')[1]?.replace('jpeg','jpg').replace('mpeg','mp3')||'bin')},accept))
  return <Stack gap="md">
   <Text size="sm" c="dimmed">{ft('Public means visible without an extra app unlock. Your library is local to this device.')}</Text>
   <SegmentedControl aria-label={ft('Library protection')} value={section} onChange={value=>{setScopes(new Set());setSection(value as 'public'|'protected')}} data={[{value:'public',label:ft('Public library')},{value:'protected',label:ft('Protected library')}]}/>
@@ -34,7 +37,7 @@ export function LocalMediaBrowser({accept='',multiple=false,onChoose,browse=fals
   {busy&&<Loader size="sm"/>}{error&&<Alert color="red">{ft(error)}</Alert>}
   <SimpleGrid cols={{base:2,sm:3,lg:4}} spacing="sm">{filtered.map(item=><Stack key={item.id} gap={5} p={8} style={{minWidth:0,border:'1px solid var(--mantine-color-default-border)',borderRadius:12}} onContextMenu={event=>{event.preventDefault();void open(item)}}>
    <UnstyledButton aria-label={ft('Preview {{name}}',{name:item.name})} onClick={()=>void open(item)} style={{aspectRatio:'1 / 1',width:'100%',overflow:'hidden',borderRadius:8,background:'var(--mantine-color-default-hover)'}}><LibraryThumbnail item={item}/></UnstyledButton>
-   <Text size="xs" lineClamp={2} style={{overflowWrap:'anywhere'}}>{item.name}</Text><Group justify="space-between" gap={2}><Badge size="xs" variant="light">{ft(categoryLabels[item.category||'']||item.kind)}</Badge>{item.scope&&item.scope!=='public'&&<IconLock size={14}/>}</Group>
+   <Text size="xs" lineClamp={2} style={{overflowWrap:'anywhere'}}>{item.name}</Text><Group justify="space-between" gap={2}><Badge size="xs" variant="light">{ft(categoryLabels[item.category||item.kind]||item.kind)}</Badge>{item.scope&&item.scope!=='public'&&<IconLock size={14}/>}</Group>
    <Group justify="space-between" gap={4}>{!browse&&<Checkbox label={ft('Select')} checked={selected.includes(item.id)} onChange={event=>{const checked=event.currentTarget.checked;setSelected(ids=>checked?multiple?[...ids,item.id]:[item.id]:ids.filter(id=>id!==item.id))}}/>}{browse&&item.id.startsWith('vault:')&&<Menu withinPortal={false} position="bottom-end"><Menu.Target><ActionIcon variant="subtle" aria-label={ft('Creation actions')}><IconDots size={18}/></ActionIcon></Menu.Target><Menu.Dropdown><Menu.Item onClick={()=>void open(item)}>{ft('Preview')}</Menu.Item><Menu.Item onClick={()=>void protect(item)}>{item.scope&&item.scope!=='public'?ft('Move to public library'):ft('Protect this creation')}</Menu.Item><Menu.Item color="red" onClick={()=>setConfirmation(item)}>{ft('Delete from device')}</Menu.Item></Menu.Dropdown></Menu>}</Group>
   </Stack>)}</SimpleGrid>
   {!filtered.length&&!busy&&<Text size="sm" c="dimmed">{ft('No saved content in this category')}</Text>}{next!==null&&<Button variant="subtle" loading={busy} onClick={()=>void load(next)}>{ft('Show more')}</Button>}
