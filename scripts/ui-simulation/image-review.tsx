@@ -1,0 +1,20 @@
+import {Button,Stack} from '@mantine/core'
+import {useState} from 'react'
+import {LibraryFileInput} from '../../src/renderer/components/local-library/LibraryFileInput'
+import {VeniceImageTools} from '../../src/renderer/components/venice/VeniceImageTools'
+import {VenicePricing} from '../../src/renderer/components/venice/VenicePricing'
+import {SecureReceiptSettings} from '../../src/renderer/components/venice/SecureReceiptSettings'
+import {processVeniceImage} from '../../src/shared/providers/definitions/models/venice/image-processing'
+import platform from './platform'
+const state=()=>window as any
+async function fixtureImage(){const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const c=canvas.getContext('2d')!;c.fillStyle='red';c.fillRect(0,0,256,256);c.fillStyle='rgba(0,0,255,0.5)';c.fillRect(256,0,256,256);return new File([await new Promise<Blob>(resolve=>canvas.toBlob(blob=>resolve(blob!),'image/png'))],'reference.png',{type:'image/png'})}
+async function inspect(file:File){const bitmap=await createImageBitmap(file),canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;const c=canvas.getContext('2d')!;c.drawImage(bitmap,0,0);const pixel=[...c.getImageData(Math.floor(bitmap.width/2),Math.floor(bitmap.height/2),1,1).data];const result={width:bitmap.width,height:bitmap.height,pixel};bitmap.close();canvas.width=canvas.height=1;return result}
+export function ImageReviewSimulation(){const [opened,setOpened]=useState(false),[file,setFile]=useState<File|null>(null),[receipt,setReceipt]=useState(false)
+ const process=async(input:any,signal:AbortSignal)=>processVeniceImage(input,{apiKey:'SIMULATED',options:{}},{ensure:async()=>{},create:async()=>{},update:async()=>{},save:async(_record,response)=>{const blob=await response.blob(),reader=new FileReader();const value=await new Promise<string>(resolve=>{reader.onload=()=>resolve(String(reader.result));reader.readAsDataURL(blob)});await platform.setStoreBlob('processed-image',value);state().__imageToolSaved=true;return 'processed-image'}},async request=>{state().__imageToolCalls=(state().__imageToolCalls||0)+1;const data=request.body as FormData;state().__imageToolRequest={path:new URL(request.url).pathname,scale:data.get('scale'),creativity:data.get('creativity'),hasFile:data.get('image') instanceof File};return new Response(await fixtureImage(),{headers:{'content-type':'image/png'}})},signal)
+ return <><Button m="sm" onClick={()=>setOpened(value=>!value)}>Test crop and image tools</Button>{opened&&<Stack p="md" data-testid="image-review"><Button onClick={()=>void fixtureImage().then(async value=>{state().__originalReference=value;state().__originalImageInfo=await inspect(value);setFile(value)})}>Load local crop fixture</Button><LibraryFileInput cropImages label="Crop test reference" value={file} accept="image/png" onChange={value=>{setFile(value);if(value)void inspect(value).then(info=>{state().__croppedImageInfo=info})}}/>
+ <SecureReceiptSettings enabled={receipt} onChange={value=>{setReceipt(value);state().__receiptConsent=value}}/>
+ <VenicePricing model={{id:'test-video',type:'video',model_spec:{constraints:{durations:['5s','10s'],resolutions:['480p','720p']}}}} onQuote={async input=>{state().__priceQuoteCalls=(state().__priceQuoteCalls||0)+1;state().__priceQuoteInput=input;return {quote:0.1}}}/>
+ <VeniceImageTools process={process} catalog={[{id:'upscaler',type:'upscale',model_spec:{pricing:{upscale:{'2x':{usd:0.02},'4x':{usd:0.08}}}}}]}/>
+ <Button onClick={()=>void fixtureImage().then(file=>{const input=document.querySelector('[data-testid="image-review"] input[type="file"]:last-of-type') as HTMLInputElement;const inputs=document.querySelectorAll('[data-testid="image-review"] input[type="file"]');const target=inputs[inputs.length-1] as HTMLInputElement;const transfer=new DataTransfer();transfer.items.add(file);target.files=transfer.files;target.dispatchEvent(new Event('change',{bubbles:true}))})}>Load image tool fixture</Button>
+ </Stack>}</>
+}

@@ -3,7 +3,7 @@ import { processVeniceImage } from './image-processing'
 function fixture(){
  const png=new Uint8Array(24);png.set([137,80,78,71]);const view=new DataView(png.buffer);view.setUint32(16,256);view.setUint32(20,256)
  const input={file:new File([png],'source.png',{type:'image/png'}),operation:'background-remove' as const,title:'Remove background',protection:'app'}
- const store={ensure:vi.fn(),create:vi.fn(),update:vi.fn(),save:vi.fn().mockResolvedValue('saved-result')}
+ const store={ensure:vi.fn().mockResolvedValue(undefined),create:vi.fn().mockResolvedValue(undefined),update:vi.fn().mockResolvedValue(undefined),save:vi.fn().mockResolvedValue('saved-result')}
  const request=vi.fn().mockResolvedValue(new Response(png,{headers:{'content-type':'image/png'}}))
  return {input,store,request,config:{apiKey:'synthetic',options:{enabled:true}},signal:new AbortController().signal}
 }
