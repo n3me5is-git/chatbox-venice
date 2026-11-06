@@ -9,8 +9,9 @@ export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fi
  await click(byLabel('Project protection'));await evaluate('window.__simulationBack()');await wait(()=>evaluate(`![...document.querySelectorAll('[role="option"]')].some(e=>e.getClientRects().length)`),'Back did not close the project dropdown');assert.equal(await evaluate(`!!(${byLabel('Project protection')})`),true,'Back closed the parent panel')
  await click(byLabel('Catalog model'));await wait(()=>evaluate(`!![...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('E2EE capable')&&e.textContent.includes('Private')&&e.textContent.includes('Uncensored'))`),'Catalog options omitted privacy/E2EE/filter badges')
  await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('Anonymous image model'))`)
- assert.equal(await evaluate(`(${byLabel('Catalog model')}).value`),'Anonymous image model')
+ await wait(()=>evaluate(`(${byLabel('Catalog model')}).value==='Anonymous image model'`),'Touch model selection did not commit')
  await click(byLabel('Catalog model'));await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent.includes('Private secure model'))`)
+ await wait(()=>evaluate(`(${byLabel('Catalog model')}).value==='Private secure model'`),'The second model selection did not commit')
  await fill('Paid image prompt','First line')
  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',text:'\r',unmodifiedText:'\r',windowsVirtualKeyCode:13});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
  assert.equal(await evaluate(`(${byLabel('Paid image prompt')}).value`),'First line\n','Enter did not insert a newline')
@@ -23,6 +24,7 @@ export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fi
  await delay(300);await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[p]});await delay(650);await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
  await wait(()=>evaluate(`document.body.textContent.includes('Protect this creation')`),'Long press did not expose history protection actions')
  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27})
+ await wait(()=>evaluate(`![...document.querySelectorAll('[role="menu"]')].some(e=>e.getClientRects().length)`),'History menu did not close before scrolling')
  const body=`[...document.querySelectorAll('.mantine-Drawer-body')].findLast(e=>e.getBoundingClientRect().height>0)`
  const point=await evaluate(`(()=>{const e=${body};e.scrollTop=0;const r=e.getBoundingClientRect();return{x:r.right-10,y:r.y+r.height*0.8,distance:Math.min(450,r.height*0.6)}})()`)
  await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:point.x,y:point.y}]})

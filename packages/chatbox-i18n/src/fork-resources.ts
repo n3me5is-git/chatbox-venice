@@ -606,6 +606,17 @@ export const forkEnglish = {
 "The Chatbox search tool and Venice model search have independent settings. The tool uses the provider selected here.":"The Chatbox search tool and Venice model search have independent settings. The tool uses the provider selected here.",
 "Choose a model from the selected content category":"Choose a model from the selected content category",
 "Device biometrics":"Device biometrics",
+"Filter not declared":"Filter not declared",
+"Venice does not declare whether this model is uncensored.":"Venice does not declare whether this model is uncensored.",
+"Per 1,000 characters":"Per 1,000 characters",
+"Default duration (seconds)":"Default duration (seconds)",
+"Default voice":"Default voice",
+"Default format":"Default format",
+"Default speed":"Default speed",
+"Minimum speed":"Minimum speed",
+"Maximum speed":"Maximum speed",
+"Accepted audio formats":"Accepted audio formats",
+"Maximum source audio duration (seconds)":"Maximum source audio duration (seconds)",
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
 
@@ -1350,6 +1361,7 @@ Object.assign(forkTranslations['it-IT'],{
 })
 Object.assign(forkTranslations['it-IT'],{"TEE available":"TEE disponibile","E2EE capable":"Supporta E2EE","Supports hardware-enclave attestation. Secure text settings control verification; TEE alone does not hide prompts from Venice.":"Supporta l’attestazione di un’enclave hardware. La verifica dipende dalle impostazioni della chat sicura; la sola TEE non nasconde i prompt a Venice.","Supports end-to-end encryption. Enable secure text chat in Venice settings; this badge describes capability, not the current connection.":"Supporta la cifratura end-to-end. Abilita la chat sicura nelle impostazioni Venice; il badge indica una capacità, non lo stato della connessione."})
 Object.assign(forkTranslations['it-IT'],{"Venice model search":"Ricerca del modello Venice","The Chatbox search tool and Venice model search have independent settings. The tool uses the provider selected here.":"Lo strumento di ricerca di Chatbox e la ricerca del modello Venice hanno impostazioni indipendenti. Lo strumento usa il provider selezionato qui.","Choose a model from the selected content category":"Scegli un modello della categoria di contenuto selezionata","Device biometrics":"Biometria del dispositivo"})
+Object.assign(forkTranslations['it-IT'],{"Filter not declared":"Filtro non dichiarato","Venice does not declare whether this model is uncensored.":"Venice non dichiara se questo modello è privo di censura.","Per 1,000 characters":"Per 1.000 caratteri","Default duration (seconds)":"Durata predefinita (secondi)","Default voice":"Voce predefinita","Default format":"Formato predefinito","Default speed":"Velocità predefinita","Minimum speed":"Velocità minima","Maximum speed":"Velocità massima","Accepted audio formats":"Formati audio accettati","Maximum source audio duration (seconds)":"Durata massima dell’audio sorgente (secondi)"})
 export function withForkTranslations<T extends Record<string,string>>(language: string, original: T) {
   return {...forkEnglish,...original,...forkTranslations[language]}
 }

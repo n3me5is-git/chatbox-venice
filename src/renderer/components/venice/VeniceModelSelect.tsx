@@ -9,7 +9,7 @@ import {useOverlayManager} from '@/components/layout/Overlay'
 export const categoryLabels:Record<string,string>={chat:'Chat',image:'Images','image-edit':'Image editing',embedding:'Embeddings',speech:'Voice',transcription:'Transcribe',video:'Video',music:'Music','sound-effects':'Sound effects','voice-conversion':'Voice conversion'}
 export function VeniceModelOption({model}:{model:MediaCatalogItem}) {
   useTranslation()
-  return <Stack gap={4} style={{minWidth:0,width:'100%'}}><Group gap="xs" wrap="wrap"><Text size="sm" fw={500} style={{overflowWrap:'anywhere'}}>{model.model_spec?.name||model.id}</Text><Text size="xs" c="dimmed">{ft(categoryLabels[mediaCategory(model)]||model.type)}</Text></Group><VeniceModelBadges metadata={model.model_spec}/></Stack>
+  return <Stack gap={4} style={{minWidth:0,width:'100%'}}><Group gap="xs" wrap="wrap"><Text size="sm" fw={500} style={{overflowWrap:'anywhere'}}>{model.model_spec?.name||model.id}</Text><Text size="xs" c="dimmed">{ft(categoryLabels[mediaCategory(model)]||model.type)}</Text></Group><VeniceModelBadges metadata={model.model_spec} showUnknown/></Stack>
 }
 export function VeniceModelSelect({models,...props}:Omit<SelectProps,'data'> & {models:MediaCatalogItem[]}) {
   useTranslation()
