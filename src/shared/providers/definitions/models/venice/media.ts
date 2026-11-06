@@ -107,7 +107,8 @@ export class VeniceMediaService {
     return items
   }
   async quote(input: MediaInput) {
-    const config = this.config(input.kind)
+    // A quote cannot create media; inspecting prices does not enable generation.
+    const config = this.config()
     if (config.options.privacyFilter && config.options.privacyFilter !== 'all') requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === input.model)?.model_spec, config.options.privacyFilter)
     if (!['video', 'music', 'sound-effects', 'voice-conversion'].includes(input.kind) && !(input.kind==='speech' && (await this.cachedCatalog()).some(item=>item.id===input.model&&item.type==='music'&&mediaCategory(item)==='speech'))) throw new Error('Quotes are available for queued media models')
     const allowed = input.kind === 'video' ? ['duration', 'aspect_ratio', 'resolution', 'audio', 'video_url', 'upscale_factor'] : ['duration_seconds', 'character_count']

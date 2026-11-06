@@ -41,7 +41,7 @@ export async function runSmoke(command:{action:string;apiKey:string;scratch:stri
     ledger[kind]++;ledger.entries.push({at:new Date().toISOString(),kind,model:body?.model||command.model,duration:body?.duration||body?.duration_seconds});await saveLedger()
    }
    const started=Date.now()
-   const response=await fetch(url,{method:input.method,headers:input.headers,body:input.body as BodyInit,signal:input.signal||AbortSignal.timeout(60000),redirect:'error'})
+   const response=await fetch(url,{method:input.method,headers:input.headers,body:input.body as BodyInit,signal:input.signal as unknown as AbortSignal||AbortSignal.timeout(60000),redirect:'error'})
    requests.push({path:endpoint,status:response.status,ms:Date.now()-started})
    if(endpoint.startsWith('/tee/')&&response.ok){const copy=await response.clone().json();await writeFile(path.join(scratch,endpoint.includes('attestation')?'live-attestation.json':'live-signature.json'),JSON.stringify(copy,null,2))}
    return response
@@ -71,7 +71,7 @@ export async function runSmoke(command:{action:string;apiKey:string;scratch:stri
   try{records=JSON.parse(await readFile(recordsFile,'utf8'))}catch{}
   let assets:Record<string,string>={};try{assets=JSON.parse(await readFile(assetsFile,'utf8'))}catch{}
   const store:MediaStore={read:async()=>records,write:async value=>{records=value;await writeFile(recordsFile,JSON.stringify(value,null,2))},readCatalog:async()=>cache,writeCatalog:async value=>{cache=value},
-   putBlob:async(key,value)=>{const file=path.join(out,key.replace(/[^\w-]/g,'_')+(value.startsWith('data:text/')?'.txt':'.bin'));await writeFile(file,Buffer.from(value.slice(value.indexOf(',')+1),'base64'));assets[key]=file;await writeFile(assetsFile,JSON.stringify(assets))},
+   putBlob:async(key,value)=>{const file=path.join(out,key.replace(/[^\w-]/g,'_')+(value.startsWith('data:text/')?'.txt':'.bin'));await writeFile(file,new Uint8Array(Buffer.from(value.slice(value.indexOf(',')+1),'base64')));assets[key]=file;await writeFile(assetsFile,JSON.stringify(assets))},
    getBlob:async key=>assets[key]?'data:application/octet-stream;base64,'+(await readFile(assets[key])).toString('base64'):null,deleteBlob:async()=>{},
    putStream:async(key,response,mime,signal)=>{const extension=({'audio/wav':'.wav','audio/x-wav':'.wav','audio/mpeg':'.mp3','audio/mp4':'.m4a','video/mp4':'.mp4'} as Record<string,string>)[mime]||'.audio';const file=path.join(out,key.replace(/[^\w-]/g,'_')+extension);await pipeline(Readable.fromWeb(response.body as any),createWriteStream(file+'.partial'),{signal});await rename(file+'.partial',file);assets[key]=file;await writeFile(assetsFile,JSON.stringify(assets));return true}}
   const service=new VeniceMediaService(store,()=>({apiKey:command.apiKey,options:{enabled:true,audioEnabled:true,musicEnabled:true,videoEnabled:true}}),request,2000)
@@ -85,7 +85,7 @@ export async function runSmoke(command:{action:string;apiKey:string;scratch:stri
   const input:MediaInput={kind:command.action as MediaInput['kind'],model:command.model||'',prompt:command.action==='speech'?'Hello. This is a short Venice test.':command.action==='music'?'Five seconds of gentle instrumental piano, no vocals.':'A small blue cube rotates slowly on a plain white background. Static camera.',options,signal:AbortSignal.timeout(150000)}
   if(command.action==='transcription'){
    const source=records.find(r=>r.kind==='speech'&&r.blobKey);const file=source?.blobKey&&assets[source.blobKey];if(!file)throw Error('Create the short speech sample first')
-   input.file=new File([await readFile(file)],'test.wav',{type:'audio/wav'});input.prompt=''
+   input.file=new File([new Uint8Array(await readFile(file))],'test.wav',{type:'audio/wav'});input.prompt=''
   }
   let quote:unknown
   if(['music','video'].includes(command.action)){
