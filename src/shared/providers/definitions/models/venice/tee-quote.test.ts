@@ -9,6 +9,7 @@ test('accepts bounded zero-only Phala transport padding without weakening strict
  const quote=buildQuote({signatureData:Buffer.alloc(64,0xab)}),padded=concat([quote,Buffer.alloc(70)])
  assert.equal(parseTdxQuote(padded.toString('hex')),undefined)
  assert.deepEqual(parseTransportTdxQuote(padded.toString('hex'),'phala'),parseTdxQuote(quote.toString('hex')))
+ assert.deepEqual(parseTransportTdxQuote(padded.toString('hex'),'near-ai'),parseTdxQuote(quote.toString('hex')))
  assert.equal(parseTransportTdxQuote(padded.toString('hex'),'other'),undefined)
  assert.equal(parseTransportTdxQuote(concat([quote,Buffer.alloc(257)]).toString('hex'),'phala'),undefined)
  padded[padded.length-1]=1

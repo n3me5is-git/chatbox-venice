@@ -175,12 +175,12 @@ export const parseTdxQuote = (hexQuote: string): ParsedTdxQuote | undefined => {
   }
 }
 
-/** Phala's legacy transport can return a zero-filled allocation after the exact
- * DCAP quote. Accept only bounded all-zero transport padding for that provider;
+/** Venice's Phala and NEAR AI legacy transports can return a zero-filled allocation after the exact
+ * DCAP quote. Accept only bounded all-zero transport padding for those providers;
  * parseTdxQuote itself stays strict and REPORTDATA/key/debug checks are unchanged. */
 export const parseTransportTdxQuote = (quoteHex:string, provider?:string):ParsedTdxQuote|undefined => {
   const strict=parseTdxQuote(quoteHex)
-  if(strict||provider!=='phala')return strict
+  if(strict||!['phala','near-ai'].includes(provider||''))return strict
   const bytes=parseHex(quoteHex)
   if(!bytes||bytes.length<636)return undefined
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength)
