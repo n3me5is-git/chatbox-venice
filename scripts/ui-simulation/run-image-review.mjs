@@ -3,7 +3,7 @@ import {writeFile} from 'node:fs/promises'
 import path from 'node:path'
 export async function runImageReview({click,evaluate,wait,byText,byLabel,fill,cdp,output}){
  await click(byText('Test crop and image tools'));await click(byText('Load local crop fixture'));await wait(()=>evaluate('!!window.__originalImageInfo'),'Local reference did not load')
- await click(byText('Verify public Intel quote locally'));await wait(()=>evaluate('!!window.__dcapBrowserVerification||!!window.__dcapBrowserError'),'Browser Intel verification did not finish');assert.equal(await evaluate('window.__dcapBrowserError'),undefined);assert.deepEqual(await evaluate('window.__dcapBrowserVerification'),{status:'UpToDate',tamperRejected:true})
+ await click(byText('Verify public Intel quote locally'));await wait(()=>evaluate('!!window.__dcapBrowserVerification||!!window.__dcapBrowserError'),'Browser Intel verification did not finish');assert.equal(await evaluate('window.__dcapBrowserError'),undefined);assert.deepEqual(await evaluate('window.__dcapBrowserVerification'),{status:'UpToDate',tamperRejected:true,rejectedSigners:true})
  await click(`[...document.querySelectorAll('button')].findLast(e=>e.textContent.startsWith('Crop reference:'))`)
  await wait(()=>evaluate(`!!document.querySelector('canvas[aria-label="Reference crop area"]')&& !(${byText('Use cropped image')}).disabled`),'Cropper did not decode image')
  await click(`document.querySelector('canvas[aria-label="Reference crop area"]')`)

@@ -19,6 +19,10 @@ supportedArchitectures:
 # Supply chain security: only install packages published at least 7 days ago
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
+  # 0.7.1 restricts TCB/QE collateral signers to direct Intel root issuers.
+  # Audited upstream diff v0.7.0...v0.7.1: six verifier lines plus regression test.
+  # Exact version/integrity pinned; keep this package exception until its age matures.
+  - "@phala/dcap-qvl"
   - "capacitor-stream-http"
 
 # epub falls back to its pure-JavaScript adm-zip implementation when this
