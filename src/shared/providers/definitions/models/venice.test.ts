@@ -147,3 +147,17 @@ it('uses Venice embeddings directly through the same SDK adapter used by RAG', a
   expect(result.embedding).toEqual([0.1, 0.2])
   expect(api.mock.calls[0][0]).toMatchObject({ url: 'https://api.venice.ai/api/v1/embeddings', useProxy: false })
 })
+
+it('retains the direct Venice search tool through Chatbox active-tool preparation',async()=>{
+ let completions=0
+ const api=vi.fn(async(request:import('../../../types/adapters').ApiRequestOptions)=>{
+  if(request.url.endsWith('/augment/search'))return json({results:[{title:'Verified source',url:'https://example.com',content:'Current information'}]})
+  const body=JSON.parse(String(request.body));expect(body.tools.some((entry:{function:{name:string}})=>entry.function.name==='venice_web_search')).toBe(true)
+  const part=completions++===0?{tool_calls:[{index:0,id:'call-search',type:'function',function:{name:'venice_web_search',arguments:'{"query":"latest information"}'}}]}:{content:'Source: https://example.com'}
+  const reason=completions===1?'tool_calls':'stop'
+  return new Response(`data: ${JSON.stringify({id:'stream',model:'chat',created:1,choices:[{index:0,delta:part,finish_reason:null}]})}\n\ndata: ${JSON.stringify({choices:[{index:0,delta:{},finish_reason:reason}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream'}})
+ })
+ const model=new Venice({apiKey:'synthetic',apiHost:'https://api.venice.ai/api/v1',model:{modelId:'chat',capabilities:['tool_use']},venice:{webSearch:'auto',searchProvider:'brave'}},dependencies(api))
+ const parts=[];for await(const part of model.chatStream([{role:'user',content:'Find the latest information'}],{maxSteps:3,prepareStep:async()=>({activeTools:[]})}))parts.push(part)
+ expect(api.mock.calls.some(([request])=>request.url.endsWith('/augment/search'))).toBe(true);expect(parts.some(part=>part.type==='tool-result')).toBe(true)
+})

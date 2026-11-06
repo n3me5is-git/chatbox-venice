@@ -27,7 +27,7 @@ export async function localLibraryPage(kind:LibraryKind,cursor=0,protection:'pub
     }while(next!==null&&items.length<20&&scanned<1000)
     return {items,next}
   }
-  if(category!=='all'&&kind!=='vault'&&((kind==='image'&&category!=='image')||(kind==='video'&&category!=='video')||(kind==='document'&&category!=='document')))return {items:[],next:null}
+  if(category!=='all'&&((kind==='image'&&category!=='image')||(kind==='video'&&category!=='video')||(kind==='document'&&category!=='document')))return {items:[],next:null}
   if(kind==='image'){
     const storage=platform.getImageGenerationStorage();await storage.initialize();const page=await storage.getPage(cursor,20)
     const items:LocalLibraryItem[]=[];for(const record of page.items){if(record.protection)continue;for(const [index,key] of record.generatedImages.entries())if(!access||await access.libraryKeyVisible(key))items.push({id:`image:${record.id}:${index}`,name:record.prompt.slice(0,100)||'Saved image',kind,key,thumbnail:record.generatedImageThumbnails?.[index]})}return {items,next:page.nextCursor}

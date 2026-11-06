@@ -14,3 +14,5 @@ describe('encrypted asset metadata pagination',()=>{
   await db.remove('c');expect(await db.byAlias('alias-c')).toBeNull()
  })
 })
+
+it('paginates authenticated protected scopes without consuming pages on public files',async()=>{const db=new VaultDatabase('scope-filter-'+crypto.randomUUID());await db.put(header('private-old',1,'app'));for(let n=0;n<30;n++)await db.put(header('public-'+n,n+2));await db.put(header('private-new',50,'app'));await db.put(header('other-project',60,'project:two'));const page=await db.page(undefined,0,1,new Set(['app']));expect(page.items.map(item=>item.id)).toEqual(['private-new']);expect(page.next).toBe(1);expect((await db.page(undefined,page.next!,1,new Set(['app']))).items.map(item=>item.id)).toEqual(['private-old'])})

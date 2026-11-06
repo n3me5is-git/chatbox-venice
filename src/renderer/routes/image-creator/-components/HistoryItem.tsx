@@ -1,3 +1,4 @@
+import {useOverlayManager} from '@/components/layout/Overlay'
 import { ActionIcon, Button, Flex, Image, Menu, Popover, Skeleton, Stack, Text, UnstyledButton } from '@mantine/core'
 import type { ImageGeneration } from '@shared/types'
 import { IconDots, IconPhoto, IconPhotoOff, IconTrash } from '@tabler/icons-react'
@@ -20,6 +21,7 @@ export function HistoryItem({ record, isActive, isMobile, modelDisplayName, onCl
   const { t } = useTranslation()
   const [deletePopoverOpened, setDeletePopoverOpened] = useState(false)
   const [actionsOpened,setActionsOpened]=useState(false)
+  useOverlayManager(actionsOpened,()=>setActionsOpened(false))
   const hold=useRef<ReturnType<typeof setTimeout>|null>(null),held=useRef(false)
   const stopHold=()=>{if(hold.current)clearTimeout(hold.current);hold.current=null}
   const changeProtection=async()=>{

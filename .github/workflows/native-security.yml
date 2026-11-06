@@ -52,3 +52,60 @@ jobs:
       - run: pnpm exec cap sync android
       - name: Compile Java without packaging or signing an APK
         run: chmod +x android/gradlew && cd android && ./gradlew :app:compileReleaseJavaWithJavac --no-daemon
+  android-device:
+    name: Android Keystore runtime (API ${{ matrix.api }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [34, 35]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare native test fixture
+        run: |
+          mkdir -p release/app/dist/renderer
+          echo '<!doctype html><title>Keystore runtime tests</title>' > release/app/dist/renderer/index.html
+          pnpm exec cap add android
+          node scripts/configure-fork-android.mjs
+          pnpm exec cap sync android
+          mkdir -p android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice
+          cp native/android/test/VaultKeyDeviceTest.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
+          chmod +x android/gradlew
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            adb shell locksettings set-pin 123456
+            adb shell input keyevent 82
+            cd android && ./gradlew :app:connectedDebugAndroidTest --no-daemon
+      - name: Save Android device test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-Keystore-API-${{ matrix.api }}
+          path: android/app/build/reports/androidTests/
+          if-no-files-found: warn
