@@ -43,6 +43,10 @@ export async function runSmoke(command:{action:string;apiKey:string;scratch:stri
    const started=Date.now()
    const response=await fetch(url,{method:input.method,headers:input.headers,body:input.body as BodyInit,signal:input.signal as unknown as AbortSignal||AbortSignal.timeout(60000),redirect:'error'})
    requests.push({path:endpoint,status:response.status,ms:Date.now()-started})
+   if(endpoint==='/chat/completions'&&command.privacy==='e2ee'){
+    await writeFile(path.join(scratch,'live-encrypted-request.json'),String(input.body))
+    await writeFile(path.join(scratch,'live-encrypted-response.txt'),await response.clone().text())
+   }
    if(endpoint.startsWith('/tee/')&&response.ok){const copy=await response.clone().json();await writeFile(path.join(scratch,endpoint.includes('attestation')?'live-attestation.json':'live-signature.json'),JSON.stringify(copy,null,2))}
    return response
   }
