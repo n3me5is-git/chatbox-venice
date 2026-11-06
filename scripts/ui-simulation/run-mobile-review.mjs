@@ -45,7 +45,7 @@ export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fi
  await wait(()=>evaluate(`!!document.querySelector('input[autocomplete="current-password"]')`),'Protecting a public library item did not request an unlock')
  await fill('PIN or passphrase','123456');await click(byText('Unlock'));await wait(()=>evaluate(`!document.querySelector('[aria-label="Preview Local orange landscape"]')`),'Protected image stayed in the public library')
  await click(category('Protected library'));await wait(()=>evaluate(`!!document.querySelector('input[autocomplete="current-password"]')`),'Entering the protected library did not ask for authentication')
- await fill('PIN or passphrase','123456');await click(byText('Unlock'));await wait(()=>evaluate(`!!document.querySelector('[aria-label="Preview Local orange landscape"]')`),'Protected library did not reveal the unlocked image')
+ await fill('PIN or passphrase','123456');await click(byText('Unlock'));await wait(()=>evaluate(`!!document.querySelector('[aria-label="Preview Local orange landscape"]')&&!document.querySelector('input[autocomplete="current-password"]')`),'Protected library did not replace the unlock form with unlocked content')
  await writeFile(path.join(output,'visual-library-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  assert.equal(await evaluate('window.__simulationBack()'),true);await wait(()=>evaluate(`!document.body.textContent.includes('Visual library regression')`),'Back did not close the library panel')
  assert.equal(await evaluate('location.href'),originalURL,'Panel back navigation changed the app route')
