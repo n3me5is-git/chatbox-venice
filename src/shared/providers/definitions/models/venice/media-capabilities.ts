@@ -33,7 +33,7 @@ export function videoInputs(model?: MediaCatalogItem) {
 }
 export function musicDuration(model?: MediaCatalogItem) {
   const s = model?.model_spec
-  return { supported: s?.min_duration !== undefined || s?.max_duration !== undefined || !!s?.duration_options?.length || !!s?.pricing?.per_second || !!s?.pricing?.durations,
+  return { supported: s?.min_duration !== undefined || s?.max_duration !== undefined || !!s?.duration_options?.length || !!s?.pricing?.durations,
     min: s?.min_duration ?? 1, max: s?.max_duration ?? 600, default: s?.default_duration,
     choices: Array.isArray(s?.duration_options) ? s.duration_options : [] }
 }

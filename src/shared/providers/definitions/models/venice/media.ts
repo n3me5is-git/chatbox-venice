@@ -116,7 +116,7 @@ export class VeniceMediaService {
     const body: Record<string, unknown> = { model: merged.model }
     requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec, config.options.privacyFilter)
     for (const key of allowed) if (merged[key] !== undefined) body[key] = merged[key]
-    if ((input.kind === 'music' || input.kind === 'sound-effects') && body.character_count === undefined && (await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec?.pricing?.per_thousand_characters) body.character_count = input.prompt.length
+    if ((input.kind === 'music' || input.kind === 'sound-effects' || input.kind==='speech') && body.character_count === undefined && (await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec?.pricing?.per_thousand_characters) body.character_count = input.prompt.length
     return (await this.api(config, `${queuePath(input.kind)}/quote`, body,input.signal)).json()
   }
   async start(input: MediaInput): Promise<MediaRecord> {

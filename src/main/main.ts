@@ -943,7 +943,7 @@ ipcMain.handle('getLocale', () => {
 })
 ipcMain.handle('openLink', async (event, link, options?: { browser?: string }) => {
   if(options?.browser==='internal'){
-    if(event.sender!==mainWindow?.webContents)throw new Error('Untrusted documentation request')
+    if(event.sender!==mainWindow?.webContents||event.senderFrame!==event.sender.mainFrame)throw new Error('Untrusted documentation request')
     const url=new URL(link)
     if(url.protocol!=='https:'||!['docs.venice.ai','venice.ai'].includes(url.hostname))throw new Error('Unsupported documentation URL')
     const view=new BrowserWindow({parent:mainWindow!,modal:true,width:1000,height:800,autoHideMenuBar:true,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,partition:'venice-documentation'}})

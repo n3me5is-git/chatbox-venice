@@ -319,7 +319,7 @@ function GeneratedImageGalleryItem({
                   size="sm"
                   radius="lg"
                   onClick={handleReport}
-                  className="absolute right-3 bottom-3 z-[1] !bg-white/70 !text-red-500 shadow-sm opacity-65 transition-opacity hover:opacity-100 pointer-events-auto"
+                  className={isSmallScreen?"m-2 !text-red-500":"absolute right-3 bottom-3 z-[1] !bg-white/70 !text-red-500 shadow-sm opacity-65 transition-opacity hover:opacity-100 pointer-events-auto"}
                 >
                   <IconMessageReport size={14} />
                 </ActionIcon>
@@ -328,11 +328,11 @@ function GeneratedImageGalleryItem({
 
             {/* Hover Overlay (always visible on mobile) */}
             <div
-              className={`
+              className={isSmallScreen?'relative flex items-center justify-center py-2 gap-2':`
               absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent
               flex items-end justify-center pb-4 gap-2
               transition-opacity duration-200 pointer-events-none
-              ${isSmallScreen || hovered ? 'opacity-100' : 'opacity-0'}
+              ${hovered ? 'opacity-100' : 'opacity-0'}
             `}
             >
               <Tooltip label={t('View')} withArrow disabled={isSmallScreen}>

@@ -170,6 +170,7 @@ export function SessionSettingsContent({
       }
     )
   const [settings, setParam] = useOptimisticSettings(session.settings, (patch) => save({ settings: patch }))
+  const hasVenice=useSettingsStore(s=>!!s.providers?.venice?.apiKey&&s.providers.venice.venice?.enabled!==false)
   const modelLabel = useModelLabel(settings)
   const keys = visibleSessionParameterKeys(settings)
   const overrideCount = countSessionDifferences(settings, keys, global)
@@ -222,7 +223,7 @@ export function SessionSettingsContent({
 
   return (
     <div className="flex flex-col gap-5" data-testid={TestId.sessionPanel.settings}>
-      {settings?.provider==='venice'&&session.id!=='new'&&<VeniceSessionApprovalButton sessionId={session.id}/>}
+      {(settings?.provider==='venice'||hasVenice)&&session.id!=='new'&&<VeniceSessionApprovalButton sessionId={session.id}/>}
       <Flex align="center" gap="sm">
         <FileButton
           accept="image/png,image/jpeg"

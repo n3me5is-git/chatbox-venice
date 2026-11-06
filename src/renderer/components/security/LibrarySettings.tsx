@@ -1,4 +1,5 @@
-import { Alert,Button,Checkbox,FileInput,Group,Modal,PasswordInput,ScrollArea,SegmentedControl,Stack,Text } from '@mantine/core'
+import {AdaptiveModal as Modal} from '@/components/common/AdaptiveModal'
+import { Alert,Button,Checkbox,FileInput,Group,PasswordInput,ScrollArea,SegmentedControl,Stack,Text } from '@mantine/core'
 import { useEffect,useRef,useState,useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
