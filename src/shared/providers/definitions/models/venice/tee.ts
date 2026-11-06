@@ -175,6 +175,21 @@ export const parseTdxQuote = (hexQuote: string): ParsedTdxQuote | undefined => {
   }
 }
 
+/** Phala's legacy transport can return a zero-filled allocation after the exact
+ * DCAP quote. Accept only bounded all-zero transport padding for that provider;
+ * parseTdxQuote itself stays strict and REPORTDATA/key/debug checks are unchanged. */
+export const parseTransportTdxQuote = (quoteHex:string, provider?:string):ParsedTdxQuote|undefined => {
+  const strict=parseTdxQuote(quoteHex)
+  if(strict||provider!=='phala')return strict
+  const bytes=parseHex(quoteHex)
+  if(!bytes||bytes.length<636)return undefined
+  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength)
+  if(view.getUint16(0,true)!==4||view.getUint32(4,true)!==TDX_TEE_TYPE)return undefined
+  const declared=636+view.getUint32(632,true),padding=bytes.length-declared
+  if(padding<1||padding>256||declared<636||bytes.subarray(declared).some(value=>value!==0))return undefined
+  return parseTdxQuote(bytesToHex(bytes.subarray(0,declared)))
+}
+
 /**
  * Evaluate the E2EE attestation policy against a verification result.
  * Returns whether the attestation passes all security checks.
@@ -380,7 +395,7 @@ export const buildTeeVerificationResult = (
     signingAddress: stringField(response.signing_address),
     signingKey: stringField(response.signing_key) ?? stringField(response.signing_public_key),
     intelQuote,
-    parsedTdxQuote: intelQuote ? parseTdxQuote(intelQuote) : undefined,
+    parsedTdxQuote: intelQuote ? parseTransportTdxQuote(intelQuote,response.tee_provider) : undefined,
     nvidiaPayload,
     nvidiaPayloadInvalid: !!rawNvidiaPayload && !nvidiaPayload,
     serverVerification: response.server_verification,

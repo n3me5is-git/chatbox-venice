@@ -3,7 +3,17 @@ const concat = (parts: ArrayLike<number>[]) => Buffer.concat(parts.map(part => U
 import assert from 'node:assert/strict';
 import { it as test } from 'vitest';
 import { verifyKeyBinding } from './crypto';
-import { isTdDebugMode, parseTdxQuote, type ParsedTdxQuote } from './tee';
+import { isTdDebugMode, parseTdxQuote, parseTransportTdxQuote, type ParsedTdxQuote } from './tee';
+
+test('accepts bounded zero-only Phala transport padding without weakening strict quote parsing',()=>{
+ const quote=buildQuote({signatureData:Buffer.alloc(64,0xab)}),padded=concat([quote,Buffer.alloc(70)])
+ assert.equal(parseTdxQuote(padded.toString('hex')),undefined)
+ assert.deepEqual(parseTransportTdxQuote(padded.toString('hex'),'phala'),parseTdxQuote(quote.toString('hex')))
+ assert.equal(parseTransportTdxQuote(padded.toString('hex'),'other'),undefined)
+ assert.equal(parseTransportTdxQuote(concat([quote,Buffer.alloc(257)]).toString('hex'),'phala'),undefined)
+ padded[padded.length-1]=1
+ assert.equal(parseTransportTdxQuote(padded.toString('hex'),'phala'),undefined)
+})
 
 const SIGNING_KEY =
   '044e3b81af9c2234cad09d679ce6035ed1392347ce64ce405f5dcd36228a25de6e47fd35c4215d1edf53e6f83de344615ce719bdb0fd878f6ed76f06dd277956de';
