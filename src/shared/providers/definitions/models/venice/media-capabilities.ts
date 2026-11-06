@@ -1,4 +1,16 @@
 import type { MediaCatalogItem, MediaKind } from './media'
+/** UI category differs from transport type: Venice queues several TTS models as music. */
+export function mediaCategory(model: MediaCatalogItem): string {
+  if (model.model_spec?.voice_changer === true) return 'voice-conversion'
+  if (model.type === 'tts') return 'speech'
+  if (model.type === 'asr') return 'transcription'
+  if (model.type === 'music') {
+    if (isSoundEffectsModel(model)) return 'sound-effects'
+    const spec = model.model_spec
+    if (/\btts\b|text[- ]to[- ]speech|multilingual speech/i.test(`${model.id} ${spec?.description || ''}`) || (spec?.voices?.length && !spec.supports_lyrics && !spec.supports_force_instrumental)) return 'speech'
+  }
+  return model.type === 'inpaint' ? 'image-edit' : model.type === 'text' ? 'chat' : model.type
+}
 // Venice exposes music, effects and some asynchronous voices under type=music.
 // Prefer explicit catalog categories; known catalog IDs/names cover today's untagged rows.
 export function isSoundEffectsModel(model?: MediaCatalogItem) {

@@ -1,3 +1,4 @@
+import { VeniceSessionApprovalButton } from '@/components/venice/VeniceSessionApprovalButton'
 import { isActionAvailableInMode, type SessionMode } from '@chatbox/core/session/mode-policy'
 import {
   Anchor,
@@ -221,6 +222,7 @@ export function SessionSettingsContent({
 
   return (
     <div className="flex flex-col gap-5" data-testid={TestId.sessionPanel.settings}>
+      {settings?.provider==='venice'&&session.id!=='new'&&<VeniceSessionApprovalButton sessionId={session.id}/>}
       <Flex align="center" gap="sm">
         <FileButton
           accept="image/png,image/jpeg"

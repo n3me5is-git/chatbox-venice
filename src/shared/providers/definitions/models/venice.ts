@@ -111,7 +111,9 @@ export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: Ven
 export default class Venice extends OpenAICompatible {
   public name = 'Venice'
   public options: VeniceOptions
-  public override get usesNativeWebSearch() { return true }
+  // Native model search and Chatbox's configured retrieval tool are independent.
+  // Advertising native search unconditionally used to suppress the global search tool.
+  public override get usesNativeWebSearch() { return (this.options.venice?.webSearch ?? 'off') !== 'off' }
 
   constructor(options: VeniceOptions, dependencies: ModelDependencies) {
     assertVeniceEnabled(options.venice || {})

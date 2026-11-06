@@ -1,4 +1,5 @@
 import { App } from '@capacitor/app'
+import { closeTopSurface } from '@/packages/overlay-back'
 import { Browser } from '@capacitor/browser'
 import { Device } from '@capacitor/device'
 import type { SessionRowStorePort } from '@chatbox/core/ports'
@@ -36,6 +37,11 @@ export default class MobilePlatform extends MobileSQLiteStorage implements Platf
 
   constructor() {
     super()
+    void App.addListener('backButton', () => {
+      if (closeTopSurface()) return
+      if (window.history.length > 1) window.history.back()
+      else void App.minimizeApp()
+    })
     mobileLogger.init().catch((e) => console.error('Failed to init mobile logger:', e))
     // 监听深度链接 (Deep Links)
     App.addListener('appUrlOpen', (event) => {

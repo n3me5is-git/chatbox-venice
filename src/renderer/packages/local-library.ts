@@ -4,17 +4,28 @@ import { veniceMediaService } from '@/packages/venice/service'
 import { installedVaultFor } from '@/packages/vault/runtime'
 export type ContentKind = 'image'|'audio'|'video'|'document'
 export type LibraryKind = ContentKind|'vault'
-export type LocalLibraryItem = { id:string; name:string; kind:ContentKind; key:string; mime?:string; thumbnail?:string }
+export type LocalLibraryItem = { id:string; name:string; kind:ContentKind; key:string; mime?:string; thumbnail?:string;category?:string;scope?:string;bytes?:number;alias?:string;sourceId?:string }
 export function acceptsLocalFile(file: Pick<File,'name'|'type'>, accept='') {
   if(!accept.trim()) return true
   return accept.split(',').map(value=>value.trim().toLowerCase()).some(value=>value.startsWith('.')?file.name.toLowerCase().endsWith(value):value.endsWith('/*')?file.type.toLowerCase().startsWith(value.slice(0,-1)):file.type.toLowerCase()===value)
 }
-export async function localLibraryPage(kind:LibraryKind,cursor=0,protection:'public'|'protected'='public'):Promise<{items:LocalLibraryItem[];next:number|null}> {
+export async function localLibraryPage(kind:LibraryKind,cursor=0,protection:'public'|'protected'='public',category='all',allowedScopes?:ReadonlySet<string>):Promise<{items:LocalLibraryItem[];next:number|null}> {
   const access=installedVaultFor(platform)?.projects
   if(kind==='vault'){
-    const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform);const page=await vault.db.page(protection==='public'?'public':undefined,cursor,20);const items:LocalLibraryItem[]=[]
-    for(const header of page.items){if(protection==='protected'&&header.scope==='public'||!vault.keys.isUnlocked(header.scope)||access&&!await access.libraryKeyVisible(header.alias))continue;const info=await vault.assets.info(header);if(!['image','audio','video','document'].includes(info.kind))continue;await access?.assertLibraryKey(header.alias);items.push({id:'vault:'+header.id,name:info.name,kind:info.kind as ContentKind,key:`vault-asset-${header.id}`,mime:info.mime})}
-    return {items,next:page.next}
+    const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform);const items:LocalLibraryItem[]=[];let next:number|null=cursor;let scanned=0
+    do{const page=await vault.db.page(protection==='public'?'public':undefined,next,20);next=page.next
+      for(const header of page.items){if(protection==='protected'&&(header.scope==='public'||allowedScopes&&!allowedScopes.has(header.scope))||header.alias?.endsWith(':thumbnail')||!vault.keys.isUnlocked(header.scope)||access&&!await access.libraryKeyVisible(header.alias))continue
+        const info=await vault.assets.info(header);if(!['image','audio','video','document'].includes(info.kind))continue
+        let type:string=info.kind,thumbnail:string|undefined,name=info.name
+        const imageId=info.kind==='image'?(info.sourceId||/^picture(?::)?image-gen(?::)?([a-f0-9-]{36})/.exec(header.alias||'')?.[1]):undefined
+        if(imageId){const record=await platform.getImageGenerationStorage().getById(imageId);if(record){const index=record.generatedImages.findIndex(key=>key===header.alias||key.replaceAll(':','')===header.alias?.replaceAll(':',''));thumbnail=record.generatedImageThumbnails?.[Math.max(index,0)];name=record.prompt.slice(0,100)||name}}
+        const mediaId=info.kind!=='image'?(info.sourceId||/^venice-media(?::)?([a-f0-9-]{36})/.exec(header.alias||'')?.[1]):undefined
+        if(mediaId){const record=await vault.media?.get(mediaId);if(record)type=record.kind}
+        if(category!=='all'&&type!==category&&!(category==='audio'&&['speech','music','sound-effects','voice-conversion','audio'].includes(type)))continue
+        await access?.assertLibraryKey(header.alias);items.push({id:'vault:'+header.id,name,kind:info.kind as ContentKind,key:`vault-asset-${header.id}`,mime:info.mime,thumbnail,category:type,scope:header.scope,bytes:header.bytes,alias:header.alias,sourceId:imageId||mediaId})
+      }scanned+=page.items.length
+    }while(next!==null&&items.length<20&&scanned<1000)
+    return {items,next}
   }
   if(kind==='image'){
     const storage=platform.getImageGenerationStorage();await storage.initialize();const page=await storage.getPage(cursor,20)
@@ -29,6 +40,13 @@ export async function localLibraryPage(kind:LibraryKind,cursor=0,protection:'pub
   const keys=(await platform.listStoreBlobKeys()).filter(key=>key.startsWith('file:'))
   if(access)for(let n=keys.length-1;n>=0;n--)if(!await access.libraryKeyVisible(keys[n]))keys.splice(n,1)
   return {items:keys.slice(cursor,cursor+20).map(key=>({id:key,name:'Saved text attachment',kind,key,mime:'text/plain'})),next:cursor+20<keys.length?cursor+20:null}
+}
+export async function moveLibraryItem(item:LocalLibraryItem,target:string){
+ const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform)
+ await vault.keys.key(target);await vault.projects.assertLibraryKey(item.alias||item.key)
+ if(item.sourceId&&item.kind==='image'){const storage=platform.getImageGenerationStorage();if(await storage.getById(item.sourceId)){await storage.update(item.sourceId,{protection:target==='public'?undefined:target});vault.keys.refresh();return}}
+ if(item.sourceId&&await vault.media?.get(item.sourceId)){await vault.media.setProtection(item.sourceId,target==='public'?undefined:target);vault.keys.refresh();return}
+ await vault.assets.rewrap(item.key,target);vault.keys.refresh()
 }
 export async function localLibraryFile(item:LocalLibraryItem):Promise<File> {
   const access=installedVaultFor(platform)?.projects

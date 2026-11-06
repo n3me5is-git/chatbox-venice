@@ -4,7 +4,7 @@ import type { HTMLAttributes, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Drawer } from 'vaul'
 import { useIsSmallScreen } from '@/hooks/useScreenChange'
-import { Modal, useOverlayManager } from '../layout/Overlay'
+import { Modal, Drawer as ManagedDrawer } from '../layout/Overlay'
 
 export interface AdaptiveModalProps extends Omit<MantineModalProps, 'opened' | 'onClose'> {
   opened: boolean
@@ -13,33 +13,15 @@ export interface AdaptiveModalProps extends Omit<MantineModalProps, 'opened' | '
 
 export function AdaptiveModal({ opened, onClose, onExitTransitionEnd, children, title, ...props }: AdaptiveModalProps) {
   const isSmallScreen = useIsSmallScreen()
-  useOverlayManager(isSmallScreen && opened)
 
   if (isSmallScreen) {
     return (
-      <Drawer.Root open={opened} onOpenChange={(open) => !open && onClose()} noBodyStyles repositionInputs={false}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-chatbox-background-mask-overlay" />
-          <Drawer.Content
-            className="flex flex-col h-fit fixed bottom-0 left-0 right-0 outline-none bg-chatbox-background-primary rounded-t-lg"
-            onAnimationEnd={(event) => {
-              if (event.target === event.currentTarget && !opened) onExitTransitionEnd?.()
-            }}
-          >
-            <Drawer.Handle />
-            <Stack gap="md" p="sm" className="max-h-[85vh] overflow-y-auto">
-              {title && typeof title === 'string' && (
-                <Text size="md" fw={600} className="text-center">
-                  {title}
-                </Text>
-              )}
-              {title && typeof title !== 'string' && <div>{title}</div>}
-              {children}
-            </Stack>
-            <div className="h-[--mobile-safe-area-inset-bottom] min-h-4" />
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
+      <ManagedDrawer opened={opened} onClose={onClose} title={title} position="bottom" size="auto"
+        onExitTransitionEnd={onExitTransitionEnd} closeOnEscape={props.closeOnEscape} closeOnClickOutside={props.closeOnClickOutside}
+        styles={{content:{maxHeight:'92dvh',display:'flex',flexDirection:'column',borderRadius:'16px 16px 0 0'},
+          header:{flexShrink:0},body:{minHeight:0,overflowY:'auto',overscrollBehavior:'contain',touchAction:'pan-y',paddingBottom:'max(16px, env(safe-area-inset-bottom))'}}}>
+        {children}
+      </ManagedDrawer>
     )
   }
 

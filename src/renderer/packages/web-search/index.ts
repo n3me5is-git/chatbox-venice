@@ -1,3 +1,4 @@
+import {forkT as ft} from '@/i18n/fork'
 import { veniceCredentialRevision } from '@/packages/venice/models'
 import { cachified } from '@epic-web/cachified'
 import type { SearchResultItem } from '@shared/types'
@@ -30,7 +31,7 @@ function getSearchProviders() {
   switch (provider) {
     case 'venice': {
       const configured = settingsStore.getState().getSettings().providers?.venice
-      if (!configured?.apiKey || configured.venice?.enabled === false) throw new Error('Configura e abilita Venice nelle impostazioni dei provider.')
+      if (!configured?.apiKey || configured.venice?.enabled === false) throw new Error(ft('Configure and enable Venice in provider settings.'))
       selectedProviders.push(new VeniceSearch(configured.apiKey, configured.apiHost, settings.webSearch.veniceSearchProvider || 'brave'))
       break
     }

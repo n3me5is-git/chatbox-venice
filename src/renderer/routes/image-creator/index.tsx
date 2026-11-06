@@ -1,3 +1,6 @@
+import { ProtectedPreviewGate } from '@/components/security/ProtectedPreviewGate'
+import { chooseUploadSource } from '@/components/local-library/UploadSource'
+import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { CreationUnlock } from '@/components/security/CreationUnlock'
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceImageEditor } from '@/components/venice/VeniceImageEditor'
@@ -240,6 +243,8 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   const allImageModelGroups = useImageModelGroups()
   const imageModelGroups = useMemo(() => onlyVenice ? allImageModelGroups.filter(group => group.providerId === 'venice') : allImageModelGroups, [allImageModelGroups, onlyVenice])
   const Frame = embedded ? ImageCreatorEmbeddedFrame : Page
+  const [imageSettingsOpen,setImageSettingsOpen]=useState(false)
+  const uploadSource=()=>chooseUploadSource({device:()=>fileInputRef.current?.click(),accept:'image/png,image/jpeg,image/webp',multiple:true,onLocal:files=>void handleImageUpload(files)})
   const [batchCount, setBatchCount] = useState(1)
   const [saveProtected,setSaveProtected]=useState(false)
   const vault=vaultRuntimeFor(platform)
@@ -504,12 +509,12 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
         {/* Main Content Area */}
         <Flex direction="column" flex={1} h="100%" className="overflow-hidden relative">
           {/* Results Area */}
-          <ScrollArea flex={1} type="auto" offsetScrollbars={!isSmallScreen}>
+          <ScrollArea flex={1} mih={160} type="auto" offsetScrollbars={!isSmallScreen}>
             <Box maw={900} mx="auto" py="xl" px="md" className="min-h-full">
               {!currentRecord && <EmptyState onPromptSelect={handleQuickPromptSubmit} />}
 
               {currentRecord && (
-                <Stack gap="lg" className="animate-in fade-in duration-300">
+                <ProtectedPreviewGate key={currentRecord.id} scope={currentRecord.protection}><Stack gap="lg" className="animate-in fade-in duration-300">
                   {currentRecord.status === 'generating' && currentRecord.generatedImages.length === 0 && (
                     <LoadingShimmer />
                   )}
@@ -562,13 +567,13 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                       isRetrying={isCurrentlyGenerating}
                     />
                   )}
-                </Stack>
+                </Stack></ProtectedPreviewGate>
               )}
             </Box>
           </ScrollArea>
 
           {/* Input Area */}
-          <Box py="md" px="sm">
+          <Box py="xs" px="sm" style={{flexShrink:0,maxHeight:'42dvh',overflowY:'auto',overscrollBehavior:'contain',touchAction:'pan-y'}}>
             <Stack gap="sm" maw={800} mx="auto">
               {!currentRecord && welcomeCardMode !== 'none' && (
                 <ChatboxWelcomeCard mode={welcomeCardMode} pageName={JK_PAGE_NAMES.IMAGE_PAGE} />
@@ -577,10 +582,8 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
               <ReferenceImagesPreview
                 images={referenceImages}
                 onRemove={handleRemoveReferenceImage}
-                onAddClick={() => fileInputRef.current?.click()}
+                onAddClick={uploadSource}
               />
-
-              <Button size="xs" variant="subtle" onClick={() => { void import('@/components/local-library/LocalMediaPicker').then(module => module.pickLocalMedia({accept:'image/png,image/jpeg,image/webp',multiple:true})).then(files => { if(files.length) return handleImageUpload(files) }).catch(() => toastActions.add(ft("Unable to read the local library"))) }}>{ft("Choose from local library")}</Button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -631,12 +634,6 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                           '&:focus': { border: 'none', boxShadow: 'none' },
                         },
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          void handleSubmit()
-                        }
-                      }}
                     />
 
                     {/* Send / Stop Button */}
@@ -654,13 +651,16 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                     </ActionIcon>
                   </Flex>
 
-                  {selectedProvider === ModelProviderEnum.Venice && <><VeniceBalance /><VeniceImageSettings /></>}
+                  {selectedProvider === ModelProviderEnum.Venice && <VeniceBalance />}
+                  <Button size="xs" variant="subtle" onClick={()=>setImageSettingsOpen(true)}>{ft('Image settings')}</Button>
+                  <AdaptiveModal opened={imageSettingsOpen} onClose={()=>setImageSettingsOpen(false)} title={ft('Image settings')} size="lg"><Stack>{selectedProvider===ModelProviderEnum.Venice&&<VeniceImageSettings/>}
 
                   {/* Toolbar Row */}
                   <Checkbox label={ft('Save new creations as protected')} checked={saveProtected} onChange={event=>setSaveProtected(event.currentTarget.checked)}/>
                   {saveProtected&&!vault.keys.isUnlocked('app')&&<ScopeUnlock keys={vault.keys}/>}
                   <Group justify="space-between" align="end" wrap="wrap"><NumberInput label={ft('Images per request')} description={ft("Each image may incur a cost")} min={1} max={4} value={batchCount} onChange={value => setBatchCount(Math.min(4, Math.max(1, Number(value) || 1)))} w={170} />
                   {selectedProvider === 'venice' && <><VeniceModelBadges metadata={selectedOption?.vendorMetadata} /><VeniceModelInfo model={selectedOption ? { id: selectedModel, type: String(selectedOption.vendorMetadata?.veniceType || 'image'), model_spec: selectedOption.vendorMetadata } : undefined} /></>}</Group>
+                  </Stack></AdaptiveModal>
                   <InputToolbar
                     isSmallScreen={isSmallScreen}
                     modelGroups={imageModelGroups}
@@ -671,7 +671,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                     onRatioDrawerOpen={() => setShowRatioDrawer(true)}
                     onRatioSelect={setSelectedRatio}
                     onModelSelect={handleModelSelect}
-                    onAddReference={() => fileInputRef.current?.click()}
+                    onAddReference={uploadSource}
                     onNewCreation={handleNewCreation}
                   />
                 </Stack>

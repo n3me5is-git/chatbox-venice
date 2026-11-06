@@ -1,5 +1,4 @@
 import { forkT as ft } from '@/i18n/fork'
-import { VeniceSessionApprovalButton } from '@/components/venice/VeniceSessionApprovalButton'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { MAX_CHAT_IMAGE_ATTACHMENTS } from '@chatbox/core/application/attachments'
 import { listPendingPauseInteractions } from '@chatbox/core/message-approval'
@@ -1687,7 +1686,6 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
               )}
 
             {(model?.provider === 'venice' || (webBrowsingMode && globalSearchProvider === 'venice')) && <VeniceBalance />}
-            {model?.provider === 'venice' && currentSessionId && currentSessionId !== 'new' && <VeniceSessionApprovalButton sessionId={currentSessionId} />}
             {/* Work Mode status row: approval policy + working directories, always visible
                 above the input with their own in-place menus (mirrors the mode panel). */}
             {platform.isDesktopLike && agentModeUIState.isActive && (

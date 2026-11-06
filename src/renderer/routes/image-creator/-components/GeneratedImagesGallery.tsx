@@ -218,7 +218,7 @@ function GeneratedImageGalleryItem({
   // Desktop: dynamic size based on actual aspect ratio with contain fit
   const displayWidth = isSmallScreen ? MOBILE_SIZE : (imageData?.displayWidth ?? 320)
   const displayHeight = isSmallScreen ? MOBILE_SIZE : (imageData?.displayHeight ?? MAX_HEIGHT)
-  const imageFit = isSmallScreen ? 'cover' : 'contain'
+  const imageFit = 'contain'
 
   const handleDownload = useCallback(
     (e: React.MouseEvent) => {

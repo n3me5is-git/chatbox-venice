@@ -1,4 +1,7 @@
-import { Badge, Button, Flex, Stack, Text, TextInput } from '@mantine/core'
+import {forkT as ft} from '@/i18n/fork'
+import { VeniceModelBadges } from './venice/VeniceModelBadges'
+import { privacyLabels } from '@shared/providers/definitions/models/venice/media-capabilities'
+import { Badge, Button, Flex, Select, Group, Stack, Text, TextInput } from '@mantine/core'
 import { AutomationAdjacentAttr, TestId } from '@shared/automation/testids'
 import type { ProviderModelInfo } from '@shared/types'
 import { formatNumber } from '@shared/utils'
@@ -44,16 +47,19 @@ export function ModelList({
 }: ModelListProps) {
   const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
+  const [category,setCategory]=useState('all'),[privacy,setPrivacy]=useState('all')
+  const hasVenice=models.some(model=>!!model.vendorMetadata?.veniceType)
+  const filteredCatalog=models.filter(model=>(category==='all'||(model.type||'chat')===category)&&(privacy==='all'||privacyLabels(model.vendorMetadata).some(item=>privacy==='e2ee'?item.label==='E2EE capable':privacy==='tee'?item.label==='TEE available':privacy==='uncensored'?item.label==='Uncensored':privacy==='private'?item.label==='Private':item.label==='Anonymized')))
 
   const filteredModels = useMemo(() => {
-    if (!searchQuery.trim()) return models
+    if (!searchQuery.trim()) return filteredCatalog
 
     const query = searchQuery.toLowerCase()
-    return models.filter((model) => {
+    return filteredCatalog.filter((model) => {
       const displayName = (model.nickname || model.modelId).toLowerCase()
       return displayName.includes(query)
     })
-  }, [models, searchQuery])
+  }, [models, searchQuery, category, privacy])
 
   const formatTokenCount = (count?: number) => {
     if (!count) return null
@@ -62,6 +68,7 @@ export function ModelList({
 
   return (
     <Stack gap="sm" className={className}>
+      {hasVenice&&<Group grow><Select comboboxProps={{withinPortal:false}} label={ft('Model type')} value={category} onChange={value=>setCategory(value||'all')} data={[{value:'all',label:ft('All types')},...Array.from(new Set(models.map(model=>model.type||'chat'))).map(value=>({value,label:ft(value==='chat'?'Chat':value==='image'?'Images':'Embeddings')}))]}/><Select comboboxProps={{withinPortal:false}} label={ft('Privacy and filters')} value={privacy} onChange={value=>setPrivacy(value||'all')} data={[{value:'all',label:ft('All privacy levels')},{value:'private',label:ft('Private')},{value:'anonymous',label:ft('Anonymized')},{value:'tee',label:ft('TEE available')},{value:'e2ee',label:ft('E2EE capable')},{value:'uncensored',label:ft('Uncensored')}]}/></Group>}
       {showSearch && models.length > 0 && (
         <TextInput
           placeholder={t('Search models...') as string}
@@ -119,6 +126,7 @@ export function ModelList({
                   )}
                 </Flex>
 
+                <VeniceModelBadges metadata={model.vendorMetadata}/>
                 {(model.type !== 'chat' || model.capabilities?.length || model.contextWindow || model.maxOutput) && (
                   <Flex gap="xs" align="center" wrap="wrap">
                     {model.type && model.type !== 'chat' && <Badge color="blue">{t(capitalize(model.type))}</Badge>}

@@ -942,6 +942,15 @@ ipcMain.handle('getLocale', () => {
   }
 })
 ipcMain.handle('openLink', async (event, link, options?: { browser?: string }) => {
+  if(options?.browser==='internal'){
+    if(event.sender!==mainWindow?.webContents)throw new Error('Untrusted documentation request')
+    const url=new URL(link)
+    if(url.protocol!=='https:'||!['docs.venice.ai','venice.ai'].includes(url.hostname))throw new Error('Unsupported documentation URL')
+    const view=new BrowserWindow({parent:mainWindow!,modal:true,width:1000,height:800,autoHideMenuBar:true,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,partition:'venice-documentation'}})
+    view.webContents.setWindowOpenHandler(({url:target})=>{if(/^https:\/\//.test(target))void shell.openExternal(target);return {action:'deny'}})
+    view.webContents.on('will-navigate',(navigation,target)=>{try{const parsed=new URL(target);if(parsed.protocol==='https:'&&['docs.venice.ai','venice.ai'].includes(parsed.hostname))return}catch{}navigation.preventDefault()})
+    await view.loadURL(url.href);return
+  }
   if (options?.browser !== 'chrome') return shell.openExternal(link)
   const url = new URL(link)
   if (url.protocol !== 'https:') throw new Error('Chrome documentation links require HTTPS')

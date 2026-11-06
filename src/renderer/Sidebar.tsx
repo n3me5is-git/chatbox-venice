@@ -1,3 +1,4 @@
+import {forkT as ft} from '@/i18n/fork'
 import { registerPlugin } from '@capacitor/core'
 import { Box, Button, Flex, Image, NavLink, Stack, Text } from '@mantine/core'
 import SwipeableDrawer from '@mui/material/SwipeableDrawer'
@@ -264,6 +265,7 @@ export default function Sidebar() {
             icon={IconPhotoPlus}
             onClick={handleCreateNewPictureSession}
           />
+          <SidebarNavRow label={ft('Local media library')} icon={IconPhotoPlus} onClick={() => { navigate({ to: '/library' }); closeOnSmallScreen() }} />
           {showVeniceStudio && <SidebarNavRow label="Venice Studio" icon={IconPhotoPlus} onClick={() => { navigate({ to: '/venice' }); closeOnSmallScreen() }} />}
           <SidebarNavRow
             label={t('My Copilots')}

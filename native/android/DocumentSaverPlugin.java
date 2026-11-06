@@ -17,6 +17,28 @@ import java.io.OutputStream;
 @CapacitorPlugin(name = "DocumentSaver")
 public class DocumentSaverPlugin extends Plugin {
     @PluginMethod
+    public void openDocumentation(PluginCall call) {
+        String url=call.getString("url", ""); Uri uri=Uri.parse(url);
+        if (!"https".equals(uri.getScheme()) || !("docs.venice.ai".equals(uri.getHost()) || "venice.ai".equals(uri.getHost()) && uri.getPath()!=null && uri.getPath().startsWith("/models"))) { call.reject("Unsupported documentation URL"); return; }
+        getActivity().runOnUiThread(()->{
+            android.app.Dialog dialog=new android.app.Dialog(getActivity());
+            android.widget.LinearLayout layout=new android.widget.LinearLayout(getActivity());layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+            android.widget.LinearLayout toolbar=new android.widget.LinearLayout(getActivity());
+            android.widget.Button close=new android.widget.Button(getActivity());close.setText(call.getString("close","Close"));close.setOnClickListener(v->dialog.dismiss());toolbar.addView(close);
+            android.widget.Button chrome=new android.widget.Button(getActivity());chrome.setText(call.getString("browser","Open in Chrome"));toolbar.addView(chrome);
+            android.webkit.WebView view=new android.webkit.WebView(getActivity());
+            view.getSettings().setJavaScriptEnabled(true);view.getSettings().setDomStorageEnabled(true);view.getSettings().setAllowFileAccess(false);view.getSettings().setAllowContentAccess(false);view.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+            view.setWebViewClient(new android.webkit.WebViewClient(){
+                @Override public boolean shouldOverrideUrlLoading(android.webkit.WebView web,android.webkit.WebResourceRequest request){Uri target=request.getUrl();if("https".equals(target.getScheme()) && ("docs.venice.ai".equals(target.getHost()) || "venice.ai".equals(target.getHost()) && target.getPath()!=null && target.getPath().startsWith("/models")))return false;return true;}
+            });
+            chrome.setOnClickListener(v->{try{Intent intent=new Intent(Intent.ACTION_VIEW,Uri.parse(view.getUrl()==null?url:view.getUrl()));intent.setPackage("com.android.chrome");getActivity().startActivity(intent);}catch(Exception ignored){android.widget.Toast.makeText(getActivity(),call.getString("unavailable","Chrome is unavailable"),android.widget.Toast.LENGTH_SHORT).show();}});
+            layout.addView(toolbar);layout.addView(view,new android.widget.LinearLayout.LayoutParams(-1,0,1));dialog.setContentView(layout);
+            dialog.setOnKeyListener((d,key,event)->{if(key==android.view.KeyEvent.KEYCODE_BACK && event.getAction()==android.view.KeyEvent.ACTION_UP){if(view.canGoBack())view.goBack();else dialog.dismiss();return true;}return false;});
+            dialog.setOnDismissListener(d->{view.stopLoading();view.destroy();call.resolve();});
+            dialog.show();dialog.getWindow().setLayout(-1,-1);view.loadUrl(url);
+        });
+    }
+    @PluginMethod
     public void openInChrome(PluginCall call) {
         String url = call.getString("url");
         if (url == null || !"https".equals(Uri.parse(url).getScheme())) { call.reject("Only HTTPS documentation links are allowed"); return; }

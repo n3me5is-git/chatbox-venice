@@ -1,4 +1,4 @@
-import { isSoundEffectsModel } from './media-capabilities'
+import { mediaCategory, isSoundEffectsModel } from './media-capabilities'
 import type { ToolSet } from 'ai'
 import { validatedToolSchema } from '../../../../validated-tool-schema'
 import { parseExtraBody } from '../../../../models/utils/extra-body'
@@ -21,9 +21,9 @@ export function buildVeniceMediaTools(sessionId: string, service: Service, setti
       const allowed = () => { abortSignal?.throwIfAborted(); if (settings().enabled === false || settings().chatToolsEnabled === false) throw new Error('Venice chat media tools are disabled') }
       allowed()
       if (input.action === 'catalog') {
-        const rows = (await service.catalog()).filter(row => row.model_spec?.voice_changer!==true && ['tts', 'asr', 'video', 'music'].includes(row.type) && (!input.kind || row.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : input.kind === 'sound-effects' ? 'music' : input.kind)) && (input.kind !== 'sound-effects' || isSoundEffectsModel(row)) && (input.kind !== 'music' || !isSoundEffectsModel(row)) && (!input.model || row.id === input.model))
+        const rows = (await service.catalog()).filter(row => row.model_spec?.voice_changer!==true && ['tts', 'asr', 'video', 'music'].includes(row.type) && (!input.kind || mediaCategory(row) === input.kind) && (input.kind !== 'sound-effects' || isSoundEffectsModel(row)) && (input.kind !== 'music' || !isSoundEffectsModel(row)) && (!input.model || row.id === input.model))
         const visible = rows.filter(row => settings().showOtherModels || settings().mediaModelIds === undefined || settings().mediaModelIds?.includes(row.id))
-        return input.model ? visible : visible.map(row => ({ id: row.id, type: row.type, kind: row.type === 'music' && isSoundEffectsModel(row) ? 'sound-effects' : row.type, name: row.model_spec?.name, privacy: row.model_spec?.privacy }))
+        return input.model ? visible : visible.map(row => ({ id: row.id, type: row.type, kind: mediaCategory(row), name: row.model_spec?.name, privacy: row.model_spec?.privacy }))
       }
       if (input.action === 'list') return (await service.list()).filter(r => r.sessionId === sessionId).map(summary)
       if (input.action === 'generate' || input.action === 'quote') {

@@ -1,30 +1,48 @@
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
 import { registerPlugin } from '@capacitor/core'
-import { Accordion, Alert, Button, Code, Group, Modal, ScrollArea, Stack, Text, Title } from '@mantine/core'
+import { Accordion, Alert, Button, Code, Group, Paper, Stack, Text, Title } from '@mantine/core'
 import { useState } from 'react'
 import type { MediaCatalogItem } from '@shared/providers/definitions/models/venice/media'
+import { mediaCategory } from '@shared/providers/definitions/models/venice/media-capabilities'
 import platform from '@/platform'
+import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { VeniceModelBadges } from './VeniceModelBadges'
-const paths: Record<string, string> = { text: 'chat/completions', image: 'image/generate', inpaint: 'image/multi-edit', tts: 'audio/speech', asr: 'audio/transcriptions', video: 'video/queue', music: 'audio/queue', embedding: 'embeddings/create' }
-export function VeniceModelInfo({ model }: { model?: MediaCatalogItem }) {
-  useTranslation()
-  const [opened, setOpened] = useState(false); const [browser, setBrowser] = useState<string | null>(null); const [error, setError] = useState('')
-  if (!model) return null
-  const spec = model.model_spec; const docs = `https://docs.venice.ai/api-reference/endpoint/${paths[model.type] || 'models/list'}`
-  const card = `https://venice.ai/models/${encodeURIComponent(model.id)}`
-  return <><Button size="xs" variant="subtle" onClick={() => setOpened(true)}>{ft("Model details and options")}</Button>
-    <Modal opened={opened} onClose={() => { setOpened(false); setBrowser(null) }} title={spec?.name || model.id} size="xl" withinPortal>
-      <Stack gap="sm"><Text size="xs" c="dimmed">{model.id} · {model.type}</Text><VeniceModelBadges metadata={spec} />
-        {spec?.description && <Text>{spec.description}</Text>}
-        <Text size="sm">{ft("Privacy, filters, pricing and parameters are declared by Venice. A missing option is not a verified capability.")}</Text>
-        <Group><Button size="xs" onClick={() => setBrowser(card)}>{ft("Venice model page")}</Button><Button size="xs" variant="default" onClick={() => setBrowser(docs)}>{ft("API documentation")}</Button>
-        <Button size="xs" variant="subtle" onClick={() => void platform.openLink(browser || card)}>{ft("Open in browser")}</Button>
-        {(platform.isDesktopLike || platform.type === 'mobile') && <Button size="xs" variant="subtle" onClick={() => { setError(''); void (platform.isDesktopLike ? window.electronAPI.invoke('openLink', browser || card, { browser: 'chrome' }) : registerPlugin<{ openInChrome(input: { url: string }): Promise<void> }>('DocumentSaver').openInChrome({ url: browser || card })).catch(() => setError(ft("Chrome is unavailable. Use Open in browser."))) }}>{ft("Open in Chrome")}</Button>}</Group>
-        {error && <Alert color="orange">{error}</Alert>}
-        {browser && <><Text size="xs" c="dimmed">{ft("If the site blocks embedded viewing, use Open in browser.")}</Text><iframe title={ft("Venice documentation")} src={browser} sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" style={{ width: '100%', height: '55dvh', border: 0 }} /></>}
-        <Title order={5}>{ft("Options allowed by the catalog")}</Title><ScrollArea mah={340}><Code block>{JSON.stringify(spec?.constraints || {}, null, 2)}</Code>
-        <Code block>{JSON.stringify(Object.fromEntries(Object.entries(spec || {}).filter(([key]) => /supports_|required|duration|format|voice|speed|prompt|lyrics|pricing|capabilities/.test(key))), null, 2)}</Code></ScrollArea>
-      </Stack>
-    </Modal></>
+import { categoryLabels } from './VeniceModelSelect'
+const paths: Record<string, string> = { text:'chat/completions',image:'image/generate',inpaint:'image/multi-edit',tts:'audio/speech',asr:'audio/transcriptions',video:'video/queue',music:'audio/queue',embedding:'embeddings/create' }
+const labels:Record<string,string>={input:'Input / 1M tokens',output:'Output / 1M tokens',cache_input:'Cached input / 1M tokens',generation:'Per generation',per_second:'Per second',durations:'Duration',usd:'USD',diem:'DIEM',aspect_ratios:'Aspect ratios',aspectRatios:'Aspect ratios',resolutions:'Resolution',model_type:'Generation mode',maxInputImages:'Maximum reference images',image_input:'Start image',video_input:'Source video',supports_end_image:'End frame',supports_reference_images:'Reference images',audio_input:'Audio input',audio_configurable:'Generate video audio',supported_formats:'File formats',voices:'Available voices',min_duration:'Minimum duration (seconds)',max_duration:'Maximum duration (seconds)',duration_options:'Duration (seconds)',prompt_character_limit:'Maximum prompt characters',lyrics_character_limit:'Maximum lyrics characters',min_prompt_length:'Minimum prompt characters',supports_lyrics:'Lyrics',lyrics_required:'Lyrics required',supports_force_instrumental:'Instrumental only',supports_loop:'Seamless loop',supports_speed:'Reading speed',supports_language_code:'Language selection',supports_lyrics_optimizer:'Automatic lyrics',supports_custom_voice_id:'Custom voice',supports_seed:'Reproducible variation (seed)',min_seconds:'Minimum seconds',max_seconds:'Maximum seconds'}
+const human=(key:string)=>ft(labels[key]||key.replace(/_/g,' ').replace(/([a-z])([A-Z])/g,'$1 $2'))
+function Facts({value,locale}:{value:Record<string,unknown>;locale:string}){
+ return <Stack gap={6}>{Object.entries(value).map(([key,item])=>{
+   if(item===undefined||item===null)return null
+   const name=human(key)
+   if(typeof item==='object'&&!Array.isArray(item))return <Paper key={key} withBorder p="xs" radius="sm"><Text size="sm" fw={600} mb={5}>{name}</Text><Facts value={item as Record<string,unknown>} locale={locale}/></Paper>
+   const text=typeof item==='boolean'?ft(item?'Supported':'Not supported'):['usd','diem'].includes(key)&&typeof item==='number'?new Intl.NumberFormat(locale,{maximumFractionDigits:6}).format(item)+' '+key.toUpperCase():Array.isArray(item)?item.map(String).join(' · '):String(item)
+   return <Group key={key} justify="space-between" align="start" wrap="wrap"><Text size="sm" c="dimmed">{name}</Text><Text size="sm" fw={500} style={{overflowWrap:'anywhere',maxWidth:'100%'}}>{text}</Text></Group>
+ })}</Stack>
+}
+export async function openVeniceDocumentation(url:string){
+ if(platform.type==='mobile')return registerPlugin<{openDocumentation(input:{url:string;close:string;browser:string;unavailable:string}):Promise<void>}>('DocumentSaver').openDocumentation({url,close:ft('Close'),browser:ft('Open in Chrome'),unavailable:ft('Chrome is unavailable. Use Open in browser.')})
+ if(platform.isDesktopLike)return window.electronAPI.invoke('openLink',url,{browser:'internal'})
+ return platform.openLink(url)
+}
+export function VeniceModelInfo({model}:{model?:MediaCatalogItem}){
+ const {i18n}=useTranslation();const [opened,setOpened]=useState(false),[error,setError]=useState('')
+ if(!model)return null
+ const spec=model.model_spec||{},locale=i18n.resolvedLanguage||i18n.language||'en'
+ const docs=`https://docs.venice.ai/api-reference/endpoint/${paths[model.type]||'models/list'}`
+ const card='https://venice.ai/models'
+ const open=(url:string)=>{setError('');void openVeniceDocumentation(url).catch(()=>setError(ft('Unable to open documentation. Use Open in browser.')))}
+ const options=Object.fromEntries(Object.entries(spec).filter(([key])=>/^(supports_|min_|max_|default_|duration|supported_formats|voices|lyrics_required|prompt_character_limit|lyrics_character_limit|accepted_audio)/.test(key)))
+ return <><Button size="xs" variant="subtle" onClick={()=>setOpened(true)}>{ft('Model details and options')}</Button>
+ <AdaptiveModal opened={opened} onClose={()=>setOpened(false)} title={spec.name||model.id} size="lg"><Stack gap="md">
+   <Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{model.id} · {ft(categoryLabels[mediaCategory(model)]||model.type)}</Text>
+   <VeniceModelBadges metadata={spec}/>{spec.description&&<Text size="sm">{spec.description}</Text>}
+   <Text size="xs" c="dimmed">{ft('Privacy, filters, pricing and parameters are declared by Venice. A missing option is not a verified capability.')}</Text>
+   <Group><Button size="xs" onClick={()=>open(docs)}>{ft('API documentation')}</Button><Button size="xs" variant="default" onClick={()=>open(card)}>{ft('Venice model library')}</Button><Button size="xs" variant="subtle" onClick={()=>void platform.openLink(docs)}>{ft('Open in browser')}</Button></Group>
+   {error&&<Alert color="orange">{error}</Alert>}
+   <Title order={5}>{ft('Pricing')}</Title>{spec.pricing?<Facts value={spec.pricing} locale={locale}/>:<Text size="sm" c="dimmed">{ft('Pricing is not declared in this catalog. Use Show cost before generating queued media.')}</Text>}
+   <Title order={5}>{ft('Options allowed by the catalog')}</Title><Facts value={{...spec.constraints,...options}} locale={locale}/>
+   <Accordion><Accordion.Item value="raw"><Accordion.Control>{ft('Technical catalog data')}</Accordion.Control><Accordion.Panel><Code block style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(spec,null,2)}</Code></Accordion.Panel></Accordion.Item></Accordion>
+ </Stack></AdaptiveModal></>
 }

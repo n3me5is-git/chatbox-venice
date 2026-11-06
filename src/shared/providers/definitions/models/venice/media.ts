@@ -1,4 +1,4 @@
-import { validateMediaRequest } from './media-capabilities'
+import { mediaCategory, validateMediaRequest } from './media-capabilities'
 import { privacyAllowed, requireModelPrivacy } from './privacy'
 import { v4 as uuid } from 'uuid'
 import type { RequestAdapter } from '../../../../types/adapters'
@@ -109,7 +109,7 @@ export class VeniceMediaService {
   async quote(input: MediaInput) {
     const config = this.config(input.kind)
     if (config.options.privacyFilter && config.options.privacyFilter !== 'all') requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === input.model)?.model_spec, config.options.privacyFilter)
-    if (!['video', 'music', 'sound-effects', 'voice-conversion'].includes(input.kind)) throw new Error('Quotes are available for video, music, sound effects and voice conversion')
+    if (!['video', 'music', 'sound-effects', 'voice-conversion'].includes(input.kind) && !(input.kind==='speech' && (await this.cachedCatalog()).some(item=>item.id===input.model&&item.type==='music'&&mediaCategory(item)==='speech'))) throw new Error('Quotes are available for queued media models')
     const allowed = input.kind === 'video' ? ['duration', 'aspect_ratio', 'resolution', 'audio', 'video_url', 'upscale_factor'] : ['duration_seconds', 'character_count']
     const merged = mergeExtraBody({ model: input.model }, input.options || {})
     if (typeof merged.model !== 'string' || !merged.model.trim()) throw new Error('Choose a model')
@@ -129,7 +129,9 @@ export class VeniceMediaService {
     if (input.kind === 'voice-conversion' && !input.file) throw new Error('Choose an audio recording to convert')
     const body = mergeExtraBody(input.kind === 'speech' ? { model: input.model, input: input.prompt } : { model: input.model, prompt: input.prompt }, input.options || {})
     if (typeof body.model !== 'string' || !body.model.trim()) throw new Error('The request model must be a non-empty string')
-    const known = (await this.cachedCatalog()).find(item => item.id === body.model && item.type === (input.kind === 'speech' ? 'tts' : input.kind === 'transcription' ? 'asr' : ['sound-effects','voice-conversion'].includes(input.kind) ? 'music' : input.kind))
+    const known = (await this.cachedCatalog()).find(item => item.id === body.model && mediaCategory(item) === input.kind)
+    const queuedSpeech=input.kind==='speech'&&known?.type==='music'
+    if(queuedSpeech){body.prompt=body.input;delete body.input}
     requireModelPrivacy(known?.model_spec, config.options.privacyFilter)
     validateMediaRequest(input.kind, body, known)
     if(input.kind==='voice-conversion'&&input.durationSeconds!==undefined&&(!Number.isFinite(input.durationSeconds)||input.durationSeconds<=0||input.durationSeconds>Number(known?.model_spec?.max_source_audio_duration_seconds||300)))throw new Error('The source recording exceeds this model’s supported duration')
@@ -141,7 +143,7 @@ export class VeniceMediaService {
     if (input.signal?.aborted) controller.abort()
     try {
       controller.signal.throwIfAborted()
-      if (['video','music','sound-effects','voice-conversion'].includes(input.kind)) {
+      if (queuedSpeech || ['video','music','sound-effects','voice-conversion'].includes(input.kind)) {
         let payload: Record<string, unknown> | FormData = body
         if (input.kind === 'voice-conversion') {
           if (known?.model_spec?.voice_changer !== true) throw new Error('Choose a voice-conversion model from the current Venice catalog')

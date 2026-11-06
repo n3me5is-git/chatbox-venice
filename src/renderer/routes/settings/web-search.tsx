@@ -91,7 +91,7 @@ export function RouteComponent() {
 
   return (
     <SettingsPage title={t('Web Search')} description={t('The search service used when a model searches the web.')}>
-      <SettingsSection title={t('Search Provider')}>
+      <Text size="sm" c="dimmed">{ft("This is the Chatbox search tool, available to models with tool calling. For Venice model search, choose when to search, the engine and citations in Settings → Providers → Venice → Search.")}</Text><SettingsSection title={t('Search Provider')}>
         <SettingRow
           id="search-provider"
           label={t('Search Provider')}
@@ -109,7 +109,7 @@ export function RouteComponent() {
             />
           )}
         />
-        {provider === 'venice' && <SettingRow id="venice-search" label="Motore tramite Venice" description={ft("Uses your Venice provider key. Searches go through Venice and may incur a cost.")} control={<Select allowDeselect={false} value={webSearch.veniceSearchProvider || 'brave'} data={['brave', 'google', 'exa'].map(value => ({ value, label: value === 'exa' ? 'Exa' : value === 'brave' ? 'Brave' : 'Google' }))} onChange={value => value && updateWebSearch({ veniceSearchProvider: value as 'brave' | 'google' | 'exa' })} />} />}
+        {provider === 'venice' && <SettingRow id="venice-search" label={ft("Search engine through Venice")} description={ft("Uses your Venice provider key. Searches go through Venice and may incur a cost.")} control={<Select allowDeselect={false} value={webSearch.veniceSearchProvider || 'brave'} data={['brave', 'google', 'exa'].map(value => ({ value, label: value === 'exa' ? 'Exa' : value === 'brave' ? 'Brave' : 'Google' }))} onChange={value => value && updateWebSearch({ veniceSearchProvider: value as 'brave' | 'google' | 'exa' })} />} />}
         {provider === 'searxng' && (
           <CheckedFieldRow
             key="searxng"

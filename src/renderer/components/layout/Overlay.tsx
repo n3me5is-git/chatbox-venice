@@ -1,15 +1,19 @@
 import { Drawer as MantineDrawer, Modal as MantineModal } from '@mantine/core'
 import { atom, useAtomValue, useSetAtom } from 'jotai'
-import { useEffect, useId } from 'react'
+import { useEffect, useId, useRef } from 'react'
+import { registerBackSurface } from '@/packages/overlay-back'
 
 // Global overlay stack management
 export const overlayStackAtom = atom<string[]>([])
 
 // Custom Hook to manage any overlay component
-export const useOverlayManager = (opened?: boolean) => {
+export const useOverlayManager = (opened?: boolean, onClose?: () => void) => {
   const id = useId()
   const stack = useAtomValue(overlayStackAtom)
   const setStack = useSetAtom(overlayStackAtom)
+  const close = useRef(onClose)
+  close.current = onClose
+  useEffect(() => opened && onClose ? registerBackSurface(id, () => close.current?.()) : undefined, [opened, !!onClose, id])
 
   useEffect(() => {
     if (opened) {
@@ -25,12 +29,12 @@ export const useOverlayManager = (opened?: boolean) => {
   return stack[stack.length - 1] === id
 }
 
-export function withOverlayManager<P extends { opened?: boolean; closeOnEscape?: boolean }>(
+export function withOverlayManager<P extends { opened?: boolean; closeOnEscape?: boolean; onClose?: () => void }>(
   Component: React.ComponentType<P>,
   displayName?: string
 ) {
   const WrappedComponent = (props: P) => {
-    const isTopOverlay = useOverlayManager(props.opened)
+    const isTopOverlay = useOverlayManager(props.opened, props.closeOnEscape === false ? () => {} : props.onClose)
 
     return <Component closeOnEscape={isTopOverlay} {...props} />
   }

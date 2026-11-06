@@ -1,3 +1,4 @@
+import { VeniceModelBadges } from '@/components/venice/VeniceModelBadges'
 import { VeniceModelInfo } from '@/components/venice/VeniceModelInfo'
 import { Badge, Button, Flex, Stack, Text, UnstyledButton } from '@mantine/core'
 import { ModelProviderEnum } from '@shared/types'
@@ -340,7 +341,7 @@ export function DetailCard({
           <Text size="sm" fw={750} c="chatbox-secondary">
             {t('Capabilities')}
           </Text>
-          <CapabilityIconRow capabilities={model.capabilities} />
+          <CapabilityIconRow capabilities={model.capabilities} /><VeniceModelBadges metadata={model.vendorMetadata}/>
         </Stack>
       )}
       {model.locked && (

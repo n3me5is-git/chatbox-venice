@@ -17,8 +17,8 @@ export function VeniceSearchSettings() {
   return <Stack gap="sm" p="sm">
     <Text size="sm" c="dimmed">{ft("Choose when to search the web for current information. You can select a different profile for each chat.")}</Text>
     <SimpleGrid cols={{ base: 1, sm: 2 }}>
-      <Select label={ft("When to search")} allowDeselect={false} value={options.webSearch ?? 'off'} data={[{ value: 'off', label: ft("Do not search") }, { value: 'auto', label: ft("When needed") }, { value: 'on', label: ft("For every message") }]} onChange={value => update({ webSearch: value as Options['webSearch'] })} />
-      <Select label={ft("Search engine")} allowDeselect={false} value={options.searchProvider ?? 'native'} data={[{ value: 'native', label: ft("Venice (built in)") }, { value: 'brave', label: 'Brave' }, { value: 'google', label: 'Google' }, { value: 'exa', label: 'Exa' }]} onChange={value => update({ searchProvider: value as Options['searchProvider'] })} />
+      <Select comboboxProps={{withinPortal:false}} label={ft("When to search")} allowDeselect={false} value={options.webSearch ?? 'off'} data={[{ value: 'off', label: ft("Do not search") }, { value: 'auto', label: ft("When needed") }, { value: 'on', label: ft("For every message") }]} onChange={value => update({ webSearch: value as Options['webSearch'] })} />
+      <Select comboboxProps={{withinPortal:false}} label={ft("Search engine")} allowDeselect={false} value={options.searchProvider ?? 'native'} data={[{ value: 'native', label: ft("Venice (built in)") }, { value: 'brave', label: 'Brave' }, { value: 'google', label: 'Google' }, { value: 'exa', label: 'Exa' }]} onChange={value => update({ searchProvider: value as Options['searchProvider'] })} />
     </SimpleGrid>
     <Switch label={ft("Show source links")} checked={options.webCitations ?? true} onChange={e => update({ webCitations: e.currentTarget.checked })} />
     <Switch label={ft("Read web pages I share in chat")} checked={options.webScraping ?? false} onChange={e => update({ webScraping: e.currentTarget.checked })} />
@@ -40,9 +40,9 @@ export function VeniceImageSettings() {
     <Switch label={ft("Filter sensitive content")} checked={options.imageSafeMode ?? true} onChange={e => update({ imageSafeMode: e.currentTarget.checked })} />
     <Switch label={ft("Use web images as references")} checked={options.imageWebSearch ?? false} onChange={e => update({ imageWebSearch: e.currentTarget.checked })} />
     <SimpleGrid cols={{ base: 1, sm: 2 }}>
-      <Select label={ft("File format")} allowDeselect={false} value={image.format ?? 'png'} data={[{ value: 'png', label: 'PNG' }, { value: 'jpeg', label: 'JPEG' }, { value: 'webp', label: 'WebP' }]} onChange={value => updateImage({ format: value as 'png' | 'jpeg' | 'webp' })} />
-      <Select label={ft("Resolution")} placeholder={ft("Recommended by the model")} clearable value={image.resolution ?? null} data={[{ value: '1K', label: 'Standard · 1K' }, { value: '2K', label: ft("High · 2K") }, { value: '4K', label: ft("Very high · 4K") }]} onChange={value => updateImage({ resolution: value || undefined })} />
-      <Select label={ft("Quality")} placeholder={ft("Recommended by the model")} clearable value={image.quality ?? null} data={[{ value: 'low', label: ft("Fast") }, { value: 'medium', label: ft("Balanced") }, { value: 'high', label: ft("Maximum") }]} onChange={value => updateImage({ quality: value as 'low' | 'medium' | 'high' || undefined })} />
+      <Select comboboxProps={{withinPortal:false}} label={ft("File format")} allowDeselect={false} value={image.format ?? 'png'} data={[{ value: 'png', label: 'PNG' }, { value: 'jpeg', label: 'JPEG' }, { value: 'webp', label: 'WebP' }]} onChange={value => updateImage({ format: value as 'png' | 'jpeg' | 'webp' })} />
+      <Select comboboxProps={{withinPortal:false}} label={ft("Resolution")} placeholder={ft("Recommended by the model")} clearable value={image.resolution ?? null} data={[{ value: '1K', label: 'Standard · 1K' }, { value: '2K', label: ft("High · 2K") }, { value: '4K', label: ft("Very high · 4K") }]} onChange={value => updateImage({ resolution: value || undefined })} />
+      <Select comboboxProps={{withinPortal:false}} label={ft("Quality")} placeholder={ft("Recommended by the model")} clearable value={image.quality ?? null} data={[{ value: 'low', label: ft("Fast") }, { value: 'medium', label: ft("Balanced") }, { value: 'high', label: ft("Maximum") }]} onChange={value => updateImage({ quality: value as 'low' | 'medium' | 'high' || undefined })} />
     </SimpleGrid>
     <Text size="xs" c="dimmed">{ft("Available options and costs depend on the selected model. Images and history are saved on this device.")}</Text>
     <Accordion variant="default"><Accordion.Item value="advanced"><Accordion.Control>{ft("Advanced image options")}</Accordion.Control><Accordion.Panel><Stack gap="sm">
@@ -73,8 +73,8 @@ export function VeniceModuleSettings() {
     <Text size="xs" c="dimmed">{ft("When disabled, new requests are blocked and media waiting stops. Saved content stays on this device.")}</Text>
     <VeniceBalance />
     <Switch label={ft("Show other models from Venice")} description={ft("Include the current provider catalog even when only some models were selected. Privacy restrictions still apply.")} checked={options.showOtherModels === true} onChange={e => update({ showOtherModels: e.currentTarget.checked })} />
-    <Select label={ft("Privacy Only")} allowDeselect={false} value={options.privacyFilter || 'all'} data={[{ value: 'all', label: ft("All privacy levels") }, { value: 'private', label: ft("At least Private") }, { value: 'tee', label: ft("TEE or E2EE models only") }]} onChange={value => update({ privacyFilter: value as Options['privacyFilter'] })} />
-    <Select label={ft("Secure text chat")} allowDeselect={false} value={options.textPrivacy || 'standard'} data={[{ value: 'standard', label: ft("Standard HTTPS") }, { value: 'tee', label: ft("Require TEE verification") }, { value: 'e2ee', label: ft("Require end-to-end encryption") }]} onChange={value => update({ textPrivacy: value as Options['textPrivacy'] })} />
+    <Select comboboxProps={{withinPortal:false}} label={ft("Privacy Only")} allowDeselect={false} value={options.privacyFilter || 'all'} data={[{ value: 'all', label: ft("All privacy levels") }, { value: 'private', label: ft("At least Private") }, { value: 'tee', label: ft("TEE or E2EE models only") }]} onChange={value => update({ privacyFilter: value as Options['privacyFilter'] })} />
+    <Select comboboxProps={{withinPortal:false}} label={ft("Secure text chat")} allowDeselect={false} value={options.textPrivacy || 'standard'} data={[{ value: 'standard', label: ft("Standard HTTPS") }, { value: 'tee', label: ft("Require TEE verification") }, { value: 'e2ee', label: ft("Require end-to-end encryption") }]} onChange={value => update({ textPrivacy: value as Options['textPrivacy'] })} />
     <Text size="xs" c="dimmed">{ft("E2EE encrypts text on this device. Attachments, tools and web search are unavailable in this mode. Secure replies are shown after verification. TEE alone allows Venice to read the prompt.")}</Text>
     <Text size="xs" c="dimmed">{ft("Attestation checks follow the Venice CLI: fresh nonce, model identity, debug-mode rejection and key binding. Hardware certificate-chain verification relies on Venice; this app does not independently verify Intel/NVIDIA roots.")}</Text>
     <Text fw={600} mt="sm">{ft("What would you like to use?")}</Text>
@@ -86,7 +86,7 @@ export function VeniceModuleSettings() {
     <Text size="xs" c="dimmed">{ft("Enabled modules are available in Venice Studio in the sidebar.")}</Text>
     <VeniceMediaModelSelection options={options} update={update} />
     <Switch label={ft("Internal Venice MCP: tools in Work mode chats")} disabled={options.enabled === false} checked={options.chatToolsEnabled !== false} onChange={e => update({ chatToolsEnabled: e.currentTarget.checked })} />
-    <Text size="xs" c="dimmed">{ft("Generation approval is managed in each chat, next to the Venice balance.")}</Text>
+    <Text size="xs" c="dimmed">{ft("Generation approval is managed in the conversation settings panel.")}</Text>
     <VeniceProfiles />
   </Stack>
 }
@@ -96,7 +96,7 @@ function VeniceMediaModelSelection({ options, update }: { options: Options; upda
   useEffect(() => { let live = true; void veniceMediaService.cachedCatalog().then(rows => { if (live) setCatalog(rows) }).catch(() => {}); return () => { live = false } }, [])
   return <Accordion><Accordion.Item value="media-models"><Accordion.Control>{ft("Models shown in Venice Studio")}</Accordion.Control><Accordion.Panel><Stack gap="sm">
     <Button variant="default" size="xs" loading={busy} disabled={options.enabled === false} onClick={async () => { setBusy(true); setError(''); try { setCatalog(await veniceMediaService.catalog()) } catch { setError(ft("Unable to load the Venice model catalog")) } finally { setBusy(false) } }}>{ft("Refresh models")}</Button>
-    <MultiSelect label={ft("Selected audio and video models")} searchable clearable disabled={options.showOtherModels === true} value={options.mediaModelIds || []} data={catalog.filter(model => ['tts','asr','music','video'].includes(model.type)).map(model => ({ value: model.id, label: `${model.model_spec?.name || model.id} · ${model.type}` }))} onChange={mediaModelIds => update({ mediaModelIds })} />
+    <MultiSelect comboboxProps={{withinPortal:false}} label={ft("Selected audio and video models")} searchable clearable disabled={options.showOtherModels === true} value={options.mediaModelIds || []} data={catalog.filter(model => ['tts','asr','music','video'].includes(model.type)).map(model => ({ value: model.id, label: `${model.model_spec?.name || model.id} · ${model.type}` }))} onChange={mediaModelIds => update({ mediaModelIds })} />
     <Button variant="subtle" size="xs" onClick={() => update({ mediaModelIds: undefined })}>{ft("Use all available media models")}</Button>
     <Text size="xs" c="dimmed">{ft("Show other models from Venice temporarily includes the full catalog without changing your selection.")}</Text>
     {error && <Text size="xs" c="red">{error}</Text>}

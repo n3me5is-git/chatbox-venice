@@ -1,3 +1,4 @@
+import { useOverlayManager } from '@/components/layout/Overlay'
 import { Popover, UnstyledButton } from '@mantine/core'
 import { TestId } from '@shared/automation/testids'
 import type { AgentModeValue, KnowledgeBase } from '@shared/types'
@@ -159,32 +160,7 @@ const AgentModeButton: FC<AgentModeButtonProps> = ({
     }
   }, [settingsOpened, handleClose])
 
-  useEffect(() => {
-    if (!opened || !isTouchLayout || platform.type !== 'mobile') return
-    let cancelled = false
-    let remove: (() => void) | undefined
-    void import('@capacitor/app')
-      .then(({ App }) => {
-        if (cancelled) return
-        return App.addListener('backButton', () => {
-          if (panelRef.current?.goBack()) return
-          handleClose()
-        })
-      })
-      .then((handle) => {
-        if (cancelled) {
-          void handle?.remove()
-          return
-        }
-        remove = () => {
-          void handle?.remove()
-        }
-      })
-    return () => {
-      cancelled = true
-      remove?.()
-    }
-  }, [handleClose, isTouchLayout, opened])
+  useOverlayManager(opened && isTouchLayout, () => { if (!panelRef.current?.goBack()) handleClose() })
 
   const handleWebBrowsingChange = useCallback(
     (enabled: boolean) => {
