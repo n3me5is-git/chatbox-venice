@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.32.1
+1. Cifra i risultati testuali restituiti dagli strumenti nativi nelle chat E2EE
+2. Chiarisce in inglese e italiano quali nomi e argomenti degli strumenti restano visibili
+3. Mantiene identificativi delle chiamate, contenuti vuoti, verifica delle ricevute e approvazioni esistenti
+
 ## Chatbox Venice 1.32.0
 1. Configura HTTPS, TEE o E2EE per ogni chat Venice, oppure segui i valori del provider
 2. Consenso separato per chat alle ricevute compatibili e ai tool cifrati o nativi

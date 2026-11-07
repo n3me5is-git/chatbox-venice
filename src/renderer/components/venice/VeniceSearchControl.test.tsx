@@ -31,4 +31,12 @@ describe('Venice search pause and encrypted tool consent',()=>{
   fireEvent.click(screen.getByLabelText('Tools in encrypted chat'));await screen.findByRole('button',{name:'Cancel'});fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
   await waitFor(()=>expect(screen.queryByRole('button',{name:'Enable tools'})).toBeNull());expect(change).not.toHaveBeenCalled()
  })
+ it('explains that native tool arguments remain visible while text results are encrypted',async()=>{
+  const change=vi.fn();render(<MantineProvider><E2EEToolSettings enabled={false} mode="native" onChange={change}/></MantineProvider>)
+  fireEvent.click(screen.getByLabelText('Tools in encrypted chat'))
+  expect(await screen.findByText(/Tool definitions, names, call IDs and arguments are visible to Venice/)).toBeTruthy()
+  expect(screen.getByText(/Non-empty text results are encrypted before returning to the model/)).toBeTruthy()
+  expect(change).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button',{name:'Enable tools'}));expect(change).toHaveBeenCalledWith(true,'native')
+ })
 })

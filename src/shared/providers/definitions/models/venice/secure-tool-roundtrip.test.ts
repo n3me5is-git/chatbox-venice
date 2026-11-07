@@ -5,7 +5,7 @@ import { secp256k1 } from '@noble/curves/secp256k1'
 import { keccak_256 } from '@noble/hashes/sha3'
 import { sha256 } from '@noble/hashes/sha256'
 import Venice from '../venice'
-import { bytesToHex,decryptChunk,deriveSigningAddressFromKey,encryptMessage,generateEphemeralKeyPair } from './crypto'
+import { bytesToHex,decryptChunk,deriveSigningAddressFromKey,encryptMessage,generateEphemeralKeyPair,isHexEncrypted } from './crypto'
 import type { ModelDependencies } from '../../../../types/adapters'
 
 function fixture({native=false,badSignature=false,weakToolSignature=false,capability=true,gateway=false,invalidSigner=false}={}){
@@ -20,7 +20,10 @@ function fixture({native=false,badSignature=false,weakToolSignature=false,capabi
   }
   if(url.pathname.endsWith('/chat/completions')){
    sent=String(request.body);wires.push(sent);const body=JSON.parse(sent)
-   for(const message of body.messages)decrypted.push(['user','system'].includes(message.role)?decryptChunk(message.content,enclave.privateKey):JSON.stringify(message))
+   for(const message of body.messages){
+    if(message.role==='tool'&&message.content)expect(isHexEncrypted(message.content)).toBe(true)
+    decrypted.push(typeof message.content==='string'&&isHexEncrypted(message.content)?decryptChunk(message.content,enclave.privateKey):JSON.stringify(message))
+   }
    const client=new Headers(request.headers).get('X-Venice-TEE-Client-Pub-Key')!
    const first=wires.length===1
    hasNativeCalls=native&&first
@@ -65,12 +68,17 @@ describe('real SDK encrypted tool round trips with a simulated enclave',()=>{
   expect(parts.some(part=>part.type==='error')).toBe(false)
   expect(JSON.stringify(parts.filter(part=>part.type==='text-delta'))).toContain('Finished with the local result')
  })
- it('allows explicit native tools only with catalog support and a signature bound to their full response',async()=>{
-  const f=fixture({native:true});const parts=await f.run()
+ it.each([false,true])('encrypts native tool results while preserving the public call envelope (gateway compatibility: %s)',async gateway=>{
+  const f=fixture({native:true,gateway});const parts=await f.run()
   expect(f.execute).toHaveBeenCalledTimes(1);expect(f.wires).toHaveLength(2)
-  expect(f.wires[0]).toContain('local_echo');expect(f.wires[1]).toContain('private tool result')
-  expect(f.wires.join('\n')).not.toMatch(/private question|private system|private assistant commentary/)
+  expect(f.wires[0]).toContain('local_echo')
+  expect(f.wires.join('\n')).not.toMatch(/private question|private system|private assistant commentary|private tool result/)
+  const pending=JSON.parse(f.wires[1]).messages.slice(-2)
+  expect(pending[0]).toMatchObject({role:'assistant',content:null,tool_calls:[{id:'call-native',function:{name:'local_echo',arguments:'{"text":"private argument"}'}}]})
+  expect(pending[1]).toMatchObject({role:'tool',tool_call_id:'call-native'})
+  expect(isHexEncrypted(pending[1].content)).toBe(true)
   expect(f.decrypted.join('\n')).toContain('private assistant commentary')
+  expect(f.decrypted.join('\n')).toContain('private tool result: private argument')
   expect(parts.some(part=>part.type==='error')).toBe(false)
  })
  it.each([{badSignature:true},{native:true,weakToolSignature:true}])('never executes unauthenticated tool calls or retries in plaintext: %j',async options=>{

@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.32.1
+1. Encrypt text results returned by native tools in E2EE chats
+2. Clarify visible tool names and arguments in English and Italian
+3. Preserve native call IDs, empty content, receipt policy and existing approvals
+
 ## Chatbox Venice 1.32.0
 1. Configure HTTPS, TEE or E2EE for each Venice chat, or follow provider defaults
 2. Separate per-chat consent for compatible receipts and encrypted/native tools

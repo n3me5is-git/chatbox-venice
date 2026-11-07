@@ -53,7 +53,15 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
       if (Object.keys(request).some(key => !safeOptions.has(key) && !(toolMode==='native'&&['tools','tool_choice','parallel_tool_calls'].includes(key)))) throw new Error('E2EE does not allow tool definitions, schemas or additional request fields')
       if(toolMode==='native'){
         const native=nativeToolMessages(body.messages)
-        request.messages=[...encryptConversation(native.privateMessages,evidence.signingKey!),...native.publicMessages]
+        // The native call envelope stays public, but non-empty tool-result bodies
+        // use the same E2EE content channel as prompts. Never retry them in plaintext.
+        const pending = native.publicMessages.map(message => ({
+          ...message,
+          content: message.role === 'tool' && typeof message.content === 'string' && message.content.length > 0
+            ? encryptMessage(message.content, evidence.signingKey!)
+            : message.content,
+        }))
+        request.messages=[...encryptConversation(native.privateMessages,evidence.signingKey!),...pending]
       }else request.messages = encryptConversation(toolMode==='encrypted-text' ? encryptedToolMessages(body.messages, tools, toolChoice) : body.messages, evidence.signingKey!)
       request.venice_parameters = { enable_e2ee: true, include_venice_system_prompt: false, enable_web_search: 'off', enable_web_scraping: false, enable_x_search: false, enable_web_citations: false, include_search_results_in_stream: false, strip_thinking_response: true }
       headers.set('X-Venice-TEE-Client-Pub-Key', pair.publicKeyHex); headers.set('X-Venice-TEE-Model-Pub-Key', evidence.signingKey!); headers.set('X-Venice-TEE-Signing-Algo', 'ecdsa')

@@ -38,8 +38,9 @@ export function parseEncryptedToolCalls(content: string, tools: Body[], choice: 
   })
 }
 
-/** Native tool mode deliberately exposes only the currently pending call/result
- * envelope. Earlier history is folded back into encrypted text. */
+/** Prepare the currently pending native call/result envelope. The transport
+ * encrypts non-empty tool content before sending it; IDs/names/arguments stay
+ * public. Earlier history is folded back into encrypted text. */
 export function nativeToolMessages(messages: Body[]) {
   const lastUser=messages.findLastIndex(message=>message.role==='user')
   const pending=messages.findLastIndex(message=>message.role==='assistant'&&message.tool_calls?.length)

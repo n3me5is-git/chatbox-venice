@@ -16,7 +16,7 @@ function fixture(options: {badNonce?:boolean;badSignature?:boolean;plaintext?:bo
    return json({verified:true,nonce:options.badNonce?'wrong':target.searchParams.get('nonce'),model:'secure-model',signing_key:enclave.publicKeyHex,signing_address:address,intel_quote:quote.toString('hex'),server_verification:{tdx:{valid:true},nonceBinding:{bound:true},verifiedAt:new Date().toISOString(),verificationDurationMs:1}})
   }
   if(target.pathname.endsWith('/chat/completions')){
-   sent=String(init?.body);const request=JSON.parse(sent);decrypted.push(...request.messages.map((m:{content:string})=>decryptChunk(m.content,enclave.privateKey)))
+   sent=String(init?.body);const request=JSON.parse(sent);decrypted.push(...request.messages.filter((m:{content:unknown})=>typeof m.content==='string'&&m.content.length>0).map((m:{content:string})=>decryptChunk(m.content,enclave.privateKey)))
    const client=new Headers(init?.headers).get('X-Venice-TEE-Client-Pub-Key')!
    return json({id:'reply-1',model:'secure-model',created:1,choices:[{index:0,message:{role:'assistant',content:options.plaintext?'Unencrypted':encryptMessage('Encrypted reply',client)},finish_reason:'stop'}]})
   }
@@ -45,6 +45,28 @@ describe('Venice encrypted text transport (simulated enclave)',()=>{
   const key=generateEphemeralKeyPair()
   expect(()=>encryptConversation([{role:'user',content:[{type:'image_url',image_url:{url:'private'}}]}],key.publicKeyHex)).toThrow('attachments')
   expect(()=>encryptConversation([{role:'assistant',content:'text',tool_calls:[{}]}],key.publicKeyHex)).toThrow('tool calls')
+ })
+ it.each([['private result body'],[''],[null],[[{type:'text',text:'private result body'}]]])('protects pending native tool bodies and preserves empty content: %j',async content=>{
+  const f=fixture()
+  const messages=[...body.messages,{role:'assistant',content:null,tool_calls:[{id:'pending-1',type:'function',function:{name:'local_echo',arguments:'{"text":"public argument"}'}}]},{role:'tool',name:'local_echo',tool_call_id:'pending-1',content}]
+  const result=await secureVeniceChat(f.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{}, {...body,messages},'e2ee','native')
+  const wire=JSON.parse(f.sent()),toolMessage=wire.messages.at(-1)
+  expect(toolMessage).toMatchObject({role:'tool',name:'local_echo',tool_call_id:'pending-1'})
+  expect(wire.messages.at(-2)).toMatchObject({role:'assistant',content:null,tool_calls:[{id:'pending-1',function:{name:'local_echo',arguments:'{"text":"public argument"}'}}]})
+  expect(f.sent()).not.toContain('private result body')
+  if(content){expect(toolMessage.content).toMatch(/^[0-9a-f]+$/i);expect(f.decrypted).toContain('private result body')}
+  else expect(toolMessage.content).toBe(content)
+  expect(await result.text()).toContain('Encrypted reply')
+ })
+ it('independently encrypts every result in a parallel native tool exchange',async()=>{
+  const f=fixture(),calls=['one','two'].map(id=>({id,type:'function',function:{name:'local_echo',arguments:'{}'}}))
+  const messages=[...body.messages,{role:'assistant',content:null,tool_calls:calls},...calls.map(call=>({role:'tool',tool_call_id:call.id,content:'same private result'}))]
+  await secureVeniceChat(f.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{}, {...body,messages},'e2ee','native')
+  const results=JSON.parse(f.sent()).messages.filter((message:{role:string})=>message.role==='tool')
+  expect(results.map((message:{tool_call_id:string})=>message.tool_call_id)).toEqual(['one','two'])
+  expect(results[0].content).not.toBe(results[1].content)
+  expect(f.sent()).not.toContain('same private result')
+  expect(f.decrypted.filter(value=>value==='same private result')).toHaveLength(2)
  })
  it('requires explicit compatibility for a valid attested gateway signature over transformed bytes',async()=>{
   const strict=fixture({gateway:true});await expect(secureVeniceChat(strict.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{},body,'e2ee')).rejects.toThrow('gateway hashes')

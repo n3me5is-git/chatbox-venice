@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.32.1
+
+See [release notes](docs/releases/v1.32.1.md). Encrypts non-empty native tool-result text in E2EE chats while preserving the required public function-call metadata. Updates English/Italian consent and adds encrypted native tool round-trip coverage.
+
 ## 1.32.0
 
 See [release notes](docs/releases/v1.32.0.md). Adds explicit chat-level Venice transport privacy, receipt policy and encrypted-tool settings with provider inheritance, downgrade confirmation and incompatible-model feedback. Clarifies the remaining live receipt-binding and model-attestation limits.
