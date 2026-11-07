@@ -36,6 +36,6 @@ it('updates chat privacy controls in Italian and retains English fallback for un
  expect(screen.getByText('Venice privacy for this chat')).toBeTruthy()
 })
 
-Object.defineProperty(window,'matchMedia',{writable:true,value:vi.fn(()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()}))})
+Object.defineProperty(window,'matchMedia',{writable:true,value:vi.fn(()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn(),addListener:vi.fn(),removeListener:vi.fn()}))})
 vi.stubGlobal('ResizeObserver',class {observe(){} unobserve(){} disconnect(){}})
 Element.prototype.scrollIntoView=vi.fn()
