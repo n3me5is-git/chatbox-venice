@@ -90,8 +90,10 @@ export function flattenMessageContent(
     .join('');
 }
 
-export const TOOL_CALL_OPEN = '<tool_call>';
-export const TOOL_CALL_CLOSE = '</tool_call>';
+// Keep the private text protocol distinct from model/backend-reserved tool
+// tokens. Live GLM gateways may consume <tool_call> before encrypting content.
+export const TOOL_CALL_OPEN = '<venice_tool_call>';
+export const TOOL_CALL_CLOSE = '</venice_tool_call>';
 export const TOOL_RESPONSE_OPEN = '<tool_response>';
 export const TOOL_RESPONSE_CLOSE = '</tool_response>';
 
@@ -108,6 +110,7 @@ interface TagPair {
  */
 const TOOL_CALL_TAGS: readonly TagPair[] = [
   { open: TOOL_CALL_OPEN, close: TOOL_CALL_CLOSE },
+  { open: '<tool_call>', close: '</tool_call>' },
   { open: '<function_call>', close: '</function_call>' },
   { open: '<|tool_call|>', close: '<|/tool_call|>' },
   { open: '<function_calls>', close: '</function_calls>' },

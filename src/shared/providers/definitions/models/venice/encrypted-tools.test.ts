@@ -2,8 +2,13 @@ import { describe,expect,it } from 'vitest'
 import { encryptedToolMessages,nativeToolMessages,parseEncryptedToolCalls } from './encrypted-tools'
 const tools=[{type:'function',function:{name:'local_echo',description:'Read a local value',parameters:{type:'object',properties:{text:{type:'string'}},required:['text']}}}]
 describe('venice-e2ee function-call text protocol',()=>{
- it.each(['<tool_call>{"name":"local_echo","arguments":{"text":"private"}}</tool_call>','<function_call>{"function":{"name":"local_echo","arguments":{"text":"private"}}}</function_call>','{"name":"local_echo","arguments":{"text":"private"}}'])('parses supported function envelopes after decryption: %s',reply=>{
+ it.each(['<venice_tool_call>{"name":"local_echo","arguments":{"text":"private"}}</venice_tool_call>','<tool_call>{"name":"local_echo","arguments":{"text":"private"}}</tool_call>','<function_call>{"function":{"name":"local_echo","arguments":{"text":"private"}}}</function_call>','{"name":"local_echo","arguments":{"text":"private"}}'])('parses supported function envelopes after decryption: %s',reply=>{
   expect(parseEncryptedToolCalls(reply,tools,'auto')).toMatchObject([{function:{name:'local_echo',arguments:'{"text":"private"}'}}])
+ })
+ it('instructs models with private protocol tags distinct from backend-native reserved tags',()=>{
+  const system=encryptedToolMessages([{role:'user',content:'question'}],tools,'auto')[0].content
+  expect(system).toContain('<venice_tool_call>')
+  expect(system).not.toContain('<tool_call>')
  })
  it('keeps ordinary JSON answers as answers and rejects unavailable calls',()=>{
   expect(parseEncryptedToolCalls('{"answer":42}',tools,'auto')).toBeUndefined()

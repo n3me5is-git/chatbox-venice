@@ -127,6 +127,7 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     // NEAR provider_tee signs model:request_hash:response_hash, unlike its
     // gateway's two-hash format. Bind that prefix to this attestation's model.
     const providerModel = report.tee_provider==='near-ai' && signature.tee_provider==='near-ai' && signature.signature_kind==='provider_tee' && signature.upstream_model===report.upstream_model ? report.upstream_model : undefined
+    if(signature.tee_provider==='near-ai' && signature.signature_kind==='provider_tee' && (!providerModel || providerModel.includes(':') || !signedText.startsWith(providerModel+':')))throw new Error('TEE signature belongs to another upstream model or has an invalid format')
     const hashed = candidates.some(content=>verifySignature({ signedText, signatureHex, expectedSigningAddress: responseSigningAddress, expectedRequest: sent, expectedContent: content, expectedModel:providerModel }).verified)
     // Venice's public proxy rewrites requests/responses outside the receipt's byte boundary.
     // Gateway hashes may cover decrypted/reserialized service bytes, rather than
