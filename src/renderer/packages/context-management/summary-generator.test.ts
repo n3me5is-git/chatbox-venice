@@ -1,9 +1,10 @@
-import type { Message } from '@shared/types'
+import type { Message, Settings } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { chatMock, createModelMock } = vi.hoisted(() => ({
+const { chatMock, createModelMock, globalSettingsMock } = vi.hoisted(() => ({
   chatMock: vi.fn(),
   createModelMock: vi.fn(),
+  globalSettingsMock: { language: 'en', defaultChatModel: { provider: 'openai', model: 'gpt-4.1' } } as Settings,
 }))
 
 vi.mock('@/adapters', () => ({ createModel: createModelMock }))
@@ -20,10 +21,7 @@ vi.mock('@/stores/settingActions', () => ({ getRemoteConfig: vi.fn(() => ({})) }
 vi.mock('@/stores/settingsStore', () => ({
   settingsStore: {
     getState: () => ({
-      getSettings: () => ({
-        language: 'en',
-        defaultChatModel: { provider: 'openai', model: 'gpt-4.1' },
-      }),
+      getSettings: () => globalSettingsMock,
     }),
   },
 }))
@@ -35,11 +33,20 @@ import { generateSummaryWithStream } from './summary-generator'
 describe('generateSummaryWithStream', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    globalSettingsMock.threadNamingModel = undefined
+    globalSettingsMock.providers = undefined
     chatMock.mockResolvedValue({ contentParts: [{ type: 'text', text: 'Summary' }] })
     createModelMock.mockResolvedValue({
       isSupportVision: () => false,
       chat: chatMock,
     })
+  })
+
+  it('does not send a chat-only E2EE summary to the configured plaintext fast model', async () => {
+    globalSettingsMock.threadNamingModel = { provider: 'openai', model: 'plaintext-fast' }
+    const sessionSettings = { provider: 'venice', modelId: 'secure-chat', veniceSecurity: { textPrivacy: 'e2ee' as const, secureReceiptCompatibility: true } }
+    await generateSummaryWithStream({ sessionId: 'encrypted-chat', messages: [{ id: 'u', role: 'user', contentParts: [{ type: 'text', text: 'Private' }] }], sessionSettings })
+    expect(createModelMock).toHaveBeenLastCalledWith(expect.objectContaining(sessionSettings))
   })
 
   it('passes the custom prompt to the conversation formatter', async () => {

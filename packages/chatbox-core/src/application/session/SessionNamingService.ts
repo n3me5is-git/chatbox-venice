@@ -1,4 +1,5 @@
 import type { ModelMessage } from 'ai'
+import { veniceSessionTextPrivacy } from '../../domain/settings/venice-privacy'
 import { isExpectedGenerationError } from '../../models/error-classification'
 import type { ModelInterface } from '../../models/types'
 import type { ModelFactoryPort, SettingsRepositoryPort } from '../../ports'
@@ -310,7 +311,7 @@ export class SessionNamingService {
       ...globalSettings,
       ...session.settings,
       ...(session.type === 'picture' ? { modelId: 'gpt-4o-mini' } : {}),
-      ...(globalSettings.threadNamingModel
+      ...(globalSettings.threadNamingModel && veniceSessionTextPrivacy(session.settings, globalSettings) === 'standard'
         ? {
             provider: globalSettings.threadNamingModel.provider as ModelProvider,
             modelId: globalSettings.threadNamingModel.model,

@@ -1,4 +1,5 @@
 import { type AttachmentPolicy, withRequestAttachmentState } from '@shared/context/attachments'
+import { veniceSessionTextPrivacy } from '../domain/settings/venice-privacy'
 import type { ChatStreamOptions, ModelInterface, ModelStreamPart } from '@shared/models/types'
 import type {
   AgentModeLockReason,
@@ -660,7 +661,7 @@ export class GenerationService<TContext> {
         lastUserMessage &&
         history.userMessageCount === 1
       ) {
-        const namingModel = globalSettings.threadNamingModel
+        const namingModel = veniceSessionTextPrivacy(settings, globalSettings) === 'standard' ? globalSettings.threadNamingModel : undefined
         const suggestionModel = await this.createSuggestionModel(settings, namingModel, modelContext.context, model)
         const decision = await this.shouldSuggestAgentMode({
           sessionId,

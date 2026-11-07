@@ -1,4 +1,5 @@
 import { isExpectedGenerationError } from '@shared/models/error-classification'
+import { veniceSessionTextPrivacy } from '@chatbox/core/domain/settings/venice-privacy'
 import type { Language, Message, ModelProvider, SessionSettings, Settings } from '@shared/types'
 import { createModel } from '@/adapters'
 import { languageNameMap } from '@/i18n/locales'
@@ -65,6 +66,9 @@ export async function generateSummary(options: SummaryGeneratorOptions): Promise
 }
 
 function buildModelSettings(globalSettings: Settings, sessionSettings?: SessionSettings): SessionSettings & Settings {
+  if (veniceSessionTextPrivacy(sessionSettings, globalSettings) !== 'standard') {
+    return { ...globalSettings, ...sessionSettings }
+  }
   if (globalSettings.threadNamingModel?.provider && globalSettings.threadNamingModel?.model) {
     return {
       ...globalSettings,

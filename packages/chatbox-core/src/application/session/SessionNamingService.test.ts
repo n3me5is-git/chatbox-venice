@@ -2,7 +2,7 @@ import type { ModelMessage } from 'ai'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import type { ModelInterface } from '../../models/types'
 import { buildNameGenerationAttemptKey } from '../../session/auto-title'
-import type { Message, Session, Settings } from '../../types'
+import type { Message, Session, SessionSettings, Settings } from '../../types'
 import { type ScheduledNameGeneration, SessionNamingService } from './SessionNamingService'
 import { rowChatFixture } from '../chat/testing/row-chat-fixture'
 import type { SessionHeaderRead } from '../../ports/session-row-repository'
@@ -72,6 +72,7 @@ function createHarness() {
       { role: 'user', content: textPart?.type === 'text' ? textPart.text : '' },
     ] as ModelMessage[])
   })
+  const modelSettings: SessionSettings[] = []
   const service = new SessionNamingService({
     sessions: {
       getSessionHeader: getSession,
@@ -80,7 +81,7 @@ function createHarness() {
       readSessionNamingMessages: fixture.useCases.readSessionNamingMessages,
     },
     settings: { getSettings: () => settings },
-    models: { createModel: vi.fn(() => Promise.resolve(model)) },
+    models: { createModel: vi.fn((settings: SessionSettings) => { modelSettings.push(settings); return Promise.resolve(model) }) },
     scheduler: {
       schedule(callback): ScheduledNameGeneration {
         const task = { callback, cancelled: false }
@@ -98,6 +99,7 @@ function createHarness() {
   })
   return {
     service,
+    modelSettings,
     scheduled,
     chat,
     getSession,
@@ -120,6 +122,14 @@ afterEach(() => {
 })
 
 describe('SessionNamingService', () => {
+  test.each(['tee', 'e2ee'] as const)('keeps %s chat naming on the conversation model instead of the global fast model', async mode => {
+    const harness = createHarness()
+    harness.setSession(createSession({ settings: { provider: 'venice', modelId: 'secure-chat', veniceSecurity: { textPrivacy: mode } } }))
+    await expect(harness.service.generateNameAndThreadName('session-1')).resolves.toBe(true)
+    expect(harness.modelSettings[0]).toMatchObject({ provider: 'venice', modelId: 'secure-chat', veniceSecurity: { textPrivacy: mode } })
+    expect(harness.settings.threadNamingModel?.provider).toBe('openai')
+  })
+
   test('uses the injected model and locale, cleans the name, and persists it', async () => {
     const harness = createHarness()
 

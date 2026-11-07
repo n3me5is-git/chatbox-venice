@@ -57,6 +57,8 @@ import { SESSION_ATTACHMENT_RAG_LOG_PREFIX } from '../../../shared/session-attac
 import { createAttachmentResolver } from './attachment-resolver'
 import { applyLegacyToolFallback } from './legacy-tool-fallback'
 import { getOCRModel, ocrImagesInMessages } from './ocr-helper'
+import { veniceSessionTextPrivacy } from '@chatbox/core/domain/settings/venice-privacy'
+import { forkT as ft } from '@/i18n/fork'
 import { resolveSessionPromptContextSnapshot } from './prompt-context-snapshot'
 import { buildToolsForSession } from './tools-builder'
 
@@ -295,6 +297,9 @@ export async function prepareAgentGenerationHarness(
     !model.isSupportVision() &&
     promptMsgs.some((message) => message.contentParts.some((part) => part.type === 'image' && !part.ocrResult))
   ) {
+    if (veniceSessionTextPrivacy(settings, globalSettings) === 'e2ee') {
+      throw new Error(ft('E2EE does not support image, audio, video or file attachments'))
+    }
     const ocrResult = getOCRModel(globalSettings, configs, dependencies)
     if (!ocrResult) {
       throw ChatboxAIAPIError.fromCodeName('model_not_support_image_2', 'model_not_support_image_2')
