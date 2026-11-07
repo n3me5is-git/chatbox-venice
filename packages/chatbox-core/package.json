@@ -18,6 +18,7 @@
     "./application/token-estimation/math": "./src/application/token-estimation/math.ts",
     "./domain/settings": "./src/domain/settings/index.ts",
     "./domain/settings/settings-schema": "./src/domain/settings/settings-schema.ts",
+    "./domain/settings/venice-privacy": "./src/domain/settings/venice-privacy.ts",
     "./generation": "./src/generation/index.ts",
     "./message-approval": "./src/message-approval.ts",
     "./model": "./src/model.ts",

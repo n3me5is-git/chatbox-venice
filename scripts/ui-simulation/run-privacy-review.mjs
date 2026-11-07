@@ -33,7 +33,10 @@ export async function runPrivacyReview({ click, evaluate, wait, byText, byLabel,
   await click(track('Tools in encrypted chat'))
   await click(byText('Enable tools'))
   await wait(() => evaluate('window.__simulationChatPrivacy.chats.a.e2eeToolsEnabled === true'), 'Chat tool consent did not save')
+  await evaluate('window.__simulationSetLanguage("it-IT")')
+  await wait(() => evaluate('document.body.textContent.includes("Privacy Venice per questa chat")'), 'Chat privacy controls did not update in Italian')
   await evaluate(`document.querySelector('[data-testid="venice-chat-privacy"]').scrollIntoView({block:'start'})`)
   await writeFile(path.join(output, 'chat-privacy-mobile.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
+  await evaluate('window.__simulationSetLanguage("en")')
   await click(byText('Close privacy review'))
 }
