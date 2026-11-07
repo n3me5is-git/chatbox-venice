@@ -115,8 +115,9 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     const candidates=calls.length?[raw,JSON.stringify(calls),JSON.stringify({content:plain,tool_calls:calls})]:[raw,plain,...(pair?[encryptedContent]:[])]
     const hashed = candidates.some(content=>verifySignature({ signedText, signatureHex, expectedSigningAddress: responseSigningAddress, expectedRequest: sent, expectedContent: content }).verified)
     // Venice's public proxy rewrites requests/responses outside the receipt's byte boundary.
-    // ACI hashes are exact gateway bytes, not canonical JSON and not the outer Venice wire.
-    // Compatibility is explicit provider consent, never an automatic fallback. It authenticates
+    // Gateway hashes may cover decrypted/reserialized service bytes, rather than
+    // the outer Venice wire. Do not invent a canonical representation to make them match.
+    // Compatibility requires explicit user consent, never an automatic fallback. It authenticates
     // the signed gateway hash pair, NOT its independent binding to our received payload.
     const compatible = receiptCompatibility && compatibleGatewayReceipt(signature, completionId, signedText) &&
       verifySignature({signedText,signatureHex,expectedSigningAddress:responseSigningAddress,expectedContent:signedText}).verified

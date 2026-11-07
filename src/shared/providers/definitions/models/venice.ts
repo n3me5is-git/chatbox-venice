@@ -7,7 +7,7 @@ import type { ProviderModelInfo, ProviderSettings, ImageModelCapabilities, ToolU
 import type { ModelDependencies } from '../../../types/adapters'
 import { withVeniceCitations } from './venice-citations'
 import { prepareVeniceSearch } from './venice-search'
-import { privacyAllowed, requireModelPrivacy, supportsTee } from './venice/privacy'
+import { effectiveTextPrivacy, privacyAllowed, requireModelPrivacy, supportsTee } from './venice/privacy'
 import { secureVeniceChat } from './venice/secure-chat'
 import { effectiveVeniceSearch, guardSearchTools, isSearchTool } from './venice/search-policy'
 import type { ModelMessage, ToolSet } from 'ai'
@@ -100,7 +100,8 @@ export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: Ven
       const thinking = parsed.enable_thinking
       delete parsed.enable_thinking
       const body = mergeExtraBody({ ...parsed, ...(effort !== undefined ? { reasoning_effort: effort } : {}), venice_parameters: { ...getVeniceParameters(settings), ...(thinking !== undefined ? { disable_thinking: !thinking } : {}) } }, extra || {})
-      const mode = settings?.textPrivacy && settings.textPrivacy !== 'standard' ? settings.textPrivacy : settings?.privacyFilter === 'tee' ? 'tee' : undefined
+      const privacy = effectiveTextPrivacy(settings)
+      const mode = privacy === 'standard' ? undefined : privacy
       if ((settings?.privacyFilter && settings.privacyFilter !== 'all' || mode) && body.model !== model?.modelId) throw new Error('Model overrides cannot bypass Venice privacy settings')
       requireModelPrivacy(model?.vendorMetadata, settings?.privacyFilter)
       const toolMode=settings?.e2eeToolsEnabled===true?settings.e2eeToolMode||'encrypted-text':false

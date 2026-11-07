@@ -1,4 +1,7 @@
 export type PrivacyFilter = 'all' | 'private' | 'tee'
+export function effectiveTextPrivacy(settings: { textPrivacy?: 'standard' | 'tee' | 'e2ee'; privacyFilter?: PrivacyFilter } = {}) {
+  return settings.textPrivacy && settings.textPrivacy !== 'standard' ? settings.textPrivacy : settings.privacyFilter === 'tee' ? 'tee' : 'standard'
+}
 export function supportsTee(metadata?: Record<string, unknown>) {
   const caps = metadata?.capabilities as Record<string, unknown> | undefined
   return caps?.supportsTeeAttestation === true || caps?.supportsE2EE === true

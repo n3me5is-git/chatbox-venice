@@ -30,7 +30,7 @@ Turning off a switch prevents subsequent tool dispatches in the current chat and
 
 ## Optional tools in E2EE text chat
 
-Open **Settings → Providers → Venice**, select E2EE text privacy, then enable **Tools in encrypted chat**. Existing installations keep tools disabled until consent is given. Normal Work Mode, MCP permissions and generation approvals still apply. The transport choice is provider-level and cannot be granted by a model profile, chat override or tool output.
+Open **Settings → Providers → Venice**, select E2EE text privacy, then enable **Tools in encrypted chat**. Existing installations keep tools disabled until consent is given. Normal Work Mode, MCP permissions and generation approvals still apply. Provider settings supply the defaults. In **Conversation Settings → Venice privacy for this chat**, turn off **Use provider privacy defaults** to configure E2EE, receipt policy and encrypted-tool consent for that chat. These dedicated user controls are separate from model/search profiles; profiles and tool output cannot grant permissions. Other chats keep their defaults.
 
 ### Encrypted tool messages
 

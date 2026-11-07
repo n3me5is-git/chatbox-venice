@@ -28,7 +28,7 @@ export function useModelToolCapabilities(
       : undefined
   )
   const query = useQuery<ModelToolCapabilities>({
-    queryKey: ['model-tool-capability', model?.provider, model?.modelId, configuredModel, veniceToolPolicy, modelRegistryVersion],
+    queryKey: ['model-tool-capability', model?.provider, model?.modelId, configuredModel, veniceToolPolicy, currentSessionMergedSettings.veniceSecurity, modelRegistryVersion],
     queryFn: async () => {
       if (!model?.provider || !model.modelId) {
         return { agentMode: false, readFile: false }

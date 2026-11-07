@@ -143,4 +143,20 @@ describe('useModelToolCapabilities', () => {
     await waitFor(() => expect(result.current.modelSupportsAgentMode).toBe(true))
     expect(mocks.getModel).toHaveBeenCalledTimes(2)
   })
+
+  it('does not reuse another chat tool capability after a chat privacy override changes', async () => {
+    let settings: SessionSettings = { veniceSecurity: { textPrivacy: 'e2ee', e2eeToolsEnabled: false } }
+    const { result, rerender } = renderHook(
+      () => useModelToolCapabilities({ provider: 'venice', modelId: 'secure' }, settings),
+      { wrapper: createWrapper() }
+    )
+    await waitFor(() => expect(result.current.isModelToolCapabilityFetched).toBe(true))
+    expect(result.current.modelSupportsAgentMode).toBe(false)
+    mocks.agentModeSupported = true
+    settings = { veniceSecurity: { textPrivacy: 'e2ee', e2eeToolsEnabled: true } }
+    rerender()
+    await waitFor(() => expect(result.current.modelSupportsAgentMode).toBe(true))
+    expect(mocks.getModel).toHaveBeenLastCalledWith(expect.objectContaining(settings), expect.anything(), expect.anything(), expect.anything())
+    expect(mocks.getModel).toHaveBeenCalledTimes(2)
+  })
 })

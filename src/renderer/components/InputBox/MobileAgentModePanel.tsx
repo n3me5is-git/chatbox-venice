@@ -96,7 +96,7 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
   const licenseKey = useSettingsStore((s) => s.licenseKey)
   const providerOptions = useSettingsStore(s => providerId ? s.providers?.[providerId] : undefined)
   const usesNativeSearch = providerId !== 'venice' && Boolean(providerOptions?.models?.find(m => m.modelId === modelId)?.nativeWebSearch)
-  const veniceOptions = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, sessionId==='new'?draft.veniceProfile:header?.settings?.veniceProfile)
+  const veniceOptions = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, sessionId==='new'?draft.veniceProfile:header?.settings?.veniceProfile, sessionId==='new'?draft.veniceSecurity:header?.settings?.veniceSecurity)
   const webIssue = !usesNativeSearch && webBrowsingMode && getWebSearchConfigurationIssue(webSearch, licenseKey) !== null
   const webProvider = WEB_SEARCH_PROVIDERS.find((p) => p.value === webSearch.provider)?.label ?? webSearch.provider
   const labels: Record<LocalWorkCapabilityId, string> = {

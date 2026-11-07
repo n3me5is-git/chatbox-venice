@@ -1,4 +1,5 @@
 import { VeniceSessionApprovalButton } from '@/components/venice/VeniceSessionApprovalButton'
+import { VeniceSessionPrivacySettings } from '@/components/venice/VeniceSessionPrivacySettings'
 import { isActionAvailableInMode, type SessionMode } from '@chatbox/core/session/mode-policy'
 import {
   Anchor,
@@ -224,6 +225,8 @@ export function SessionSettingsContent({
   return (
     <div className="flex flex-col gap-5" data-testid={TestId.sessionPanel.settings}>
       {(settings?.provider==='venice'||hasVenice)&&session.id!=='new'&&<VeniceSessionApprovalButton sessionId={session.id}/>}
+      {isChat && settings?.provider === 'venice' && <VeniceSessionPrivacySettings key={session.id} settings={settings}
+        onChange={veniceSecurity => setParam({ veniceSecurity })} />}
       <Flex align="center" gap="sm">
         <FileButton
           accept="image/png,image/jpeg"

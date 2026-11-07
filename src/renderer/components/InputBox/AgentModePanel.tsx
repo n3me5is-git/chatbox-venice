@@ -224,9 +224,10 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
   const workModeCapabilitiesDisabled = agentModeUIState.capabilitiesDisabled
 
   const draftVeniceProfile = useUIStore(s=>s.newSessionState.veniceProfile)
+  const draftVeniceSecurity = useUIStore(s=>s.newSessionState.veniceSecurity)
   const setVeniceDraft = useUIStore(s=>s.setNewSessionState)
   const providerOptions = useSettingsStore((s) => providerId ? s.providers?.[providerId] : undefined)
-  const resolvedVenice = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, isNewSession ? draftVeniceProfile : currentSession?.settings?.veniceProfile)
+  const resolvedVenice = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, isNewSession ? draftVeniceProfile : currentSession?.settings?.veniceProfile, isNewSession ? draftVeniceSecurity : currentSession?.settings?.veniceSecurity)
   const usesNativeSearch = providerId !== 'venice' && Boolean(providerOptions?.models?.find((m) => m.modelId === modelId)?.nativeWebSearch)
   const nativeSearchEnabled = providerId === 'venice'
     ? Boolean((resolvedVenice.webSearch ?? 'off') !== 'off' || resolvedVenice.xSearch || resolvedVenice.webScraping)

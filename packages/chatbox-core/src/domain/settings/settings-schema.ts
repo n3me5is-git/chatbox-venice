@@ -70,12 +70,17 @@ export const VeniceProfileSchema = z.object({
     }).optional().catch(undefined),
   })
 
-export const VeniceSettingsSchema = VeniceProfileSchema.extend({
-  privacyFilter: z.enum(['all', 'private', 'tee']).optional(),
+// User-selected transport permissions are separate from model/search profiles.
+export const VeniceChatSecuritySchema = z.object({
   textPrivacy: z.enum(['standard', 'tee', 'e2ee']).optional(),
   e2eeToolsEnabled: z.boolean().optional(),
   e2eeToolMode: z.enum(['encrypted-text', 'native']).optional(),
   secureReceiptCompatibility: z.boolean().optional(),
+})
+export type VeniceChatSecurity = z.infer<typeof VeniceChatSecuritySchema>
+
+export const VeniceSettingsSchema = VeniceProfileSchema.extend(VeniceChatSecuritySchema.shape).extend({
+  privacyFilter: z.enum(['all', 'private', 'tee']).optional(),
   showOtherModels: z.boolean().optional(),
   mediaModelIds: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),
@@ -257,6 +262,7 @@ export const GlobalSessionSettingsSchema = z.object({
 
 export const SessionSettingsSchema = GlobalSessionSettingsSchema.extend({
   veniceProfile: VeniceProfileSchema.optional().catch(undefined),
+  veniceSecurity: VeniceChatSecuritySchema.optional().catch(undefined),
   provider: z.string().optional().catch(undefined),
   modelId: z.string().optional().catch(undefined),
   // Claude prompt caching uses the provider default when omitted. Persist only

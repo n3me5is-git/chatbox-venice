@@ -26,6 +26,6 @@ export const veniceProvider = defineProvider({
     maxOutputTokens: config.settings.maxTokens,
     stream: config.settings.stream,
     useProxy: config.providerSetting.useProxy,
-    venice: resolveVeniceSettings(config.providerSetting.venice, config.model.veniceProfile, config.settings.veniceProfile),
+    venice: resolveVeniceSettings(config.providerSetting.venice, config.model.veniceProfile, config.settings.veniceProfile, config.settings.veniceSecurity),
   }, config.dependencies),
 })

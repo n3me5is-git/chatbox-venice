@@ -708,13 +708,16 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
     // Check model tool use capabilities for agent mode and file handling.
     // Uses 'agent' scope as the gate — models with weak function calling
     // (e.g. DeepSeek V3/R1) return false, disabling agent mode entirely.
+    const draftVeniceSecurity = useUIStore(state => state.newSessionState.veniceSecurity)
     const {
       modelSupportToolUseForFile,
       modelSupportsAgentMode,
       isModelToolCapabilityFetched,
       isModelToolCapabilityLoading,
       isModelToolCapabilityError,
-    } = useModelToolCapabilities(model, currentSessionMergedSettings)
+    } = useModelToolCapabilities(model, sessionId === 'new'
+      ? { ...currentSessionMergedSettings, veniceSecurity: draftVeniceSecurity }
+      : currentSessionMergedSettings)
     const showSessionRetrievalToolWarning =
       hasSessionRetrievalFiles && isModelToolCapabilityFetched && !modelSupportToolUseForFile
     const agentModeUIState = useMemo(

@@ -289,6 +289,7 @@ function Index() {
             ...session.settings,
             ...options?.settingsPatch,
             ...(newSessionState.veniceProfile ? {veniceProfile:newSessionState.veniceProfile} : {}),
+            ...(newSessionState.veniceSecurity ? {veniceSecurity:newSessionState.veniceSecurity} : {}),
             // Bake the exact mode shown while the chat was "new" into the created session, so
             // remembered defaults and transient selections follow the same resolution path.
             agentMode: getSessionAgentModeEntry('new', undefined, sessionAgentModeMap),
@@ -329,6 +330,7 @@ function Index() {
       }
       if (
         newSessionState.veniceProfile !== undefined ||
+        newSessionState.veniceSecurity !== undefined ||
         newSessionState.localWorkCapabilities !== undefined ||
         newSessionState.knowledgeBase ||
         newSessionState.workingDirectories !== undefined ||
@@ -362,6 +364,7 @@ function Index() {
       folderId,
       addSessionKnowledgeBase,
       newSessionState.veniceProfile,
+      newSessionState.veniceSecurity,
       newSessionState.localWorkCapabilities,
       newSessionState.knowledgeBase,
       newSessionState.workingDirectories,
@@ -437,10 +440,11 @@ function Index() {
     })
     if (res) {
       setSession(res.session)
+      setNewSessionState(current => ({ ...current, veniceSecurity: res.session.settings?.veniceSecurity }))
       setSystemPrompt(res.systemPrompt)
     }
     return true
-  }, [session, systemPrompt])
+  }, [session, systemPrompt, setNewSessionState])
 
   const showNewUserScenarios =
     (forceShowNewUserScenarioCards || (hasCompletedFirstSuccessfulChat === false && isLoggedIn)) && !session.copilotId

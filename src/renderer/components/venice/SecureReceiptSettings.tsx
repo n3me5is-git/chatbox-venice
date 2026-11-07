@@ -7,6 +7,7 @@ import {forkT as ft} from '@/i18n/fork'
 export function SecureReceiptSettings({enabled,onChange}:{enabled:boolean;onChange:(value:boolean)=>void}){
  useTranslation();const [opened,setOpened]=useState(false)
  return <Stack gap="xs"><Switch aria-label={ft('Compatible gateway receipts')} label={ft('Compatible gateway receipts')} description={ft('Allow Venice gateway signatures when exact request and response hashes cannot be reproduced locally. Off by default.')} checked={enabled} onChange={event=>event.currentTarget.checked?setOpened(true):onChange(false)}/>
+ <Text size="sm">{ft('Encryption and response verification are separate. Compatibility keeps encryption but provides less assurance that the signed receipt matches this exact request and response. It is still needed for some tested Venice gateways.')}</Text>
  {enabled&&<Alert color="orange">{ft('Gateway receipt compatibility is enabled. Encryption and attested signer checks remain active. The app cannot independently prove that the signed hashes describe the response it received, including tool calls.')}</Alert>}
  <Text size="xs" c="dimmed">{ft('NEAR gateway signatures require public gateway attestation and local Intel certificate checks using Phala certificate collateral. These services receive no prompt, media or Venice API key. Model code measurements are not allowlisted.')}</Text>
  <AdaptiveModal opened={opened} onClose={()=>setOpened(false)} title={ft('Allow compatible gateway receipts?')}><Stack>

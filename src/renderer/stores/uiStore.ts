@@ -95,6 +95,7 @@ export const uiStore = createStore(
           knowledgeBase?: Pick<KnowledgeBase, 'id' | 'name'>
           webBrowsing?: boolean
           veniceProfile?: import('@shared/types').SessionSettings['veniceProfile']
+          veniceSecurity?: import('@shared/types').SessionSettings['veniceSecurity']
           localWorkCapabilities?: LocalWorkCapabilityId[]
           // Working directories bound before the session is persisted; transferred into the
           // created session's settings on first submit (see routes/index.tsx).
