@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.32.0
+
+See [release notes](docs/releases/v1.32.0.md). Adds explicit chat-level Venice transport privacy, receipt policy and encrypted-tool settings with provider inheritance, downgrade confirmation and incompatible-model feedback. Clarifies the remaining live receipt-binding and model-attestation limits.
+
 ## 1.31.0
 
 See [release notes](docs/releases/v1.31.0.md). Adds local reference cropping, Venice background removal/upscaling with protected local outputs, explicit model prices and video quotes. Repairs Phala/NEAR AI quote transport padding and adds opt-in compatible gateway receipt verification after live E2EE investigation.

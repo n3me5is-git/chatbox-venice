@@ -1,4 +1,10 @@
 const changelog = `
+## Chatbox Venice 1.32.0
+1. Configura HTTPS, TEE o E2EE per ogni chat Venice, oppure segui i valori del provider
+2. Consenso separato per chat alle ricevute compatibili e ai tool cifrati o nativi
+3. Conferma i passaggi a modalità meno protette; avviso sui modelli incompatibili prima dell’invio
+4. Distinzione tra cifratura, verifica della risposta e fiducia residua nell’attestazione del modello
+
 ## Chatbox Venice 1.31.0
 1. Ritaglio locale dei riferimenti immagine, con controlli touch e trasparenza preservata
 2. Rimozione sfondo e ingrandimento 2×/4× in Venice Studio; output locali protetti

@@ -53,7 +53,7 @@ export function VeniceChatPrivacySettings({ provider, value, model, onChange }: 
       <Text fw={600}>{ft('Venice privacy for this chat')}</Text>
       <Badge variant="light">{ft(labels[mode])}</Badge>
     </Group>
-    <Switch label={ft('Use provider privacy defaults')} checked={value === undefined}
+    <Switch aria-label={ft('Use provider privacy defaults')} label={ft('Use provider privacy defaults')} checked={value === undefined}
       description={ft('Off: save a separate privacy configuration for this chat. Other chats and provider defaults stay unchanged.')}
       onChange={event => change(event.currentTarget.checked ? undefined : snapshot)} />
     <Text size="xs" c="dimmed">{ft('Provider default: {{mode}}', { mode: ft(labels[providerMode]) })}</Text>
@@ -62,6 +62,7 @@ export function VeniceChatPrivacySettings({ provider, value, model, onChange }: 
       : mode === 'tee'
         ? ft('TEE checks the protected model environment. Venice can still read the request at its API; this mode is not end-to-end encryption.')
         : ft('HTTPS protects the connection. Venice can read the request. Choosing an E2EE-capable model alone does not encrypt messages on this device.')}</Text>
+    {mode !== 'standard' && <Text size="xs" c="dimmed">{ft('Model hardware verification relies on Venice. This app does not independently verify the model software against approved code measurements.')}</Text>}
     {provider.privacyFilter === 'tee' && <Text size="xs" c="dimmed">{ft('The provider Privacy Only filter still requires TEE verification, even if HTTPS is selected here.')}</Text>}
     {incompatible && <Alert color="red">{ft('This model does not support the selected privacy mode. Sending is blocked before contacting Venice. Choose a compatible model or explicitly change this chat setting.')}</Alert>}
     {value !== undefined && <>

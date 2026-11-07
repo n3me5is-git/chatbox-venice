@@ -3,7 +3,8 @@ import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 export async function runPrivacyReview({ click, evaluate, wait, byText, byLabel, cdp, output }) {
-  const track = label => `(${byLabel(label)}).closest('.mantine-Switch-root').querySelector('.mantine-Switch-track')`
+  const control = label => `(document.querySelector('input[aria-label=${JSON.stringify(label)}]') || (${byLabel(label)}))`
+  const track = label => `${control(label)}.closest('.mantine-Switch-root').querySelector('.mantine-Switch-track')`
   const choose = async label => {
     await click(byLabel('Secure text chat'))
     await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.trim() === ${JSON.stringify(label)})`)
@@ -20,7 +21,7 @@ export async function runPrivacyReview({ click, evaluate, wait, byText, byLabel,
   await wait(() => evaluate('window.__simulationChatPrivacy.chats.a.textPrivacy === "standard"'), 'Chat override did not save')
   assert.equal(await evaluate('window.__simulationChatPrivacy.provider.textPrivacy'), 'e2ee')
   await click(byText('Chat B'))
-  await wait(() => evaluate(`(${byLabel('Use provider privacy defaults')}).checked`), 'Other chat inherited a private override')
+  await wait(() => evaluate(`${control('Use provider privacy defaults')}.checked`), 'Other chat inherited a private override')
   await click(byText('Chat A'))
   await wait(() => evaluate(`(${byLabel('Secure text chat')}).value === 'Standard HTTPS'`), 'Chat privacy was not restored')
   await choose('Require end-to-end encryption')
