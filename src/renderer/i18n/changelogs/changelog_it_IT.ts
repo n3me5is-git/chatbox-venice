@@ -1,4 +1,10 @@
 const changelog = `
+## Chatbox Venice 1.32.2
+1. Corregge le chiamate MCP e di funzione cifrate con DeepSeek e GLM
+2. Riconosce chiamate XML GLM e chiamate nel testo cifrato restituite dai gateway in modalità nativa
+3. Verifica le firme NEAR che includono il modello con la corretta identità attestata
+4. Mantiene verifica degli argomenti, approvazioni degli strumenti e scelte esplicite sulle ricevute
+
 ## Chatbox Venice 1.32.1
 1. Cifra i risultati testuali restituiti dagli strumenti nativi nelle chat E2EE
 2. Chiarisce in inglese e italiano quali nomi e argomenti degli strumenti restano visibili

@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.32.2
+
+See [release notes](docs/releases/v1.32.2.md). Repairs encrypted MCP calls with backend-safe protocol tags, GLM XML parsing and a verified text bridge for native-mode gateways. Adds NEAR model-prefixed signatures with attestation/model binding and preserves the selected receipt policy, schema validation and permissions.
+
 ## 1.32.1
 
 See [release notes](docs/releases/v1.32.1.md). Encrypts non-empty native tool-result text in E2EE chats while preserving the required public function-call metadata. Updates English/Italian consent and adds encrypted native tool round-trip coverage.

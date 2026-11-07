@@ -1,4 +1,10 @@
 const changelog = `
+## Chatbox Venice 1.32.2
+1. Repair encrypted MCP/function calling with DeepSeek and GLM
+2. Recognize GLM XML calls and encrypted text calls returned by native-mode gateways
+3. Verify NEAR model-prefixed signatures with the correct attested identity
+4. Preserve schema checks, tool approvals and explicit receipt privacy choices
+
 ## Chatbox Venice 1.32.1
 1. Encrypt text results returned by native tools in E2EE chats
 2. Clarify visible tool names and arguments in English and Italian
