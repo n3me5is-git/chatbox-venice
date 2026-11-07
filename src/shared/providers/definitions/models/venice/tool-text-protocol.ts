@@ -110,6 +110,7 @@ const TOOL_CALL_TAGS: readonly TagPair[] = [
   { open: TOOL_CALL_OPEN, close: TOOL_CALL_CLOSE },
   { open: '<function_call>', close: '</function_call>' },
   { open: '<|tool_call|>', close: '<|/tool_call|>' },
+  { open: '<function_calls>', close: '</function_calls>' },
 ];
 
 /** Cap on content held back while deciding whether it is an untagged tool call. */
@@ -154,6 +155,12 @@ export function buildToolSystemPrompt(
   }
 
   return `# Tools
+
+These tools ARE available through this application. The application decrypts
+your reply, validates the call and executes the tool locally or through MCP.
+Use the exact declared names and arguments. Do not add prefixes such as
+REPLICATE_ or claim a tool is unavailable merely because you cannot run it yourself.
+To use a tool, emit the call rather than promising to call it later.
 
 You have access to the following functions, described as JSON schemas:
 
@@ -547,6 +554,68 @@ function parseArgValue(raw: string): unknown {
   }
 }
 
+/** GLM also emits the complete function_calls/invoke/parameter XML template.
+ * This is a bounded recognizer for that format, not a general XML evaluator:
+ * no declarations, DTDs, external entities, duplicate attributes or nested tags.
+ * Runtime schema validation and tool permissions still happen in the SDK. */
+function parseXmlInvocations(text: string, lookup: Map<string, ToolFunctionDefinition>): ToolCall[] {
+  if (text.length > 512 * 1024 || /<!|<\?/.test(text)) return [];
+  const decode = (value: string): string => value.replace(/&(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);/g, entity => {
+    const named: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'" };
+    if (entity in named) return named[entity];
+    const code = entity.startsWith('&#x') ? parseInt(entity.slice(3, -1), 16) : Number(entity.slice(2, -1));
+    if (!Number.isInteger(code) || code < 0 || code > 0x10ffff || code >= 0xd800 && code <= 0xdfff) throw Error('Invalid XML character');
+    return String.fromCodePoint(code);
+  });
+  const attributes = (raw: string, allowed: string[]): Record<string, string> | undefined => {
+    const result: Record<string, string> = Object.create(null);
+    let rest = raw;
+    while (rest.trim()) {
+      const match = /^\s+([A-Za-z_][\w.-]*)\s*=\s*(?:"([^"<>]*)"|'([^'<>]*)')/.exec(rest);
+      if (!match || !allowed.includes(match[1]) || Object.hasOwn(result, match[1])) return;
+      result[match[1]] = decode(match[2] ?? match[3]);
+      rest = rest.slice(match[0].length);
+    }
+    return result;
+  };
+  const calls: ToolCall[] = [];
+  let rest = text.trim();
+  try {
+    while (rest) {
+      const invocation = /^<invoke\b([^<>]*)>([\s\S]*?)<\/invoke>/.exec(rest);
+      if (!invocation || calls.length >= 8) return [];
+      const attr = attributes(invocation[1], ['name']);
+      if (!attr?.name || !FUNCTION_NAME.test(attr.name)) return [];
+      const fn = lookup.get(attr.name);
+      const args: Record<string, unknown> = Object.create(null);
+      let parameters = invocation[2].trim();
+      while (parameters) {
+        const parameter = /^<parameter\b([^<>]*)>([\s\S]*?)<\/parameter>/.exec(parameters);
+        if (!parameter || /[<>]/.test(parameter[2]) || /&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/.test(parameter[2])) return [];
+        const p = attributes(parameter[1], ['name', 'type']);
+        if (!p?.name || Object.hasOwn(args, p.name)) return [];
+        const declared = (fn?.parameters?.properties as Record<string, { type?: string }> | undefined)?.[p.name]?.type;
+        const type = p.type ?? declared;
+        const value = decode(parameter[2]).trim();
+        if (type === 'string') {
+          const parsed = value.startsWith('"') ? JSON.parse(value) : value;
+          if (typeof parsed !== 'string') return [];
+          args[p.name] = parsed;
+        } else if (type && ['number', 'integer', 'boolean', 'object', 'array', 'null'].includes(type)) {
+          const parsed = JSON.parse(value);
+          if (type === 'integer' ? !Number.isInteger(parsed) : type === 'array' ? !Array.isArray(parsed) : type === 'null' ? parsed !== null : type === 'object' ? parsed === null || typeof parsed !== 'object' || Array.isArray(parsed) : typeof parsed !== type) return [];
+          args[p.name] = parsed;
+        } else if (p.type) return [];
+        else args[p.name] = parseArgValue(value);
+        parameters = parameters.slice(parameter[0].length).trim();
+      }
+      calls.push({ id: generateToolCallId(), type: 'function', function: { name: attr.name, arguments: JSON.stringify(args) } });
+      rest = rest.slice(invocation[0].length).trim();
+    }
+    return calls;
+  } catch { return []; }
+}
+
 const ARG_TAG = /<\/?arg_(?:key|value)>/g;
 const ARG_VALUE_CLOSE = '</arg_value>';
 const ARG_VALUE_OPEN = '<arg_value>';
@@ -921,7 +990,7 @@ export class ToolCallStreamParser {
     // Loop: a single chunk can close one block and open the next.
     for (;;) {
       if (!this.openTag) {
-        const opened = findFirst(this.buffer, (tag) => this.buffer.indexOf(tag.open));
+        const opened = findFirst(this.buffer, (tag) => findTagOutsideJsonString(this.buffer, tag.open));
         if (!opened) {
           // Hold back anything that might be the start of an opening tag.
           const hold = maxPartialTagSuffix(this.buffer);
@@ -1064,6 +1133,7 @@ export class ToolCallStreamParser {
   private parseBlocks(block: string): ToolCall[] {
     const text = stripFences(block);
     if (!text) return [];
+    if (text.startsWith('<invoke')) return parseXmlInvocations(text, this.lookup);
 
     // JSON is the canonical body, so try it first.
     const value = parseJsonLoose(text);

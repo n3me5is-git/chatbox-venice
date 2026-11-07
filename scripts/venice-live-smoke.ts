@@ -5,6 +5,10 @@ import { VeniceMediaService, type MediaStore, type MediaRecord, type MediaCatalo
 import type { ModelDependencies } from '../src/shared/types/adapters'
 import { tool } from 'ai'
 import { z } from 'zod'
+// Export production adapters for bounded local probes built by CI. No credential
+// or live inference is used while building this diagnostic artifact.
+export { Venice as DiagnosticVenice, tool as diagnosticTool, z as diagnosticSchema }
+export { MCPServer as DiagnosticMCPServer } from '../packages/chatbox-core/src/mcp/controller'
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises'
 import { createWriteStream } from 'node:fs'
 import { Readable } from 'node:stream'

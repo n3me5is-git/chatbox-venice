@@ -61,7 +61,10 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
             ? encryptMessage(message.content, evidence.signingKey!)
             : message.content,
         }))
-        request.messages=[...encryptConversation(native.privateMessages,evidence.signingKey!),...pending]
+        // Some E2EE gateways omit the public schemas or emit calls in encrypted
+        // content. Keep a private copy of the tool contract available to the model.
+        const privateMessages = encryptedToolMessages(native.privateMessages, tools, toolChoice)
+        request.messages=[...encryptConversation(privateMessages,evidence.signingKey!),...pending]
       }else request.messages = encryptConversation(toolMode==='encrypted-text' ? encryptedToolMessages(body.messages, tools, toolChoice) : body.messages, evidence.signingKey!)
       request.venice_parameters = { enable_e2ee: true, include_venice_system_prompt: false, enable_web_search: 'off', enable_web_scraping: false, enable_x_search: false, enable_web_citations: false, include_search_results_in_stream: false, strip_thinking_response: true }
       headers.set('X-Venice-TEE-Client-Pub-Key', pair.publicKeyHex); headers.set('X-Venice-TEE-Model-Pub-Key', evidence.signingKey!); headers.set('X-Venice-TEE-Signing-Algo', 'ecdsa')
@@ -130,7 +133,7 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     const compatible = receiptCompatibility && compatibleGatewayReceipt(signature, completionId, signedText) &&
       verifySignature({signedText,signatureHex,expectedSigningAddress:responseSigningAddress,expectedContent:signedText}).verified
     if (!direct && !hashed && !compatible) throw new Error(calls.length?'Native tool data could not be authenticated. Review secure receipt verification in Venice settings; no tool was executed.':'The secure response signature could not be matched to gateway hashes. Review secure receipt verification in Venice settings. Encryption was not disabled.')
-    if (pair && toolMode==='encrypted-text') {
+    if (pair && (toolMode==='encrypted-text' || toolMode==='native' && calls.length === 0)) {
       const calls = parseEncryptedToolCalls(plain, tools, toolChoice)
       if (calls) output = exposeVerifiedToolCalls(output, streaming, calls, completionId, body.model)
     }
