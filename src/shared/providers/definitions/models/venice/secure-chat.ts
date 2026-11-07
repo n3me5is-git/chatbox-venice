@@ -124,13 +124,16 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     if(calls.some(call=>!call.id||!tools.some(tool=>tool.type==='function'&&tool.function?.name===call.function.name)))throw new Error('The secure response requested an unavailable native tool')
     // A signature over empty/text-only content must never authenticate public tool arguments.
     const candidates=calls.length?[raw,JSON.stringify(calls),JSON.stringify({content:plain,tool_calls:calls})]:[raw,plain,...(pair?[encryptedContent]:[])]
-    const hashed = candidates.some(content=>verifySignature({ signedText, signatureHex, expectedSigningAddress: responseSigningAddress, expectedRequest: sent, expectedContent: content }).verified)
+    // NEAR provider_tee signs model:request_hash:response_hash, unlike its
+    // gateway's two-hash format. Bind that prefix to this attestation's model.
+    const providerModel = report.tee_provider==='near-ai' && signature.tee_provider==='near-ai' && signature.signature_kind==='provider_tee' && signature.upstream_model===report.upstream_model ? report.upstream_model : undefined
+    const hashed = candidates.some(content=>verifySignature({ signedText, signatureHex, expectedSigningAddress: responseSigningAddress, expectedRequest: sent, expectedContent: content, expectedModel:providerModel }).verified)
     // Venice's public proxy rewrites requests/responses outside the receipt's byte boundary.
     // Gateway hashes may cover decrypted/reserialized service bytes, rather than
     // the outer Venice wire. Do not invent a canonical representation to make them match.
     // Compatibility requires explicit user consent, never an automatic fallback. It authenticates
     // the signed gateway hash pair, NOT its independent binding to our received payload.
-    const compatible = receiptCompatibility && compatibleGatewayReceipt(signature, completionId, signedText) &&
+    const compatible = receiptCompatibility && compatibleGatewayReceipt(signature, completionId, signedText, report) &&
       verifySignature({signedText,signatureHex,expectedSigningAddress:responseSigningAddress,expectedContent:signedText}).verified
     if (!direct && !hashed && !compatible) throw new Error(calls.length?'Native tool data could not be authenticated. Review secure receipt verification in Venice settings; no tool was executed.':'The secure response signature could not be matched to gateway hashes. Review secure receipt verification in Venice settings. Encryption was not disabled.')
     if (pair && (toolMode==='encrypted-text' || toolMode==='native' && calls.length === 0)) {
@@ -145,7 +148,11 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
 }
 
 /** Structural cross-checks reduce accidental mix-ups; receipt metadata is NOT a payload proof. */
-function compatibleGatewayReceipt(signature: Body, requestId: string, text: string): boolean {
+function compatibleGatewayReceipt(signature: Body, requestId: string, text: string, report:TeeAttestationResponse): boolean {
+  if(signature.tee_provider==='near-ai'&&signature.signature_kind==='provider_tee'){
+    const model=report.upstream_model
+    return report.tee_provider==='near-ai' && typeof model==='string' && model.length>0 && !model.includes(':') && signature.upstream_model===model && signature.model===report.model && signature.signing_algo==='ecdsa' && signature.requested_request_id===requestId && text.startsWith(model+':') && /^[a-f0-9]{64}:[a-f0-9]{64}$/.test(text.slice(model.length+1))
+  }
   if(signature.tee_provider==='near-ai'&&signature.signature_kind==='gateway')return /^[a-f0-9]{64}:[a-f0-9]{64}$/.test(text)&&signature.signing_algo==='ecdsa'&&signature.requested_request_id===requestId
   if (!/^[a-f0-9]{64}:[a-f0-9]{64}$/.test(text) || signature.api_version!=='aci/1' || signature.signing_algo!=='ecdsa' || signature.requested_request_id!==requestId) return false
   const receipt=signature.receipt

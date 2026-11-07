@@ -8,7 +8,7 @@ import Venice from '../venice'
 import { bytesToHex,decryptChunk,deriveSigningAddressFromKey,encryptMessage,generateEphemeralKeyPair,isHexEncrypted } from './crypto'
 import type { ModelDependencies } from '../../../../types/adapters'
 
-function fixture({native=false,badSignature=false,weakToolSignature=false,capability=true,gateway=false,invalidSigner=false,xml=false,textBridge=false,invalidArguments=false}={}){
+function fixture({native=false,badSignature=false,weakToolSignature=false,capability=true,gateway=false,invalidSigner=false,xml=false,textBridge=false,invalidArguments=false,providerTee=false,wrongModel=false,wrongReceipt=false}={}){
  const enclave=generateEphemeralKeyPair(),address=deriveSigningAddressFromKey(enclave.publicKeyHex)!
  const wires:string[]=[],decrypted:string[]=[],events:string[]=[]
  let sent='',raw='',plain='',hasNativeCalls=false
@@ -16,7 +16,7 @@ function fixture({native=false,badSignature=false,weakToolSignature=false,capabi
   const url=new URL(request.url)
   if(url.pathname.endsWith('/tee/attestation')){
    const quote=Buffer.alloc(636);quote.writeUInt16LE(4,0);quote.writeUInt32LE(0x81,4);quote.set(Buffer.from(address,'hex'),48+520)
-   return Response.json({verified:true,nonce:url.searchParams.get('nonce'),model:'secure-model',signing_key:enclave.publicKeyHex,signing_address:address,intel_quote:quote.toString('hex'),server_verification:{tdx:{valid:true},nonceBinding:{bound:true},verifiedAt:new Date().toISOString(),verificationDurationMs:1}})
+   return Response.json({verified:true,nonce:url.searchParams.get('nonce'),model:'secure-model',...(providerTee?{tee_provider:'near-ai',upstream_model:'z-ai/glm-test'}:{}),signing_key:enclave.publicKeyHex,signing_address:address,intel_quote:quote.toString('hex'),server_verification:{tdx:{valid:true},nonceBinding:{bound:true},verifiedAt:new Date().toISOString(),verificationDurationMs:1}})
   }
   if(url.pathname.endsWith('/chat/completions')){
    sent=String(request.body);wires.push(sent);const body=JSON.parse(sent)
@@ -36,12 +36,12 @@ function fixture({native=false,badSignature=false,weakToolSignature=false,capabi
   if(url.pathname.endsWith('/tee/signature')){
    events.push('signature')
    const hash=(value:string)=>bytesToHex(sha256(new TextEncoder().encode(value)))
-   const signed=gateway?hash('gateway request '+wires.length)+':'+hash('gateway response '+wires.length):hash(sent)+':'+hash(badSignature?'tampered':hasNativeCalls&&!weakToolSignature?raw:plain)
+   const signed=(providerTee?(wrongModel?'another/model':'z-ai/glm-test')+':':'')+(gateway?hash('gateway request '+wires.length)+':'+hash('gateway response '+wires.length):hash(sent)+':'+hash(badSignature?'tampered':hasNativeCalls&&!weakToolSignature?raw:plain))
    const bytes=new TextEncoder().encode(signed),prefix=new TextEncoder().encode(`\x19Ethereum Signed Message:\n${bytes.length}`)
    const payload=new Uint8Array(prefix.length+bytes.length);payload.set(prefix);payload.set(bytes,prefix.length)
    const signature=secp256k1.sign(keccak_256(payload),invalidSigner?generateEphemeralKeyPair().privateKey:enclave.privateKey)
    const [req,res]=signed.split(':');const id=url.searchParams.get('request_id')
-   return Response.json({model:'secure-model',request_id:id,text:signed,signature:'0x'+bytesToHex(signature.toBytes('compact'))+(27+signature.recovery).toString(16),...(gateway?{api_version:'aci/1',signing_algo:'ecdsa',signing_address:'0x'+address,requested_request_id:id,receipt:{api_version:'aci/1',chat_id:id,endpoint:'/v1/chat/completions',event_log:[{type:'request.received',body_hash:'sha256:'+req},{type:'response.returned',wire_hash:'sha256:'+res}]}}:{})})
+   return Response.json({model:'secure-model',request_id:id,text:signed,signature:'0x'+bytesToHex(signature.toBytes('compact'))+(27+signature.recovery).toString(16),...(gateway?{api_version:'aci/1',signing_algo:'ecdsa',signing_address:'0x'+address,requested_request_id:id,receipt:{api_version:'aci/1',chat_id:id,endpoint:'/v1/chat/completions',event_log:[{type:'request.received',body_hash:'sha256:'+req},{type:'response.returned',wire_hash:'sha256:'+res}]}}:{}),...(providerTee?{tee_provider:'near-ai',upstream_model:'z-ai/glm-test',signature_kind:'provider_tee',signing_algo:'ecdsa',signing_address:'0x'+address,requested_request_id:wrongReceipt?'another-request':id}:{})})
   }
   throw Error('Unexpected mock endpoint')
  })
@@ -106,5 +106,15 @@ describe('real SDK encrypted tool round trips with a simulated enclave',()=>{
   const f=fixture({native:true,textBridge:true,invalidArguments:true})
   await f.run().catch(()=>{})
   expect(f.execute).not.toHaveBeenCalled()
+ })
+ it.each([false,true])('uses the attested model key for NEAR provider_tee tool cycles (compatible: %s)',async gateway=>{
+  const f=fixture({providerTee:true,gateway,xml:true});const parts=await f.run()
+  expect(f.execute).toHaveBeenCalledTimes(1);expect(f.wires).toHaveLength(2)
+  expect(parts.some(part=>part.type==='error')).toBe(false)
+ })
+ it.each([{wrongModel:true},{wrongReceipt:true},{invalidSigner:true}])('rejects mismatched NEAR provider_tee receipts before executing tools: %j',async options=>{
+  const f=fixture({providerTee:true,gateway:true,xml:true,...options})
+  await expect(f.run()).rejects.toThrow(/signature|authenticated|another request/)
+  expect(f.execute).not.toHaveBeenCalled();expect(f.wires).toHaveLength(1)
  })
 })

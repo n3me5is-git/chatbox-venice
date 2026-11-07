@@ -203,6 +203,8 @@ export interface SignatureVerificationParams {
   expectedContent: string
   /** The exact request the enclave hashed. */
   expectedRequest?: string
+  /** Exact upstream model from the current attestation, for NEAR provider_tee signatures. */
+  expectedModel?: string
 }
 
 export interface SignatureVerificationResult {
@@ -218,7 +220,7 @@ const sha256Hex = (text: string): string => bytesToHex(sha256(new TextEncoder().
  * expectedRequest and expectedContent joined by a colon.
  */
 export const verifySignature = (params: SignatureVerificationParams): SignatureVerificationResult => {
-  const { signedText, signatureHex, expectedSigningAddress, expectedContent, expectedRequest } = params
+  const { signedText, signatureHex, expectedSigningAddress, expectedContent, expectedRequest, expectedModel } = params
 
   const expectedAddr = expectedSigningAddress.toLowerCase().replace(/^0x/, '')
   const recoveredAddress = recoverSignerAddress(signedText, signatureHex)
@@ -235,7 +237,8 @@ export const verifySignature = (params: SignatureVerificationParams): SignatureV
   }
 
   if (expectedRequest !== undefined) {
-    if (signedText !== `${sha256Hex(expectedRequest)}:${sha256Hex(expectedContent)}`) {
+    const prefix = expectedModel === undefined ? '' : expectedModel + ':'
+    if (expectedModel !== undefined && (!expectedModel || expectedModel.includes(':')) || signedText !== `${prefix}${sha256Hex(expectedRequest)}:${sha256Hex(expectedContent)}`) {
       return { verified: false, error: 'Signed hashes do not match the expected request and response' }
     }
     return { verified: true }

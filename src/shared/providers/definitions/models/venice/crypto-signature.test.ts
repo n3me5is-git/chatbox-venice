@@ -75,6 +75,15 @@ test('verifySignature accepts a signature over exactly the expected reply', () =
   );
 });
 
+test('NEAR provider_tee binds the exact upstream model as well as both payload hashes', () => {
+  const signer=makeSigner(),model='z-ai/glm-test';
+  const signed=signer.sign(`${model}:${sha256Hex(REQUEST)}:${sha256Hex(REPLY)}`);
+  assert.equal(verifySignature({...signed,expectedRequest:REQUEST,expectedContent:REPLY,expectedModel:model}).verified,true);
+  for(const wrong of [{expectedModel:'other/model'},{expectedRequest:REQUEST+' '},{expectedContent:REPLY+' '},{expectedModel:undefined}]) {
+    assert.equal(verifySignature({...signed,expectedRequest:REQUEST,expectedContent:REPLY,expectedModel:model,...wrong}).verified,false);
+  }
+});
+
 test('verifySignature accepts a signed hash pair only when it matches the expected request and reply', () => {
   const signer = makeSigner();
   const pair = `${sha256Hex(REQUEST)}:${sha256Hex(REPLY)}`;
