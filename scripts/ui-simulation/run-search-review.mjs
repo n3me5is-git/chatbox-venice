@@ -19,7 +19,8 @@ export async function runSearchReview({click,evaluate,wait,byText,byLabel,cdp,ou
  await click(byLabel('When to search the web'));await click(`[...document.querySelectorAll('[role="option"]')].findLast(e=>e.textContent==='When needed')`)
  await click(byText('Close search settings'));await wait(()=>evaluate(`!(${venice}).disabled&&(${venice}).checked`),'Venice search did not restore the previous enabled choice')
  await click(track('Tools in encrypted chat'));await click(byLabel('Tool transport'));await click(`[...document.querySelectorAll('[role="option"]')].findLast(e=>e.textContent==='Native tools with visible metadata')`)
- await wait(()=>evaluate(`document.body.textContent.includes('Tool definitions and current function-call arguments/results are outside E2EE')`),'Native tool privacy warning did not appear')
+ await wait(()=>evaluate(`document.body.textContent.includes('Tool definitions, names, call IDs and arguments are visible to Venice')`),'Native tool privacy warning did not appear')
+ assert.equal(await evaluate(`document.body.textContent.includes('Non-empty text results are encrypted before returning to the model')`),true,'Native tool encrypted-result explanation is missing')
  await writeFile(path.join(output,'native-tool-privacy-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  await click(byText('Cancel'));assert.equal(await evaluate('window.__simulationSearchSettings.e2eeToolsEnabled===true'),false,'Cancel enabled tools')
  await click(track('Tools in encrypted chat'));await click(byText('Enable tools'));await wait(()=>evaluate('window.__simulationSearchSettings.e2eeToolsEnabled===true&&window.__simulationSearchSettings.e2eeToolMode==="encrypted-text"'),'Encrypted tool mode did not save after consent')
@@ -27,3 +28,4 @@ export async function runSearchReview({click,evaluate,wait,byText,byLabel,cdp,ou
  await writeFile(path.join(output,'independent-search-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  await click(byText('Close search review'))
 }
+
