@@ -22,6 +22,8 @@ Markdown previews also offer **Export PDF** and **Export single-file HTML**, inc
 
 ## Configure Venice
 
+For separate **global Chatbox search** tools, open **Settings → Web Search → Venice** and enable **Expose separate search engines**. This offers `web_search_brave`, `web_search_google` and `web_search_exa`, independently of the Venice model/profile search controls.
+
 1. Open Settings → Providers → Venice and enter your API key.
 2. Select Fetch to discover the current chat, image generation and image editing models directly from Venice. Add the models you want to use.
 3. Choose a model for your chat or open Image Creator.
@@ -96,3 +98,4 @@ Development, tests, Windows packaging and Android compilation can all run on Git
 [Changelog](CHANGELOG.md) · [Upstream source and license](https://github.com/chatboxai/chatbox) · [Venice CLI reference](https://github.com/veniceai/venice-cli) · [Venice MCP reference](https://github.com/veniceai/venice-mcp-server)
 
 The external Venice MCP server can also be configured explicitly; it is not installed automatically or given your API key. The fork's internal MCP runs inside the app.
+

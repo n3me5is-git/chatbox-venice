@@ -4,6 +4,8 @@
 
 **Chatbox web search** exposes `web_search`. Configure its provider in **Settings → Web Search**. When that provider is Venice, retrieval calls `POST /api/v1/augment/search` directly with the selected Brave, Google or Exa backend. Retrieval does not invoke a chat model. The chat model receives the results in a subsequent completion. The chat's global search switch controls this tool.
 
+From 1.34.1, **Settings → Web Search → Venice → Expose separate search engines** replaces the global `web_search` tool with `web_search_brave`, `web_search_google` and `web_search_exa`. Turn it off to return to the selected-engine tool. This is saved separately from Venice model/profile search, applies to any chat model with tool support, and is also respected by the optional desktop MCP server. Each engine has its own cache; the global search switch pauses all three together. The engine selector remains the default for connection checks and clients that use one search action.
+
 **Venice model search** has a separate row and settings icon in the chat tools panel. Its switch pauses/resumes search for that chat without erasing the configured mode, engine or citation settings. **Do not search** greys out the switch. The same settings can be inherited from the provider, a saved profile or the selected model, then overridden for the chat. New-chat choices carry into the created conversation.
 
 The modes are:
@@ -53,3 +55,4 @@ Venice provider-integrated search and multimodal input remain unavailable in the
 ## Verification
 
 Focused CI tests exercise the real SDK with synthetic API/enclave responses: encrypted tool selection and result return, native metadata opt-in, signature tampering, insufficient signature coverage, native capability gating, all three search backends, failed/duplicate search limits, independent revocation and the global `web_search` completion cycle. React and mobile Chromium tests exercise consent, cancel, dropdown persistence and both search switches. No paid inference or production API key is used in CI. Separately authorized live tests now cover E2EE text and a complete encrypted-text tool/result cycle; see [secure receipts](venice-secure-receipts.md). See [test workflows and device limits](fork-testing.md).
+
