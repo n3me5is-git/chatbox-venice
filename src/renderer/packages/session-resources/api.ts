@@ -28,6 +28,7 @@ export const sessionResourceAPI={
     return executeSessionCode((await files()).sessionFiles,capacitorExecution,id,code,paths,signal)
   },
   create:async(id:string,path:string,bytes:Uint8Array,mime?:string)=>(await files()).sessionFiles.write(id,path,bytes,{mime}),
+  mkdir:async(id:string,path:string)=>(await files()).sessionFiles.mkdir(id,path),
   deliver:async(id:string,item:SessionResource)=>{
     const store=(await files()).sessionFiles
     if(item.origin==='file')return store.deliver(id,item.path,!item.deliverable)

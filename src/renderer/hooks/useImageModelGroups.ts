@@ -45,6 +45,7 @@ export function useImageModelGroups(): ImageModelGroup[] {
   const geminiProvider = providers.find((p) => p.id === ModelProviderEnum.Gemini)
   const customGeminiProviders = providers.filter((p) => p.isCustom && p.type === ModelProviderType.Gemini)
   const openAIImageModels = useProviderImageModels(ModelProviderEnum.OpenAI, !!openAIProvider)
+  const subscriptionImages = useProviderImageModels(ModelProviderEnum.OpenAISubscription, !!providerSettingsMap?.[ModelProviderEnum.OpenAISubscription]?.oauth)
   const openRouterImageModels = useProviderImageModels(
     ModelProviderEnum.OpenRouter,
     !!openRouterProvider,
@@ -65,11 +66,12 @@ export function useImageModelGroups(): ImageModelGroup[] {
         remoteModels: {
           [ModelProviderEnum.ChatboxAI]: chatboxAIImageModels.map(manualImageModelToOption),
           [ModelProviderEnum.OpenAI]: openAIImageModels,
+          [ModelProviderEnum.OpenAISubscription]: subscriptionImages,
           [ModelProviderEnum.OpenRouter]: openRouterImageModels,
           [ModelProviderEnum.Venice]: veniceImageModels,
           [ModelProviderEnum.Gemini]: geminiImageModels,
         },
       }),
-    [providers, providerSettingsMap, chatboxAIImageModels, openAIImageModels, openRouterImageModels, geminiImageModels, veniceImageModels]
+    [providers, providerSettingsMap, chatboxAIImageModels, openAIImageModels, openRouterImageModels, geminiImageModels, veniceImageModels, subscriptionImages]
   )
 }

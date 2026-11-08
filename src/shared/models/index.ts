@@ -6,6 +6,7 @@ export { getModel, getProviderSettings } from '../providers'
 
 export const aiProviderNameHash: Record<ModelProviderEnum, string> = {
   [ModelProviderEnum.OpenAI]: 'OpenAI API',
+  [ModelProviderEnum.OpenAISubscription]: 'OpenAI Sub Unofficial',
   [ModelProviderEnum.OpenAIResponses]: 'OpenAI Responses API',
   [ModelProviderEnum.Azure]: 'Azure OpenAI API',
   [ModelProviderEnum.GLM]: 'GLM',

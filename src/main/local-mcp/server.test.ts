@@ -26,6 +26,18 @@ it('uses a real MCP SDK client over loopback HTTP, with scoped file tools and re
   }finally{await client.close();await server.stop()}
   expect(server.state()).toEqual({running:false})
 })
+it('returns a guardian refusal as an MCP tool error with its structured reason and no blocked payload',async()=>{
+  const {server,backend}=await fixture()
+  backend.callTool=vi.fn(async()=>({blocked:true,error:'Guardian blocked the transfer: The guardian detected personal data.'}))
+  const state=await server.start({sessionId:'chat',port:0,permissions:{...defaultLocalMCPPermissions,multiAgent:true}}) as LocalMCPGrant
+  const client=new Client({name:'guardian-client',version:'1.0'})
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(state.url),{requestInit:{headers:{Authorization:'Bearer '+state.token}}}))
+    const output=await client.callTool({name:'agent_spawn',arguments:{title:'Task',task:'Test task'}})
+    expect(output.isError).toBe(true)
+    expect(output.content).toEqual([{type:'text',text:JSON.stringify({blocked:true,error:'Guardian blocked the transfer: The guardian detected personal data.'})}])
+  } finally {await client.close()}
+})
 it('rejects browser origins, rebinding Host, absent/invalid tokens, oversized bodies and batches before invoking app tools',async()=>{
   const {state,backend}=await fixture(),headers={Authorization:'Bearer '+state.token,'content-type':'application/json',accept:'application/json, text/event-stream'},body=JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list'})
   expect((await fetch(state.url,{method:'POST',body})).status).toBe(401)

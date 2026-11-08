@@ -18,6 +18,7 @@ it('accepts control only from the trusted main frame, never embedded previews or
   f.event.senderFrame.url='https://evil.example';await expect(f.invoke('local-mcp:control','status')).rejects.toThrow('Untrusted')
   f.event.senderFrame.url='file:///app/index.html';expect(await f.invoke('local-mcp:control','start',f.config)).toMatchObject({running:true,sessionId:'chat'})
   await f.invoke('local-mcp:control','stop')
+  expect(f.sender.send).toHaveBeenCalledWith('local-mcp:request',expect.objectContaining({operation:'revoke',grant:expect.objectContaining({token:'temporary-token'})}))
 })
 it('correlates app replies by an unpredictable request identity and forwards cancellation',async()=>{
   const f=fixture(),grant=await f.invoke('local-mcp:control','start',f.config),controller=new AbortController()

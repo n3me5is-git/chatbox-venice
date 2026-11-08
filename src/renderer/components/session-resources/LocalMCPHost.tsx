@@ -9,6 +9,7 @@ export default function LocalMCPHost(){
     const requests=new Map<string,AbortController>()
     const stop=()=>{for(const controller of requests.values())controller.abort();requests.clear();void ipc.invoke('local-mcp:control','stop').then(()=>window.dispatchEvent(new Event('local-mcp:state-changed'))).catch(()=>{})}
     const unsubscribe=ipc.onLocalMCPRequest(request=>{
+      if(request.operation==='revoke'){void import('@/packages/multi-agent/runtime').then(module=>module.revokeExternalAgents(request.grant.token)).catch(()=>{});return}
       if(request.operation==='cancel'){requests.get(request.id)?.abort();return}
       const controller=new AbortController();requests.set(request.id,controller)
       const reply=(value:unknown)=>ipc.invoke('local-mcp:reply',request.id,redactLocalMCPResult(value,settingsStore.getState().getSettings()))

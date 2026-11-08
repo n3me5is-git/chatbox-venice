@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.37.0
+
+See [release notes](docs/releases/v1.37.0.md). Adds guarded Work agents with shared or isolated sandboxes, an optional desktop MCP multi-agent tool group, device-local ChatGPT subscription providers and optional background collaboration controls.
+
 ## 1.36.0
 
 See [release notes](docs/releases/v1.36.0.md). Adds bounded waiting for existing Venice media jobs and local audio/video artifact cards in chat. Recall saved results without another paid request and open them with the shared explorer viewer.

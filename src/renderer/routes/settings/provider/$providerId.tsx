@@ -54,6 +54,7 @@ import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import PopoverConfirm from '@/components/common/PopoverConfirm'
 import { ScalableIcon } from '@/components/common/ScalableIcon'
 import { ModelList } from '@/components/ModelList'
+import { ChatGPTSubscriptionSettings } from '@/components/settings/provider/ChatGPTSubscription'
 import { VeniceSearchSettings, VeniceImageSettings, VeniceModuleSettings } from '@/components/settings/provider/VeniceSettings'
 import { SettingRow, SettingSwitchRow, SettingsPage, SettingsSection } from '@/components/settings/SettingsLayout'
 import { AppTooltip as Tooltip } from '@/components/ui/tooltip'
@@ -97,7 +98,7 @@ const BUILTIN_API_HOST_PROVIDERS = new Set<string>([
   ModelProviderEnum.ZhipuGLMCodingPlan,
 ])
 
-const OAUTH_ONLY_PROVIDERS = new Set<string>([ModelProviderEnum.QwenPortal])
+const OAUTH_ONLY_PROVIDERS = new Set<string>([ModelProviderEnum.QwenPortal, ModelProviderEnum.OpenAISubscription])
 
 const OAUTH_PROVIDER_FALLBACKS: Record<string, OAuthProviderInfo> = {
   claude: {
@@ -571,6 +572,7 @@ function ProviderSettings({ providerId }: { providerId: string }) {
         </Flex>
       }
     >
+      {baseInfo.id === ModelProviderEnum.OpenAISubscription && <SettingsSection title={t('Connection')}><ChatGPTSubscriptionSettings /></SettingsSection>}
       {hasConnectionSettings && (
         <SettingsSection title={t('Connection')}>
           {/* custom provider base info */}

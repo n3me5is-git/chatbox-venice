@@ -42,6 +42,8 @@ export interface ModelDependencies {
   sentry: SentryAdapter
   getRemoteConfig(): any
   oauth?: OAuthAdapter
+  /** Secrets are resolved by the host vault, never stored in provider settings. */
+  subscription?: { getCredential(): Promise<OAuthCredentials> }
   /** Current platform type, used for OAuth auth resolution */
   platformType?: 'desktop' | 'web' | 'mobile'
 }

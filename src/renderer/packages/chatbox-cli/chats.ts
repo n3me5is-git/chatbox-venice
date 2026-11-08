@@ -98,7 +98,9 @@ export const chatCommands: ChatboxCliCommandDefinition[] = [
         conversationOnly: true,
         hideSystemPromptMessage: true,
       })
-      return { scope: 'global', query, ...result }
+      const allowed = new Set<string>()
+      for (const hit of result.hits) { const source = await rendererApplication.sessions.getSessionHeader(hit.sessionId); if (source && !source.header.settings?.multiAgentRun) allowed.add(hit.sessionId) }
+      return { scope: 'global', query, ...result, hits: result.hits.filter(hit => allowed.has(hit.sessionId)) }
     },
   },
   {
@@ -112,6 +114,7 @@ export const chatCommands: ChatboxCliCommandDefinition[] = [
       const limit = integerFlag(parsed, 'limit', { defaultValue: cursor?.limit ?? 20, min: 1, max: 50 })
       const source = await rendererApplication.sessions.getSessionHeader(sessionId)
       if (!source) throw new ChatboxCliUsageError(`Conversation not found: ${sessionId}`)
+      if (source.header.settings?.multiAgentRun) throw new ChatboxCliUsageError('Use agent_result to read a child session through its guardian boundary.')
       const page = await rendererApplication.sessions.readSessionTranscriptWindow({
         sessionId,
         limit,

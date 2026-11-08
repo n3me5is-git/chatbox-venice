@@ -1,4 +1,5 @@
 import { LOCAL_WORK_CAPABILITY_IDS } from '@shared/mobile-work/capabilities'
+import { MultiAgentPolicySchema } from '@shared/multi-agent'
 import { z } from 'zod'
 import { DEFAULT_INTERFACE_COLORS, getDefaultInterfaceColors } from '../../theme-colors'
 import { MEMORY_STATE_TOKEN_MAX_CHARS, SessionPromptContextSnapshotSchema } from '../../types/agent-persona'
@@ -261,6 +262,8 @@ export const GlobalSessionSettingsSchema = z.object({
 })
 
 export const SessionSettingsSchema = GlobalSessionSettingsSchema.extend({
+  multiAgent: MultiAgentPolicySchema.optional().catch(undefined),
+  multiAgentRun: z.object({ rootId: z.string(), runId: z.string(), parentId: z.string(), workspaceId: z.string(), depth: z.number().int().min(1).max(3) }).optional().catch(undefined),
   veniceProfile: VeniceProfileSchema.optional().catch(undefined),
   veniceSecurity: VeniceChatSecuritySchema.optional().catch(undefined),
   provider: z.string().optional().catch(undefined),

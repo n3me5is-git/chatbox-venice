@@ -4,6 +4,7 @@
 export enum ModelProviderEnum {
   ChatboxAI = 'chatbox-ai',
   OpenAI = 'openai',
+  OpenAISubscription = 'openai-sub-unofficial',
   OpenAIResponses = 'openai-responses',
   Azure = 'azure',
   // Persisted provider ID used by saved settings, sessions, and backups.

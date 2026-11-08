@@ -1,5 +1,6 @@
 import { VeniceSessionApprovalButton } from '@/components/venice/VeniceSessionApprovalButton'
 import { VeniceSessionPrivacySettings } from '@/components/venice/VeniceSessionPrivacySettings'
+import { MultiAgentSettings } from '@/components/multi-agent/MultiAgentSettings'
 import { isActionAvailableInMode, type SessionMode } from '@chatbox/core/session/mode-policy'
 import {
   Anchor,
@@ -304,6 +305,7 @@ export function SessionSettingsContent({
           </Text>
         ))}
 
+      {!isChat && !session.settings?.multiAgentRun && <SettingsSection title={t('Multi-agent work')}><MultiAgentSettings value={settings?.multiAgent} onChange={multiAgent => setParam({ multiAgent })}/></SettingsSection>}
       {isChat && (
         <SettingsSection
           title={t('Model parameters')}

@@ -1,5 +1,5 @@
 import { Alert,Button,Group,TextInput,PasswordInput,Stack,Switch,Text } from '@mantine/core'
-import { useEffect,useState } from 'react'
+import { useEffect,useState,useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
 import platform from '@/platform'
@@ -7,10 +7,13 @@ import { vaultRuntimeFor,type VaultRuntime } from '@/packages/vault/runtime'
 import type { DeviceCapabilities } from '@/packages/vault/device'
 import { SettingsSection } from '@/components/settings/SettingsLayout'
 import { ScopeUnlock,useScopeStatus } from './ScopeUnlock'
+import { closeAllShares, configureSharingBackground, sharingBackgroundSnapshot, subscribeSharingBackground } from '@/packages/collaboration/background'
 import { BACKGROUND_LOCK_DELAY, lockDelaySeconds } from '@/packages/vault/background-lock'
 export function SecuritySettings({runtime}:{runtime?:Pick<VaultRuntime,'keys'|'db'>}={}){
+  const sharing=useSyncExternalStore(subscribeSharingBackground,sharingBackgroundSnapshot,sharingBackgroundSnapshot),[keepSharing,setKeepSharing]=useState(false)
   useTranslation();const vault=runtime||vaultRuntimeFor(platform);const {status,revision,error:loadError}=useScopeStatus(vault.keys);const [caps,setCaps]=useState<DeviceCapabilities|null>(null);const [pinEnabled,setPinEnabled]=useState(true);const [bio,setBio]=useState(false);const [pin,setPin]=useState('');const [repeat,setRepeat]=useState('');const [enabled,setEnabled]=useState(false);const [background,setBackground]=useState(true);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('')
   useEffect(()=>{void vault.keys.capabilities().then(setCaps).catch(()=>setError(ft('Device encryption is unavailable')))},[vault])
+  useEffect(()=>{void vault.db.getSetting<boolean>('keep-sharing-background').then(value=>setKeepSharing(value===true)).catch(()=>{})},[vault,revision])
   const [delayInput,setDelayInput]=useState('0')
   useEffect(()=>{let active=true;Promise.all([vault.db.getSetting<boolean>('app-lock-enabled'),vault.db.getSetting<boolean>('lock-on-background'),vault.db.getSetting<number>(BACKGROUND_LOCK_DELAY)]).then(([enabled,background,delay])=>{if(active){setEnabled(enabled===true);setBackground(background!==false);setDelayInput(String(lockDelaySeconds(delay)))}}).catch(()=>setError(ft('Unable to read protection settings')));return()=>{active=false}},[vault,revision])
   useEffect(()=>{if(status?.configured){setPinEnabled(status.pin);setBio(status.biometric)}},[status?.configured,status?.pin,status?.biometric])
@@ -26,6 +29,9 @@ export function SecuritySettings({runtime}:{runtime?:Pick<VaultRuntime,'keys'|'d
       <Switch label={ft('Enable biometric or device unlock')} description={caps?.name} checked={bio} onChange={event=>setBio(event.currentTarget.checked)} disabled={busy||!caps?.biometric&&!bio}/>
       <Button onClick={()=>void save()} loading={busy} disabled={!caps?.encryption||!pinEnabled&&!bio}>{ft('Save unlock methods')}</Button>
       {status?.configured&&<><Switch label={ft('Require unlock to open the app')} checked={enabled} onChange={event=>{const checked=event.currentTarget.checked;void run(async()=>{await vault.db.setSetting('app-lock-enabled',checked);setEnabled(checked)})}} disabled={busy}/><Switch label={ft('Lock when the app goes into the background')} checked={background} onChange={event=>{const checked=event.currentTarget.checked;void run(async()=>{await vault.db.setSetting('lock-on-background',checked);setBackground(checked)})}} disabled={busy}/><Button variant="default" onClick={()=>void import('./AppGate').then(({lockApplication})=>lockApplication())}>{ft('Lock protected content now')}</Button></>}
+      {status?.configured&&<Switch label={ft('Keep sharing active in the background')} description={ft('While sharing, suspend automatic background locking. Manual locking still ends sharing. Android uses a visible foreground notification; the system may still stop the app.')} checked={keepSharing} disabled={busy} onChange={event=>{const value=event.currentTarget.checked;void run(async()=>{await configureSharingBackground(value);setKeepSharing(value)})}}/>}
+      <Button variant="default" color="red" disabled={!sharing.count} onClick={closeAllShares}>{ft('Close all active shares')} ({sharing.count})</Button>
+      {sharing.error&&<Alert color="yellow">{sharing.error}</Alert>}
       {status?.configured&&background&&<TextInput type="number" inputMode="numeric" label={ft('Background lock delay')} description={ft('Seconds after leaving the app. Use 0 to lock immediately. The app stays unlocked during this delay.')} min={0} max={86400} step={1} rightSection={<Text size="xs" c="dimmed">s</Text>} value={delayInput} onChange={event=>setDelayInput(event.currentTarget.value)} onBlur={event=>{const value=lockDelaySeconds(Number(event.currentTarget.value));void run(async()=>{await vault.db.setSetting(BACKGROUND_LOCK_DELAY,value);setDelayInput(String(value))})}} disabled={busy}/>}
     </>}{(error||loadError)&&<Alert color="red">{ft(error||loadError)}</Alert>}{notice&&<Alert color="green">{notice}</Alert>}
   </Stack></SettingsSection>

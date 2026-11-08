@@ -809,9 +809,16 @@ export default abstract class AbstractAISDKModel implements ModelInterface {
     options: CallChatCompletionOptions<T>,
     callSettings: CallSettings
   ): Promise<StreamTextResult> {
+    const prepareStep: PrepareStepFunction<T> | undefined = options.onRequestResolved || options.prepareStep ? async step => {
+      const prepared = await (options.prepareStep as PrepareStepFunction<T> | undefined)?.(step)
+      const messages = prepared?.messages ?? [...step.initialMessages, ...step.responseMessages]
+      await options.onRequestResolved?.({ callSettings, modelMessages: messages, tools: options.tools || {}, stream: true })
+      return { ...prepared, messages }
+    } : undefined
     const result = streamText({
       model,
       messages: coreMessages,
+      prepareStep,
       allowSystemInMessages: true,
       stopWhen: [isStepCount(options.maxSteps || Number.MAX_SAFE_INTEGER), stopWhenPersistentToolCallPause<T>()],
       tools: options.tools,

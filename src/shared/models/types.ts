@@ -78,6 +78,8 @@ export interface CallChatCompletionOptions<Tools extends ToolSet = ToolSet> {
   tools?: Tools
   providerOptions?: ProviderOptions
   maxSteps?: number
+  onRequestResolved?: (request: ResolvedChatRequest) => void | Promise<void>
+  prepareStep?: PrepareStepFunction<ToolSet>
 }
 
 export interface ResultChange {

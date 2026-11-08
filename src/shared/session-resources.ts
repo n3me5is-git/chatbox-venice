@@ -24,6 +24,7 @@ export interface SessionResourceIndex {
   version: 1
   files: SessionFile[]
   removed: string[]
+  directories?: string[]
   pythonEnabled?: boolean
   toolsEnabled?: boolean
 }
@@ -59,8 +60,12 @@ export function relativeResourcePath(document: string, href: string): string | u
   try { return sessionFilePath(parts.join('/')) } catch { return undefined }
 }
 export interface ResourceTree { name: string; path: string; folders: ResourceTree[]; files: SessionResource[] }
-export function resourceTree(items: SessionResource[]): ResourceTree {
+export function resourceTree(items: SessionResource[], directories: string[] = []): ResourceTree {
   const root: ResourceTree = { name: '', path: '', folders: [], files: [] }
+  for (const path of directories) {
+    let node = root
+    for (const name of sessionFilePath(path).split('/')) { let next = node.folders.find(folder => folder.name === name); if (!next) { next = { name, path: node.path + name + '/', folders: [], files: [] }; node.folders.push(next) }; node = next }
+  }
   for (const item of items) {
     const parts = item.path.split('/').filter(Boolean)
     let node = root

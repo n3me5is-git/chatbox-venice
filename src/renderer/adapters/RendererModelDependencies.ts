@@ -90,5 +90,6 @@ export async function createModelDependencies(
         ? new RendererOAuthAdapter(settingsService, () => options.oauthIpc ?? getDefaultOAuthIpc())
         : undefined),
     platformType,
+    subscription: { getCredential: async () => (await import('@/packages/chatgpt-subscription/service')).subscriptionCredential() },
   }
 }

@@ -24,7 +24,7 @@ export function registerLocalMCPIPC(window:()=>BrowserWindow|null){
     }).finally(()=>{const item=pending.get(id);if(item)signal.removeEventListener('abort',item.cancel);pending.delete(id)})
   }
   const server=new LocalMCPServer({listTools:(grant,signal)=>invoke(grant,'list_tools',signal),callTool:(grant,name,args,callId,signal)=>invoke(grant,'call_tool',signal,{name,arguments:args,callId}),listResources:(grant,signal)=>invoke(grant,'list_resources',signal),readResource:(grant,uri,signal)=>invoke(grant,'read_resource',signal,{uri})})
-  const stop=async()=>{releaseOwner();releaseOwner=()=>{};await server.stop();for(const item of pending.values())item.cancel();pending.clear();owner=undefined}
+  const stop=async()=>{const grant=server.state();if(grant.running&&owner&&!owner.isDestroyed())owner.send('local-mcp:request',{id:randomUUID(),operation:'revoke',grant});releaseOwner();releaseOwner=()=>{};await server.stop();for(const item of pending.values())item.cancel();pending.clear();owner=undefined}
   ipcMain.handle('local-mcp:control',async(event,command:'start'|'stop'|'status',input:unknown)=>{
     assertApp(event)
     if(command==='status')return server.state()

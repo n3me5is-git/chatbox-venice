@@ -110,7 +110,7 @@ export async function getImageModelCapabilities(
   signal?: AbortSignal
 ): Promise<ImageModelCapabilities | undefined> {
   signal?.throwIfAborted()
-  if (![ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice].includes(model.provider as ModelProviderEnum)) return undefined
+  if (![ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice, ModelProviderEnum.OpenAISubscription].includes(model.provider as ModelProviderEnum)) return undefined
   const models = await waitForCatalog(loadRemoteModels(model.provider as ModelProviderEnum, settings), signal)
   const option=models.find((option) => option.modelId === model.modelId)
   if(model.provider===ModelProviderEnum.Venice){if(option)requireModelPrivacy(option.vendorMetadata,settings.providers?.venice?.venice?.privacyFilter);else if(settings.providers?.venice?.venice?.privacyFilter&&settings.providers.venice.venice.privacyFilter!=='all')throw Error('Unable to verify this model against your Venice privacy filter. Refresh the model catalog.')}
@@ -152,6 +152,7 @@ export async function getAvailableImageModels(
         ModelProviderEnum.ChatboxAI,
         ModelProviderEnum.Gemini,
         ModelProviderEnum.OpenAI,
+        ModelProviderEnum.OpenAISubscription,
         ModelProviderEnum.OpenRouter,
         ModelProviderEnum.Venice,
       ].map((id) => ({ id, name: id })),
@@ -164,6 +165,7 @@ export async function getAvailableImageModels(
     ModelProviderEnum.ChatboxAI,
     ModelProviderEnum.Gemini,
     ModelProviderEnum.OpenAI,
+    ModelProviderEnum.OpenAISubscription,
     ModelProviderEnum.OpenRouter,
     ModelProviderEnum.Venice,
   ].filter(

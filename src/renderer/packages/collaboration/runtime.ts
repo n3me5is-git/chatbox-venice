@@ -15,6 +15,7 @@ import { CollaborationHub } from './hub'
 import { b64 } from './crypto'
 import { installCollaborationBridge,notifySharedChatStatus } from './bridge'
 import { getImageGenerationService } from '@/stores/imageGenerationActions'
+import { installSharingBackground, syncSharingBackground } from './background'
 
 const vault=()=>vaultRuntimeFor(platform)
 async function shareable(id:string,item:SessionResource){return canShareAsset(await vault().projects.sessionScope(id)||undefined,item.key?(await vault().assets.header(item.key))?.scope:undefined)}
@@ -94,6 +95,7 @@ export const collaboration=new CollaborationHub({
 let initialized=false
 export function initializeCollaboration(){
   if(initialized)return;initialized=true
+  installSharingBackground(()=>collaboration.hosts.size+[...collaboration.guests.values()].filter(room=>room.status!=='disconnected').length,()=>collaboration.stopAll())
   installCollaborationBridge((...args)=>collaboration.decision(...args),id=>!!collaboration.shared(id),id=>{const room=collaboration.shared(id);return {active:!!room,participants:room?[...room.peers.values()].filter(peer=>peer.approved).length:0,pending:room?.hitl.requests('owner').length||0}},(id,actor)=>{const peer=collaboration.shared(id)?.peers.get(actor);return !!peer?.approved&&peer.permissions.write&&peer.permissions.interact})
   const timers=new Map<string,ReturnType<typeof setTimeout>>(),resources=new Map<string,()=>void>()
   const schedule=(id:string)=>{if(!collaboration.shared(id)||timers.has(id))return;timers.set(id,setTimeout(()=>{timers.delete(id);void collaboration.refresh(id)},700))}
@@ -103,6 +105,7 @@ export function initializeCollaboration(){
     if(event.type==='session-derived-data-patched'||event.type==='session-text-tokens-cached')schedule(event.sessionId)
   })
   collaboration.subscribe(()=>{
+    void syncSharingBackground()
     notifySharedChatStatus()
     for(const room of collaboration.hosts.values())if(!resources.has(room.sessionId))resources.set(room.sessionId,subscribeSessionResources(room.sessionId,()=>schedule(room.sessionId),()=>{void vault().projects.assertSession(room.sessionId).catch(()=>collaboration.stop(room.id))}))
     for(const [id,unsubscribe]of resources)if(!collaboration.shared(id)){unsubscribe();resources.delete(id)}
