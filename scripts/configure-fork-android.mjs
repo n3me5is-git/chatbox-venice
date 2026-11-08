@@ -2,8 +2,9 @@ import { readFileSync, writeFileSync, copyFileSync } from 'node:fs'
 
 const manifest = 'android/app/src/main/AndroidManifest.xml'
 let xml = readFileSync(manifest, 'utf8')
-if (!xml.includes('android.permission.RECORD_AUDIO')) xml = xml.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" /><application')
-for (const permission of ['USE_BIOMETRIC', 'USE_FINGERPRINT']) {
+// Capacitor's AUDIO_CAPTURE permission callback requires both permissions. An
+// undeclared MODIFY_AUDIO_SETTINGS makes the whole callback deny microphone use.
+for (const permission of ['RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'USE_BIOMETRIC', 'USE_FINGERPRINT']) {
   if (!xml.includes(`android.permission.${permission}`)) xml = xml.replace('<application', `<uses-permission android:name="android.permission.${permission}" /><application`)
 }
 xml = xml.replace('<application', '<application android:usesCleartextTraffic="false"')

@@ -37,7 +37,7 @@ import {
   isViewImageAvailable,
   withImageFileReading,
 } from '@/packages/model-calls/toolsets/view-image'
-import { parseLinkTool, webSearchTool } from '@/packages/model-calls/toolsets/web-search'
+import { parseLinkTool, buildWebSearchTools } from '@/packages/model-calls/toolsets/web-search'
 import { buildWorkspaceInstructions } from '@/packages/model-calls/workspace-instructions'
 import { skillsController, subscribeSkillsChanged } from '@/packages/skills/controller'
 import {
@@ -442,7 +442,7 @@ When you create a Git commit that includes code changes, append this exact trail
 
   // Web search: works independently of agent mode
   if (webBrowsing && webSupported) {
-    tools.web_search = webSearchTool
+    Object.assign(tools, buildWebSearchTools())
     // Inject parse_link based on the selected provider's declared capability.
     // Validation (Pro for build-in, API key for third parties) happens at execution time.
     if (includeParseLinkTool) {

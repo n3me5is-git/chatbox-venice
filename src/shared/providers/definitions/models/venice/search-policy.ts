@@ -8,6 +8,7 @@ export function effectiveVeniceSearch(settings: VeniceOptions): VeniceOptions {
 }
 
 export const isSearchTool = (name: string) => /^(web_search|venice_web_search)(?:_(brave|google|exa))?$/.test(name)
+const searchPath = (name: string) => name.startsWith('web_search') ? 'global' : 'venice'
 
 /** One budget per answer, shared by the global and Venice search tools. */
 export function guardSearchTools(tools: ToolSet, sessionId?: string) {
@@ -18,7 +19,7 @@ export function guardSearchTools(tools: ToolSet, sessionId?: string) {
     if (!isSearchTool(name) || !definition.execute) return [name, definition]
     const execute = definition.execute as (input: any, context: any) => Promise<unknown>
     return [name, { ...definition, execute: async (input: any, context: any) => {
-      if (!isSearchPermitted(sessionId, name === 'web_search' ? 'global' : 'venice')) return { searchResults: [], error: 'The user disabled this search tool. Do not retry it.' }
+      if (!isSearchPermitted(sessionId, searchPath(name))) return { searchResults: [], error: 'The user disabled this search tool. Do not retry it.' }
       const query = typeof input?.query === 'string' ? input.query.trim().replace(/\s+/g, ' ').toLowerCase() : ''
       const key = `${name}:${query}`
       if (results.has(key)) {
@@ -35,5 +36,5 @@ export function guardSearchTools(tools: ToolSet, sessionId?: string) {
       return result
     } }]
   })) as ToolSet
-  return { tools: guarded, active: (names: string[]) => names.filter(name => !isSearchTool(name) || calls < 6 && !unavailable.has(name) && isSearchPermitted(sessionId, name === 'web_search' ? 'global' : 'venice')) }
+  return { tools: guarded, active: (names: string[]) => names.filter(name => !isSearchTool(name) || calls < 6 && !unavailable.has(name) && isSearchPermitted(sessionId, searchPath(name))) }
 }

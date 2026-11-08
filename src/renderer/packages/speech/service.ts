@@ -14,7 +14,8 @@ export function speechProviders(){
   return [...SystemProviders(),...(settings.customProviders??[])].filter(provider=>provider.type===ModelProviderType.OpenAI&&(['venice','openai','groq'].includes(provider.id)||provider.isCustom)&&(settings.providers?.[provider.id]?.apiKey||provider.isCustom)&&!(provider.id==='venice'&&settings.providers?.venice?.venice?.enabled===false))
 }
 async function assertAccess(context:SpeechContext){
-  if(!context.sessionId)return
+  // The home composer uses the reserved "new" id before the first message creates a session.
+  if(!context.sessionId||context.sessionId==='new')return
   await vaultRuntimeFor(platform).projects.assertSession(context.sessionId)
   if(!await rendererApplication.sessions.getSessionHeader(context.sessionId))throw new SpeechError('This chat is no longer available')
 }
@@ -27,7 +28,7 @@ export const speechClient=new SpeechClient({
     return {id,apiHost:saved?.apiHost||definition.defaultSettings?.apiHost||'',apiKey:saved?.apiKey||'',enabled:id!=='venice'||saved?.venice?.enabled!==false,audioEnabled:id!=='venice'||saved?.venice?.audioEnabled===true}
   },
   privacy:async context=>{
-    const settings=settingsStore.getState().getSettings(),session=context.sessionId?await getSessionSettings(context.sessionId):SessionSettingsSchema.parse(settings)
+    const settings=settingsStore.getState().getSettings(),session=context.sessionId&&context.sessionId!=='new'?await getSessionSettings(context.sessionId):SessionSettingsSchema.parse(settings)
     return chatSpeechPrivacy(settings,session,context.selected)
   },assertAccess,
   request:async options=>(await createModelDependencies()).request.apiRequest(options),

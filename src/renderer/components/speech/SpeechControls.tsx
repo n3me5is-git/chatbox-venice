@@ -18,7 +18,7 @@ import { requestSpeechConsent } from './SpeechConsent'
 const failure=(error:unknown)=>error instanceof SpeechError?ft(error.message,error.values):ft('Speech could not be completed. Check the provider and try again explicitly.')
 function useSpeechGuard(context:SpeechContext,kind:SpeechKind,stop:()=>void){
   useTranslation();const latest=useRef(stop);latest.current=stop
-  const settings=useSettingsStore(state=>state),{sessionSettings}=useSessionSettings(context.sessionId??null),selection=speechSelection(settings,kind)
+  const settings=useSettingsStore(state=>state),{sessionSettings}=useSessionSettings(context.sessionId==='new'?null:context.sessionId??null),selection=speechSelection(settings,kind)
   const metadata=settings.speechCatalog?.find(item=>item.provider===selection?.provider&&item.model===selection?.model&&item.kind===kind)?.metadata
   const privacy=chatSpeechPrivacy(settings,sessionSettings,context.selected),blocked=speechPrivacyDecision(privacy,metadata)==='block'
   const provider=selection?settings.providers?.[selection.provider]:undefined

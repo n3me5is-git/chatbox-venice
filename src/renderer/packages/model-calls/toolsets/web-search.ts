@@ -1,6 +1,6 @@
 import { validatedToolSchema } from '@shared/validated-tool-schema'
 import { ChatboxAIAPIError } from '@shared/models/errors'
-import { createWebSearchTool } from '@shared/web-search-tool'
+import { createConfiguredWebSearchTools, createWebSearchTool } from '@shared/web-search-tool'
 import type { ToolSet } from 'ai'
 import * as remote from '@/packages/remote'
 import { getParseLinkProvider, webSearchExecutor } from '@/packages/web-search'
@@ -12,6 +12,12 @@ import { asRecord, numberField, stringField, toTextModelOutput } from './model-o
 export const webSearchTool: ToolSet[string] = createWebSearchTool(async (query, abortSignal) => {
   return await webSearchExecutor({ query }, { abortSignal })
 })
+
+export function buildWebSearchTools(): ToolSet {
+  return createConfiguredWebSearchTools(settingActions.getExtensionSettings().webSearch, async (query, abortSignal, engine) => {
+    return await webSearchExecutor({ query }, { abortSignal, veniceSearchProvider: engine })
+  })
+}
 
 const DEFAULT_PARSE_LINK_MAX_CHARS = 12_000
 

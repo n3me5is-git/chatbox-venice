@@ -53,7 +53,7 @@ jobs:
       - name: Compile Java without packaging or signing an APK
         run: chmod +x android/gradlew && cd android && ./gradlew :app:compileReleaseJavaWithJavac --no-daemon
   android-device:
-    name: Android Keystore runtime (API ${{ matrix.api }})
+    name: Android Keystore and microphone runtime (API ${{ matrix.api }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -86,6 +86,7 @@ jobs:
           pnpm exec cap sync android
           mkdir -p android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice
           cp native/android/test/VaultKeyDeviceTest.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
+          cp native/android/test/MicrophoneDeviceTest.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
           chmod +x android/gradlew
       - name: Enable emulator acceleration
         run: |
@@ -107,7 +108,7 @@ jobs:
             adb shell input text 123456
             adb shell input keyevent 66
             adb shell wm dismiss-keyguard
-            cd android && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.n3me5is.chatboxvenice.VaultKeyDeviceTest --no-daemon
+            cd android && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.n3me5is.chatboxvenice.VaultKeyDeviceTest,io.github.n3me5is.chatboxvenice.MicrophoneDeviceTest --no-daemon
       - name: Save Android device test reports
         if: always()
         uses: actions/upload-artifact@v4

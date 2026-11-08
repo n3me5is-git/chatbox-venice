@@ -15,7 +15,7 @@ vi.mock('@/packages/session-resources/tools',()=>({buildSessionWorkspaceTools:as
 vi.mock('@/packages/session-resources/service',()=>({listSessionResources:async()=>({items:[{id:'file-one',path:'report.md',name:'report.md',origin:'file',mime:'text/markdown'}]}),readSessionResource:state.read}))
 vi.mock('@/packages/venice/tools',()=>({veniceChatTools:()=>({})}))
 vi.mock('@/packages/mcp/controller',()=>({mcpController:{servers:new Map(),getAvailableTools:()=>({})}}))
-vi.mock('@/packages/model-calls/toolsets/web-search',()=>({webSearchTool:{},parseLinkTool:{}}))
+vi.mock('@/packages/model-calls/toolsets/web-search',()=>({buildWebSearchTools:()=>({web_search:{}}),parseLinkTool:{}}))
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('./model-approval',()=>({requestExternalModelApproval:(...args:any[])=>state.approve(...args)}))
 import { handleLocalMCP,localMCPTools } from './backend'

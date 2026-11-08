@@ -1,6 +1,26 @@
 import { validatedToolSchema } from './validated-tool-schema'
 import type { ToolSet } from 'ai'
 
+export const VENICE_SEARCH_ENGINES = ['brave', 'google', 'exa'] as const
+export type VeniceSearchEngine = (typeof VENICE_SEARCH_ENGINES)[number]
+
+/** Global Chatbox search is independent from Venice's model/profile search settings. */
+export function createConfiguredWebSearchTools(
+  settings: { provider: string; veniceSearchToolMode?: 'selected' | 'separate' },
+  executor: (query: string, abortSignal?: AbortSignal, engine?: VeniceSearchEngine) => Promise<WebSearchToolResult>
+): ToolSet {
+  if (settings.provider !== 'venice' || settings.veniceSearchToolMode !== 'separate') {
+    return { web_search: createWebSearchTool(executor) }
+  }
+  return Object.fromEntries(VENICE_SEARCH_ENGINES.map(engine => {
+    const definition = createWebSearchTool((query, signal) => executor(query, signal, engine))
+    return [`web_search_${engine}`, {
+      ...definition,
+      description: `Search the web through Venice using ${engine === 'exa' ? 'Exa' : engine === 'brave' ? 'Brave' : 'Google'}. Use this tool when this engine is requested or suitable. Do not repeat a completed or failed query. ${definition.description}`,
+    }]
+  }))
+}
+
 // The web_search tool definition shared between the renderer
 // (packages/model-calls/toolsets/web-search.ts) and the native app. Only the
 // executor differs per platform; description, schema, and result shape must

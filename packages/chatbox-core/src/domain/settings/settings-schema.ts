@@ -410,6 +410,7 @@ const ExtensionSettingsSchema = z.object({
     queritTimeRange: z.string().nullable().optional(),
     searxngBaseUrl: z.string().optional(),
     veniceSearchProvider: z.enum(['brave', 'google', 'exa']).optional(),
+    veniceSearchToolMode: z.enum(['selected', 'separate']).optional().catch(undefined),
   }),
   knowledgeBase: z
     .object({

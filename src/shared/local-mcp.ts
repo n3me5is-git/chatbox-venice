@@ -13,7 +13,7 @@ export function localMCPAllows(permissions:LocalMCPPermissions,name:string,args:
   if(name==='session_js'||name==='session_python')return permissions.execute&&permissions.readFiles&&permissions.writeFiles
   if(name==='app_models'||name==='app_model')return permissions.models
   if(name==='venice_image'||name==='venice_media')return permissions.venice
-  if(name==='web_search'||name==='parse_link')return permissions.search
+  if(/^web_search(?:_(brave|google|exa))?$/.test(name)||name==='parse_link')return permissions.search
   return name.startsWith('mcp_')&&permissions.forwardMCP
 }
 export function sessionResourceURI(sessionId:string,resourceId:string){return 'chatbox-session://'+encodeURIComponent(sessionId)+'/'+encodeURIComponent(resourceId)}

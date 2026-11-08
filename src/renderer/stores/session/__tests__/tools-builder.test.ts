@@ -190,7 +190,7 @@ vi.mock('@/packages/model-calls/toolsets/web-search', () => {
   const { tool } = require('ai')
   const { z } = require('zod')
   return {
-    webSearchTool: tool({ description: 'web_search', inputSchema: z.object({}), execute: async () => ({}) }),
+    buildWebSearchTools: () => ({ web_search: tool({ description: 'web_search', inputSchema: z.object({}), execute: async () => ({}) }) }),
     parseLinkTool: tool({ description: 'parse_link', inputSchema: z.object({}), execute: async () => ({}) }),
   }
 })

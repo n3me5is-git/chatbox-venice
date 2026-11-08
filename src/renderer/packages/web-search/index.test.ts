@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+const veniceState=vi.hoisted(()=>({api:vi.fn(),providers:{venice:{apiKey:'SYNTHETIC_SEARCH_KEY',apiHost:'https://api.venice.ai/api/v1',venice:{enabled:true}}}}))
+vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({providers:veniceState.providers,getSettings:()=>({providers:veniceState.providers})})}}))
+vi.mock('@/packages/venice/models',()=>({veniceCredentialRevision:(host:string,key:string)=>host+':'+key}))
+vi.mock('@/adapters',()=>({createModelDependencies:async()=>({request:{apiRequest:veniceState.api}})}))
 
 // Mock the settings actions before importing the module under test
 vi.mock('@/stores/settingActions', () => ({
@@ -69,6 +73,21 @@ const mockGetExtensionSettings = vi.mocked(getExtensionSettings)
 describe('webSearchExecutor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('routes explicit engines to augment/search and isolates cached results per engine', async () => {
+    mockGetExtensionSettings.mockReturnValue({webSearch:{provider:'venice',veniceSearchProvider:'brave',veniceSearchToolMode:'separate'}} as ReturnType<typeof getExtensionSettings>)
+    veniceState.api.mockImplementation(async request=>Response.json({results:[{url:'https://example.com/'+JSON.parse(request.body).search_provider,title:JSON.parse(request.body).search_provider,content:'Source'}]}))
+    for(const engine of ['brave','google','exa'] as const){
+      const result=await webSearchExecutor({query:'engine cache isolation'},{veniceSearchProvider:engine})
+      expect(result.searchResults[0].title).toBe(engine)
+    }
+    await webSearchExecutor({query:'engine cache isolation'},{veniceSearchProvider:'google'})
+    expect(veniceState.api).toHaveBeenCalledTimes(3)
+    expect(veniceState.api.mock.calls.every(([request])=>request.url==='https://api.venice.ai/api/v1/augment/search'&&request.retry===0&&request.useProxy===false)).toBe(true)
+    mockGetExtensionSettings.mockReturnValue({webSearch:{provider:'bing'}} as ReturnType<typeof getExtensionSettings>)
+    await expect(webSearchExecutor({query:'engine cache isolation'},{veniceSearchProvider:'google'})).rejects.toThrow('no longer the configured')
+    expect(veniceState.api).toHaveBeenCalledTimes(3)
   })
 
   it('returns different results for different providers with same query', async () => {

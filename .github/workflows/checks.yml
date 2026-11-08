@@ -52,8 +52,13 @@ jobs:
       - name: Full unit test suite (optional)
         if: inputs.test_scope == 'unit'
         run: pnpm test:unit
+      - name: Global search engine tools and new-chat speech
+        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        run: pnpm exec vitest run src/renderer/packages/web-search/index.test.ts src/renderer/packages/model-calls/toolsets/web-search.test.ts src/renderer/packages/tools/index.test.ts src/renderer/packages/speech/service.test.ts
       - name: Check private Android signing backup logic
         run: node --test scripts/android-signing.test.mjs scripts/android-signing-migration.test.mjs
+      - name: Verify generated Android audio permissions
+        run: node --test scripts/configure-fork-android.test.mjs
 
 
   ui:
@@ -72,6 +77,8 @@ jobs:
         id: ui_dependencies
       - name: Simulated UI interactions and reference links
         run: pnpm exec vitest run src/renderer/components/session-resources/LocalMCPSettings.test.tsx src/renderer/components/Artifact.test.tsx src/renderer/components/session/SessionSidePanel.test.tsx src/renderer/components/session-resources/SessionResources.test.tsx src/renderer/components/session-resources/MarkdownFilePreview.test.tsx src/renderer/components/venice/VeniceChatPrivacySettings.test.tsx src/renderer/components/venice/SecureReceiptSettings.test.tsx src/renderer/components/venice/VeniceImageTools.test.tsx src/renderer/components/venice/VenicePricing.test.tsx src/renderer/components/InputBox/useModelToolCapabilities.test.tsx src/renderer/components/venice/VeniceSearchControl.test.tsx src/renderer/components/security/ProtectedPreviewGate.test.tsx src/renderer/components/common/AdaptiveModal.test.tsx src/renderer/components/security/CreationUnlock.test.tsx src/renderer/hooks/useInputBoxHistory.privacy.test.tsx src/renderer/routes/image-creator/-components/HistoryItem.test.tsx src/renderer/components/security/ProjectGate.test.tsx src/renderer/components/security/ScopeUnlock.test.tsx src/renderer/packages/local-library.test.ts src/renderer/components/session/SessionItem.test.tsx src/renderer/stores/session/crud.test.ts src/renderer/components/venice/VeniceMediaApproval.test.tsx src/renderer/components/venice/VeniceSessionApprovals.test.tsx src/renderer/components/venice/VeniceLocalization.test.tsx src/renderer/components/settings/provider/VeniceProfiles.test.tsx src/renderer/modals/ModelEdit.venice.test.tsx src/renderer/components/ImageModelSelect.test.tsx src/renderer/components/InputBox/AgentModePanel.test.tsx src/renderer/components/InputBox/MobileAgentModePanel.test.tsx src/renderer/components/venice/VeniceStudio.test.tsx src/renderer/components/venice/VeniceRecorder.test.tsx src/renderer/components/venice/VeniceImageApproval.test.tsx src/renderer/components/Markdown.ssr.test.tsx src/renderer/components/message-parts/ToolCallPartUI.search-results.test.tsx
+      - name: Global web search settings
+        run: pnpm exec vitest run src/renderer/components/settings/VeniceWebSearchSettings.test.tsx
       - name: Browser simulation with desktop and phone screenshots
         if: always() && steps.ui_dependencies.outcome == 'success'
         run: |

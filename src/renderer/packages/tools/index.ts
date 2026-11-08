@@ -43,6 +43,8 @@ function getChatboxCliToolName(input: unknown): string {
 }
 
 export function getToolName(toolName: string, input?: unknown): string {
+  const globalEngine=toolName.match(/^web_search_(brave|google|exa)$/)?.[1]
+  if(globalEngine)return `${t('Web Search')} · ${globalEngine==='exa'?'Exa':globalEngine==='brave'?'Brave':'Google'}`
   const engine=toolName.match(/^venice_web_search_(brave|google|exa)$/)?.[1]
   if(engine)return ft('Venice search: {{engine}}',{engine:engine==='exa'?'Exa':engine==='brave'?'Brave':'Google'})
   if (toolName === 'chatbox_cli') return getChatboxCliToolName(input)

@@ -1512,6 +1512,15 @@ const speechExportItalian:Record<string,string>={
 }
 Object.assign(forkEnglish,Object.fromEntries(Object.keys(speechExportItalian).map(key=>[key,key])))
 Object.assign(forkTranslations['it-IT'],speechExportItalian)
+
+const globalSearchItalian:Record<string,string>={
+  'Microphone access was denied. Check the app or browser microphone permission and the device microphone privacy switch, then try again.':'Accesso al microfono negato. Controlla il permesso del microfono per l’app o il browser e l’interruttore privacy del microfono del dispositivo, poi riprova.',
+  'Give the model separate Brave, Google and Exa search tools through Venice. This applies to Chatbox web search independently of Venice model search.':'Rendi disponibili al modello strumenti distinti per Brave, Google ed Exa tramite Venice. Questa scelta riguarda la ricerca web di Chatbox ed è indipendente dalla ricerca del modello Venice.',
+  'Brave, Google and Exa are available as separate tools. The selected engine remains the default for search checks and clients using a single search action.':'Brave, Google ed Exa sono disponibili come strumenti distinti. Il motore selezionato resta quello predefinito per le verifiche di ricerca e i client che usano una singola azione di ricerca.',
+  'Venice is no longer the configured web search provider. Select Venice again before using this tool.':'Venice non è più il provider configurato per la ricerca web. Seleziona di nuovo Venice prima di usare questo strumento.',
+}
+Object.assign(forkEnglish,Object.fromEntries(Object.keys(globalSearchItalian).map(key=>[key,key])))
+Object.assign(forkTranslations['it-IT'],globalSearchItalian)
 export function withForkTranslations<T extends Record<string,string>>(language: string, original: T) {
   return {...forkEnglish,...original,...forkTranslations[language]}
 }

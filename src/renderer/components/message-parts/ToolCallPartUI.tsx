@@ -234,6 +234,9 @@ function usePausedStepElementRegistration(
 
 const toolIconMap: Record<string, React.ElementType> = {
   web_search: IconWorld,
+  web_search_brave: IconWorld,
+  web_search_google: IconWorld,
+  web_search_exa: IconWorld,
   venice_web_search: IconWorld,
   venice_web_search_brave: IconWorld,
   venice_web_search_google: IconWorld,

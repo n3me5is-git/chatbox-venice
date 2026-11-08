@@ -27,5 +27,16 @@ export async function runSearchReview({click,evaluate,wait,byText,byLabel,cdp,ou
  await wait(()=>evaluate("!document.body.textContent.includes('Allow tools in encrypted chat?')"),'Consent dialog did not finish closing')
  await writeFile(path.join(output,'independent-search-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  await click(byText('Close search review'))
+ await click(byText('Test global search settings'))
+ await click(track('Expose separate search engines'))
+ await wait(()=>evaluate('window.__simulationGlobalSearchConfig().veniceSearchToolMode==="separate"'),'Global separate search setting did not save')
+ assert.deepEqual(await evaluate('window.__simulationGlobalToolNames()'),['web_search_brave','web_search_google','web_search_exa'])
+ await click(byLabel('Search engine through Venice'));await click(`[...document.querySelectorAll('[role="option"]')].findLast(e=>e.textContent==='Google')`)
+ await wait(()=>evaluate('window.__simulationGlobalSearchConfig().veniceSearchProvider==="google"'),'Global default engine did not select')
+ await click(byText('Close global search settings'));await click(byText('Test global search settings'))
+ await wait(()=>evaluate(`document.querySelector('input[aria-label="Expose separate search engines"]')?.checked`),'Global separate tools were not retained on reopen')
+ await writeFile(path.join(output,'global-search-tools-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+ await click(track('Expose separate search engines'));assert.deepEqual(await evaluate('window.__simulationGlobalToolNames()'),['web_search'])
+ await click(byText('Close global search settings'))
 }
 

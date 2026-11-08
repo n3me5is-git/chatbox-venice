@@ -31,7 +31,7 @@ vi.mock('@/packages/web-search', () => ({
 }))
 
 // Import after mocks are registered
-import { parseLinkTool, webSearchTool } from '@/packages/model-calls/toolsets/web-search'
+import { parseLinkTool, webSearchTool, buildWebSearchTools } from '@/packages/model-calls/toolsets/web-search'
 
 type ParseLinkInput = { url: string; maxLength?: number }
 
@@ -61,6 +61,19 @@ async function toModelOutput(tool: unknown, output: unknown) {
 }
 
 describe('webSearchTool', () => {
+  it('offers each global engine as a separate callable tool without the generic alias', async () => {
+    getExtensionSettingsMock.mockReturnValue({webSearch:{provider:'venice',veniceSearchToolMode:'separate',veniceSearchProvider:'brave'}})
+    webSearchExecutorMock.mockResolvedValue({searchResults:[]})
+    const tools=buildWebSearchTools(),signal=new AbortController().signal
+    expect(Object.keys(tools)).toEqual(['web_search_brave','web_search_google','web_search_exa'])
+    for(const engine of ['brave','google','exa'])await tools[`web_search_${engine}`].execute!({query:'source query'},{toolCallId:engine,messages:[],abortSignal:signal})
+    expect(webSearchExecutorMock.mock.calls.slice(-3)).toEqual(['brave','google','exa'].map(engine=>[{query:'source query'},{abortSignal:signal,veniceSearchProvider:engine}]))
+    await expect(toModelOutput(tools.web_search_google,{searchResults:[{title:'Source',link:'https://example.com',snippet:'Result'}]})).resolves.toMatchObject({type:'text',value:expect.stringContaining('https://example.com')})
+  })
+  it.each([{provider:'venice'},{provider:'venice',veniceSearchToolMode:'selected'},{provider:'tavily',veniceSearchToolMode:'separate'}])('keeps generic search for the existing configuration %j', settings => {
+    getExtensionSettingsMock.mockReturnValue({webSearch:settings})
+    expect(Object.keys(buildWebSearchTools())).toEqual(['web_search'])
+  })
   it('maps search results to readable model text', async () => {
     await expect(
       toModelOutput(webSearchTool, {

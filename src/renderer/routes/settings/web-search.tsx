@@ -9,6 +9,7 @@ import { trackJkClickEvent } from '@/analytics/jk'
 import { JK_EVENTS, JK_PAGE_NAMES } from '@/analytics/jk-events'
 import { AdaptiveSelect } from '@/components/AdaptiveSelect'
 import { CheckedFieldRow } from '@/components/settings/CheckedFieldRow'
+import { VeniceWebSearchSettings } from '@/components/settings/VeniceWebSearchSettings'
 import { SettingRow, SettingsPage, SettingsSection } from '@/components/settings/SettingsLayout'
 import { AppTooltip as Tooltip } from '@/components/ui/tooltip'
 import { PROVIDERS_WITH_PARSE_LINK } from '@/packages/web-search'
@@ -109,7 +110,7 @@ export function RouteComponent() {
             />
           )}
         />
-        {provider === 'venice' && <SettingRow id="venice-search" label={ft("Search engine through Venice")} description={ft("Uses your Venice provider key. Searches go through Venice and may incur a cost.")} control={<Select allowDeselect={false} value={webSearch.veniceSearchProvider || 'brave'} data={['brave', 'google', 'exa'].map(value => ({ value, label: value === 'exa' ? 'Exa' : value === 'brave' ? 'Brave' : 'Google' }))} onChange={value => value && updateWebSearch({ veniceSearchProvider: value as 'brave' | 'google' | 'exa' })} />} />}
+        {provider === 'venice' && <VeniceWebSearchSettings value={webSearch} onChange={updateWebSearch}/>}
         {provider === 'searxng' && (
           <CheckedFieldRow
             key="searxng"

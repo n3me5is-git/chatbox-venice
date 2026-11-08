@@ -5,6 +5,9 @@ vi.mock('i18next', () => ({ t: (key: string) => key }))
 import { getToolName } from './index'
 
 describe('getToolName', () => {
+  it.each(['Brave','Google','Exa'])('labels the global %s tool distinctly',engine=>{
+    expect(getToolName('web_search_'+engine.toLowerCase())).toBe('Web Search · '+engine)
+  })
   it('localizes current and legacy command tools', () => {
     expect(getToolName('run_command')).toBe('Run Command')
     expect(getToolName('user_exec')).toBe('Run Command')

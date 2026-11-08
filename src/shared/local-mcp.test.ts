@@ -4,7 +4,9 @@ it('separates read, permanent write, execution, paid models, Venice and forwardi
   const permissions={...defaultLocalMCPPermissions}
   expect(localMCPAllows(permissions,'session_file',{action:'read'})).toBe(true)
   for(const action of ['write','delete','deliver','import'])expect(localMCPAllows(permissions,'session_file',{action})).toBe(false)
-  for(const tool of ['session_js','session_python','app_model','venice_image','web_search','mcp_external','run_command'])expect(localMCPAllows(permissions,tool)).toBe(false)
+  for(const tool of ['session_js','session_python','app_model','venice_image','web_search','web_search_brave','web_search_google','web_search_exa','mcp_external','run_command'])expect(localMCPAllows(permissions,tool)).toBe(false)
+  permissions.search=true;for(const tool of ['web_search','web_search_brave','web_search_google','web_search_exa'])expect(localMCPAllows(permissions,tool)).toBe(true)
+  expect(localMCPAllows(permissions,'web_search_untrusted')).toBe(false)
   permissions.writeFiles=true;permissions.execute=true;expect(localMCPAllows(permissions,'session_js')).toBe(true)
   permissions.readFiles=false;expect(localMCPAllows(permissions,'session_js')).toBe(false)
   permissions.forwardMCP=true;expect(localMCPAllows(permissions,'run_command')).toBe(false)

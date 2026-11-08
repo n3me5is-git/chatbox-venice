@@ -9,6 +9,16 @@ import type { ModelDependencies } from '../../../../types/adapters'
 const context={toolCallId:'test',messages:[],abortSignal:undefined} as any
 const definition=(execute:any)=>tool({inputSchema:z.object({query:z.string()}),execute})
 describe('independent Venice search and bounded tool use',()=>{
+ it('keeps separate global engines under the global pause switch, independently from Venice search',async()=>{
+  const execute=vi.fn(async()=>({searchResults:[]})),session='separate-global-revocation'
+  const guard=guardSearchTools({web_search_brave:definition(execute),web_search_google:definition(execute),web_search_exa:definition(execute),venice_web_search_google:definition(execute)},session)
+  setSearchPermission(session,'venice',false)
+  expect(guard.active(Object.keys(guard.tools))).toEqual(['web_search_brave','web_search_google','web_search_exa'])
+  await guard.tools.web_search_google.execute!({query:'allowed'},context);expect(execute).toHaveBeenCalledTimes(1)
+  setSearchPermission(session,'global',false)
+  for(const engine of ['brave','google','exa'])await guard.tools[`web_search_${engine}`].execute!({query:'blocked'},context)
+  expect(execute).toHaveBeenCalledTimes(1);expect(guard.active(Object.keys(guard.tools))).toEqual([])
+ })
  it('routes each named engine explicitly without using a chat model',async()=>{
   const api=vi.fn(async()=>Response.json({results:[{title:'Source',url:'https://example.com',content:'Current information'}]}))
   const prepared=await prepareVeniceSearch([{role:'user',content:'Find sources'}],{webSearch:'auto',searchToolMode:'separate'},'key','https://api.venice.ai/api/v1',{request:{apiRequest:api}} as unknown as ModelDependencies,true)

@@ -18,7 +18,7 @@ import { sessionFiles } from '@/packages/session-resources/files'
 import { listSessionResources,readSessionResource } from '@/packages/session-resources/service'
 import { veniceChatTools } from '@/packages/venice/tools'
 import { mcpController } from '@/packages/mcp/controller'
-import { webSearchTool,parseLinkTool } from '@/packages/model-calls/toolsets/web-search'
+import { buildWebSearchTools,parseLinkTool } from '@/packages/model-calls/toolsets/web-search'
 import platform from '@/platform'
 
 const forwarding=new Set<string>()
@@ -78,7 +78,7 @@ async function toolsFor(grant:LocalMCPGrant){
   if(grant.permissions.readFiles||grant.permissions.writeFiles)Object.assign(tools,await buildSessionWorkspaceTools(grant.sessionId))
   if(!grant.permissions.execute){delete tools.session_js;delete tools.session_python}
   if(grant.permissions.venice)Object.assign(tools,veniceChatTools(grant.sessionId))
-  if(grant.permissions.search){tools.web_search=webSearchTool;tools.parse_link=parseLinkTool}
+  if(grant.permissions.search){Object.assign(tools,buildWebSearchTools());tools.parse_link=parseLinkTool}
   Object.assign(tools,await modelTools(grant))
   if(grant.permissions.forwardMCP){
     const permitted=new Set<string>()

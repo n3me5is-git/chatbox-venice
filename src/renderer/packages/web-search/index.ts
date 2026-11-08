@@ -12,6 +12,7 @@ import { BingSearch } from './bing'
 import { BingNewsSearch } from './bing-news'
 import { BochaSearch } from './bocha'
 import { VeniceSearch } from './venice'
+import type { VeniceSearchEngine } from '@shared/web-search-tool'
 import { ChatboxSearch } from './chatbox-search'
 import { QueritSearch } from './querit'
 import { normalizeSearxngBaseUrl, SearxngSearch } from './searxng'
@@ -20,7 +21,7 @@ import { TavilySearch } from './tavily'
 const MAX_CONTEXT_ITEMS = 10
 
 // 根据配置的搜索提供方来选择搜索服务
-function getSearchProviders() {
+function getSearchProviders(veniceEngine?: VeniceSearchEngine) {
   const settings = getExtensionSettings()
   const licenseKey = getLicenseKey()
 
@@ -32,7 +33,7 @@ function getSearchProviders() {
     case 'venice': {
       const configured = settingsStore.getState().getSettings().providers?.venice
       if (!configured?.apiKey || configured.venice?.enabled === false) throw new Error(ft('Configure and enable Venice in provider settings.'))
-      selectedProviders.push(new VeniceSearch(configured.apiKey, configured.apiHost, settings.webSearch.veniceSearchProvider || 'brave'))
+      selectedProviders.push(new VeniceSearch(configured.apiKey, configured.apiHost, veniceEngine || settings.webSearch.veniceSearchProvider || 'brave'))
       break
     }
     case 'build-in':
@@ -89,8 +90,8 @@ function getSearchProviders() {
   return selectedProviders
 }
 
-async function _searchRelatedResults(query: string, signal?: AbortSignal) {
-  const providers = getSearchProviders()
+async function _searchRelatedResults(query: string, signal?: AbortSignal, veniceEngine?: VeniceSearchEngine) {
+  const providers = getSearchProviders(veniceEngine)
   const results = await Promise.all(
     providers.map(async (provider) => {
       try {
@@ -144,17 +145,19 @@ const cache = new Map()
 
 export const webSearchExecutor = async (
   { query }: { query: string },
-  { abortSignal }: { abortSignal?: AbortSignal }
+  { abortSignal, veniceSearchProvider }: { abortSignal?: AbortSignal; veniceSearchProvider?: VeniceSearchEngine }
 ) => {
   const webSearch = getExtensionSettings().webSearch
   const provider = webSearch.provider
+  if (veniceSearchProvider && provider !== 'venice') throw new Error(ft('Venice is no longer the configured web search provider. Select Venice again before using this tool.'))
+  const engine = veniceSearchProvider || webSearch.veniceSearchProvider || 'brave'
   const cacheIdentity =
-    provider === 'searxng' ? `${provider}:${normalizeSearxngBaseUrl(webSearch.searxngBaseUrl ?? '')}` : provider === 'venice' ? `${provider}:${settingsStore.getState().getSettings().providers?.venice?.apiHost}:${webSearch.veniceSearchProvider}:${veniceCredentialRevision(settingsStore.getState().providers?.venice?.apiHost, settingsStore.getState().providers?.venice?.apiKey)}` : provider
+    provider === 'searxng' ? `${provider}:${normalizeSearxngBaseUrl(webSearch.searxngBaseUrl ?? '')}` : provider === 'venice' ? `${provider}:${settingsStore.getState().getSettings().providers?.venice?.apiHost}:${engine}:${veniceCredentialRevision(settingsStore.getState().providers?.venice?.apiHost, settingsStore.getState().providers?.venice?.apiKey)}` : provider
   const searchResults = await cachified({
     cache,
     key: `search-context:${cacheIdentity}:${query}`,
     ttl: 1000 * 60 * 5,
-    getFreshValue: () => _searchRelatedResults(query, abortSignal),
+    getFreshValue: () => _searchRelatedResults(query, abortSignal, veniceSearchProvider),
   })
   return { query, searchResults }
 }
