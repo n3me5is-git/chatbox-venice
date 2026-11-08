@@ -13,6 +13,7 @@ import platform from '@/platform'
 import { MarkdownFilePreview } from './MarkdownFilePreview'
 import { PythonSettings } from './PythonSettings'
 import { LocalMCPSettings } from './LocalMCPSettings'
+import { LocalMediaViewer } from './LocalMediaViewer'
 
 type API=typeof sessionResourceAPI
 export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:string;api?:API}){
@@ -82,9 +83,7 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
         :/\.(?:md|markdown)$/i.test(selected.name)&&readable?<MarkdownFilePreview source={text} path={selected.path} resolveImage={resolveImage} openFile={openPath} openExternal={url=>void platform.openLink(url)}/>
         :selected.mime==='text/html'?<iframe title={ft('Local file preview')} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={buildWorkArtifactPreview(text)} style={{width:'100%',height:'65vh',border:0}}/>
         :isTextResource(selected)?<pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',margin:0}}>{text}</pre>
-        :selected.mime.startsWith('image/')&&url?<img src={url} alt={selected.name} style={{maxWidth:'100%',height:'auto'}}/>
-        :selected.mime.startsWith('audio/')&&url?<audio controls src={url} style={{width:'100%'}}/>
-        :selected.mime.startsWith('video/')&&url?<video controls src={url} style={{width:'100%',maxHeight:'60vh'}}/>
+        :/^(image|audio|video)\//.test(selected.mime)&&url?<LocalMediaViewer name={selected.name} mime={selected.mime} url={url}/>
         :selected.mime==='application/pdf'&&platform.isDesktopLike&&url?<iframe title={ft('Local file preview')} src={url} style={{width:'100%',height:'65vh',border:0}}/>
         :<Text c="dimmed">{ft('Export this file to open it in another app.')}</Text>}
       </div>}

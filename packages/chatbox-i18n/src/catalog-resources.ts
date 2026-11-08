@@ -1,4 +1,11 @@
 export const catalogItalian={
+ 'Media preview':'Anteprima multimediale',
+ 'Open generated {{kind}}':'Apri {{kind}} generato',
+ 'This media is not available in this chat':'Questo contenuto non è disponibile in questa chat',
+ 'This generation is not ready yet':'Questa generazione non è ancora pronta',
+ 'Waiting for generation':'Attesa della generazione',
+ 'Show generated media':'Mostra il contenuto generato',
+ 'Venice media':'Contenuti Venice',
  'Background lock delay':'Ritardo del blocco in background',
  'Seconds after leaving the app. Use 0 to lock immediately. The app stays unlocked during this delay.':'Secondi dopo aver lasciato l’app. Imposta 0 per bloccarla subito. Durante questo intervallo l’app rimane sbloccata.',
  'Audio references':'Riferimenti audio',
