@@ -13,7 +13,7 @@ import static org.junit.Assert.*;
 
 /** Runtime probes in the actual Capacitor WebView, independent of cloud signaling availability. */
 @RunWith(AndroidJUnit4.class)
-public class CollaborationDeviceTest {
+public class CollaborationDeviceTest extends EmulatorDeviceFixture {
     private JSONObject probe(ActivityScenario<MainActivity> scenario,String script) throws Exception {
         AtomicReference<String> ready=new AtomicReference<>();
         for(int attempt=0;attempt<100;attempt++) {

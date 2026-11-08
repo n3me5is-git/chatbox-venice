@@ -85,6 +85,7 @@ jobs:
           node scripts/configure-fork-android.mjs
           pnpm exec cap sync android
           mkdir -p android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice
+          cp native/android/test/EmulatorDeviceFixture.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
           cp native/android/test/VaultKeyDeviceTest.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
           cp native/android/test/MicrophoneDeviceTest.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
           cp native/android/test/CollaborationDeviceTest.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/

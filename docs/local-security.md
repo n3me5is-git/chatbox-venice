@@ -24,6 +24,8 @@ In a project's context menu, choose **Project protection**: no lock, shared app 
 
 ## Backup and deletion
 
+Native CI probes run on disposable GitHub-hosted Android emulators. The test fixture verifies the synthetic PIN is configured and waits for both device and keyguard unlock before starting Keystore, microphone or camera probes. A locked emulator is reported as a fixture failure; production `unlockedDeviceRequired` key protection stays enabled.
+
 The library offers a portable `.chatboxvault` backup encrypted with a separate passphrase of at least 12 characters. It streams authenticated, ordered records and requires a complete manifest before publishing restored files. Staging contains ciphertext; cancellation/failure removes it and stale interrupted stages can be cleaned. Restore uses new file identities and the current device's keys. Keep the backup passphrase separately; it is not recoverable.
 
 Locked scopes and attachments belonging to locked projects are excluded from library backups. Unlock wanted areas first. Restore brings back media and library metadata; it does not recreate Studio job history, image workflow relationships or conversations. Use the existing conversation backup separately. Ordinary conversation backups are not encrypted by app lock; protected media is refused by the plaintext resource exporter, so review missing-resource warnings.
