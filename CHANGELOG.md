@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.34.0
+
+See [release notes](docs/releases/v1.34.0.md). Adds PDF and self-contained HTML export from rendered Markdown, editable copies of text attachments, global speech-recognition/synthesis models, microphone-to-draft dictation and on-demand reply reading. Private chats block non-private speech; E2EE chats require per-request consent for private speech over HTTPS.
+
 ## 1.33.0
 
 See [release notes](docs/releases/v1.33.0.md). Adds a per-chat resource explorer, rich local Markdown previews, encrypted managed files and workspace backups, isolated JavaScript and optional Python, and a permission-scoped desktop MCP server. Intermediate files stay out of the library unless marked as deliverables.

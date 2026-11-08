@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.34.0
+1. Esporta Markdown renderizzato in PDF o HTML autonomo con immagini, diagrammi e font delle formule incorporati
+2. Modifica i file testuali e salva copie modificabili degli allegati in sola lettura
+3. Configura modelli globali di riconoscimento e sintesi vocale, voci e lingua
+4. Detta nella bozza modificabile e ascolta le risposte dell’assistente su richiesta
+5. Blocca i servizi vocali non privati nelle chat private; richiede conferma per ogni richiesta vocale privata nelle chat E2EE
+
 ## Chatbox Venice 1.33.0
 1. Esplora file, allegati, artefatti e media della sessione in una struttura ad albero
 2. Visualizza Markdown con LaTeX, Mermaid, indice, immagini locali e collegamenti

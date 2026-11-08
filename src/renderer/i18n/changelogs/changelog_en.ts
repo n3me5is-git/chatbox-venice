@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.34.0
+1. Export rendered Markdown to PDF or a single offline HTML file with embedded images, diagrams and math fonts
+2. Edit text files and save editable copies of read-only text attachments
+3. Configure global recognition and synthesis models, voices and language
+4. Dictate into an editable draft and read assistant replies on demand
+5. Block non-private speech in private chats; require one-request consent for private speech in E2EE chats
+
 ## Chatbox Venice 1.33.0
 1. Browse session files, attachments, artifacts and generated media in a tree
 2. Preview Markdown with LaTeX, Mermaid, a table of contents, local images and links

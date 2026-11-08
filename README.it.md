@@ -8,6 +8,8 @@ Fork di Chatbox Community Edition con dati locali, parametri vendor per modello 
 
 ## Uso
 
+Dalla 1.34.0 il visualizzatore Markdown esporta anche in **PDF** e **HTML autonomo**, incorporando immagini, diagrammi e font delle formule. I file testuali hanno l'editor; gli allegati in sola lettura si modificano come copie. In **Impostazioni → Modelli predefiniti** scegli STT e TTS globali, poi usa il microfono della chat o **Leggi ad alta voce** sotto una risposta. La dettatura aggiunge testo modificabile alla bozza senza inviarlo. Le chat private bloccano i servizi vocali non privati/sconosciuti; nelle chat E2EE serve conferma per ogni richiesta a un servizio vocale privato, che usa HTTPS. Vedi la [guida italiana](docs/markdown-export-and-speech.it.md).
+
 Dalla 1.33.0, **File e risorse** nell'intestazione della chat apre l'explorer: pannello destro su desktop, scheda scorrevole sul telefono. L'albero raccoglie allegati, artefatti, media generati e file gestiti. Le anteprime Markdown includono LaTeX, Mermaid, indice, immagini locali e link. Puoi modificare, esportare o cancellare una singola risorsa. Gli script intermedi restano nella chat; i documenti finali entrano in libreria solo se li contrassegni come risultati finali.
 
 I nuovi file gestiti e il relativo indice sono cifrati e hanno backup/ripristino dedicati. L'agente può gestirli ed eseguire JavaScript isolato, oppure Python facoltativo con pacchetti selezionati. Python richiede un download esplicito del runtime verificato, poi esegue offline: vede solo i file scelti, senza shell, chiavi API o database dell'app. I vecchi strumenti Work mantengono il loro funzionamento. Vedi la [guida ai file di sessione](docs/session-workspaces.it.md).

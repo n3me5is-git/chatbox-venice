@@ -48,6 +48,10 @@ Venice E2EE tools are a separate opt-in transport setting. The default encrypted
 
 ## Verification boundaries
 
+Markdown PDF/HTML exports create readable copies outside the encrypted workspace. Embedded images and math fonts make HTML portable; neither export is encrypted by the workspace PIN. Native print renderers block network and scripts. No Office conversion service is used.
+
+Chat speech uses independently configured global models. Private chats refuse non-private/unknown speech. E2EE chats require per-request consent before sending audio/reply text over HTTPS to a declared private speech provider; audio does not inherit the text E2EE handshake. Recording/player data is transient and cleared on close, relevant configuration changes, backgrounding or lock. See [speech gates and export limits](markdown-export-and-speech.md).
+
 CI tests use synthetic keys/API responses, real browser canvas operations and mocked device-key wrapping. Separate native checks compile the Windows Hello helper and Android Keystore/biometric plugin. They do not verify physical biometric enrollment/unlock, every codec/device, or paid Venice inference. See [testing](fork-testing.md) and [provider data flows](fork-privacy.md).
 
 ## Mobile library and search controls (1.29.0)

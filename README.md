@@ -18,6 +18,8 @@ Managed files and their index use authenticated encrypted local storage and have
 
 On desktop, optionally share the selected chat with a trusted external agent through an authenticated, loopback-only **MCP server**. File access, isolated execution, text-model calls, Venice Studio, search and forwarding other MCP tools have separate permissions. Text-model calls ask for approval unless you explicitly allow automatic calls. Sharing stops on lock or app exit. See [MCP client setup and trust boundaries](docs/local-mcp-server.md).
 
+Markdown previews also offer **Export PDF** and **Export single-file HTML**, including embedded images, diagrams and math fonts. Text attachments can be edited as managed copies. Configure independent recognition/synthesis models in **Settings → Default models**, then use the chat microphone or **Read aloud** under a reply. Dictation appends editable draft text without sending it. Private chats refuse non-private/unknown speech; E2EE chats ask for consent on every private speech request because the audio endpoints use HTTPS, not text E2EE. See [export and speech setup](docs/markdown-export-and-speech.md).
+
 ## Configure Venice
 
 1. Open Settings → Providers → Venice and enter your API key.

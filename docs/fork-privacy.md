@@ -39,6 +39,12 @@ An enabled model can request workspace operations only through the exposed tools
 
 The opt-in desktop MCP server accepts authenticated loopback clients for a selected chat and separately granted capabilities. It does not start automatically or replace the internal Venice MCP. An external client can receive authorized decrypted files/model results and independently transmit them; use only trusted clients. Text-model calls require approval unless explicitly granted automatic calls. Existing Venice paid-generation approvals still apply. Stop/lock/app exit revokes the local token. See [MCP setup](local-mcp-server.md) and [workspace guide](session-workspaces.md).
 
+## Markdown export and on-demand speech
+
+Markdown HTML/PDF conversion runs on the device, with embedded preview assets and offline native print renderers. Previously opted-in remote preview images may be fetched to embed them; export does not automatically enable remote images. Saved copies are readable external files and must be protected/deleted separately.
+
+The microphone retains a local recording until the explicit transcription action. Global ASR receives that recording; its text is added to a draft without sending the chat. Reply reading sends readable text from the chosen reply to global TTS, not the full history. Private chats block non-private/unknown speech. E2EE chats require explicit per-request consent for private speech over HTTPS; no audio E2EE is claimed. Audio stays transient, playback stops on close/lock/background, and failed paid calls are not retried automatically. See [speech configuration and boundaries](markdown-export-and-speech.md).
+
 ## Other inherited features
 
 Tracking and error reporting default off for new settings. Imported or previously saved choices remain as selected. Desktop document parsing defaults to local; mobile defaults to no automatic cloud parser. Optional Chatbox services, third-party providers, MCP servers and cloud parsers have their own data flows and require configuration. Public model catalogs or optional service metadata may still be requested by inherited app features. A local-first app is not necessarily offline.
