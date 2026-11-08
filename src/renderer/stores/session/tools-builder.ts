@@ -49,6 +49,8 @@ import { PROVIDERS_WITH_PARSE_LINK } from '@/packages/web-search'
 import platform from '@/platform'
 import * as settingActions from '@/stores/settingActions'
 import { settingsStore } from '@/stores/settingsStore'
+import { collaborationRequester } from '@shared/collaboration'
+import { routeSharedDecision } from '@/packages/collaboration/bridge'
 
 // Cache discoverSkills() to avoid IPC on every message generation
 let cachedSkills: Array<{ name: string; description: string }> | null = null
@@ -652,14 +654,14 @@ When you create a Git commit that includes code changes, append this exact trail
 
   if (includeAgentTools && model.name === 'Venice' && options.sessionId && settingsStore.getState().providers?.venice?.venice?.chatToolsEnabled !== false && settingsStore.getState().providers?.venice?.venice?.enabled !== false) {
     const { veniceChatTools } = await import('@/packages/venice/tools')
-    tools = { ...tools, ...veniceChatTools(options.sessionId,messages.filter(message=>message.role==='user').at(-1)?.id||'empty') }
+    tools = { ...tools, ...veniceChatTools(options.sessionId,messages.filter(message=>message.role==='user').at(-1)?.id||'empty',collaborationRequester(messages).id) }
     instructions += '\nUse venice_image for Venice image generation/editing. Resolve an explicitly requested model name with its live catalog; do not substitute another model. The tool enforces the human-selected chat approval policy: ask by default, remember similar requests, or explicitly automatic. A dialog resolves model ambiguity, required references and per-call options. Only the human can change that policy in the app. Use venice_media for other Venice media. Do not install an external server or use chatbox_cli to bypass these native tools.\n'
   }
 
   if(includeAgentTools&&options.sessionId){
     const {createAskUserTool}=await import('@shared/user-questions')
     const {requestUserAnswers}=await import('@/components/agent/UserQuestion')
-    tools.ask_user=createAskUserTool(requestUserAnswers)
+    tools.ask_user=createAskUserTool((input,signal)=>routeSharedDecision(options.sessionId!,collaborationRequester(messages).id,{kind:'questions',input},signal=>requestUserAnswers(input,signal),value=>value,value=>value&&typeof value==='object'&&'answers'in value?value:null,signal))
     const {buildSessionWorkspaceTools,sessionWorkspaceInstructions}=await import('@/packages/session-resources/tools')
     const workspaceTools=await buildSessionWorkspaceTools(options.sessionId,imageResults)
     tools={...tools,...workspaceTools}

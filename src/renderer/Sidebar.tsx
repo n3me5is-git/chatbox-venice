@@ -1,5 +1,6 @@
 import {registerBackSurface} from '@/packages/overlay-back'
 import {forkT as ft} from '@/i18n/fork'
+import {openCollaboration} from '@/components/collaboration/CollaborationButton'
 import { registerPlugin } from '@capacitor/core'
 import { Box, Button, Flex, Image, NavLink, Stack, Text } from '@mantine/core'
 import SwipeableDrawer from '@mui/material/SwipeableDrawer'
@@ -16,6 +17,7 @@ import {
   type IconProps,
   IconSearch,
   IconSettings,
+  IconUsers,
 } from '@tabler/icons-react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import clsx from 'clsx'
@@ -268,6 +270,7 @@ export default function Sidebar() {
             onClick={handleCreateNewPictureSession}
           />
           <SidebarNavRow label={ft('Local media library')} icon={IconPhotoPlus} onClick={() => { navigate({ to: '/library' }); closeOnSmallScreen() }} />
+          <SidebarNavRow label={ft('Collaborative chats')} icon={IconUsers} onClick={() => { void openCollaboration(); closeOnSmallScreen() }} />
           {showVeniceStudio && <SidebarNavRow label="Venice Studio" icon={IconPhotoPlus} onClick={() => { navigate({ to: '/venice' }); closeOnSmallScreen() }} />}
           <SidebarNavRow
             label={t('My Copilots')}

@@ -386,6 +386,9 @@ export const MessageSchema = z.object({
   id: z.string(),
   role: z.nativeEnum(MessageRoleEnum),
   name: z.string().optional(),
+  /** Participant identity is assigned by the collaboration host, never by a peer message. */
+  collaborationAuthor:z.object({id:z.string().max(100),name:z.string().max(60)}).optional(),
+  collaborationRequester:z.object({id:z.string().max(100),name:z.string().max(60)}).optional(),
   generating: z.boolean().optional(),
   aiProvider: z.union([ModelProviderSchema, z.string()]).optional(),
   /** Display name of the generating model (e.g. "Claude API (claude-sonnet-4-6)"), for the UI only. */

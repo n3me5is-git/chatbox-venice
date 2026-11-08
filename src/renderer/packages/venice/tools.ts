@@ -19,12 +19,14 @@ import { installedVaultFor } from '@/packages/vault/runtime'
 import { VeniceImageApproval } from '@/components/venice/VeniceImageApproval'
 import { GenerationRetryGate } from '@shared/generation-retry'
 import { requestGenerationRetry } from '@/components/venice/GenerationFailure'
+import { routeSharedDecision,isSharedChat } from '@/packages/collaboration/bridge'
 const inFlight = new Map<string, Promise<unknown>>()
 const retryGate=new GenerationRetryGate()
-export function veniceChatTools(sessionId: string,turnId='external') {
+export function veniceChatTools(sessionId: string,turnId='external',requester='owner') {
   syncSessionApprovalScope(sessionId)
   const authorizations = new WeakMap<ImageChoice, {scope: string; revision: number; automatic: boolean}>()
   const options = () => veniceConfiguration().options
+  const retry=(failure:Parameters<typeof requestGenerationRetry>[0],signal?:AbortSignal)=>routeSharedDecision(sessionId,requester,{kind:'confirm',title:'The previous generation failed',detail:failure.model+'\n'+failure.error+'\n'+ft('Retry starts a new paid generation. Approve to retry or reject to skip.')},signal=>requestGenerationRetry(failure,signal),value=>value,value=>value===true,signal)
   if (options().enabled === false || options().chatToolsEnabled === false || !veniceConfiguration().apiKey) return {}
   const images = async () => queryClient.fetchQuery(providerImageModelsQueryOptions(ModelProviderEnum.Venice, veniceConfiguration()))
   const latestImage=async()=>{
@@ -48,9 +50,10 @@ export function veniceChatTools(sessionId: string,turnId='external') {
     models: async () => (await images()).map(row => ({ modelId: row.modelId, name: row.displayName, capabilities: row.capabilities, metadata: row.vendorMetadata })),
     choose: async (request, signal) => {
       const failure=await latestImage()
-      if(failure?.status==='error'&&!await retryGate.allow(sessionId+':'+turnId,{id:failure.id,kind:ft('Image'),model:failure.model.modelId,error:failure.error||''},value=>requestGenerationRetry(value,signal)))return null
+      if(failure?.status==='error'&&!await retryGate.allow(sessionId+':'+turnId,{id:failure.id,kind:ft('Image'),model:failure.model.modelId,error:failure.error||''},value=>retry(value,signal)))return null
       const before = veniceConfiguration(); const scope = syncSessionApprovalScope(sessionId); const models = await images()
-      const approved = await requestSessionImageChoice(sessionId, request, models, request => NiceModal.show(VeniceImageApproval, { models, request, signal, sessionId }) as Promise<ImageChoice & {approvalMode?: ApprovalMode} | null>)
+      const policy=isSharedChat(sessionId)?{...sessionApprovals,allows:()=>false}:sessionApprovals
+      const approved = await requestSessionImageChoice(sessionId, request, models, request => routeSharedDecision<ImageChoice & {approvalMode?:ApprovalMode}|null>(sessionId,requester,{kind:'image',prompt:request.prompt,modelId:request.modelId,count:request.count,models:models.filter(model=>!model.capabilities?.inputReferences?.min).map(model=>({id:model.modelId,name:model.displayName}))},signal=>NiceModal.show(VeniceImageApproval,{models,request,signal,sessionId}) as Promise<ImageChoice & {approvalMode?:ApprovalMode}|null>,value=>value?{modelId:value.modelId,prompt:value.prompt,count:value.count,aspectRatio: ['auto','1:1','16:9','9:16','4:3','3:4'].includes(value.aspectRatio)?value.aspectRatio as 'auto':'auto'}:null,value=>value&&typeof value==='object'&&'modelId'in value?{...value,referenceImages:[]}:null,signal),policy)
       const current = veniceConfiguration()
       if (before.apiKey !== current.apiKey || before.apiHost !== current.apiHost || scope !== syncSessionApprovalScope(sessionId)) throw new Error('Venice settings changed. Review the request again.')
       if (approved) authorizations.set(approved.choice, {scope, revision:sessionApprovals.revision(sessionId), automatic:approved.automatic})
@@ -80,13 +83,13 @@ export function veniceChatTools(sessionId: string,turnId='external') {
   const mediaTools = buildVeniceMediaTools(sessionId, scopedMedia, options, async (message, request) => {
     if(request?.action==='generate'){
       const latest=(await veniceMediaService.list()).filter(record=>record.sessionId===sessionId&&record.kind===request.kind).sort((a,b)=>b.createdAt-a.createdAt)[0]
-      if(latest?.status==='error'&&!await retryGate.allow(sessionId+':'+turnId,{id:latest.id,kind:latest.kind,model:latest.model,error:latest.error||''},value=>requestGenerationRetry(value,request.signal)))return false
+      if(latest?.status==='error'&&!await retryGate.allow(sessionId+':'+turnId,{id:latest.id,kind:latest.kind,model:latest.model,error:latest.error||''},value=>retry(value,request.signal)))return false
     }
     const scope = syncSessionApprovalScope(sessionId)
     const descriptor = request?.action === 'generate' ? {tool:'venice_media', kind:request.kind!, model:request.model!, options:request.options || {}} : undefined
-    if (descriptor && sessionApprovals.allows(sessionId, descriptor)) return true
+    if (descriptor && !isSharedChat(sessionId) && sessionApprovals.allows(sessionId, descriptor)) return true
     const revision = sessionApprovals.revision(sessionId)
-    const result = await NiceModal.show(VeniceMediaApproval, {message, sessionId, generation:!!descriptor, request}) as {approved:boolean; mode:ApprovalMode}
+    const result = await routeSharedDecision<{approved:boolean;mode:ApprovalMode}>(sessionId,requester,{kind:'confirm',title:'Venice tool approval',detail:message},signal=>NiceModal.show(VeniceMediaApproval, {message, sessionId, generation:!!descriptor, request:request?{...request,signal}:undefined}) as Promise<{approved:boolean;mode:ApprovalMode}>,value=>value.approved,value=>({approved:value===true,mode:'ask'}),request?.signal)
     if (scope !== syncSessionApprovalScope(sessionId)) throw new Error('Venice settings changed. Review the request again.')
     if (result.approved && descriptor && revision === sessionApprovals.revision(sessionId)) {
       if (result.mode !== sessionApprovals.mode(sessionId)) sessionApprovals.setMode(sessionId,result.mode)

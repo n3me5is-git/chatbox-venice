@@ -87,8 +87,9 @@ function deliverNotification(
       const userMessage = prepareMessage({
         ...createMessage('user', formatBackgroundTaskNotification(queued.notification)),
         backgroundTask: queued.notification,
+        collaborationRequester:origin.collaborationRequester,
       })
-      const assistantMessage = prepareMessage({ ...createMessage('assistant', ''), generating: true })
+      const assistantMessage = prepareMessage({ ...createMessage('assistant', ''), generating: true,collaborationRequester:origin.collaborationRequester })
       const result = await rendererApplication.sessions.executeStructureCommand(sessionId, {
         action: 'background-follow-up',
         originMessageId: origin.id,

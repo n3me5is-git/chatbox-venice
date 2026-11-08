@@ -355,6 +355,7 @@ export async function submitNewUserMessageUnlocked(
   }
 
   let { newUserMsg } = params
+  const collaborationRequester=newUserMsg.collaborationRequester||newUserMsg.collaborationAuthor||{id:'owner',name:'Owner'}
   const { needGenerating } = params
   const webBrowsing = getSessionWebBrowsing(sessionId, settings.provider)
 
@@ -373,6 +374,7 @@ export async function submitNewUserMessageUnlocked(
 
   // 根据需要，插入空白的回复消息
   let newAssistantMsg = createMessage('assistant', '')
+  newAssistantMsg.collaborationRequester=collaborationRequester
   if (newUserMsg.files && newUserMsg.files.length > 0) {
     if (!newAssistantMsg.status) {
       newAssistantMsg.status = []
