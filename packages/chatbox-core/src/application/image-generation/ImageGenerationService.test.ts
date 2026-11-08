@@ -514,6 +514,19 @@ describe('ImageGenerationService', () => {
     expect(f.poll).not.toHaveBeenCalled()
   })
 
+  it('deletes one batch output and thumbnail while preserving siblings and shared references',async()=>{
+    const f=fixture(),a='picture:image-gen:batch-a',b='picture:image-gen:batch-b'
+    const record=await existing(f,{generatedImages:[a,b],generatedImageThumbnails:[a+':thumbnail',b+':thumbnail']})
+    await f.storage.create({...record,id:'other',generatedImages:[],referenceImages:[a]})
+    await f.service.deleteOutput('existing',a)
+    expect(f.records.get('existing')?.generatedImages).toEqual([b]);expect(f.records.get('existing')?.generatedImageThumbnails).toEqual([b+':thumbnail'])
+    expect(f.blobStorage.remove).not.toHaveBeenCalledWith(a);expect(f.blobStorage.remove).toHaveBeenCalledWith(a+':thumbnail');expect(f.blobStorage.remove).not.toHaveBeenCalledWith(b)
+  })
+  it('does not remove outputs from an unfinished generation',async()=>{
+    const f=fixture();await existing(f,{status:'generating',generatedImages:['picture:image-gen:active']})
+    await expect(f.service.deleteOutput('existing','picture:image-gen:active')).rejects.toThrow('finish')
+    expect(f.records.get('existing')?.generatedImages).toHaveLength(1)
+  })
   it('only cleans owned blobs with no record or active draft references', async () => {
     const f = fixture()
     const shared = 'picture:image-gen:shared'

@@ -29,7 +29,7 @@ export interface TranscriptNavigation {
 }
 
 /** Tabs of the conversation side panel: pinned tools first, then the built-in browser's pages. */
-export type SessionPanelTab = 'settings' | 'threads' | 'web'
+export type SessionPanelTab = 'settings' | 'threads' | 'files' | 'web'
 
 export interface SessionPanelState {
   open: boolean

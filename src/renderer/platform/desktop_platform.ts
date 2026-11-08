@@ -514,6 +514,12 @@ export default class DesktopPlatform implements Platform {
     return this.ipc.invoke('sandbox:persist-artifact', params)
   }
 
+  public async sessionDiskFiles(params:{sessionId:string;action:'list'|'read'|'remove'|'write';path?:string;content?:string}) {
+    // This new explorer endpoint has no shell/process operation. External user
+    // working directories remain read-only; mutations are app-session scoped.
+    return this.ipc.invoke('session-files:operation',params)
+  }
+
   public async sandboxHasArtifacts(params: { sessionId: string }) {
     return this.ipc.invoke('sandbox:has-artifacts', params)
   }

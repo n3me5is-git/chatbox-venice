@@ -595,6 +595,21 @@ export class ImageGenerationService {
     void this.resume(recordId).catch((error: unknown) => this.options.onError?.(error))
   }
 
+  /** Remove one batch output without deleting its siblings or generation settings. */
+  async deleteOutput(id:string,key:string):Promise<void>{
+    await this.initialize()
+    await this.serialize(async()=>{
+      const record=await this.options.storage.getById(id);if(!record)return
+      if(this.attempt?.recordId===id||record.status==='pending'||record.status==='generating')throw new Error('Wait for image generation to finish before deleting an output')
+      const index=record.generatedImages.indexOf(key);if(index<0)return
+      const thumbnails=record.generatedImageThumbnails
+      const updated=await this.options.storage.update(id,{generatedImages:record.generatedImages.filter((_,n)=>n!==index),...(thumbnails?{generatedImageThumbnails:thumbnails.filter((_,n)=>n!==index)}:{})})
+      if(updated)this.emit({type:'updated',record:updated})
+      this.deferredCleanup.add(key);if(thumbnails?.[index])this.deferredCleanup.add(thumbnails[index])
+      await this.cleanupCandidates()
+    })
+  }
+
   async deleteRecord(id: string): Promise<void> {
     this.deleted.add(id)
     if (this.backgroundRecordId === id) {

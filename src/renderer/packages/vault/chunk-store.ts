@@ -1,5 +1,5 @@
 import { aesKey, decode64, encode64, open, seal, type SealedBytes } from './crypto'
-export type AssetInfo={name:string;mime:string;kind:'image'|'audio'|'video'|'document'|'chat'|'thumbnail';prompt?:string;model?:string;sourceId?:string}
+export type AssetInfo={name:string;mime:string;kind:'image'|'audio'|'video'|'document'|'chat'|'thumbnail';prompt?:string;model?:string;sourceId?:string;sessionId?:string;resourcePath?:string;deliverable?:boolean;hidden?:boolean}
 export type AssetHeader={version:1;id:string;alias?:string;scope:string;createdAt:number;bytes:number;chunks:number;status:'writing'|'ready';key:SealedBytes;info:SealedBytes;manifest?:SealedBytes}
 export interface CipherBlobStore {get(key:string):Promise<string|null>;set(key:string,value:string):Promise<void>;remove(key:string):Promise<void>;keys():Promise<string[]>}
 export interface AssetIndex {get(id:string):Promise<AssetHeader|null>;byAlias(alias:string):Promise<AssetHeader|null>;put(header:AssetHeader):Promise<void>;remove(id:string):Promise<void>;page(scope:string|undefined,cursor:number,limit:number):Promise<{items:AssetHeader[];next:number|null}>;all():AsyncIterable<AssetHeader>}
@@ -25,6 +25,7 @@ export class EncryptedChunkStore {
   async header(ref:string) {return ref.startsWith('vault-asset-')?this.index.get(ref.slice(12)):this.index.byAlias(ref)}
   private async dataKey(header:AssetHeader){checkId(header.id);const raw=await open(await this.scopeKey(header.scope),header.key,`${header.id}:key:${header.scope}:${header.alias||''}`);try{if(raw.length!==32)throw new Error('Invalid encrypted content key');return await aesKey(raw)}finally{raw.fill(0)}}
   async info(header:AssetHeader):Promise<AssetInfo>{const bytes=await open(await this.dataKey(header),header.info,`${header.id}:info`);try{await this.scopeKey(header.scope);return JSON.parse(new TextDecoder().decode(bytes)) as AssetInfo}finally{bytes.fill(0)}}
+  async describe(ref:string,info:AssetInfo){const header=await this.header(ref);if(!header||header.status!=='ready')throw new Error('Encrypted item not found');const sealed=await seal(await this.dataKey(header),new TextEncoder().encode(JSON.stringify(info)),`${header.id}:info`);await this.scopeKey(header.scope);await this.index.put({...header,info:sealed})}
   async *read(ref:string):AsyncGenerator<Uint8Array<ArrayBuffer>> {
     const header=await this.header(ref);if(!header||header.status!=='ready')throw new Error('This encrypted item is unavailable')
     const key=await this.dataKey(header);let total=0

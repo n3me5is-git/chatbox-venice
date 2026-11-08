@@ -3,7 +3,9 @@ import { Loader, Text } from '@mantine/core'
 import { AutomationAdjacentAttr, TestId } from '@shared/automation/testids'
 import { BUILT_IN_BROWSER_MAX_TABS, type BuiltInBrowserTabs } from '@shared/built-in-browser'
 import type { SessionHeader } from '@shared/types'
-import { IconAdjustmentsHorizontal, IconHistory, IconPlus, type IconProps, IconWorld, IconX } from '@tabler/icons-react'
+import { IconAdjustmentsHorizontal, IconHistory, IconPlus, type IconProps, IconWorld, IconX, IconFolderOpen } from '@tabler/icons-react'
+import { SessionResourceContent } from '@/components/session-resources/SessionResourcesButton'
+import { forkT as ft } from '@/i18n/fork'
 import clsx from 'clsx'
 import {
   type ElementType,
@@ -285,7 +287,7 @@ function SessionPanelHost({
 }
 
 /** Panel tab keys: the pinned tools, then `web:<browser tab id>` for each page. */
-type PanelTabKey = 'settings' | 'threads' | `web:${string}`
+type PanelTabKey = 'settings' | 'threads' | 'files' | `web:${string}`
 
 function OpenSessionPanel({
   session,
@@ -310,6 +312,7 @@ function OpenSessionPanel({
 
   const tabs: PanelTabKey[] = [
     'settings',
+    'files',
     ...(showThreads ? (['threads'] as const) : []),
     ...pages.map((page) => `web:${page.id}` as const),
   ]
@@ -348,7 +351,7 @@ function OpenSessionPanel({
   }, [])
 
   const show = (key: PanelTabKey) => {
-    if (key === 'settings' || key === 'threads') showSessionPanelTab(session.id, key)
+    if (key === 'settings' || key === 'threads' || key === 'files') showSessionPanelTab(session.id, key)
     else showSessionPanelTab(session.id, 'web', key.slice('web:'.length))
   }
 
@@ -412,6 +415,7 @@ function OpenSessionPanel({
             testId={TestId.sessionPanel.tabThreads}
           />
         )}
+        <PanelTab pinned icon={IconFolderOpen} label={ft('Files and resources')} active={activeTab==='files'} onSelect={()=>showSessionPanelTab(session.id,'files')}/>
         {pages.length > 0 && <span className="mx-0.5 h-4 w-px shrink-0 bg-chatbox-border-primary" aria-hidden />}
         <div
           ref={tabStripRef}
@@ -466,7 +470,7 @@ function OpenSessionPanel({
         <div className="min-h-0 flex-1" role="tabpanel" />
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3" role="tabpanel">
-          {activeTab === 'threads' ? (
+          {activeTab==='files'?<SessionResourceContent sessionId={session.id}/>:activeTab === 'threads' ? (
             <ThreadHistoryList session={session} />
           ) : (
             <SettingsDensityProvider density="compact">

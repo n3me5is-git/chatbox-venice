@@ -13,6 +13,7 @@ import { ICON_SIZE, ICON_STROKE_WIDTH, IconButton } from '../common/IconButton'
 import { ScalableIcon } from '../common/ScalableIcon'
 import { PageHeader } from './Page'
 import Toolbar, { SessionMenu } from './Toolbar'
+import { SessionResourcesButton } from '@/components/session-resources/SessionResourcesButton'
 
 export default function Header(props: { session: SessionHeader }) {
   const { t } = useTranslation()
@@ -59,13 +60,13 @@ export default function Header(props: { session: SessionHeader }) {
           </SessionMenu>
         }
         right={
-          <IconButton
+          <Flex align="center" gap={2}><SessionResourcesButton sessionId={currentSession.id}/><IconButton
             icon={IconPlus}
             size="lg"
             iconSize={ICON_SIZE.touch}
             aria-label={t('New Chat')}
             onClick={() => navigate({ to: '/' })}
-          />
+          /></Flex>
         }
       />
     )
@@ -94,7 +95,7 @@ export default function Header(props: { session: SessionHeader }) {
           </Tooltip>
         </Flex>
       }
-      right={<Toolbar session={currentSession} />}
+      right={<Flex align="center" gap="xs"><SessionResourcesButton sessionId={currentSession.id}/><Toolbar session={currentSession} /></Flex>}
     />
   )
 }

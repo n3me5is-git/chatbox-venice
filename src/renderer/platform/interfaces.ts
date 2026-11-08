@@ -282,6 +282,8 @@ export interface Platform extends Storage {
     displayName?: string
   }): Promise<{ success: boolean; artifactPath?: string; error?: string }>
   sandboxHasArtifacts?(params: { sessionId: string }): Promise<{ has: boolean }>
+  /** New explorer file I/O only. No shell execution; external directories are read-only. */
+  sessionDiskFiles?(params:{sessionId:string;action:'list'|'read'|'remove'|'write';path?:string;content?:string}):Promise<{success:boolean;files:import('@shared/session-resources').SessionResource[];base64?:string;truncated?:boolean;error?:string}>
   sandboxRemoveArtifacts?(params: { sessionId: string }): Promise<{ success: boolean; error?: string }>
   sandboxReadFileBase64?(params: {
     filePath: string

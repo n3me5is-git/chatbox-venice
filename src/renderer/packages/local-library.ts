@@ -16,7 +16,7 @@ export async function localLibraryPage(kind:LibraryKind,cursor=0,protection:'pub
     const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform);const items:LocalLibraryItem[]=[];let next:number|null=cursor;let scanned=0
     do{const page=await vault.db.page(protection==='public'?'public':undefined,next,20,protection==='protected'?allowedScopes:undefined);next=page.next
       for(const header of page.items){if(protection==='protected'&&(header.scope==='public'||allowedScopes&&!allowedScopes.has(header.scope))||header.alias?.endsWith(':thumbnail')||!vault.keys.isUnlocked(header.scope)||access&&!await access.libraryKeyVisible(header.alias))continue
-        const info=await vault.assets.info(header);if(!['image','audio','video','document'].includes(info.kind))continue
+        const info=await vault.assets.info(header);if(info.hidden||!['image','audio','video','document'].includes(info.kind)||info.sessionId&&info.deliverable!==true)continue
         let type:string=info.kind,thumbnail:string|undefined,name=info.name
         const imageId=info.kind==='image'?(info.sourceId||/^picture(?::)?image-gen(?::)?([a-f0-9-]{36})/.exec(header.alias||'')?.[1]):undefined
         if(imageId){const record=await platform.getImageGenerationStorage().getById(imageId);if(record){const index=record.generatedImages.findIndex(key=>key===header.alias||key.replaceAll(':','')===header.alias?.replaceAll(':',''));thumbnail=record.generatedImageThumbnails?.[Math.max(index,0)];name=record.prompt.slice(0,100)||name}}

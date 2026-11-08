@@ -1,4 +1,5 @@
 import type { Platform } from '@/platform/interfaces'
+import { sessionDirectoryName } from '@shared/mobile-work/workspace-path'
 import { trackBlobWrite } from '@/storage/blob-write-tracker'
 import { EncryptedChunkStore,VaultLockedError,dataUrlBytes,responseBytes,type AssetInfo } from './chunk-store'
 import { VaultDatabase } from './database'
@@ -50,6 +51,10 @@ export class VaultRuntime {
     await this.legacy.remove(alias);return true
   }
   private async protectSessionMedia(sessionIds:ReadonlySet<string>,scope:string){
+    // New session files and their private index follow project protection too.
+    const indices=new Set([...sessionIds].map(id=>'session-resource-index:'+sessionDirectoryName(id)))
+    const prefixes=[...sessionIds].map(id=>'session-file:'+encodeURIComponent(id)+':')
+    for await(const header of this.db.all())if(header.scope!==scope&&header.alias&&(indices.has(header.alias)||prefixes.some(prefix=>header.alias!.startsWith(prefix))))await this.assets.rewrap('vault-asset-'+header.id,scope)
     const images=this.platform.getImageGenerationStorage();await images.initialize();let cursor:number|null=0
     while(cursor!==null){const page=await images.getPage(cursor,100);for(const record of page.items)if(record.source?.sessionId&&sessionIds.has(record.source.sessionId)&&record.protection!==scope)await images.update(record.id,{protection:scope});cursor=page.nextCursor}
     for(const record of await this.media.read())if(record.sessionId&&sessionIds.has(record.sessionId)&&record.protection!==scope)await this.media.setProtection(record.id,scope)

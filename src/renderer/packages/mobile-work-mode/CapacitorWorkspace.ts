@@ -31,6 +31,26 @@ async function hash(value: string): Promise<string> {
 }
 
 export class CapacitorWorkspace implements LocalWorkspacePort {
+  /** Explorer listing reads metadata only; it must not materialize an execution snapshot. */
+  async listEntries(sessionId:string):Promise<import('@shared/session-resources').SessionResource[]> {
+    const items:import('@shared/session-resources').SessionResource[]=[]
+    const visit=async(prefix:string,depth:number):Promise<void>=>{
+      if(depth>12||items.length>=2000)return
+      let entries:Awaited<ReturnType<FilesystemPlugin['readdir']>>
+      try{entries=await this.filesystem.readdir({path:this.root(sessionId)+(prefix?'/'+prefix:''),directory:Directory.Data})}catch(error){if(!prefix)return;throw error}
+      for(const entry of entries.files){
+        if(items.length>=2000)break
+        const path=workspacePath(prefix?prefix+'/'+entry.name:entry.name)
+        if(entry.type==='directory')await visit(path,depth+1)
+        else items.push({id:'workspace:'+path,path:'workspace/'+path,key:path,name:entry.name,mime:workArtifactMimeType(path),bytes:entry.size,origin:path.startsWith('artifacts/')?'artifact':'workspace',deliverable:path.startsWith('artifacts/'),updatedAt:entry.mtime})
+      }
+    }
+    await visit('',0);return items
+  }
+
+  async removeFile(sessionId:string,path:string):Promise<void>{
+    await this.lifecycle.run(sessionId,async()=>{const target=this.path(sessionId,path);const stat=await this.filesystem.stat({path:target,directory:Directory.Data});if(stat.type!=='file')throw new Error('Choose a file');await this.filesystem.deleteFile({path:target,directory:Directory.Data})})
+  }
   private readonly lifecycle = new WorkspaceLifecycle()
 
   reopen(sessionId: string): void {
