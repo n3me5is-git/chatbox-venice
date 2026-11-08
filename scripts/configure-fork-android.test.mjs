@@ -18,7 +18,8 @@ test('generated Android manifest declares every audio permission Capacitor reque
     execFileSync(process.execPath,[script],{cwd:root})
     const manifest=join(root,'android/app/src/main/AndroidManifest.xml')
     for(const name of ['RECORD_AUDIO','MODIFY_AUDIO_SETTINGS'])assert.ok(readFileSync(manifest,'utf8').includes('android.permission.'+name))
-    assert.ok(!readFileSync(manifest,'utf8').includes('android.permission.CAMERA'))
+    assert.ok(readFileSync(manifest,'utf8').includes('android.permission.CAMERA'))
+    assert.ok(readFileSync(manifest,'utf8').includes('android:name="android.hardware.camera" android:required="false"'))
     execFileSync(process.execPath,[script],{cwd:root})
     for(const name of ['RECORD_AUDIO','MODIFY_AUDIO_SETTINGS'])assert.equal(readFileSync(manifest,'utf8').split('android.permission.'+name).length-1,1)
   }finally{

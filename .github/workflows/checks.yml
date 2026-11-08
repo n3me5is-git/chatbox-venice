@@ -60,7 +60,7 @@ jobs:
         run: pnpm exec vitest run src/shared/user-questions.test.ts src/shared/generation-retry.test.ts src/renderer/packages/session-resources/tools.test.ts src/renderer/packages/model-calls/toolsets/view-image.test.ts
       - name: Collaboration identity, encryption and HITL permissions
         if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
-        run: pnpm exec vitest run src/shared/collaboration.test.ts src/shared/image-dimensions.test.ts src/renderer/packages/collaboration/bridge.test.ts src/renderer/packages/collaboration/crypto.test.ts src/renderer/packages/collaboration/hub.test.ts src/renderer/components/collaboration/HitlCard.test.tsx
+        run: pnpm exec vitest run src/shared/collaboration.test.ts src/shared/image-dimensions.test.ts src/renderer/packages/collaboration/bridge.test.ts src/renderer/packages/collaboration/crypto.test.ts src/renderer/packages/collaboration/hub.test.ts src/renderer/packages/collaboration/network.test.ts src/renderer/components/collaboration/PairingScanner.test.tsx src/renderer/components/collaboration/HitlCard.test.tsx
       - name: Full Venice catalog classification, pricing and failure reasons
         if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
         run: pnpm exec vitest run src/shared/providers/definitions/models/venice/catalog-audit.test.ts src/shared/providers/definitions/models/venice/failure-reason.test.ts src/renderer/components/venice/VeniceModelCost.test.tsx
@@ -94,6 +94,8 @@ jobs:
           node scripts/build-mobile-work-worker.cjs
           node scripts/prepare-python-test-assets.mjs
           node scripts/ui-simulation/run.mjs
+      - name: Install local TURN fixture
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends coturn
       - name: Real WebRTC collaboration, permissions and shared HITL
         if: always() && steps.ui_dependencies.outcome == 'success'
         run: node scripts/collaboration-test/run.mjs

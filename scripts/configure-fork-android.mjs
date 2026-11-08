@@ -4,9 +4,11 @@ const manifest = 'android/app/src/main/AndroidManifest.xml'
 let xml = readFileSync(manifest, 'utf8')
 // Capacitor's AUDIO_CAPTURE permission callback requires both permissions. An
 // undeclared MODIFY_AUDIO_SETTINGS makes the whole callback deny microphone use.
-for (const permission of ['RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'USE_BIOMETRIC', 'USE_FINGERPRINT']) {
+for (const permission of ['RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'CAMERA', 'USE_BIOMETRIC', 'USE_FINGERPRINT']) {
   if (!xml.includes(`android.permission.${permission}`)) xml = xml.replace('<application', `<uses-permission android:name="android.permission.${permission}" /><application`)
 }
+// QR scanning is optional: camera-less devices can still install and upload a QR image.
+if (!xml.includes('android.hardware.camera')) xml = xml.replace('<application', '<uses-feature android:name="android.hardware.camera" android:required="false" /><application')
 xml = xml.replace('<application', '<application android:usesCleartextTraffic="false"')
 writeFileSync(manifest, xml)
 const version = JSON.parse(readFileSync('release/app/package.json', 'utf8')).version

@@ -1,7 +1,7 @@
 import NiceModal,{useModal} from '@ebay/nice-modal-react'
-import { ActionIcon,Alert,Badge,Button,Card,Checkbox,Divider,FileButton,Group,Image,Radio,ScrollArea,Select,Stack,Text,Textarea,TextInput } from '@mantine/core'
+import { ActionIcon,Alert,Badge,Button,Card,Checkbox,Collapse,Divider,FileButton,Group,Image,PasswordInput,Radio,ScrollArea,Select,Stack,Text,Textarea,TextInput } from '@mantine/core'
 import { IconCopy,IconQrcode,IconRefresh,IconTrash } from '@tabler/icons-react'
-import { useEffect,useRef,useState,useSyncExternalStore } from 'react'
+import { useCallback,useEffect,useRef,useState,useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -14,12 +14,16 @@ import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { usePrivacyDismiss } from '@/components/security/usePrivacyDismiss'
 import { collaboration,initializeCollaboration,switchCurrentSession } from '@/packages/collaboration/runtime'
 import type { GuestShare,HostShare } from '@/packages/collaboration/hub'
-import { deviceIdentity,qrSvg,scanQR } from '@/packages/collaboration/transport'
+import { deviceIdentity,qrSvg } from '@/packages/collaboration/transport'
 import { fingerprint } from '@/packages/collaboration/crypto'
 import { copyToClipboard } from '@/packages/navigator'
 import platform from '@/platform'
 import { forkT as ft } from '@/i18n/fork'
 import { HitlCard } from './HitlCard'
+import { PairingScanner } from './PairingScanner'
+import { pairingFromImage } from '@/packages/collaboration/qr'
+import { collaborationError } from '@/packages/collaboration/errors'
+import type { ConnectionOptions } from '@/packages/collaboration/network'
 
 function SharedMarkdown({text}:{text:string}){return <ReactMarkdown remarkPlugins={[remarkGfm,remarkMath]} rehypePlugins={[rehypeKatex]} skipHtml components={{img:()=>null,a:({href,children})=><a href={href} onClick={event=>{event.preventDefault();if(href&&/^https?:\/\//.test(href))void platform.openLink(href)}}>{children}</a>}}>{text}</ReactMarkdown>}
 function Permissions({value,change}:{value:SharePermissions;change:(value:SharePermissions)=>void}){return <Group gap="sm"><Checkbox label={ft('Write messages')} checked={value.write} onChange={event=>change({...value,write:event.currentTarget.checked,interact:event.currentTarget.checked&&value.interact})}/><Checkbox label={ft('Use AI and tools')} checked={value.interact} disabled={!value.write} onChange={event=>change({...value,interact:event.currentTarget.checked})}/><Checkbox label={ft('Clone chat and files')} checked={value.clone} onChange={event=>change({...value,clone:event.currentTarget.checked})}/></Group>}
@@ -45,7 +49,7 @@ function HostView({room}:{room:HostShare}){
     <Button color="red" variant="light" leftSection={<IconTrash size={16}/>} onClick={()=>collaboration.stop(room.id)}>{ft('Stop sharing')}</Button>
   </Stack>
 }
-function GuestView({room}:{room:GuestShare}){
+function GuestView({room,retry}:{room:GuestShare;retry:()=>Promise<void>}){
   const [draft,setDraft]=useState(''),[interact,setInteract]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[preview,setPreview]=useState<{file:SharedFile;url?:string;text?:string}>(),[cloning,setCloning]=useState(false),controller=useRef<AbortController>(),previewController=useRef<AbortController>()
   useEffect(()=>()=>{controller.current?.abort();previewController.current?.abort()},[])
   useEffect(()=>()=>{if(preview?.url)URL.revokeObjectURL(preview.url)},[preview?.url])
@@ -58,11 +62,11 @@ function GuestView({room}:{room:GuestShare}){
       if(file.mime.startsWith('text/')||/\.(md|json|js|py|csv)$/i.test(file.name))setPreview({file,text:(await blob.text()).slice(0,2*1024*1024)})
       else if(/^(image|audio|video)\//.test(file.mime))setPreview({file,url:URL.createObjectURL(blob)})
       else throw Error('Clone this chat to open this file with your device.')
-    }catch(error){if(!abort.signal.aborted)setError(error instanceof Error?error.message:String(error))}}
-  const submit=async()=>{if(busy||!draft.trim())return;setBusy(true);setError('');try{await collaboration.post(room.id,draft,interact);setDraft('')}catch(error){setError(error instanceof Error?error.message:String(error))}finally{setBusy(false)}}
-  const clone=async()=>{setCloning(true);setError('');const abort=new AbortController();controller.current=abort;try{const id=await collaboration.clone(room.id,abort.signal);switchCurrentSession(id)}catch(error){setError(error instanceof Error?error.message:String(error))}finally{setCloning(false)}}
+    }catch(error){if(!abort.signal.aborted)setError(collaborationError(error))}}
+  const submit=async()=>{if(busy||!draft.trim())return;setBusy(true);setError('');try{await collaboration.post(room.id,draft,interact);setDraft('')}catch(error){setError(collaborationError(error))}finally{setBusy(false)}}
+  const clone=async()=>{setCloning(true);setError('');const abort=new AbortController();controller.current=abort;try{const id=await collaboration.clone(room.id,abort.signal);switchCurrentSession(id)}catch(error){setError(collaborationError(error))}finally{setCloning(false)}}
   return <Stack><Group justify="space-between"><Text fw={600}>{room.snapshot?.title||ft('Collaborative chat')}</Text><Badge>{ft({connecting:'Connecting…',waiting:'Waiting for owner approval',connected:'Connected',disconnected:'Disconnected'}[room.status])}</Badge></Group>
-    {room.status==='connecting'&&<Alert>{ft('Pairing can take a few seconds. Some networks block direct WebRTC; try another network or a reachable signaling relay.')}</Alert>}
+    {room.status==='connecting'&&!room.error&&<Alert>{ft('Pairing can take a few seconds. Keep the owner’s app open. A signaling relay pairs devices; a TURN relay may be needed on restrictive networks.')}</Alert>}
     {room.status==='waiting'&&<Alert>{ft('The owner must approve your participant ID before any conversation is shared.')}</Alert>}
     {room.snapshot&&<><Alert color="blue">{ft('This shared view is temporary. Clone only if you want your own local copy. Shared files and model responses are untrusted content.')}</Alert>
       {room.snapshot.truncated&&<Alert color="yellow">{ft('The conversation is changing or exceeds the sharing limit. Cloning is unavailable until a complete snapshot can be shared.')}</Alert>}
@@ -74,24 +78,38 @@ function GuestView({room}:{room:GuestShare}){
       {room.permissions.clone&&<Group><Button variant="light" loading={cloning} disabled={room.snapshot.truncated} onClick={()=>void clone()}>{ft('Clone chat and all files')}</Button>{cloning&&<Button variant="subtle" onClick={()=>controller.current?.abort()}>{ft('Cancel import')}</Button>}</Group>}
     </>}
     {(error||room.error)&&<Alert color="red">{ft(error||room.error||'')}</Alert>}
+    {(room.status==='disconnected'||room.error)&&<Button loading={busy} leftSection={<IconRefresh size={16}/>} onClick={()=>{setBusy(true);setError('');void retry().catch(error=>setError(collaborationError(error))).finally(()=>setBusy(false))}}>{ft('Retry connection')}</Button>}
     <Button variant="default" onClick={()=>collaboration.stop(room.id)}>{ft('Leave shared chat')}</Button>
   </Stack>
 }
 export function CollaborationContent({sessionId}:{sessionId?:string}){
-  useTranslation();useSyncExternalStore(collaboration.subscribe,collaboration.getVersion);const [selected,setSelected]=useState(collaboration.shared(sessionId||'')?.id||''),[code,setCode]=useState(''),[name,setName]=useState(''),[relay,setRelay]=useState(''),[identity,setIdentity]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false)
+  useTranslation();useSyncExternalStore(collaboration.subscribe,collaboration.getVersion);const [selected,setSelected]=useState(collaboration.shared(sessionId||'')?.id||''),[code,setCode]=useState(''),[name,setName]=useState(''),[relay,setRelay]=useState(''),[identity,setIdentity]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[scanning,setScanning]=useState(false),[networkOpen,setNetworkOpen]=useState(false),[turnUrl,setTurnUrl]=useState(''),[turnUsername,setTurnUsername]=useState(''),[turnCredential,setTurnCredential]=useState(''),[relayOnly,setRelayOnly]=useState(false)
+  const network:ConnectionOptions={turnUrl:turnUrl.trim(),turnUsername:turnUsername.trim(),turnCredential,relayOnly}
+  const closeScanner=useCallback(()=>setScanning(false),[])
+  const scanned=useCallback((value:string)=>{setCode(value);setError('');setScanning(false)},[])
   useEffect(()=>{initializeCollaboration();void deviceIdentity().then(async key=>setIdentity(await fingerprint(key.publicKey))).catch(()=>{});void platform.getStoreValue('collaboration-display-name').then(value=>{if(typeof value==='string')setName(value.slice(0,60))})},[])
-  const run=async(action:()=>Promise<void>)=>{setBusy(true);setError('');try{await action()}catch(error){setError(error instanceof Error?error.message:String(error))}finally{setBusy(false)}}
-  const scan=async(file:File|null)=>{if(!file)return;await run(async()=>{const bitmap=await createImageBitmap(file);try{const scale=Math.min(1,1800/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);const context=canvas.getContext('2d')!;context.drawImage(bitmap,0,0,canvas.width,canvas.height);const qr=scanQR(context.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height);if(!qr)throw Error('No pairing QR code found in this image');setCode(qr.data)}finally{bitmap.close()}})}
+  const run=async(action:()=>Promise<void>)=>{setBusy(true);setError('');try{await action()}catch(error){setError(collaborationError(error))}finally{setBusy(false)}}
+  const scan=async(file:File|null)=>{if(!file)return;await run(async()=>scanned(await pairingFromImage(file)))}
   const host=collaboration.hosts.get(selected),guest=collaboration.guests.get(selected),rooms=[...[...collaboration.hosts.values()].map(room=>({value:room.id,label:ft('Owner')+' · '+room.title})),...[...collaboration.guests.values()].map(room=>({value:room.id,label:room.snapshot?.title||ft('Collaborative chat')}))]
   return <Stack gap="md"><Text size="sm" c="dimmed">{ft('Peer-to-peer chat. Public relays pair devices; encrypted WebRTC carries messages and files. Direct connections reveal your network address to other participants.')}</Text>
-    {sessionId&&!collaboration.shared(sessionId)&&<Button loading={busy} onClick={()=>void run(async()=>{const room=await collaboration.host(sessionId,'owner',undefined,relay||undefined);setSelected(room.id)})}>{ft('Share this chat')}</Button>}
+    {sessionId&&!collaboration.shared(sessionId)&&<Button loading={busy} onClick={()=>void run(async()=>{const room=await collaboration.host(sessionId,'owner',undefined,relay||undefined,network);setSelected(room.id)})}>{ft('Share this chat')}</Button>}
     <Card withBorder><Stack gap="sm"><Text fw={600}>{ft('Join a collaborative chat')}</Text><TextInput label={ft('Your display name')} value={name} maxLength={60} onChange={event=>setName(event.currentTarget.value)}/>{identity&&<Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{ft('Your participant ID')}: {identity}</Text>}
-      <Textarea label={ft('Pairing code')} value={code} onChange={event=>setCode(event.currentTarget.value.slice(0,700))} autosize minRows={2} maxRows={4}/><Group><FileButton onChange={file=>void scan(file)} accept="image/*" capture="environment">{props=><Button {...props} variant="default" leftSection={<IconQrcode size={16}/>}>{ft('Scan a QR image')}</Button>}</FileButton><Button loading={busy} disabled={!name.trim()||!code.trim()} onClick={()=>void run(async()=>{await platform.setStoreValue('collaboration-display-name',name.trim());const room=await collaboration.join(code,name,relay||undefined);setSelected(room.id)})}>{ft('Join chat')}</Button></Group>
-      <TextInput label={ft('Custom signaling relay (optional)')} placeholder="wss://…" value={relay} maxLength={300} onChange={event=>setRelay(event.currentTarget.value)}/>
+      <Textarea label={ft('Pairing code')} value={code} onChange={event=>setCode(event.currentTarget.value.slice(0,700))} autosize minRows={2} maxRows={4}/><Group><Button variant="default" leftSection={<IconQrcode size={16}/>} disabled={scanning} onClick={()=>{setError('');setScanning(true)}}>{ft('Scan with camera')}</Button><FileButton onChange={file=>void scan(file)} accept="image/*">{props=><Button {...props} variant="default" leftSection={<IconQrcode size={16}/>}>{ft('Upload QR image')}</Button>}</FileButton><Button loading={busy} disabled={!name.trim()||!code.trim()} onClick={()=>void run(async()=>{await platform.setStoreValue('collaboration-display-name',name.trim());const room=await collaboration.join(code,name,relay||undefined,network);setSelected(room.id)})}>{ft('Join chat')}</Button></Group>
+      {scanning&&<PairingScanner onCode={scanned} onClose={closeScanner}/>}
     </Stack></Card>
+    <Button variant="subtle" onClick={()=>setNetworkOpen(!networkOpen)}>{ft('Connection options')}</Button>
+    <Collapse in={networkOpen}><Card withBorder><Stack gap="sm">
+      <Text size="sm">{ft('STUN tries a direct connection. TURN relays encrypted traffic when direct connections are blocked. Configure TURN on both devices; credentials stay in this panel and are never added to the QR code.')}</Text>
+      <TextInput label={ft('Custom signaling relay (optional)')} placeholder="wss://…" value={relay} maxLength={300} onChange={event=>setRelay(event.currentTarget.value)}/>
+      <TextInput label={ft('TURN relay address (optional)')} placeholder="turns:relay.example.com:443?transport=tcp" value={turnUrl} maxLength={300} onChange={event=>setTurnUrl(event.currentTarget.value)}/>
+      <TextInput label={ft('TURN username')} value={turnUsername} autoComplete="off" maxLength={512} onChange={event=>setTurnUsername(event.currentTarget.value)}/>
+      <PasswordInput label={ft('TURN password')} value={turnCredential} autoComplete="new-password" maxLength={2048} onChange={event=>setTurnCredential(event.currentTarget.value)}/>
+      <Checkbox label={ft('Use TURN only')} checked={relayOnly} onChange={event=>setRelayOnly(event.currentTarget.checked)}/>
+      <Text size="xs" c="dimmed">{ft('Connection changes apply to new connections. Stop and share again to change the owner’s connection options. A signaling relay alone cannot bypass blocked WebRTC.')}</Text>
+    </Stack></Card></Collapse>
     {error&&<Alert color="red">{ft(error)}</Alert>}
     {rooms.length>0&&<Select label={ft('Active shared sessions')} data={rooms} value={selected} onChange={value=>setSelected(value||'')} allowDeselect={false} comboboxProps={{withinPortal:false}}/>}
-    {host?<HostView room={host}/>:guest?<GuestView key={guest.id} room={guest}/>:rooms.length>0&&<Text c="dimmed">{ft('Select an active shared session')}</Text>}
+    {host?<HostView room={host}/>:guest?<GuestView key={guest.id} room={guest} retry={async()=>{collaboration.stop(guest.id);const room=await collaboration.join(guest.code,guest.name,relay||undefined,network);setSelected(room.id)}}/>:rooms.length>0&&<Text c="dimmed">{ft('Select an active shared session')}</Text>}
     <Text size="xs" c="dimmed">{ft('Clone permission controls import in the app. Anyone who can read content can still copy it manually. Revoking access does not erase copies already made.')}</Text>
   </Stack>
 }
