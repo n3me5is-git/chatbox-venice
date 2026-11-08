@@ -5,13 +5,14 @@ import { channel,connectionNonce,fingerprint,type Identity,type Invitation,type 
 const Hello=z.object({type:z.literal('hello'),key:z.string().max(100),nonce:z.string().max(50)}).strict()
 const Welcome=z.object({type:z.literal('welcome'),nonce:z.string().max(50)}).strict()
 const Frame=z.object({type:z.literal('frame'),seq:z.number().int().positive(),data:z.string().max(1500000)}).strict()
+const Fragment=z.object({fragment:z.string().uuid(),index:z.number().int().min(0),total:z.number().int().min(2).max(128),text:z.string().max(64000)}).strict()
 export interface Link {id:string;send:(value:unknown)=>Promise<void>}
 export interface Transport {close():void;remove(id:string):void}
 /** The room password protects signaling. ECDH additionally authenticates the pinned owner. */
 export function connectRoom(invite:Invitation,identity:Identity,host:boolean,handlers:{connected?:(link:Link)=>void;message:(link:Link,value:unknown)=>Promise<void>|void;leave:(id:string)=>void;error:(error:unknown)=>void},relay?:string):Transport{
-  if(relay&&(!relay.startsWith('wss://')||relay.length>300))throw Error('Use a secure wss:// signaling relay')
+  if(relay&&(!relay.startsWith('wss://')&&!/^ws:\/\/(127\.0\.0\.1|localhost):\d+$/.test(relay)||relay.length>300))throw Error('Use a secure wss:// signaling relay')
   const room=vendor.joinRoom({appId:'chatbox-venice-collaboration-v1',password:invite.secret,relayConfig:{urls:relay?[relay]:vendor.defaultRelayUrls.slice(0,5)},rtcConfig:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}]}},invite.room,{onJoinError:handlers.error})
-  const action=room.makeAction('cbsecure'),peers=new Map<string,{queue:Promise<void>;sendQueue:Promise<void>;secure?:Awaited<ReturnType<typeof channel>>;nonce:string;id?:string;authenticated?:boolean;timer:ReturnType<typeof setTimeout>}>();let closed=false,ownerPeer:string|undefined
+  const action=room.makeAction('cbsecure'),peers=new Map<string,{queue:Promise<void>;sendQueue:Promise<void>;secure?:Awaited<ReturnType<typeof channel>>;nonce:string;id?:string;authenticated?:boolean;fragments?:{id:string;total:number;parts:string[];deadline:number};timer:ReturnType<typeof setTimeout>}>();let closed=false,ownerPeer:string|undefined
   const remove=(peer:string)=>{const state=peers.get(peer);if(state){clearTimeout(state.timer);peers.delete(peer);if(state.id&&state.authenticated)handlers.leave(state.id);if(ownerPeer===peer)ownerPeer=undefined}}
   const sendRaw=(peer:string,value:unknown)=>action.send(value,{target:peer}).then(()=>{})
   room.onPeerJoin=peer=>{
@@ -26,7 +27,12 @@ export function connectRoom(invite:Invitation,identity:Identity,host:boolean,han
     state.queue=state.queue.then(async()=>{
       if(closed||peers.get(peerId)!==state||!host&&ownerPeer&&ownerPeer!==peerId)return
       const link=():Link=>({id:state.id!,send:value=>{
-        const next=state.sendQueue.then(async()=>{if(closed||peers.get(peerId)!==state)throw Error('Peer disconnected');await sendRaw(peerId,{type:'frame',...await state.secure!.seal(value)})})
+        const next=state.sendQueue.then(async()=>{
+          const encoded=JSON.stringify(value);if(encoded.length>8000000)throw Error('Shared conversation exceeds the transfer limit')
+          const send=async(value:unknown)=>{if(closed||peers.get(peerId)!==state)throw Error('Peer disconnected');await sendRaw(peerId,{type:'frame',...await state.secure!.seal(value)})}
+          if(encoded.length<=64000)await send(value)
+          else{const fragment=crypto.randomUUID(),total=Math.ceil(encoded.length/64000);for(let index=0;index<total;index++)await send({fragment,index,total,text:encoded.slice(index*64000,(index+1)*64000)})}
+        })
         state.sendQueue=next.catch(()=>{});return next
       }})
       if(host&&Hello.safeParse(raw).success){
@@ -39,7 +45,15 @@ export function connectRoom(invite:Invitation,identity:Identity,host:boolean,han
         const welcome=Welcome.parse(raw);state.id='owner';state.secure=await channel(identity,invite.host,invite,state.nonce,welcome.nonce,false);handlers.connected?.(link())
       }else if(Frame.safeParse(raw).success){
         if(!state.secure||!state.id)throw Error('Peer is not authenticated')
-        const value=await state.secure.open(raw as EncryptedFrame);clearTimeout(state.timer);state.authenticated=true;if(!host)ownerPeer=peerId
+        let value=await state.secure.open(raw as EncryptedFrame);clearTimeout(state.timer);state.authenticated=true;if(!host)ownerPeer=peerId
+        if(Fragment.safeParse(value).success){
+          const part=Fragment.parse(value)
+          if(part.index===0){if(state.fragments)throw Error('Overlapping conversation transfer');state.fragments={id:part.fragment,total:part.total,parts:[],deadline:Date.now()+30000}}
+          const fragments=state.fragments
+          if(!fragments||fragments.id!==part.fragment||fragments.total!==part.total||fragments.parts.length!==part.index||Date.now()>fragments.deadline)throw Error('Invalid conversation transfer')
+          fragments.parts.push(part.text);if(fragments.parts.length<fragments.total)return
+          value=JSON.parse(fragments.parts.join(''));state.fragments=undefined
+        }else if(state.fragments)throw Error('Interrupted conversation transfer')
         await handlers.message(link(),value)
       }
     }).catch(error=>{remove(peerId);handlers.error(error)})
@@ -49,7 +63,7 @@ export function connectRoom(invite:Invitation,identity:Identity,host:boolean,han
 
 /** A stable non-extractable local key binds participant IDs to this browser installation. */
 let identityPromise:Promise<Identity>|undefined
-export function deviceIdentity():Promise<Identity>{return identityPromise ||= new Promise((resolve,reject)=>{
+export function deviceIdentity():Promise<Identity>{return identityPromise ||= new Promise<Identity>((resolve,reject)=>{
   const open=indexedDB.open('chatbox-collaboration-identity',1)
   open.onupgradeneeded=()=>open.result.createObjectStore('identity')
   open.onerror=()=>reject(open.error)

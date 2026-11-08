@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import type { HitlPolicy,SharedFile,SharePermissions } from '@shared/collaboration'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { usePrivacyDismiss } from '@/components/security/usePrivacyDismiss'
@@ -83,7 +84,7 @@ export function CollaborationContent({sessionId}:{sessionId?:string}){
   return <Stack gap="md"><Text size="sm" c="dimmed">{ft('Peer-to-peer chat. Public relays pair devices; encrypted WebRTC carries messages and files. Direct connections reveal your network address to other participants.')}</Text>
     {sessionId&&!collaboration.shared(sessionId)&&<Button loading={busy} onClick={()=>void run(async()=>{const room=await collaboration.host(sessionId,'owner',undefined,relay||undefined);setSelected(room.id)})}>{ft('Share this chat')}</Button>}
     <Card withBorder><Stack gap="sm"><Text fw={600}>{ft('Join a collaborative chat')}</Text><TextInput label={ft('Your display name')} value={name} maxLength={60} onChange={event=>setName(event.currentTarget.value)}/>{identity&&<Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{ft('Your participant ID')}: {identity}</Text>}
-      <Textarea label={ft('Pairing code')} value={code} onChange={event=>setCode(event.currentTarget.value.slice(0,700))} autosize minRows={2} maxRows={4}/><Group><FileButton onChange={file=>void scan(file)} accept="image/*" capture="environment"><Button variant="default" leftSection={<IconQrcode size={16}/>}>{ft('Scan a QR image')}</Button></FileButton><Button loading={busy} disabled={!name.trim()||!code.trim()} onClick={()=>void run(async()=>{await platform.setStoreValue('collaboration-display-name',name.trim());const room=await collaboration.join(code,name,relay||undefined);setSelected(room.id)})}>{ft('Join chat')}</Button></Group>
+      <Textarea label={ft('Pairing code')} value={code} onChange={event=>setCode(event.currentTarget.value.slice(0,700))} autosize minRows={2} maxRows={4}/><Group><FileButton onChange={file=>void scan(file)} accept="image/*" capture="environment">{props=><Button {...props} variant="default" leftSection={<IconQrcode size={16}/>}>{ft('Scan a QR image')}</Button>}</FileButton><Button loading={busy} disabled={!name.trim()||!code.trim()} onClick={()=>void run(async()=>{await platform.setStoreValue('collaboration-display-name',name.trim());const room=await collaboration.join(code,name,relay||undefined);setSelected(room.id)})}>{ft('Join chat')}</Button></Group>
       <TextInput label={ft('Custom signaling relay (optional)')} placeholder="wss://…" value={relay} maxLength={300} onChange={event=>setRelay(event.currentTarget.value)}/>
     </Stack></Card>
     {error&&<Alert color="red">{ft(error)}</Alert>}

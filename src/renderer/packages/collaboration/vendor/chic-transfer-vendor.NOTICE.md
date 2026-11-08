@@ -1,5 +1,9 @@
 # chicCanva transfer bundle
 
+Chatbox Venice reuses this pinned bundle from n3me5is-git/chicCanva.
+The only local bundle change is an appended ES module default export.
+The hash below identifies the original bytes before that export was appended.
+
 `chic-transfer-vendor.js` is a locally bundled browser IIFE used by the optional
 P2P project-transfer and QR-scanning interface.
 

@@ -289,12 +289,13 @@ export async function removeMessage(sessionId: string, messageId: string) {
  */
 export async function submitNewUserMessage(
   sessionId: string,
-  params: { newUserMsg: Message; needGenerating: boolean; onUserMessageReady?: () => void }
+  params: { newUserMsg: Message; needGenerating: boolean; onUserMessageReady?: () => void;authorize?:()=>void }
 ) {
   // The gate runs inside the session lock so it reads the freshest state:
   // lock-free alternative replies can start streaming between a pre-lock
   // check and lock acquisition.
   return withSessionGenerationLock(sessionId, async () => {
+    params.authorize?.()
     if (!(await guardSessionAction(sessionId, 'submit-message'))) {
       return
     }
@@ -307,7 +308,7 @@ export async function submitNewUserMessage(
 
 export async function submitNewUserMessageUnlocked(
   sessionId: string,
-  params: { newUserMsg: Message; needGenerating: boolean; onUserMessageReady?: () => void }
+  params: { newUserMsg: Message; needGenerating: boolean; onUserMessageReady?: () => void;authorize?:()=>void }
 ) {
   // Import the unlocked generation helper lazily to avoid a circular dependency and
   // avoid reacquiring the session lock already held by submitNewUserMessage().
@@ -355,6 +356,7 @@ export async function submitNewUserMessageUnlocked(
   }
 
   let { newUserMsg } = params
+  params.authorize?.()
   const collaborationRequester=newUserMsg.collaborationRequester||newUserMsg.collaborationAuthor||{id:'owner',name:'Owner'}
   const { needGenerating } = params
   const webBrowsing = getSessionWebBrowsing(sessionId, settings.provider)
@@ -374,7 +376,7 @@ export async function submitNewUserMessageUnlocked(
 
   // 根据需要，插入空白的回复消息
   let newAssistantMsg = createMessage('assistant', '')
-  newAssistantMsg.collaborationRequester=collaborationRequester
+  if(newUserMsg.collaborationAuthor||newUserMsg.collaborationRequester)newAssistantMsg.collaborationRequester=collaborationRequester
   if (newUserMsg.files && newUserMsg.files.length > 0) {
     if (!newAssistantMsg.status) {
       newAssistantMsg.status = []
@@ -394,6 +396,7 @@ export async function submitNewUserMessageUnlocked(
     })
   }
   if (needGenerating) {
+    params.authorize?.()
     newAssistantMsg.generating = true
     if (insertTogether) {
       const tokenModel = getSessionTokenModel(session)

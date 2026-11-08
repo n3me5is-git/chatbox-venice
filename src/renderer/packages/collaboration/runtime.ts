@@ -47,8 +47,11 @@ async function* file(id:string,fileId:string){
 }
 export const collaboration=new CollaborationHub({
   snapshot,
-  async submit(id,text,interact,author){await vault().projects.assertSession(id);const message=createMessage('user',text);message.collaborationAuthor=author;let saved=false
-    await submitNewUserMessage(id,{newUserMsg:message,needGenerating:interact,onUserMessageReady:()=>{saved=true}})
+  async submit(id,text,interact,author,authorization){await vault().projects.assertSession(id);const message=createMessage('user',text);message.collaborationAuthor=author;let saved=false,active=false
+    const abort=()=>{if(active)void import('@/stores/session/generation-cancellation').then(module=>module.stopAllMessageGenerations(id))}
+    const authorize=()=>{authorization.signal.throwIfAborted();authorization.assert();active=true}
+    authorization.signal.addEventListener('abort',abort,{once:true})
+    try{await submitNewUserMessage(id,{newUserMsg:message,needGenerating:interact,onUserMessageReady:()=>{saved=true},authorize})}finally{active=false;authorization.signal.removeEventListener('abort',abort)}
     if(!saved)throw Error('The chat is busy or unavailable. No new message was accepted.')
   },
   file,
@@ -91,7 +94,7 @@ export function initializeCollaboration(){
     if(event.type==='session-derived-data-patched'||event.type==='session-text-tokens-cached')schedule(event.sessionId)
   })
   collaboration.subscribe(()=>{
-    for(const room of collaboration.hosts.values())if(!resources.has(room.sessionId))resources.set(room.sessionId,subscribeSessionResources(room.sessionId,()=>schedule(room.sessionId)))
+    for(const room of collaboration.hosts.values())if(!resources.has(room.sessionId))resources.set(room.sessionId,subscribeSessionResources(room.sessionId,()=>schedule(room.sessionId),()=>{void vault().projects.assertSession(room.sessionId).catch(()=>collaboration.stop(room.id))}))
     for(const [id,unsubscribe]of resources)if(!collaboration.shared(id)){unsubscribe();resources.delete(id)}
   })
   const stop=()=>{collaboration.stopAll();for(const timer of timers.values())clearTimeout(timer);timers.clear()}

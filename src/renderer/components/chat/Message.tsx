@@ -838,6 +838,7 @@ const _Message: FC<Props> = (props) => {
 
   const messageContent = (
     <>
+      {msg.collaborationAuthor&&<Text size="xs" c="dimmed" title={msg.collaborationAuthor.id}>{msg.collaborationAuthor.name} · {msg.collaborationAuthor.id.slice(0,8)}</Text>}
       <div
         data-testid={TestId.message.content}
         className={cn(

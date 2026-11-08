@@ -60,7 +60,7 @@ jobs:
         run: pnpm exec vitest run src/shared/user-questions.test.ts src/shared/generation-retry.test.ts src/renderer/packages/session-resources/tools.test.ts src/renderer/packages/model-calls/toolsets/view-image.test.ts
       - name: Collaboration identity, encryption and HITL permissions
         if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
-        run: pnpm exec vitest run src/shared/collaboration.test.ts src/renderer/packages/collaboration/crypto.test.ts
+        run: pnpm exec vitest run src/shared/collaboration.test.ts src/renderer/packages/collaboration/crypto.test.ts src/renderer/packages/collaboration/hub.test.ts src/renderer/components/collaboration/HitlCard.test.tsx
       - name: Check private Android signing backup logic
         run: node --test scripts/android-signing.test.mjs scripts/android-signing-migration.test.mjs
       - name: Verify generated Android audio permissions
@@ -91,6 +91,9 @@ jobs:
           node scripts/build-mobile-work-worker.cjs
           node scripts/prepare-python-test-assets.mjs
           node scripts/ui-simulation/run.mjs
+      - name: Real WebRTC collaboration, permissions and shared HITL
+        if: always() && steps.ui_dependencies.outcome == 'success'
+        run: node scripts/collaboration-test/run.mjs
       - name: Save UI evidence
         if: always()
         uses: actions/upload-artifact@v4
