@@ -67,13 +67,14 @@ export async function listSessionResources(id:string,signal?:AbortSignal){
   for(const record of await veniceMediaService.list())if(record.sessionId===id&&record.blobKey)items.push({id:'media:'+record.id,path:'media/'+record.kind+'/'+record.id+'.'+(record.mime?.split('/')[1]||'bin'),name:record.prompt.slice(0,70)||record.model,mime:record.mime||'application/octet-stream',origin:'media',key:record.blobKey,recordId:record.id,deliverable:true})
   const removed=new Set(index.removed),seen=new Set<string>()
   const priority={file:5,image:4,media:4,artifact:3,workspace:2,attachment:1,message:0}
-  const unique=items.sort((a,b)=>priority[b.origin]-priority[a.origin]).filter(item=>{if(removed.has(item.id))return false;const key=item.key&&item.origin!=='file'?item.key:item.id;if(seen.has(key))return false;seen.add(key);return true})
+  const unique=items.sort((a,b)=>priority[b.origin]-priority[a.origin]).filter(item=>{if(removed.has(item.id)||item.key&&removed.has('key:'+item.key))return false;const key=item.key&&item.origin!=='file'?item.key:item.id;if(seen.has(key))return false;seen.add(key);return true})
   await assertSession(id)
   return {items:unique,truncated,options:{toolsEnabled:index.toolsEnabled!==false,pythonEnabled:!!index.pythonEnabled}}
 }
 export async function readSessionResource(id:string,item:SessionResource){
   await assertSession(id)
-  if((await sessionFiles.index(id)).removed.includes(item.id))throw new Error('This session resource was deleted')
+  const removed=(await sessionFiles.index(id)).removed
+  if(removed.includes(item.id)||item.key&&removed.includes('key:'+item.key))throw new Error('This session resource was deleted')
   if(item.origin==='file')return sessionFiles.read(id,item.path)
   if(isTextResource(item)&&item.bytes!==undefined&&item.bytes>MAX_RESOURCE_PREVIEW_BYTES)throw new Error('File is too large for text preview')
   if(item.origin==='workspace'||item.id.startsWith('disk:')){
@@ -116,7 +117,7 @@ export async function removeSessionResource(id:string,item:SessionResource){
   }else if(item.origin==='artifact'&&item.key?.startsWith('artifacts/'))await workspace.removeFile(id,item.key)
   else if(item.origin==='artifact'&&item.key)await currentBlobStorage.remove(item.key)
   else if(item.origin==='attachment'&&item.key)await currentBlobStorage.remove(item.key)
-  await sessionFiles.remove(id,item.id)
+  await sessionFiles.remove(id,item.id,item.key?['key:'+item.key]:[])
   resourcesChanged(id)
 }
 export async function saveSessionResource(id:string,item:SessionResource,text:string){

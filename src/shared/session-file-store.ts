@@ -62,11 +62,11 @@ export class SessionFileStore {
       return next
     })
   }
-  async remove(id: string, resourceId: string) {
+  async remove(id: string, resourceId: string,relatedIds:string[] = []) {
     return this.edit(id, async () => {
       const index = await this.index(id), file = index.files.find(item => item.id === resourceId)
       if (file) await this.storage.remove(file.key)
-      await this.storage.saveIndex(id,{...index,files:index.files.filter(item=>item.id!==resourceId),removed:[...new Set([...index.removed,resourceId])].slice(-10000)})
+      await this.storage.saveIndex(id,{...index,files:index.files.filter(item=>item.id!==resourceId),removed:[...new Set([...index.removed,resourceId,...relatedIds])].slice(-10000)})
     })
   }
   async python(id: string, enabled: boolean) {

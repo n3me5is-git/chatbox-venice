@@ -17,7 +17,7 @@ vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})
 afterEach(cleanup)
 function fixture(){
   let files:SessionResource[]=[{id:'one',path:'notes.md',name:'notes.md',mime:'text/markdown',origin:'file',bytes:10},{id:'two',path:'output/data.json',name:'data.json',mime:'application/json',origin:'file',bytes:2}]
-  const api={list:vi.fn(async()=>({items:files,truncated:false})),read:vi.fn(async()=>({bytes:new TextEncoder().encode('# Notes'),file:files[0]})),save:vi.fn(async()=>{}),remove:vi.fn(async(_id:string,item:SessionResource)=>{files=files.filter(file=>file.id!==item.id)}),export:vi.fn(async()=>{}),subscribe:vi.fn(()=>()=>{}),create:vi.fn(async()=>files[0]),deliver:vi.fn(async()=>files[0])}
+  const api={configure:vi.fn(async()=>{}),execute:vi.fn(async()=>({stdout:"",files:[],exitCode:0})),list:vi.fn(async()=>({items:files,truncated:false,options:{toolsEnabled:true,pythonEnabled:false}})),read:vi.fn(async()=>({bytes:new TextEncoder().encode('# Notes'),file:files[0]})),save:vi.fn(async()=>{}),remove:vi.fn(async(_id:string,item:SessionResource)=>{files=files.filter(file=>file.id!==item.id)}),export:vi.fn(async()=>{}),subscribe:vi.fn(()=>()=>{}),create:vi.fn(async()=>files[0]),deliver:vi.fn(async()=>files[0])}
   render(<MantineProvider><SessionResources sessionId="session-one" api={api as ComponentProps<typeof SessionResources>['api']}/></MantineProvider>)
   return api
 }
