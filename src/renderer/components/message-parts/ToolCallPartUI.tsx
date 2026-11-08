@@ -1102,7 +1102,7 @@ export const MessageArtifactsUI: FC<
       </Group>
       <Stack gap={6}>
         <ImageGenerationResultGallery images={generatedImages} />
-        {mediaParts.length>0&&<Suspense fallback={null}><MediaArtifacts parts={mediaParts} sessionId={sessionId}/></Suspense>}
+        {sessionId&&mediaParts.length>0&&<Suspense fallback={null}><MediaArtifacts parts={mediaParts} sessionId={sessionId}/></Suspense>}
         {artifacts.map((part) => (
           <CreateDownloadUI key={part.toolCallId} part={part} sessionId={sessionId} messageId={messageId} />
         ))}

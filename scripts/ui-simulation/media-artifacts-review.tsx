@@ -22,6 +22,6 @@ export function MediaArtifactsReviewSimulation(){
  },[])
  ;(window as any).__completeQueuedMedia=fixture.complete
  const open=async()=>{(window as any).__mediaPreviewReads=0;(window as any).__mediaProviderCalls=0;await fixture.prepare();setParts([part('audio'),part('video','video'),part('queued')]);setReady(true);setOpened(true)}
- const recall=async()=>{const tools=buildVeniceMediaTools('media-chat',fixture.service as any,()=>({chatToolsEnabled:true,audioEnabled:true}),async()=>false);const result=await tools.venice_media.execute!({action:'show',id:'audio'},{toolCallId:'recall',messages:[]});setParts([{...part('audio'),result}])}
+ const recall=async()=>{const tools=buildVeniceMediaTools('media-chat',fixture.service as any,()=>({chatToolsEnabled:true,audioEnabled:true}),async()=>false);const result=await tools.venice_media.execute!({action:'show',id:'audio'},{toolCallId:'recall',messages:[],context:{}});setParts([{...part('audio'),result}])}
  return <><Button m="sm" onClick={()=>void open()}>Test media artifact players</Button><AdaptiveModal opened={opened} onClose={()=>setOpened(false)} title="Chat media artifact regression"><Stack>{ready&&<VeniceMediaArtifacts parts={parts} sessionId="media-chat" service={fixture.service} api={fixture.api}/>}<Button onClick={()=>void recall()}>Recall saved music</Button><Button onClick={()=>setOpened(false)}>Close media artifact test</Button></Stack></AdaptiveModal></>
 }
