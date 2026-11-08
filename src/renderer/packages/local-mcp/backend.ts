@@ -88,6 +88,15 @@ async function toolsFor(grant:LocalMCPGrant){
     }
     for(const [name,member]of Object.entries(mcpController.getAvailableTools(permitted)))tools['mcp_'+name]=member
   }
+  if(grant.permissions.multiAgent){
+    const {buildExternalMultiAgentTools}=await import('@/packages/multi-agent/runtime')
+    const shared=Object.fromEntries(Object.entries(tools).filter(([name])=>name==='session_file'?grant.permissions.readFiles||grant.permissions.writeFiles:localMCPAllows(grant.permissions,name)))
+    Object.assign(tools,buildExternalMultiAgentTools(grant,shared,async()=>{
+      await assertChat(grant)
+      const current=await window.electronAPI.invoke('local-mcp:control','status') as import('@shared/local-mcp').LocalMCPState
+      if(!current.running||current.token!==grant.token||current.sessionId!==grant.sessionId||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
+    }))
+  }
   return tools
 }
 export async function localMCPTools(grant:LocalMCPGrant):Promise<LocalMCPTool[]>{

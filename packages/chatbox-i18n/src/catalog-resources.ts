@@ -1,4 +1,6 @@
 export const catalogItalian={
+ 'Run and manage this Work chat’s agents (model charges may apply)':'Esegui e gestisci gli agenti di questa chat Work (possono esserci costi dei modelli)',
+ 'Enable multi-agent mode in this Work chat first. External workers inherit only the features shared here and the chat’s agent policy. Guardians still review transfers. Stopping MCP sharing cancels its workers. This permission allows worker and guardian model charges.':'Attiva prima la modalità multiagente in questa chat Work. I worker esterni ereditano solo le funzioni condivise qui e i permessi degli agenti della chat. I guardian continuano a verificare i trasferimenti. Interrompere la condivisione MCP annulla i relativi worker. Questo permesso consente i costi dei modelli dei worker e dei guardian.',
  'Cost':'Costo','From':'Da','Quote required':'Serve una stima',
  'Price not supplied by the provider':'Prezzo non fornito dal provider',
  'The provider has not supplied a fixed rate. Use the model details or request an estimate with your chosen settings.':'Il provider non ha fornito una tariffa fissa. Consulta la scheda del modello o richiedi una stima con le impostazioni scelte.',

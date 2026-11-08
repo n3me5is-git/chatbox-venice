@@ -31,10 +31,23 @@ Only file reading is selected initially. Grant each additional capability delibe
 | Venice Studio | Existing `venice_image` and `venice_media` tools, including their current chat approval policy and enabled media modules. |
 | Web search | The configured Chatbox search/link tools, using their existing provider configuration. |
 | Other MCP services | Tools from enabled MCP clients, including desktop stdio services. These services retain their own authority and may access data outside the shared chat. |
+| Multi-agent | Opt-in `agent_catalog`, `agent_tree` and the same spawn/status/message/wait/result/file/stop tools used in Work chats. Authorizes model charges for workers and their configured guardians. Off by default and independent of direct `app_model` approval. |
 
 Workspace file/code tools also respect the chat’s workspace enable switch. Python additionally requires installation and that chat’s Python flag. Model discovery follows Venice’s selected catalog/privacy restrictions; model calls inherit chat privacy and cannot switch from a restricted Venice chat to another provider. A missing or incompatible model fails explicitly. An approval is rechecked against configuration changes before sending.
 
 The app’s internal Venice MCP remains an in-memory transport, without an HTTP port. Existing desktop stdio and remote MCP client support is unchanged. Sharing does not install an external MCP service, expose a terminal, or enable disabled Venice modules.
+
+## Delegate through the multi-agent group
+
+First enable **multi-agent mode in the shared Work chat**, select the dedicated agents and nested-agent permissions there, then select **Run and manage this Work chat’s agents** in the local MCP sharing permissions. This does not let an external client change the agent library, model configuration, guardians, nested permissions or maximum depth of three. `agent_catalog` lists only the permitted dedicated profiles, their inherited tool names and guardian presence; system prompts are not returned.
+
+`agent_tree` shows the complete tree for that chat, including nested run IDs, status, model, parent and sandbox IDs. It returns metadata only. `agent_spawn` creates a direct worker and returns immediately. Use `agent_wait` to wait at most 45 seconds, `agent_status` for a snapshot, and `agent_result` for a guardian-reviewed summary. `agent_message` sends an explicit follow-up to an idle direct worker. `agent_stop` cancels that worker and its descendants. Controls are limited to direct workers created by the current sharing grant. Nested workers remain under their own caller; seeing a sandbox ID does not grant raw file or transcript access.
+
+Dedicated workers receive an isolated sandbox and explicitly supplied task context. On-demand workers share the root file workspace and selected model. Workers and nested workers inherit the intersection of the chat’s policy, the dedicated agent’s configuration and **the features shared through MCP**. In particular, read-only sharing stays read-only inside workers; delegation cannot turn on code execution, web search, Venice Studio or forwarded MCP services. `agent_file` additionally requires both file read and write grants and reviews the exact immutable bytes through the applicable guardians before copying. No overwrite is allowed.
+
+A guardian refusal is returned to the external calling agent as `{ "blocked": true, "error": "…" }`, without the blocked result or file payload. The app also records the refusal. Do not retry by renaming, encoding or routing the same material through another worker. A guardian is a model-based check, not a proof that data is anonymous.
+
+Starting app-managed agents and MCP-managed agents concurrently in the same root workspace is disallowed. Finish existing app workers before starting delegation through MCP; stop MCP sharing before returning control to the app orchestrator. Stopping sharing, locking, quitting, or revoking the grant cancels its workers and descendants; an in-flight provider request may already have incurred a charge. A new token cannot resume workers from an older grant. Changing the root model or multi-agent configuration requires restarting sharing. Saved files and completed runs remain in the chat.
 
 ## Trust and practical limits
 

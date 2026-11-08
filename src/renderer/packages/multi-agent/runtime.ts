@@ -1,5 +1,7 @@
-import { tool, type ToolSet } from 'ai'
-import { z } from 'zod'
+import { type ToolSet } from 'ai'
+import { createAgentTools } from '@shared/multi-agent-tools'
+import { createLocalMCPAgentTools, type ExternalAgentContext } from '@shared/local-mcp-agents'
+import { localMCPWorkerAllows, type LocalMCPGrant } from '@shared/local-mcp'
 import { MultiAgentRuntime, type AgentCaller } from '@shared/multi-agent-runtime'
 import { MultiAgentPolicySchema, agentMentions, parseGuardianVerdict, type AgentRun, type MultiAgentPolicy, type AgentBoundary } from '@shared/multi-agent'
 import { createMessage, SessionSettingsSchema, type Message, type SessionSettings } from '@shared/types'
@@ -26,10 +28,17 @@ import { listDedicatedAgents } from './library'
 
 const vault = () => vaultRuntimeFor(platform)
 const manifest = (id: string) => 'private-agents:runs:' + encodeURIComponent(id)
-const grants = new Map<string, { caller: AgentCaller; settings: SessionSettings; requester: string; policyFingerprint: string; explicit?: MultiAgentPolicy }>()
+type ExternalAuthority = { key: string; assert: () => Promise<void>; allows: (name: string, input: Record<string, unknown>) => boolean; context: ExternalAgentContext }
+const grants = new Map<string, { caller: AgentCaller; settings: SessionSettings; requester: string; policyFingerprint: string; explicit?: MultiAgentPolicy; external?: ExternalAuthority }>()
+const acquiringExternal = new Map<string, Promise<ExternalAgentContext>>()
 const loaded = new Set<string>()
 export const agentEvents = new Map<string, Array<{ at: number; agentId: string; operation: string; reason: string }>>()
 const modelText = (messages: Message[]) => messages.filter(message => message.role === 'assistant').map(message => message.contentParts.filter(part => part.type === 'text').map(part => part.text).join('')).join('\n')
+function workerInstruction(run: AgentRun) {
+  for (let node: AgentRun | undefined = run; node; node = multiAgentRuntime.runs.get(node.parentId)) if (node.preset) return node.preset.prompt
+  const snapshot = grants.get(run.rootId)?.settings.sessionPromptContextSnapshot
+  return ['Complete only the explicitly delegated task. You share the parent file workspace, not its chat history or global memory.', snapshot?.soul, snapshot?.copilotPersona, snapshot?.workspaceInstructions].filter(Boolean).join('\n\n')
+}
 export async function agentTranscript(id: string): Promise<Message[]> {
   const result: Message[] = []
   let page = await rendererApplication.sessions.readSessionTranscriptWindow({ sessionId: id, origin: 'head', limit: 30 })
@@ -49,7 +58,7 @@ async function rootPolicy(id: string) {
   const explicit = grants.get(id)?.explicit
   return policy.enabled ? { ...policy, dedicatedIds: [...new Set([...policy.dedicatedIds, ...(explicit?.dedicatedIds || [])])] } : explicit || policy
 }
-async function assertRoot(id: string) { await vault().projects.assertSession(id); const grant = grants.get(id); if (!grant) throw Error('Run a new Work request before using child agents'); assertSharedTurn(id, grant.requester); await rootPolicy(id) }
+async function assertRoot(id: string) { await vault().projects.assertSession(id); const grant = grants.get(id); if (!grant) throw Error('Run a new Work request before using child agents'); if (grant.external) await grant.external.assert(); assertSharedTurn(id, grant.requester); await rootPolicy(id) }
 async function saveRun(run: AgentRun) { await updateAgentData<AgentRun[]>(manifest(run.rootId), [], runs => [...runs.filter(item => item.id !== run.id), { ...run }], run.rootId) }
 async function guardContent(boundary: AgentBoundary, vision: boolean) {
   if (boundary.text.length > 100000) throw Error('The guardian cannot inspect this entire message. Split the task into smaller reviewed messages.')
@@ -98,12 +107,12 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     const history = await agentTranscript(run.sessionId), user = createMessage('user', task), assistant = { ...createMessage('assistant', ''), generating: true }
     await rendererApplication.sessions.insertMessages(run.sessionId, [user, assistant])
     const { tools, images } = await workerTools(run, caller, model)
-    const system = (run.preset?.prompt || 'Complete the explicitly delegated task. Coordinate with your parent using the agent tools. You share the parent encrypted file workspace but do not receive its chat history.') + '\n' + sessionWorkspaceInstructions + '\nYou are a Work child agent at depth ' + run.depth + '/3. Only the listed tools and this workspace are available. Return a concise result to your caller. Do not claim files exist unless a tool succeeded.'
+    const system = workerInstruction(run) + '\n' + sessionWorkspaceInstructions + '\nYou are a Work child agent at depth ' + run.depth + '/3. Only the listed tools and this workspace are available. Return a concise result to your caller. Do not claim files exist unless a tool succeeded. When replacing a shared file, first list its current version and pass expectedVersion; a concurrent edit must not be overwritten.'
     const messages = await convertToModelMessages([createMessage('system', system), ...history, user], { modelSupportVision: model.isSupportVision() })
     let pending: Promise<unknown> = Promise.resolve(), last = 0
     try {
       const output = await model.chat(messages, { sessionId: run.sessionId, agentMode: true, tools, signal, maxSteps: 30,
-        prepareStep: images ? async step => ({ messages: await images.injectImagesIntoStepMessages(step.messages) }) : undefined,
+        prepareStep: images?.injectImagesIntoStepMessages ? async step => ({ messages: await images.injectImagesIntoStepMessages!(step.messages) }) : undefined,
         providerOptions: settings.providerOptionsByModel?.[settings.provider + ':' + settings.modelId],
         onRequestResolved: async () => { signal.throwIfAborted(); await multiAgentRuntime.check(caller) },
         onResultChange: value => { if (!value.contentParts || Date.now() - last < 500) return; last = Date.now(); const contentParts = structuredClone(value.contentParts); pending = pending.then(() => rendererApplication.sessions.updateMessage(run.sessionId, assistant.id, current => ({ ...current!, contentParts }))) },
@@ -123,11 +132,18 @@ async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInter
   const tools: ToolSet = {}
   for (const name of run.tools) { const original = available[name]; if (!original) continue; tools[name] = { ...original, execute: original.execute ? async (input: any, options: any) => {
     await multiAgentRuntime.check(caller); options.abortSignal?.throwIfAborted()
+    const external = grants.get(run.rootId)?.external
+    if (external && (!external.context.caller.tools.includes(name) || !external.allows(name, input))) throw Error('This worker action is outside the MCP sharing permissions')
     for (let node: AgentRun | undefined = run; node; node = multiAgentRuntime.runs.get(node.parentId)) if (node.preset && !(await listDedicatedAgents()).find(agent => agent.id === node!.preset!.id)?.toolNames.includes(name)) throw Error('This agent tool permission was revoked')
     if (name === 'session_file' && input.action === 'write' && input.expectedVersion === undefined) { const current = (await sessionFiles.list(run.workspaceId)).find(file => file.path === input.path); if (current) throw Error('Read the current file version and provide expectedVersion before replacing a shared file'); input = { ...input, expectedVersion: null } }
     return original.execute!(input, options)
   } : undefined } }
-  Object.assign(tools, agentTools(caller))
+  const delegation = agentTools(caller)
+  for (const [name, member] of Object.entries(delegation)) tools[name] = { ...member, execute: member.execute ? async (input: any, options: any) => {
+    const external = grants.get(run.rootId)?.external
+    if (external && !external.allows(name, input)) throw Error('This worker action is outside the MCP sharing permissions')
+    return member.execute!(input, options)
+  } : undefined }
   return { tools, images }
 }
 export function dedicatedToolOptions() { return [...new Set(['session_file', 'session_js', 'session_python', 'ask_user', 'venice_image', 'venice_media', ...Object.keys(buildWebSearchTools()), 'parse_link', ...Object.keys(mcpController.getAvailableTools())])] }
@@ -135,19 +151,48 @@ export async function loadAgentRuns(rootId: string) {
   await vault().projects.assertSession(rootId)
   if (!loaded.has(rootId)) { loaded.add(rootId); try { await multiAgentRuntime.restore(await readAgentData<AgentRun[]>(manifest(rootId), [])); agentEvents.set(rootId, await readAgentData('private-agents:events:' + encodeURIComponent(rootId), [])) } catch (error) { loaded.delete(rootId); throw error } }
 }
-const safe = (work: () => Promise<unknown>) => work().catch(error => ({ error: String((error as Error).message), blocked: true }))
-function agentTools(caller: AgentCaller): ToolSet {
-  return {
-    agent_spawn: tool({ description: 'Delegate a bounded task. On-demand agents use this model and encrypted file workspace; dedicated agents use their own model/prompt and isolated workspace. Pass all context explicitly. A guardian can block the task before disclosure. Maximum three child levels. Returns immediately; wait/read the result. Do not duplicate a task merely because it is running.', inputSchema: z.object({ title: z.string().min(1).max(100), task: z.string().min(1).max(100000), dedicatedId: z.string().optional() }).strict(), execute: (input, options) => safe(async () => { const run = await multiAgentRuntime.spawn(caller, input, options.abortSignal); return { id: run.id, title: run.title, status: run.status, depth: run.depth, isolated: run.kind === 'dedicated' } }) }),
-    agent_status: tool({ description: 'List direct child agent IDs and execution states. No child context is disclosed.', inputSchema: z.object({}).strict(), execute: () => safe(async () => { await multiAgentRuntime.check(caller); return [...multiAgentRuntime.runs.values()].filter(run => run.parentId === caller.id).map(({ id, title, status, kind }) => ({ id, title, status, kind })) }) }),
-    agent_message: tool({ description: 'Send explicit follow-up context to an idle direct child. A guardian may block disclosure and report why. Do not resend after a block without changing the payload.', inputSchema: z.object({ id: z.string(), text: z.string().min(1).max(100000) }).strict(), execute: ({ id, text }, options) => safe(() => multiAgentRuntime.message(caller, id, text, options.abortSignal)) }),
-    agent_wait: tool({ description: 'Wait up to 45 seconds for a direct child to finish. A waiting parent yields its execution slot so nested workers can run. Read completed results with agent_result.', inputSchema: z.object({ ids: z.array(z.string()).min(1).max(16) }).strict(), execute: ({ ids }, options) => safe(() => multiAgentRuntime.wait(caller, ids, options.abortSignal)) }),
-    agent_result: tool({ description: 'Read a direct child summary after guardian review. The guardian can block this response and return a reason. File contents require an explicit reviewed transfer.', inputSchema: z.object({ id: z.string() }).strict(), execute: ({ id }, options) => safe(() => multiAgentRuntime.result(caller, id, async () => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || '')), options.abortSignal)) }),
-    agent_file: tool({ description: 'Copy a relative file between your workspace and an isolated direct child. Guardian review sees the actual immutable file bytes, not merely the filename. No overwrite. On-demand children already share the workspace.', inputSchema: z.object({ id: z.string(), direction: z.enum(['to-agent', 'from-agent']), sourcePath: z.string(), targetPath: z.string() }).strict(), execute: ({ id, direction, sourcePath, targetPath }, options) => safe(() => multiAgentRuntime.transfer(caller, id, direction, sourcePath, targetPath, options.abortSignal)) }),
-    agent_stop: tool({ description: 'Cancel a direct child and its descendants. Existing files are preserved.', inputSchema: z.object({ id: z.string() }).strict(), execute: ({ id }) => safe(async () => { await multiAgentRuntime.cancel(caller, id); return { id, cancelled: true } }) }),
+function agentTools(caller: AgentCaller): ToolSet { return createAgentTools(multiAgentRuntime, caller, async id => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || ''))) }
+export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: ToolSet, assert: () => Promise<void>) {
+  const readResult = async (id: string) => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || ''))
+  const acquire = async (): Promise<ExternalAgentContext> => {
+    await assert()
+    const existing = grants.get(grant.sessionId)
+    if (existing?.external?.key === grant.token) { await multiAgentRuntime.check(existing.caller); return existing.external.context }
+    if (existing?.external) throw Error('Another MCP sharing grant owns this agent workspace')
+    if (acquiringExternal.has(grant.sessionId)) return acquiringExternal.get(grant.sessionId)!
+    const pending = (async () => {
+      const settings = await getSessionSettings(grant.sessionId)
+      const policy = MultiAgentPolicySchema.parse(settings.multiAgent || {})
+      if (settings.agentMode?.value !== 'on' || !policy.enabled) throw Error('Enable multi-agent mode in this Work chat before sharing its agents')
+      if (!settings.provider || !settings.modelId) throw Error('Choose a model for this Work chat')
+      await loadAgentRuns(grant.sessionId)
+      if ([...multiAgentRuntime.runs.values()].some(run => run.rootId === grant.sessionId && ['queued','running','waiting'].includes(run.status))) throw Error('Wait for the current app agents to finish before delegating through MCP')
+      await assert()
+      const options = new Set(dedicatedToolOptions())
+      const names = Object.keys(available).map(name => name.startsWith('mcp_') ? name.slice(4) : name).filter(name => options.has(name))
+      const caller: AgentCaller = { id: grant.sessionId, rootId: grant.sessionId, workspaceId: grant.sessionId, depth: 0, model: { provider: settings.provider, modelId: settings.modelId }, tools: [...new Set([...names,'ask_user'])], allowOnDemand: policy.allowOnDemand, dedicatedIds: policy.dedicatedIds }
+      const context: ExternalAgentContext = { caller, owned: new Set() }
+      const fingerprint = JSON.stringify({ provider: settings.provider, modelId: settings.modelId, multiAgent: settings.multiAgent, agentMode: settings.agentMode })
+      const check = async () => {
+        await assert()
+        const current = await getSessionSettings(grant.sessionId)
+        if (JSON.stringify({ provider: current.provider, modelId: current.modelId, multiAgent: current.multiAgent, agentMode: current.agentMode }) !== fingerprint) throw Error('The Work chat configuration changed. Restart MCP sharing before using agents')
+      }
+      const sharedNames = new Set(Object.keys(available))
+      grants.set(grant.sessionId, { caller, settings, requester: 'owner', policyFingerprint: JSON.stringify(settings.multiAgent || null), external: { key: grant.token, assert: check, context, allows: (name,input) => localMCPWorkerAllows(grant.permissions, sharedNames, name, input) } })
+      multiAgentRuntime.reopen(grant.sessionId)
+      return context
+    })()
+    acquiringExternal.set(grant.sessionId, pending)
+    try { return await pending } finally { if (acquiringExternal.get(grant.sessionId) === pending) acquiringExternal.delete(grant.sessionId) }
   }
+  return createLocalMCPAgentTools(grant, multiAgentRuntime, { acquire, assert, catalog: listDedicatedAgents, readResult })
+}
+export async function revokeExternalAgents(key: string) {
+  for (const [rootId, grant] of grants) if (grant.external?.key === key) { grants.delete(rootId); await multiAgentRuntime.stopRoot(rootId) }
 }
 export async function buildMultiAgentTools(rootId: string, settings: SessionSettings, tools: ToolSet, messages: Message[]) {
+  if (grants.get(rootId)?.external) throw Error('Stop MCP sharing before starting app-managed agents in this Work chat')
   const policy = MultiAgentPolicySchema.parse(settings.multiAgent || {})
   const user = messages.filter(message => message.role === 'user' && !message.backgroundTask).at(-1)
   const text = user?.contentParts.filter(part => part.type === 'text').map(part => part.text).join('\n') || ''

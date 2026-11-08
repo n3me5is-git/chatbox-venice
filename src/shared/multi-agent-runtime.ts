@@ -23,6 +23,8 @@ export class MultiAgentRuntime {
   private queue: Array<{ run: AgentRun; text: string }> = []
   private listeners = new Set<() => void>()
   private rootsStopping = new Set<string>()
+  private pendingSpawns = new Map<string, number>()
+  private pendingMessages = new Set<string>()
   constructor(private readonly host: AgentHost) {}
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   private notify() { for (const listener of this.listeners) listener() }
@@ -51,8 +53,13 @@ export class MultiAgentRuntime {
   }
   private async boundary(caller: AgentCaller, run: AgentRun, value: AgentBoundary, signal?: AbortSignal) {
     await this.authorize(caller)
-    const source = this.runs.get(caller.id)
-    const guardians = [source?.preset?.guardian, run.preset?.guardian].filter((guard): guard is Guardian => !!guard?.enabled)
+    const guardians: Guardian[] = []
+    for (const start of [this.runs.get(caller.id), run]) {
+      for (let node = start; node; node = this.runs.get(node.parentId)) {
+        if (!node.preset) continue
+        for (const guard of [node.preset.guardian, (await this.host.preset(node.preset.id))?.guardian]) if (guard?.enabled) guardians.push(guard)
+      }
+    }
     const unique = [...new Map(guardians.map(guard => [JSON.stringify(guard), guard])).values()]
     for (const guard of unique) {
       signal?.throwIfAborted()
@@ -72,7 +79,9 @@ export class MultiAgentRuntime {
   async spawn(caller: AgentCaller, input: { task: string; title: string; dedicatedId?: string }, signal?: AbortSignal) {
     const policy = await this.authorize(caller)
     if (caller.depth >= MAX_AGENT_DEPTH) throw new Error('Maximum agent nesting depth is three')
-    if ([...this.runs.values()].filter(run => run.rootId === caller.rootId).length >= MAX_AGENT_RUNS) throw new Error('Agent run limit reached. Remove completed runs first.')
+    if ([...this.runs.values()].filter(run => run.rootId === caller.rootId).length + (this.pendingSpawns.get(caller.rootId) || 0) >= MAX_AGENT_RUNS) throw new Error('Agent run limit reached. Start a new Work chat.')
+    this.pendingSpawns.set(caller.rootId, (this.pendingSpawns.get(caller.rootId) || 0) + 1)
+    try {
     const preset = input.dedicatedId ? await this.host.preset(input.dedicatedId) : undefined
     if (input.dedicatedId && (!preset || !policy.dedicatedIds.includes(preset.id) || !caller.dedicatedIds.includes(preset.id) || caller.depth > 0 && !policy.nestedDedicatedIds.includes(preset.id))) throw new Error('This dedicated agent is not permitted at this depth')
     if (!preset && (!policy.allowOnDemand || !caller.allowOnDemand)) throw new Error('On-demand agents are not permitted by the inherited policy')
@@ -94,6 +103,7 @@ export class MultiAgentRuntime {
     await this.host.save(run)
     this.queue.push({ run, text: input.task }); this.notify(); void this.pump(caller.rootId)
     return run
+    } finally { const remaining = (this.pendingSpawns.get(caller.rootId) || 1) - 1; if (remaining) this.pendingSpawns.set(caller.rootId, remaining); else this.pendingSpawns.delete(caller.rootId) }
   }
   private async set(run: AgentRun, patch: Partial<AgentRun>) { Object.assign(run, patch, { updatedAt: Date.now() }); await this.host.save(run); this.notify() }
   private async pump(rootId: string) {
@@ -122,10 +132,13 @@ export class MultiAgentRuntime {
   async message(caller: AgentCaller, id: string, text: string, signal?: AbortSignal) {
     const run = this.owned(caller, id)
     if (text.length > 100000 || !text.trim()) throw new Error('Provide a bounded follow-up message')
-    if (this.active.has(id) || this.queue.some(entry => entry.run.id === id)) throw new Error('This agent is busy. Wait for its current task before sending a follow-up.')
+    if (this.active.has(id) || this.queue.some(entry => entry.run.id === id) || this.pendingMessages.has(id)) throw new Error('This agent is busy. Wait for its current task before sending a follow-up.')
+    this.pendingMessages.add(id)
+    try {
     await this.boundary(caller, run, { operation: 'message', from: caller.id, to: id, text }, signal)
     await this.set(run, { status: 'queued', error: undefined }); this.queue.push({ run, text }); void this.pump(run.rootId)
     return { id, status: 'queued' }
+    } finally { this.pendingMessages.delete(id) }
   }
   async result(caller: AgentCaller, id: string, read: () => Promise<string>, signal?: AbortSignal) {
     const run = this.owned(caller, id); const text = await read()

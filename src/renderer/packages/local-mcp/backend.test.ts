@@ -3,7 +3,7 @@ import { tool } from 'ai'
 import { z } from 'zod'
 import type { LocalMCPGrant,LocalMCPRequest } from '@shared/local-mcp'
 import { defaultLocalMCPPermissions,sessionResourceURI } from '@shared/local-mcp'
-const state=vi.hoisted(()=>({settings:{} as any,session:{} as any,locked:false,chat:vi.fn(),approve:vi.fn(),execute:vi.fn(),read:vi.fn(),metadata:vi.fn()}))
+const state=vi.hoisted(()=>({settings:{} as any,session:{} as any,locked:false,chat:vi.fn(),approve:vi.fn(),execute:vi.fn(),read:vi.fn(),metadata:vi.fn(),agents:vi.fn()}))
 vi.mock('@shared/defaults',()=>({SystemProviders:()=>[{id:'venice',name:'Venice'},{id:'openai',name:'OpenAI'}]}))
 vi.mock('@/adapters',()=>({createModel:vi.fn(async()=>({chat:state.chat}))}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{getSessionHeader:async()=>({id:'chat'})}}}))
@@ -18,6 +18,7 @@ vi.mock('@/packages/mcp/controller',()=>({mcpController:{servers:new Map(),getAv
 vi.mock('@/packages/model-calls/toolsets/web-search',()=>({buildWebSearchTools:()=>({web_search:{}}),parseLinkTool:{}}))
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('./model-approval',()=>({requestExternalModelApproval:(...args:any[])=>state.approve(...args)}))
+vi.mock('@/packages/multi-agent/runtime',()=>({buildExternalMultiAgentTools:(...args:any[])=>state.agents(...args)}))
 import { handleLocalMCP,localMCPTools } from './backend'
 const grant=():LocalMCPGrant=>({running:true,sessionId:'chat',url:'http://127.0.0.1:31337/mcp',token:'local-client-token',startedAt:1,permissions:{...defaultLocalMCPPermissions,models:true}})
 const request=(operation:LocalMCPRequest['operation'],extra:Partial<LocalMCPRequest>={}):LocalMCPRequest=>({id:'one',grant:grant(),operation,...extra})
@@ -26,6 +27,17 @@ beforeEach(()=>{
   vi.clearAllMocks();state.locked=false;state.session={provider:'venice',modelId:'secure',veniceSecurity:{textPrivacy:'e2ee'}}
   state.settings={providers:{venice:{apiKey:'SENTINEL_PROVIDER_KEY',venice:{enabled:true},models:[{modelId:'ordinary',displayName:'Ordinary',type:'chat',vendorMetadata:{privacy:'private'}},{modelId:'secure',displayName:'Secure',type:'chat',vendorMetadata:{privacy:'private',capabilities:{supportsE2EE:true}}}]},openai:{apiKey:'SECOND_PROVIDER_KEY',models:[{modelId:'other',type:'chat'}]}}}
   state.chat.mockResolvedValue({contentParts:[{type:'text',text:'Model response'}],usage:{inputTokens:3,outputTokens:2}});state.approve.mockResolvedValue(true);state.read.mockResolvedValue({bytes:new TextEncoder().encode('# Private file')})
+})
+it('exposes agent tools only for the opt-in group and rechecks the live sharing grant before delegation',async()=>{
+  const allowed=grant();allowed.permissions.multiAgent=true
+  state.agents.mockImplementation((_grant,_tools,assert)=>({agent_tree:tool({inputSchema:z.object({}).strict(),execute:async()=>{await assert();return {runs:[]}}})}))
+  vi.stubGlobal('window',{electronAPI:{invoke:vi.fn(async()=>allowed)}})
+  await localMCPTools(grant());expect(state.agents).not.toHaveBeenCalled()
+  const listed=await localMCPTools(allowed);expect(listed.some(tool=>tool.name==='agent_tree')).toBe(true)
+  expect(state.agents.mock.calls[0][1]).not.toHaveProperty('session_js');expect(state.agents.mock.calls[0][1]).not.toHaveProperty('venice_image')
+  expect(await handleLocalMCP(request('call_tool',{grant:allowed,name:'agent_tree',arguments:{}}),signal())).toEqual({runs:[]})
+  vi.stubGlobal('window',{electronAPI:{invoke:vi.fn(async()=>({running:false}))}})
+  await expect(handleLocalMCP(request('call_tool',{grant:allowed,name:'agent_tree',arguments:{}}),signal())).rejects.toThrow('revoked')
 })
 it('lists only privacy-compatible models and never exposes provider credentials',async()=>{
   const output=await handleLocalMCP(request('call_tool',{name:'app_models',arguments:{}}),signal())
