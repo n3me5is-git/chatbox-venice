@@ -9,6 +9,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import type { HitlPolicy,SharedFile,SharePermissions } from '@shared/collaboration'
+import {readRasterImageBounds} from '@shared/image-dimensions'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { usePrivacyDismiss } from '@/components/security/usePrivacyDismiss'
 import { collaboration,initializeCollaboration,switchCurrentSession } from '@/packages/collaboration/runtime'
@@ -53,6 +54,7 @@ function GuestView({room}:{room:GuestShare}){
     try{if((file.bytes??0)>12*1024*1024)throw Error('Preview is limited to 12 MB. Clone this chat to open larger files locally.');const chunks:Uint8Array<ArrayBuffer>[]= [];let length=0
       for await(const bytes of collaboration.readFile(room.id,file.id,false,abort.signal)){length+=bytes.length;if(length>12*1024*1024)throw Error('Preview is limited to 12 MB. Clone this chat to open larger files locally.');chunks.push(bytes.slice())}
       const blob=new Blob(chunks,{type:file.mime});for(const bytes of chunks)bytes.fill(0);if(abort.signal.aborted)return
+      if(file.mime.startsWith('image/')){const bytes=new Uint8Array(await blob.arrayBuffer());try{const bounds=readRasterImageBounds(bytes,file.mime);if(!bounds||bounds.maxPixels>32000000||bounds.maxWidth>8192||bounds.maxHeight>8192)throw Error('This image is too large or unsupported for a shared preview. Clone the chat to open it locally.')}finally{bytes.fill(0)}}
       if(file.mime.startsWith('text/')||/\.(md|json|js|py|csv)$/i.test(file.name))setPreview({file,text:(await blob.text()).slice(0,2*1024*1024)})
       else if(/^(image|audio|video)\//.test(file.mime))setPreview({file,url:URL.createObjectURL(blob)})
       else throw Error('Clone this chat to open this file with your device.')

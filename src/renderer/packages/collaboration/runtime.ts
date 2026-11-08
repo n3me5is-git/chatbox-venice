@@ -74,6 +74,7 @@ export const collaboration=new CollaborationHub({
         const alias='session-file:'+encodeURIComponent(created.id)+':'+crypto.randomUUID();let size=0
         const source=async function*(){for await(const chunk of read(file.id)){size+=chunk.length;if(size>128*1024*1024||size>10*1024*1024&&!/^(image|audio|video)\//.test(file.mime))throw Error('File exceeds the local import limit');yield chunk}if(file.bytes!==undefined&&size!==file.bytes)throw Error('Shared file size changed during import');if(!size)yield new Uint8Array([0])}
         const ref=await vault().assets.put(source(),{sessionId:created.id,resourcePath:path,name:file.name,mime:file.mime,kind:file.mime.startsWith('image/')?'image':file.mime.startsWith('audio/')?'audio':file.mime.startsWith('video/')?'video':'document',deliverable:file.deliverable},'public',alias,signal);saved.push(ref)
+        if(!size){const header=await vault().assets.header(ref);if(header)await vault().assets.describe(ref,{...await vault().assets.info(header),logicalBytes:0})}
         const value:SessionFile={id:crypto.randomUUID(),origin:'file',key:alias,path,name:file.name,mime:file.mime,bytes:size,deliverable:file.deliverable};incoming.push(value);mapping.set(file.id,value)
       }
       await sessionFiles.adopt(created.id,incoming,{transferredMedia:true});await sessionFiles.tools(created.id,false)

@@ -1,4 +1,5 @@
 export const collaborationItalian = {
+  'This image is too large or unsupported for a shared preview. Clone the chat to open it locally.':'Questa immagine è troppo grande o non è supportata nell’anteprima condivisa. Clona la chat per aprirla localmente.',
   'This shared request is no longer authorized. Send a new message to continue as the owner.':'Questa richiesta condivisa non è più autorizzata. Invia un nuovo messaggio per continuare come proprietario.',
   'This creation is individually protected and cannot be shared with this chat':'Questa creazione è protetta separatamente e non può essere condivisa con questa chat',
   'Share and collaborate':'Condividi e collabora',
