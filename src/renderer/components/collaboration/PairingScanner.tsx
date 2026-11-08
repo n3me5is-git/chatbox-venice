@@ -36,7 +36,8 @@ export function PairingScanner({ onCode, onClose }: { onCode: (code: string) => 
       } catch (failure) {
         if (ended) return
         stop()
-        setError(failure instanceof Error && /NotAllowed|PermissionDenied|SecurityError/.test(failure.name) ? 'Camera access was denied. Allow camera access in the device settings, or upload a QR image.' : 'The camera could not start. Close other camera apps, or upload a QR image.')
+        const name = failure && typeof failure === 'object' && 'name' in failure ? String(failure.name) : ''
+        setError(/NotAllowed|PermissionDenied|SecurityError/.test(name) ? 'Camera access was denied. Allow camera access in the device settings, or upload a QR image.' : 'The camera could not start. Close other camera apps, or upload a QR image.')
       }
     })()
     return () => { stop(); canvas.width = canvas.height = 1; document.removeEventListener('visibilitychange', hide); window.removeEventListener('pagehide', dismiss); window.removeEventListener('chatbox:privacy-lock', dismiss) }
@@ -48,3 +49,4 @@ export function PairingScanner({ onCode, onClose }: { onCode: (code: string) => 
     <Button variant="default" onClick={onClose}>{ft('Close scanner')}</Button>
   </Stack></Card>
 }
+
