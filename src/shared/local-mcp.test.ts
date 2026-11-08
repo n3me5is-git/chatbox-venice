@@ -20,6 +20,7 @@ it('separates read, permanent write, execution, paid models, Venice and forwardi
 it('keeps granular file and service permissions in nested workers without allowing forwarding to bypass agent restrictions',()=>{
   const permissions={...defaultLocalMCPPermissions,multiAgent:true,forwardMCP:true},available=new Set(['session_file','mcp_external'])
   expect(localMCPWorkerAllows(permissions,available,'session_file',{action:'read'})).toBe(true)
+  expect(localMCPWorkerAllows(permissions,available,'session_file',{action:'preview'})).toBe(true)
   expect(localMCPWorkerAllows(permissions,available,'session_file',{action:'write'})).toBe(false)
   expect(localMCPWorkerAllows(permissions,available,'agent_file')).toBe(false)
   expect(localMCPWorkerAllows(permissions,available,'agent_spawn')).toBe(true)
