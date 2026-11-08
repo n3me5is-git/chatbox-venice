@@ -26,6 +26,7 @@ import { captureRendererDevLaunchOptions } from './utils/dev-launch'
 import { CHATBOX_BUILD_TARGET } from './variables'
 
 const MobileExecutionHost = lazy(() => import('./packages/mobile-work-mode/MobileExecutionHost'))
+const PythonExecutionHost = lazy(() => import('./components/session-resources/PythonExecutionHost'))
 
 // 按需加载 polyfill
 import './setup/load_polyfill'
@@ -120,6 +121,7 @@ void runRendererStartup({
           <ChatboxProvider application={rendererApplication}>
             <Suspense fallback={null}>
               <MobileExecutionHost />
+              <PythonExecutionHost />
             </Suspense>
             <RouterProvider router={router} />
           </ChatboxProvider>

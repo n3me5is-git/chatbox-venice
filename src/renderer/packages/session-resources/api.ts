@@ -14,6 +14,14 @@ export const sessionResourceAPI={
     return()=>{active=false;unsubscribe()}
   },
   configure:async(id:string,enabled:boolean)=>(await files()).sessionFiles.tools(id,enabled),
+  configurePython:async(id:string,enabled:boolean)=>(await files()).sessionFiles.python(id,enabled),
+  pythonStatus:async()=>(await import('./python-cache')).pythonRuntimeStatus(),
+  installPython:async(names:string[],signal:AbortSignal,progress:(name:string)=>void)=>(await import('./python-cache')).installPythonRuntime(names,signal,progress),
+  clearPython:async()=>(await import('./python-cache')).clearPythonRuntime(),
+  executePython:async(id:string,code:string,paths:string[],signal:AbortSignal)=>{
+    const {executeSessionPython}=await import('./python-tools')
+    return executeSessionPython(id,code,paths,signal)
+  },
   execute:async(id:string,code:string,paths:string[],signal:AbortSignal)=>{
     const {executeSessionCode}=await import('@shared/session-workspace-execution')
     const {capacitorExecution}=await import('@/packages/mobile-work-mode/execution-service')

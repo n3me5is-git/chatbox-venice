@@ -21,6 +21,7 @@ export interface ExecutionJob {
 
 /** Owns one disposable worker at a time; queued callers never share a JS context. */
 export class MobileExecutionService {
+  constructor(private readonly timing={executionTimeoutMs:20_000,hostTimeoutMs:30_000}){}
   private listeners = new Set<() => void>()
   private job: ExecutionJob | null = null
   private finish: ((result?: ExecutionResult, error?: Error) => void) | null = null
@@ -84,7 +85,7 @@ export class MobileExecutionService {
     validateWorkspaceFiles(files)
     return new Promise((resolve, reject) => {
       const abort = () => this.finish?.(undefined, new Error('Execution stopped'))
-      const timer = setTimeout(() => this.finish?.(undefined, new Error('Execution timed out')), 30_000)
+      const timer = setTimeout(() => this.finish?.(undefined, new Error('Execution timed out')), this.timing.hostTimeoutMs)
       this.finish = (result, error) => {
         clearTimeout(timer)
         signal.removeEventListener('abort', abort)
@@ -100,7 +101,7 @@ export class MobileExecutionService {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         code,
         files,
-        timeoutMs: 20_000,
+        timeoutMs: this.timing.executionTimeoutMs,
         skillPreferences,
         ...(documentName ? { documentName } : {}),
       }

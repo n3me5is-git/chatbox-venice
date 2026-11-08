@@ -11,6 +11,7 @@ export const sessionWorkspaceInstructions='Use session_file for the encrypted fi
 export async function buildSessionWorkspaceTools(id:string):Promise<ToolSet>{
   if((await sessionFiles.index(id)).toolsEnabled===false)return {}
   return {
+    ...await (await import('./python-tools')).sessionPythonTool(id),
     session_file:tool({
       description:'Manage this chat’s encrypted file workspace. list includes chat attachments and generated media without reading bytes. read/search return bounded UTF-8 text; import copies an existing resource into a working file. write creates/updates UTF-8 text. delete removes one managed file permanently. deliver explicitly includes a final file in the library; intermediate files stay in the explorer. Paths are relative to this session; no OS paths or network.',
       inputSchema:z.object({action:z.enum(['list','read','write','search','import','delete','deliver']),path:z.string().optional(),content:z.string().max(100000).optional(),query:z.string().max(200).optional(),resourceId:z.string().optional(),offset:z.number().int().min(0).optional()}).strict(),

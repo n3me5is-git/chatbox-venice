@@ -10,6 +10,7 @@ import { sessionResourceAPI } from '@/packages/session-resources/api'
 import { forkT as ft } from '@/i18n/fork'
 import platform from '@/platform'
 import { MarkdownFilePreview } from './MarkdownFilePreview'
+import { PythonSettings } from './PythonSettings'
 
 type API=typeof sessionResourceAPI
 export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:string;api?:API}){
@@ -19,12 +20,13 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
   const [busy,setBusy]=useState(false),[deleting,setDeleting]=useState<SessionResource>(),[creating,setCreating]=useState(false),[newPath,setNewPath]=useState('notes.md')
   const [toolsEnabled,setToolsEnabled]=useState(true),[executing,setExecuting]=useState(false),[code,setCode]=useState(''),[inputPaths,setInputPaths]=useState<string[]>([]),[result,setResult]=useState('')
   const executionAbort=useRef<AbortController>()
+  const [pythonEnabled,setPythonEnabled]=useState(false),[pythonReady,setPythonReady]=useState(false),[codeLanguage,setCodeLanguage]=useState<'javascript'|'python'>('javascript')
   const [backup,setBackup]=useState<'export'|'import'>(),[password,setPassword]=useState(''),[repeated,setRepeated]=useState(''),[archive,setArchive]=useState<File|null>(null)
   const request=useRef<AbortController>(),imageBudget=useRef(0)
   const clear=useCallback(()=>{setSelected(undefined);setText('');setDraft('');setEditing(false);setUrl('');imageBudget.current=0},[])
   const load=useCallback(()=>{
     request.current?.abort();const controller=new AbortController();request.current=controller;setLoading(true)
-    void api.list(sessionId,controller.signal).then(result=>{if(!controller.signal.aborted){setItems(result.items);setTruncated(result.truncated);setToolsEnabled(result.options?.toolsEnabled!==false);setError('')}}).catch(reason=>{if(!controller.signal.aborted)setError(String(reason?.message||reason))}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
+    void api.list(sessionId,controller.signal).then(result=>{if(!controller.signal.aborted){setItems(result.items);setTruncated(result.truncated);setToolsEnabled(result.options?.toolsEnabled!==false);setPythonEnabled(!!result.options?.pythonEnabled);setError('')}}).catch(reason=>{if(!controller.signal.aborted)setError(String(reason?.message||reason))}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
   },[api,sessionId])
   useEffect(()=>{clear();setItems([]);load();const unsubscribe=api.subscribe(sessionId,load,()=>{executionAbort.current?.abort();setExecuting(false);setCode('');setResult('');clear();setItems([]);load()});return()=>{request.current?.abort();unsubscribe()}},[api,sessionId,load,clear])
   useEffect(()=>()=>executionAbort.current?.abort(),[sessionId])
@@ -60,14 +62,14 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
       <FileButton onChange={upload}>{props=><ActionIcon {...props} size="lg" variant="subtle" aria-label={ft('Import session file')}><IconUpload size={18}/></ActionIcon>}</FileButton>
     </Group></Group>
     {error&&<Alert color="red" role="alert" style={{overflowWrap:'anywhere'}}>{ft(error)}</Alert>}
-    <details><summary>{ft('Workspace settings')}</summary><Stack mt="xs" gap="xs"><Checkbox checked={toolsEnabled} label={ft('Allow the agent to manage session files and run isolated code')} onChange={event=>{const enabled=event.currentTarget.checked;void run(()=>api.configure(sessionId,enabled))}}/><Group gap="xs"><Button size="xs" variant="default" onClick={()=>{setPassword('');setRepeated('');setBackup('export')}}>{ft('Back up workspace files')}</Button><Button size="xs" variant="default" onClick={()=>{setPassword('');setArchive(null);setBackup('import')}}>{ft('Restore workspace files')}</Button></Group></Stack></details>
+    <details><summary>{ft('Workspace settings')}</summary><Stack mt="xs" gap="xs"><Checkbox checked={toolsEnabled} label={ft('Allow the agent to manage session files and run isolated code')} onChange={event=>{const enabled=event.currentTarget.checked;void run(()=>api.configure(sessionId,enabled))}}/><Group gap="xs"><Button size="xs" variant="default" onClick={()=>{setPassword('');setRepeated('');setBackup('export')}}>{ft('Back up workspace files')}</Button><Button size="xs" variant="default" onClick={()=>{setPassword('');setArchive(null);setBackup('import')}}>{ft('Restore workspace files')}</Button></Group><PythonSettings sessionId={sessionId} enabled={pythonEnabled} onReady={setPythonReady} api={api} onChanged={load}/></Stack></details>
     {selected?<>
       <Group wrap="wrap" gap="xs"><Button variant="subtle" leftSection={<IconArrowLeft size={16}/>} onClick={clear}>{ft('All session files')}</Button><Text size="sm" style={{overflowWrap:'anywhere',flex:1}}>{selected.path}</Text></Group>
       <Group gap="xs" wrap="wrap">
         <Button size="xs" variant="light" leftSection={<IconDownload size={14}/>} loading={busy} onClick={()=>void run(()=>api.export(sessionId,selected))}>{ft('Export')}</Button>
         {isTextResource(selected)&&!selected.readOnly&&(selected.origin==='file'||selected.origin==='workspace')&&<Button size="xs" variant="light" disabled={opening||busy} onClick={()=>{setDraft(text);setEditing(!editing)}}>{editing?ft('Cancel editing'):ft('Edit file')}</Button>}
         <Button size="xs" variant="light" disabled={busy||opening} onClick={()=>void run(async()=>{await api.deliver(sessionId,selected);clear()})}>{selected.origin==='file'&&selected.deliverable?ft('Keep as working file'):ft('Save to deliverables')}</Button>
-        {/\.m?js$/i.test(selected.name)&&<Button size="xs" variant="light" disabled={busy||opening||!toolsEnabled} onClick={()=>{setCode(text);setResult('');setInputPaths([]);setExecuting(true)}}>{ft('Run JavaScript')}</Button>}
+        {/\.(?:m?js|py)$/i.test(selected.name)&&<Button size="xs" variant="light" disabled={busy||opening||!toolsEnabled||selected.name.endsWith('.py')&&(!pythonEnabled||!pythonReady)} onClick={()=>{setCodeLanguage(selected.name.endsWith('.py')?'python':'javascript');setCode(text);setResult('');setInputPaths([]);setExecuting(true)}}>{selected.name.endsWith('.py')?ft('Run Python'):ft('Run JavaScript')}</Button>}
         <ActionIcon size="lg" variant="subtle" color="red" aria-label={ft('Delete resource')} disabled={selected.readOnly} onClick={()=>setDeleting(selected)}><IconTrash size={17}/></ActionIcon>
       </Group>
       {opening?<Loader size="sm"/>:<div style={{flex:1,minHeight:0,overflow:'auto',overscrollBehavior:'contain',touchAction:'pan-y',paddingBottom:16}}>
@@ -88,11 +90,11 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
     </>}
     <AdaptiveModal opened={creating} onClose={()=>setCreating(false)} title={ft('New session file')}><Stack><TextInput label={ft('File path')} placeholder="notes/report.md" value={newPath} onChange={event=>setNewPath(event.currentTarget.value)}/><Button loading={busy} onClick={()=>void run(async()=>{const path=sessionFilePath(newPath);if(items.some(item=>item.path===path))throw Error('A file already exists at this path');await api.create(sessionId,path,new TextEncoder().encode(/\.md$/i.test(path)?'# '+path.split('/').pop()?.replace(/\.md$/i,'')+'\n':''));setCreating(false);setSelected(undefined)})}>{ft('Create file')}</Button></Stack></AdaptiveModal>
     <AdaptiveModal opened={!!deleting} onClose={()=>setDeleting(undefined)} title={ft('Delete resource')}><Stack><Text style={{overflowWrap:'anywhere'}}>{deleting?.name}</Text><Text>{ft('Delete this local resource? Its preview in chat and its library entry may stop being available. Other files are kept.')}</Text><Group justify="end"><Button variant="default" onClick={()=>setDeleting(undefined)}>{ft('Cancel')}</Button><Button color="red" loading={busy} onClick={()=>void run(async()=>{await api.remove(sessionId,deleting!);if(selected?.id===deleting?.id)clear();setDeleting(undefined)})}>{ft('Delete')}</Button></Group></Stack></AdaptiveModal>
-    <AdaptiveModal opened={executing} onClose={()=>{executionAbort.current?.abort();setExecuting(false)}} title={ft('Run JavaScript')} size="lg"><Stack>{error&&<Alert color="red" role="alert">{ft(error)}</Alert>}
+    <AdaptiveModal opened={executing} onClose={()=>{executionAbort.current?.abort();setExecuting(false)}} title={codeLanguage==='python'?ft('Run Python'):ft('Run JavaScript')} size="lg"><Stack>{error&&<Alert color="red" role="alert">{ft(error)}</Alert>}
       <Text size="sm">{ft('Code runs locally with only the selected files. No network, app data, API keys or operating system commands are available. Successful file changes appear in this workspace.')}</Text>
       <MultiSelect label={ft('Files available to the script')} data={items.filter(item=>item.origin==='file').map(item=>({value:item.path,label:item.path}))} value={inputPaths} onChange={setInputPaths} searchable/>
-      <Textarea label={ft('JavaScript code')} value={code} onChange={event=>setCode(event.currentTarget.value)} minRows={8} autosize maxRows={20} styles={{input:{fontFamily:'monospace'}}}/>
-      <Group><Button loading={busy} onClick={()=>void run(async()=>{const controller=new AbortController();executionAbort.current=controller;const output=await api.execute(sessionId,code,inputPaths,controller.signal);setResult(JSON.stringify(output,null,2))})}>{ft('Run code')}</Button>{busy&&<Button variant="default" onClick={()=>executionAbort.current?.abort()}>{ft('Stop')}</Button>}</Group>
+      <Textarea label={codeLanguage==='python'?ft('Python code'):ft('JavaScript code')} value={code} onChange={event=>setCode(event.currentTarget.value)} minRows={8} autosize maxRows={20} styles={{input:{fontFamily:'monospace'}}}/>
+      <Group><Button loading={busy} onClick={()=>void run(async()=>{const controller=new AbortController();executionAbort.current=controller;const output=await (codeLanguage==='python'?api.executePython:api.execute)(sessionId,code,inputPaths,controller.signal);setResult(JSON.stringify(output,null,2))})}>{ft('Run code')}</Button>{busy&&<Button variant="default" onClick={()=>executionAbort.current?.abort()}>{ft('Stop')}</Button>}</Group>
       {result&&<pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',maxHeight:'35dvh',overflow:'auto'}}>{result}</pre>}
     </Stack></AdaptiveModal>
     <AdaptiveModal opened={!!backup} onClose={()=>{executionAbort.current?.abort();setPassword('');setRepeated('');setBackup(undefined)}} title={backup==='export'?ft('Back up workspace files'):ft('Restore workspace files')}><Stack>{error&&<Alert color="red" role="alert">{ft(error)}</Alert>}

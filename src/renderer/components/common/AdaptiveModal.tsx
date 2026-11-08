@@ -13,7 +13,7 @@ export interface AdaptiveModalProps extends Omit<MantineModalProps, 'opened' | '
 export function AdaptiveModal({ opened, onClose, onExitTransitionEnd, children, title, ...props }: AdaptiveModalProps) {
   const isSmallScreen = useIsSmallScreen()
   const {t}=useTranslation()
-  const closeButtonProps={...props.closeButtonProps,'aria-label':props.closeButtonProps?.['aria-label']??t('Close')}
+  const closeButtonProps={...props.closeButtonProps,'aria-label':props.closeButtonProps?.['aria-label']??String(t('Close'))}
 
   if (isSmallScreen) {
     return (
@@ -69,4 +69,3 @@ function AdaptiveModalCloseButton(props: ButtonProps & HTMLAttributes<HTMLButton
 }
 
 AdaptiveModal.CloseButton = AdaptiveModalCloseButton
-
