@@ -9,7 +9,7 @@ function fixture(concurrency = 3) {
   const host: AgentHost = {
     policy: vi.fn(async () => policy), preset: vi.fn(async id => id === preset.id ? preset : undefined), assertRoot: vi.fn(async () => {}),
     create: vi.fn(async (run, isolated, workspace) => ({ sessionId: 'session-' + run.id, workspaceId: isolated ? 'isolated-' + run.id : workspace })),
-    save: vi.fn(async () => {}), execute: vi.fn((run) => new Promise(resolve => held.set(run.id, resolve))), guard: vi.fn(async () => ({ allow: true, reason: 'Allowed' })), append: vi.fn(async () => {}),
+    save: vi.fn(async () => {}), execute: vi.fn((run) => new Promise<string>(resolve => held.set(run.id, resolve))), guard: vi.fn(async () => ({ allow: true, reason: 'Allowed' })), append: vi.fn(async () => {}),
     readFile: vi.fn(async (id, path) => ({ bytes: new Uint8Array(files.get(id + ':' + path) || []), mime: 'text/plain' })), writeFile: vi.fn(async (id, path, bytes) => { files.set(id + ':' + path, new Uint8Array(bytes)) }), blocked: vi.fn(async () => {}),
   }
   const caller: AgentCaller = { id: 'root', rootId: 'root', workspaceId: 'root', depth: 0, model: { provider: 'venice', modelId: 'encrypted' }, tools: ['session_file', 'session_js', 'web_search'], allowOnDemand: true, dedicatedIds: ['dedicated'] }
@@ -91,7 +91,9 @@ describe('multi-agent authority and privacy boundaries', () => {
     expect(agentMentions('Ask @reviewer, then continue', [f.preset])).toEqual([f.preset]); expect(agentMentions('x@reviewer or @reviewer2', [f.preset])).toEqual([])
   })
   it('requires an explicit, valid guardian verdict', () => {
-    expect(parseGuardianVerdict('{"allow":true,"reason":"pseudonyms only"}').allow).toBe(true)
+    expect(parseGuardianVerdict('{"allow":true,"code":"allowed"}').allow).toBe(true)
+    expect(parseGuardianVerdict('{"allow":false,"code":"personal_data"}').reason).toBe('The guardian detected personal data.')
+    expect(() => parseGuardianVerdict('{"allow":false,"code":"personal_data","reason":"SECRET NAME"}')).toThrow('blocked')
     for (const text of ['yes', '{"allow":"true","reason":"ok"}', '{"allow":true}', '{"allow":true,"reason":"ok","execute":true}']) expect(() => parseGuardianVerdict(text)).toThrow('blocked')
   })
 })

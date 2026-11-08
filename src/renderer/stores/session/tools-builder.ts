@@ -673,7 +673,9 @@ When you create a Git commit that includes code changes, append this exact trail
     instructions = buildToolUseCommunicationInstruction() + instructions
   }
 
-  if (includeAgentTools && options.sessionId && !options.sessionSettings?.multiAgentRun) {
+  const explicitDelegationText = messages.filter(message => message.role === 'user' && !message.backgroundTask).at(-1)?.contentParts.filter(part => part.type === 'text').map(part => part.text).join('\n') || ''
+  const delegationRequested = options.sessionSettings?.multiAgent?.enabled === true || /(?:^|\s)@[a-z]|\b(?:multi[- ]?agent[ei]?|multiple agents|parallel agents|più agenti|piu agenti)\b/i.test(explicitDelegationText)
+  if (includeAgentTools && options.sessionId && !options.sessionSettings?.multiAgentRun && delegationRequested) {
     const { buildMultiAgentTools } = await import('@/packages/multi-agent/runtime')
     const delegation = await buildMultiAgentTools(options.sessionId, options.sessionSettings || {}, tools, messages)
     Object.assign(tools, delegation.tools); instructions += delegation.instructions

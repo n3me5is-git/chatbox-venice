@@ -1,6 +1,7 @@
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { SpeechMicrophone } from '@/components/speech/SpeechControls'
+import { AgentMentionButton } from '@/components/multi-agent/AgentMentionButton'
 import { MAX_CHAT_IMAGE_ATTACHMENTS } from '@chatbox/core/application/attachments'
 import { listPendingPauseInteractions } from '@chatbox/core/message-approval'
 import { getSubmitAvailability } from '@chatbox/core/session/action-gates'
@@ -1742,6 +1743,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
                 onPaste={onPaste}
               />
 
+              {agentModeEntry.value==='on'&&<AgentMentionButton onSelect={name=>{messageInputFieldRef.current?.setValue(previous=>previous+(previous&&!/\s$/.test(previous)?' ':'')+'@'+name+' ');messageInputFieldRef.current?.getElement()?.focus()}}/>}
               <SpeechMicrophone context={{sessionId,selected:model}} disabled={submitAvailability.blockReason!==undefined&&!compactionQueable} onText={text=>{messageInputFieldRef.current?.setValue(previous=>previous+(previous&&!/\s$/.test(previous)?'\n':'')+text);messageInputFieldRef.current?.getElement()?.focus()}}/>
               <Tooltip
                 // `n` rather than `count`, so i18next does not engage plural resolution for a

@@ -38,11 +38,12 @@ export class SessionFileStore {
     await this.storage.assertAccess(id)
     return { file, bytes:file.bytes === 0 ? new Uint8Array() : bytes }
   }
-  async write(id: string, path: string, bytes: Uint8Array, options: { deliverable?: boolean; mime?: string } = {}) {
+  async write(id: string, path: string, bytes: Uint8Array, options: { deliverable?: boolean; mime?: string; expectedVersion?: string | null } = {}) {
     sessionFilePath(path)
     if (bytes.length > MAX_RESOURCE_FILE_BYTES) throw new Error('Session files must not exceed 10 MB')
     return this.edit(id, async () => {
       const index = await this.index(id), previous = index.files.find(file => file.path === path)
+      if (options.expectedVersion !== undefined && (previous?.key ?? null) !== options.expectedVersion) throw Error('This file changed. Read the current version before writing again.')
       if (index.directories?.some(directory => directory === path || directory.startsWith(path + '/')) || index.files.some(file => file.path.startsWith(path + '/') || path.startsWith(file.path + '/'))) throw Error('A file or folder already exists at this path')
       if (!previous && index.files.length >= 2048) throw new Error('Session file count limit reached')
       const total = index.files.reduce((n,file) => n + (file.path === path ? 0 : file.bytes ?? 0), 0) + bytes.length

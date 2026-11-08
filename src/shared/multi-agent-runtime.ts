@@ -59,7 +59,7 @@ export class MultiAgentRuntime {
       try {
         const verdict = await this.host.guard(guard, value, signal)
         if (!verdict.allow) throw new Error('Guardian blocked the transfer: ' + verdict.reason)
-      } catch (error) { await this.host.blocked?.(run, value, String((error as Error).message)); throw error }
+      } catch (error) { await this.host.blocked?.(run, value, String((error as Error).message)); this.notify(); throw error }
     }
     signal?.throwIfAborted()
     await this.authorize(caller)

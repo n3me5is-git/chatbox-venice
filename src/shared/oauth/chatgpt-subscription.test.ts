@@ -17,7 +17,7 @@ it('preserves a refresh token when the server does not rotate it', async () => {
   const value = await refreshChatGPTSubscription(vi.fn(async () => response({ access_token: 'new', expires_in: 1200 })), { accessToken: 'old', refreshToken: 'keep' }); expect(value.refreshToken).toBe('keep')
 })
 it('pins credentials to the Codex host and forces stateless streaming without API fallback', async () => {
-  const request = vi.fn(async () => new Response('data: [DONE]\n\n')), dependencies = { request: { apiRequest: request }, subscription: { getCredential: async () => ({ accessToken: 'subscription-secret', extra: { accountId: 'acct' } }) } } as unknown as ModelDependencies
+  const request = vi.fn(async (_options: any) => new Response('data: [DONE]\n\n')), dependencies = { request: { apiRequest: request }, subscription: { getCredential: async () => ({ accessToken: 'subscription-secret', extra: { accountId: 'acct' } }) } } as unknown as ModelDependencies
   await createSubscriptionFetch(dependencies)('https://untrusted.example/responses', { method: 'POST', headers: { Authorization: 'Bearer other' }, body: JSON.stringify({ model: 'gpt-5.4', store: true, stream: false, max_output_tokens: 10, tools: [{ type: 'function', name: 'local', parameters: {} }] }) })
   const call = request.mock.calls[0][0] as any
   expect(call.url).toBe(CHATGPT_CODEX_ENDPOINT); expect(call.headers.Authorization).toBe('Bearer subscription-secret'); expect(call.headers['ChatGPT-Account-Id']).toBe('acct'); expect(call.retry).toBe(0)

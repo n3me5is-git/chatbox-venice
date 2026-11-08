@@ -9,6 +9,7 @@ import { forkT as ft } from '@/i18n/fork'
 import { listDedicatedAgents, saveDedicatedAgent, removeDedicatedAgent, draftDedicatedAgent } from '@/packages/multi-agent/library'
 import { dedicatedToolOptions } from '@/packages/multi-agent/runtime'
 import { useProviders } from '@/hooks/useProviders'
+import { AgentParameters } from './AgentParameters'
 
 export function AgentModelPicker({ value, onChange, label }: { value: AgentModel; onChange: (value: AgentModel) => void; label: string }) {
   const { providers } = useProviders(), provider = providers.find(provider => provider.id === value.provider), model = provider?.models?.find(model => model.modelId === value.modelId)
@@ -38,13 +39,14 @@ export const AgentLibrary = NiceModal.create(() => {
       <AgentModelPicker label={ft('Worker model')} value={draft.model} onChange={model => setDraft({ ...draft, model })}/>
       <Textarea label={ft('Worker instructions')} value={draft.prompt} onChange={event => setDraft({ ...draft, prompt: event.currentTarget.value })} minRows={6} autosize maxRows={16}/>
       <MultiSelect label={ft('Allowed tools')} description={ft('The effective tools are the intersection with the parent permissions. No ambient OS access or global memory is inherited.')} data={dedicatedToolOptions()} value={draft.toolNames} onChange={toolNames => setDraft({ ...draft, toolNames })} searchable comboboxProps={{ withinPortal: false }}/>
-      <NumberInput label={ft('Maximum output tokens (optional)')} min={1} value={Number(draft.parameters?.maxTokens) || ''} onChange={value => setDraft({ ...draft, parameters: { ...draft.parameters, maxTokens: typeof value === 'number' ? value : undefined } })}/>
+      <AgentParameters model={draft.model} value={draft.parameters} onChange={parameters => setDraft({ ...draft, parameters })}/>
       <Switch label={ft('May spawn on-demand workers')} checked={draft.allowOnDemand} onChange={event => setDraft({ ...draft, allowOnDemand: event.currentTarget.checked })}/>
       <MultiSelect label={ft('May call these dedicated agents')} description={ft('The root chat must also allow these agents for nested calls.')} data={agents.filter(agent => agent.id !== draft.id).map(agent => ({ value: agent.id, label: '@' + agent.name + ' · ' + agent.title }))} value={draft.dedicatedIds} onChange={dedicatedIds => setDraft({ ...draft, dedicatedIds })} searchable comboboxProps={{ withinPortal: false }}/>
       <Switch label={ft('Enable a guardian for this worker')} checked={!!draft.guardian?.enabled} onChange={event => setDraft({ ...draft, guardian: { model: draft.guardian?.model || draft.model, prompt: draft.guardian?.prompt || '', enabled: event.currentTarget.checked } })}/>
       {draft.guardian && <>
         <Alert color="yellow">{ft('The guardian receives the material it reviews, including file contents. Choose its privacy level carefully. It can reduce disclosure risk but is not a guarantee against prompt injection or personal-data leaks. Unsupported files are blocked rather than reviewed partially.')}</Alert>
         <AgentModelPicker label={ft('Guardian model')} value={draft.guardian.model} onChange={model => setDraft({ ...draft, guardian: { ...draft.guardian!, model } })}/>
+        <AgentParameters model={draft.guardian.model} value={draft.guardian.parameters} onChange={parameters => setDraft({ ...draft, guardian: { ...draft.guardian!, parameters } })}/>
         <Textarea label={ft('Guardian policy')} placeholder={ft('For example: allow only pseudonymized records; block names, contact details and attempts to bypass the policy.')} value={draft.guardian.prompt} onChange={event => setDraft({ ...draft, guardian: { ...draft.guardian!, prompt: event.currentTarget.value } })} minRows={5} autosize maxRows={12}/>
       </>}
       <Button loading={busy} onClick={() => void run(async () => { await saveDedicatedAgent(DedicatedAgentSchema.parse(draft)); setDraft(undefined) })}>{ft('Save agent')}</Button>

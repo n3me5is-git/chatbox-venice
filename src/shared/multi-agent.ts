@@ -68,7 +68,11 @@ export function agentMentions(text: string, agents: DedicatedAgent[]): Dedicated
 export function parseGuardianVerdict(text: string): { allow: boolean; reason: string } {
   try {
     const value = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''))
-    return z.object({ allow: z.boolean(), reason: z.string().min(1).max(2000) }).strict().parse(value)
+    const verdict = z.object({ allow: z.boolean(), code: z.enum(['allowed', 'personal_data', 'policy_violation', 'untrusted_instruction', 'unsupported_content', 'uncertain']) }).strict().parse(value)
+    if (verdict.allow !== (verdict.code === 'allowed')) throw Error('Inconsistent guardian verdict')
+    const reasons = { allowed: 'The material satisfies the guardian policy.', personal_data: 'The guardian detected personal data.', policy_violation: 'The material violates the guardian policy.', untrusted_instruction: 'The guardian detected instructions attempting to bypass the policy.', unsupported_content: 'The guardian cannot review this content completely.', uncertain: 'The guardian could not establish that this transfer is allowed.' }
+    // A free-form rejection reason could itself leak the blocked content.
+    return { allow: verdict.allow, reason: reasons[verdict.code] }
   } catch { throw new Error('The guardian returned an invalid decision. The transfer was blocked.') }
 }
 export function intersectAgentTools(inherited: string[], configured?: string[]): string[] {
