@@ -1,4 +1,5 @@
 import type { Message } from '@shared/types'
+import { SessionRowConflictError } from '@chatbox/core/ports'
 import { getWorkArtifacts } from '@shared/work-artifacts'
 import { MAX_RESOURCE_PREVIEW_BYTES, isTextResource, resourceMime, resourceName, type SessionResource } from '@shared/session-resources'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
@@ -28,9 +29,9 @@ function messageResources(message:Message,messageId:string):SessionResource[]{
   return output
 }
 /** Bounded payload batches traverse all branch subtrees; no transcript is retained. */
-async function scanMessages(id:string,signal?:AbortSignal){
+async function scanMessagesSnapshot(id:string,signal:AbortSignal|undefined,found:SessionResource[]){
   const store=platform.getSessionRowStore();await store.initialize()
-  const found:SessionResource[]=[];let threadCursor:Parameters<typeof store.readThreadSummariesPage>[0]['cursor'];let scanned=0
+  let threadCursor:Parameters<typeof store.readThreadSummariesPage>[0]['cursor'];let scanned=0
   do{
     signal?.throwIfAborted()
     const threads=await store.readThreadSummariesPage({sessionId:id,limit:30,cursor:threadCursor});if(!threads)break
@@ -40,7 +41,7 @@ async function scanMessages(id:string,signal?:AbortSignal){
       do{
         signal?.throwIfAborted()
         const page=await store.readMessageRelationsPage({sessionId:id,threadId:thread.threadId,selector:{kind:'subtree',rootMessageId:thread.rootMessageId},limit:30,expectedRevision:threads.revision,cursor})
-        if(!page||page.status!=='ready')throw new Error('Conversation changed. Refresh the resource list.')
+        if(!page||page.status!=='ready')return {found,truncated:true}
         const ids=page.rows.filter(row=>row.facts.hasFiles||row.facts.hasToolCall||row.facts.imageStorageKeys.length||row.facts.role==='assistant').map(row=>row.messageId)
         if(ids.length){const data=await store.readMessages({sessionId:id,messageIds:ids,expectedRevision:page.revision});for(const row of data?.messages??[])found.push(...messageResources(row.message,row.messageId))}
         scanned+=page.rows.length;cursor=page.nextCursor??undefined
@@ -50,6 +51,18 @@ async function scanMessages(id:string,signal?:AbortSignal){
     threadCursor=threads.nextCursor??undefined
   }while(threadCursor)
   return {found,truncated:false}
+}
+/** Streaming changes may invalidate a read snapshot. Never discard durable media/files because of it. */
+async function scanMessages(id:string,signal?:AbortSignal){
+  const partial:SessionResource[]=[]
+  for(let attempt=0;attempt<3;attempt++){
+    const found:SessionResource[]=[]
+    try{return await scanMessagesSnapshot(id,signal,found)}catch(error){
+      if(!(error instanceof SessionRowConflictError)&&!(error instanceof Error&&error.name==='SessionRowConflictError'))throw error
+      signal?.throwIfAborted();await assertSession(id);partial.push(...found)
+    }
+  }
+  return {found:partial,truncated:true}
 }
 export async function listSessionResources(id:string,signal?:AbortSignal){
   await assertSession(id)
@@ -103,7 +116,7 @@ export async function readSessionResource(id:string,item:SessionResource){
   const value=item.key?await currentBlobStorage.get(item.key):null
   if(!value)throw new Error('Session file not found')
   if(value.length>28*1024*1024)throw new Error('File is too large for preview')
-  await assertSession(id);return {file:item,bytes:value.startsWith('data:')?base64Bytes(value):new TextEncoder().encode(value)}
+  await assertSession(id);return {file:item,bytes:value.startsWith('data:')||item.mime.startsWith('image/')&&/^[A-Za-z0-9+/=\r\n]+$/.test(value)?base64Bytes(value):new TextEncoder().encode(value)}
 }
 export async function removeSessionResource(id:string,item:SessionResource){
   await assertSession(id)
@@ -136,7 +149,9 @@ export function subscribeSessionResources(id:string,change:()=>void,locked:()=>v
   const listener=(event:Event)=>{if((event as CustomEvent).detail===id)change()}
   window.addEventListener('session-resources:changed',listener)
   const unsubscribe=vaultRuntimeFor(platform).keys.subscribe(locked)
-  return()=>{window.removeEventListener('session-resources:changed',listener);unsubscribe()}
+  const images=getImageGenerationService().subscribeRecords(event=>{if(event.type==='deleted'||event.record.source?.sessionId===id)change()})
+  const media=veniceMediaService.subscribe(()=>change())
+  return()=>{window.removeEventListener('session-resources:changed',listener);unsubscribe();images();media()}
 }
 export async function exportSessionResource(id:string,item:SessionResource){
   await assertSession(id)

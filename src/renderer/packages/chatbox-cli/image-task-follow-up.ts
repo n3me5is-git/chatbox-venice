@@ -41,7 +41,7 @@ export function queueImageTaskCompletion(
     summary:
       record.status === 'done'
         ? `${record.generatedImages.length} image(s) generated. Chatbox already displays them to the user at the original tool call, so do not show the images again: no markdown images and no image links. Reply with a brief confirmation. Run "chatbox image status ${record.id}" only if the user asks for details.`
-        : `Image generation failed: ${record.error?.slice(0, 500) ?? 'Unknown error'}`,
+        : `Image generation failed: ${record.error?.slice(0, 500) ?? 'Unknown error'}. Tell the user that it failed and explain the reason. Do not start another generation unless the user explicitly requests a retry. A retry is a new paid request; the app requires a failure decision before its normal generation approval.`,
   })
 }
 

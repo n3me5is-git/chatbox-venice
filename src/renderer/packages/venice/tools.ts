@@ -17,13 +17,25 @@ import { queueImageTaskCompletion, queueImageTaskCompletionError } from '@/packa
 import platform from '@/platform'
 import { installedVaultFor } from '@/packages/vault/runtime'
 import { VeniceImageApproval } from '@/components/venice/VeniceImageApproval'
+import { GenerationRetryGate } from '@shared/generation-retry'
+import { requestGenerationRetry } from '@/components/venice/GenerationFailure'
 const inFlight = new Map<string, Promise<unknown>>()
-export function veniceChatTools(sessionId: string) {
+const retryGate=new GenerationRetryGate()
+export function veniceChatTools(sessionId: string,turnId='external') {
   syncSessionApprovalScope(sessionId)
   const authorizations = new WeakMap<ImageChoice, {scope: string; revision: number; automatic: boolean}>()
   const options = () => veniceConfiguration().options
   if (options().enabled === false || options().chatToolsEnabled === false || !veniceConfiguration().apiKey) return {}
   const images = async () => queryClient.fetchQuery(providerImageModelsQueryOptions(ModelProviderEnum.Venice, veniceConfiguration()))
+  const latestImage=async()=>{
+    await installedVaultFor(platform)?.projects.assertSession(sessionId)
+    let cursor:number|null=0
+    for(let pageNumber=0;cursor!==null&&pageNumber<20;pageNumber++){
+      const page=await getImageGenerationService().getPage(cursor,100),record=page.items.find(record=>record.source?.sessionId===sessionId)
+      if(record)return record
+      cursor=page.nextCursor
+    }
+  }
   const saved = async (callId: string) => {
     const id = await platform.getStoreValue(`venice:image-call:${sessionId}:${callId}`)
     if (!id) return null
@@ -35,6 +47,8 @@ export function veniceChatTools(sessionId: string) {
   const imageTools = buildVeniceImageTools({
     models: async () => (await images()).map(row => ({ modelId: row.modelId, name: row.displayName, capabilities: row.capabilities, metadata: row.vendorMetadata })),
     choose: async (request, signal) => {
+      const failure=await latestImage()
+      if(failure?.status==='error'&&!await retryGate.allow(sessionId+':'+turnId,{id:failure.id,kind:ft('Image'),model:failure.model.modelId,error:failure.error||''},value=>requestGenerationRetry(value,signal)))return null
       const before = veniceConfiguration(); const scope = syncSessionApprovalScope(sessionId); const models = await images()
       const approved = await requestSessionImageChoice(sessionId, request, models, request => NiceModal.show(VeniceImageApproval, { models, request, signal, sessionId }) as Promise<ImageChoice & {approvalMode?: ApprovalMode} | null>)
       const current = veniceConfiguration()
@@ -42,8 +56,12 @@ export function veniceChatTools(sessionId: string) {
       if (approved) authorizations.set(approved.choice, {scope, revision:sessionApprovals.revision(sessionId), automatic:approved.automatic})
       return approved?.choice || null
     },
-    previous: saved,
-    status: async id => { const record = await getImageGenerationService().getRecord(id); if (!record || record.source?.sessionId !== sessionId) throw new Error(ft("Image not found in this chat")); return { recordId: record.id, status: record.status, count: record.generatedImages.length, error: record.error } },
+    previous: async callId=>{
+      const prior=await saved(callId);if(prior)return prior
+      const pending=await latestImage()
+      return pending&&(pending.status==='pending'||pending.status==='generating')?{recordId:pending.id,status:pending.status,message:'This chat already has an image generation in progress. Wait for its completion; do not start another paid request.'}:null
+    },
+    status: async id => { const record = await getImageGenerationService().getRecord(id); if (!record || record.source?.sessionId !== sessionId) throw new Error(ft("Image not found in this chat")); return { recordId: record.id, status: record.status, count: record.generatedImages.length, error: record.error,files:record.generatedImages.map((key,index)=>({id:'image:'+record.id+':'+key,path:'images/'+record.id+'/'+(index+1)+'.png'})) } },
     generate: async (choice, toolCallId) => {
       const authorization = authorizations.get(choice)
       if (!authorization || authorization.scope !== syncSessionApprovalScope(sessionId) || (authorization.automatic && authorization.revision !== sessionApprovals.revision(sessionId))) throw new Error('This chat approval was revoked. Review the request again.')
@@ -60,6 +78,10 @@ export function veniceChatTools(sessionId: string) {
   }, options)
   const scopedMedia=new Proxy(veniceMediaService,{get(target,key){const fn=Reflect.get(target,key);if(typeof fn!=='function')return fn;return async(...args:any[])=>{const access=installedVaultFor(platform)?.projects;await access?.assertSession(sessionId);if(key==='start')args[0]={...args[0],protection:await access?.sessionScope(sessionId)||undefined};return fn.apply(target,args)}}})
   const mediaTools = buildVeniceMediaTools(sessionId, scopedMedia, options, async (message, request) => {
+    if(request?.action==='generate'){
+      const latest=(await veniceMediaService.list()).filter(record=>record.sessionId===sessionId&&record.kind===request.kind).sort((a,b)=>b.createdAt-a.createdAt)[0]
+      if(latest?.status==='error'&&!await retryGate.allow(sessionId+':'+turnId,{id:latest.id,kind:latest.kind,model:latest.model,error:latest.error||''},value=>requestGenerationRetry(value,request.signal)))return false
+    }
     const scope = syncSessionApprovalScope(sessionId)
     const descriptor = request?.action === 'generate' ? {tool:'venice_media', kind:request.kind!, model:request.model!, options:request.options || {}} : undefined
     if (descriptor && sessionApprovals.allows(sessionId, descriptor)) return true

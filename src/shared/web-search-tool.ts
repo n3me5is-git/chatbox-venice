@@ -12,13 +12,13 @@ export function createConfiguredWebSearchTools(
   if (settings.provider !== 'venice' || settings.veniceSearchToolMode !== 'separate') {
     return { web_search: createWebSearchTool(executor) }
   }
-  return Object.fromEntries(VENICE_SEARCH_ENGINES.map(engine => {
+  const tools: ToolSet = {}
+  for (const engine of VENICE_SEARCH_ENGINES) {
     const definition = createWebSearchTool((query, signal) => executor(query, signal, engine))
-    return [`web_search_${engine}`, {
-      ...definition,
-      description: `Search the web through Venice using ${engine === 'exa' ? 'Exa' : engine === 'brave' ? 'Brave' : 'Google'}. Use this tool when this engine is requested or suitable. Do not repeat a completed or failed query. ${definition.description}`,
-    }]
-  }))
+    definition.description = `Search the web through Venice using ${engine === 'exa' ? 'Exa' : engine === 'brave' ? 'Brave' : 'Google'}. Use this tool when this engine is requested or suitable. Do not repeat a completed or failed query. ${definition.description}`
+    tools[`web_search_${engine}`] = definition
+  }
+  return tools
 }
 
 // The web_search tool definition shared between the renderer

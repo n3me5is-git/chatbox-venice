@@ -535,15 +535,17 @@ When you create a Git commit that includes code changes, append this exact trail
   // protocol; chat-completions style protocols also use it to inject real user image parts.
   let prepareStepMessages: BuildToolsResult['prepareStepMessages']
   let imageResults: ImageToolResults | undefined
-  const includeViewImageTool = includeAgentTools && model.isSupportVision() && isViewImageAvailable()
+  const includeViewImageTool = includeAgentTools && model.isSupportVision()
   if (includeViewImageTool) {
     const viewImageToolSet = buildViewImageToolSet({
       sessionId: options.sessionId ?? codeExecution?.sessionId,
       provider: codeExecution?.provider,
       toolResultImages: supportsToolResultImages(model.apiStyle),
     })
-    instructions += viewImageToolSet.description
-    tools = { ...tools, ...viewImageToolSet.tools }
+    if (isViewImageAvailable()) {
+      instructions += viewImageToolSet.description
+      tools = { ...tools, ...viewImageToolSet.tools }
+    }
     if (tools.read_file) tools.read_file = withImageFileReading(tools.read_file, viewImageToolSet)
     prepareStepMessages = viewImageToolSet.injectImagesIntoStepMessages
     imageResults = viewImageToolSet.imageResults
@@ -650,13 +652,16 @@ When you create a Git commit that includes code changes, append this exact trail
 
   if (includeAgentTools && model.name === 'Venice' && options.sessionId && settingsStore.getState().providers?.venice?.venice?.chatToolsEnabled !== false && settingsStore.getState().providers?.venice?.venice?.enabled !== false) {
     const { veniceChatTools } = await import('@/packages/venice/tools')
-    tools = { ...tools, ...veniceChatTools(options.sessionId) }
+    tools = { ...tools, ...veniceChatTools(options.sessionId,messages.filter(message=>message.role==='user').at(-1)?.id||'empty') }
     instructions += '\nUse venice_image for Venice image generation/editing. Resolve an explicitly requested model name with its live catalog; do not substitute another model. The tool enforces the human-selected chat approval policy: ask by default, remember similar requests, or explicitly automatic. A dialog resolves model ambiguity, required references and per-call options. Only the human can change that policy in the app. Use venice_media for other Venice media. Do not install an external server or use chatbox_cli to bypass these native tools.\n'
   }
 
   if(includeAgentTools&&options.sessionId){
+    const {createAskUserTool}=await import('@shared/user-questions')
+    const {requestUserAnswers}=await import('@/components/agent/UserQuestion')
+    tools.ask_user=createAskUserTool(requestUserAnswers)
     const {buildSessionWorkspaceTools,sessionWorkspaceInstructions}=await import('@/packages/session-resources/tools')
-    const workspaceTools=await buildSessionWorkspaceTools(options.sessionId)
+    const workspaceTools=await buildSessionWorkspaceTools(options.sessionId,imageResults)
     tools={...tools,...workspaceTools}
     if(Object.keys(workspaceTools).length)instructions+='\n'+sessionWorkspaceInstructions+'\n'
   }

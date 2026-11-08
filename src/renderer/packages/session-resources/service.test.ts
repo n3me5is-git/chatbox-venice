@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { rowChatFixture } from '../../../../packages/chatbox-core/src/application/chat/testing/row-chat-fixture'
 import type { Message, Session } from '@shared/types'
 import { sessionFilePath } from '@shared/session-resources'
+import { SessionRowConflictError } from '@chatbox/core/ports'
 
 const state=vi.hoisted(()=>({rows:undefined as any,index:{files:[],removed:[],version:1} as any,locked:false,images:[] as any[],media:[] as any[],blob:vi.fn(),remove:vi.fn(),deleteImage:vi.fn(),assert:vi.fn()}))
 vi.mock('@/platform',()=>({default:{type:'desktop',getSessionRowStore:()=>state.rows,getImageGenerationStorage:()=>({initialize:async()=>{},getPage:async()=>({items:state.images,nextCursor:null})}),sessionDiskFiles:async()=>({success:true,files:[]})}}))
@@ -40,6 +41,26 @@ it('prefers the canonical generated image and tombstones all alternate chat refe
   expect(state.deleteImage).toHaveBeenCalledWith('generation','picture:generated')
   expect((await listSessionResources('chat')).items.map(item=>item.key)).toEqual(['picture:sibling'])
   await expect(readSessionResource('chat',{...image,origin:'attachment',id:'blob:picture:generated'})).rejects.toThrow('deleted')
+})
+it('retries an interleaving row revision instead of hiding the explorer',async()=>{
+  const rows=await prepare({id:'chat',name:'Chat',messages:[message('one',[{type:'image',storageKey:'picture:saved'}])]})
+  const read=rows.readMessages.bind(rows)
+  const calls=vi.spyOn(rows,'readMessages').mockRejectedValueOnce(new SessionRowConflictError('chat',1,2)).mockImplementation(read)
+  expect((await listSessionResources('chat')).items.map(item=>item.key)).toContain('picture:saved')
+  expect(calls).toHaveBeenCalledTimes(2)
+})
+it('keeps durable files and generated images available while the transcript changes continuously',async()=>{
+  const rows=await prepare({id:'chat',name:'Chat',messages:[message('streaming')]})
+  vi.spyOn(rows,'readMessageRelationsPage').mockRejectedValue(new SessionRowConflictError('chat',1,2))
+  state.index.files=[{id:'local',origin:'file',path:'notes.md',name:'notes.md',mime:'text/markdown',key:'session-file:local'}]
+  state.images=[{id:'generation',source:{sessionId:'chat'},generatedImages:['picture:safe']}]
+  const result=await listSessionResources('chat')
+  expect(result.items.map(item=>item.key).sort()).toEqual(['picture:safe','session-file:local']);expect(result.truncated).toBe(true)
+})
+it('decodes existing raw base64 image blobs as image bytes for local previews and exports',async()=>{
+  state.blob.mockResolvedValueOnce('AAECAw==')
+  const {bytes}=await readSessionResource('chat',{id:'old',origin:'image',path:'images/old.png',name:'old.png',mime:'image/png',key:'picture:legacy'})
+  expect([...bytes]).toEqual([0,1,2,3])
 })
 it('rejects protected/aborted sessions before reading payloads and rechecks access before publishing a list',async()=>{
   const rows=await prepare({id:'chat',name:'Chat',messages:[]})

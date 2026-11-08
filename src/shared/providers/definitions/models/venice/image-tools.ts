@@ -22,7 +22,7 @@ export function buildVeniceImageTools(host: VeniceImageToolHost, settings: () =>
       if (input.action !== 'generate' || !input.prompt?.trim() || (input.count !== undefined && (!Number.isInteger(input.count) || input.count < 1 || input.count > 4))) throw new Error("Provide a prompt and a quantity from 1 to 4")
       const prior = await host.previous(context.toolCallId); if (prior) return prior
       const choice = await host.choose({ modelId: input.model, prompt: input.prompt, count: input.count || 1 }, context.abortSignal)
-      if (!choice) return { cancelled: true }
+      if (!choice) return { cancelled: true, message: 'The user skipped or cancelled this generation. Do not retry or reopen approval without a new user request.' }
       allowed()
       if (!(await host.models()).some(model => model.modelId === choice.modelId)) throw new Error("The selected model is no longer available")
       return host.generate(choice, context.toolCallId)

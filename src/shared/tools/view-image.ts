@@ -17,6 +17,7 @@ const IMAGE_VIEWING_TOOL_NAMES: ReadonlySet<string> = new Set([
   VIEW_IMAGE_TOOL_NAME,
   BUILT_IN_BROWSER_TOOL_NAME,
   READ_FILE_TOOL_NAME,
+  'session_file',
 ])
 
 /** Raster formats read_file returns as visual input. SVG stays text so it can be read and edited as markup. */

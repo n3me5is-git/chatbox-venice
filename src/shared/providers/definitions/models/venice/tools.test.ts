@@ -24,7 +24,7 @@ describe('Venice chat media tools', () => {
   })
   it('requires confirmation for paid generation, carries session scope, and cancels cleanly', async () => {
     const s = setup(); s.confirm.mockResolvedValueOnce(false)
-    expect(await s.call({ action: 'generate', kind: 'speech', model: 'tts', prompt: 'hello' })).toEqual({ cancelled: true }); expect(s.service.start).not.toHaveBeenCalled()
+    expect(await s.call({ action: 'generate', kind: 'speech', model: 'tts', prompt: 'hello' })).toMatchObject({ cancelled: true, message:expect.stringContaining('Do not retry') }); expect(s.service.start).not.toHaveBeenCalled()
     await s.call({ action: 'generate', kind: 'speech', model: 'tts', prompt: 'hello', extra_json: '{"speed":0.8}' })
     expect(s.service.start).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'chat', options: { speed: 0.8 } }))
   })

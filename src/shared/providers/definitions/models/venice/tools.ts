@@ -30,7 +30,7 @@ export function buildVeniceMediaTools(sessionId: string, service: Service, setti
         if (!input.kind || input.kind === 'transcription' || !input.model || (input.action === 'generate' && !input.prompt)) throw new Error('Specify kind, model and prompt')
         const request = { kind: input.kind, model: input.model, prompt: input.prompt || '', options: parseExtraBody(input.extra_json || ''), sessionId, signal: abortSignal }
         if (input.action === 'quote') return service.quote(request)
-        if (!await confirm(`Generate ${input.kind} with Venice (${input.model})?\nThis request may incur a cost and sends this content to Venice:\n\n${request.prompt}\n\nParameters: ${input.extra_json || '{}'}`, { action: 'generate', kind: input.kind, model: input.model, options: request.options, prompt:request.prompt, signal:abortSignal })) return { cancelled: true }
+        if (!await confirm(`Generate ${input.kind} with Venice (${input.model})?\nThis request may incur a cost and sends this content to Venice:\n\n${request.prompt}\n\nParameters: ${input.extra_json || '{}'}`, { action: 'generate', kind: input.kind, model: input.model, options: request.options, prompt:request.prompt, signal:abortSignal })) return { cancelled: true, message: 'The user skipped or cancelled this generation. Do not retry or reopen approval without a new user request.' }
         allowed()
         return summary(await service.start(request))
       }

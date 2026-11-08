@@ -167,7 +167,7 @@ export function isViewImageAvailable(): boolean {
 export interface ImageToolResults {
   reserve: ReturnType<typeof createViewImageBatchBudget>
   /** Stores a model-ready data URL and returns the tool result to persist. `label` names the image to the model. */
-  record(params: { toolCallId: string; label: string; dataUrl: string }): Promise<ViewImageToolResult>
+  record(params: { toolCallId: string; label: string; dataUrl: string; storeImage?: (dataUrl:string)=>Promise<string> }): Promise<ViewImageToolResult>
   /** Model output for a result returned by `record`. */
   toModelOutput(options: { toolCallId: string; output: unknown }): Promise<ToolResultOutput>
 }
@@ -312,10 +312,10 @@ export function buildViewImageToolSet(context: ViewImageContext): ViewImageToolS
     return image
   }
 
-  const recordImageResult: ImageToolResults['record'] = async ({ toolCallId, label, dataUrl }) => {
+  const recordImageResult: ImageToolResults['record'] = async ({ toolCallId, label, dataUrl, storeImage }) => {
     const parsedImage = parseDataUrl(dataUrl)
     if (!parsedImage) throw new Error('Failed to process image into a model-compatible format.')
-    const imageStorageKey = await saveImage(`view-image:${context.sessionId ?? 'session'}`, dataUrl)
+    const imageStorageKey = storeImage ? await storeImage(dataUrl) : await saveImage(`view-image:${context.sessionId ?? 'session'}`, dataUrl)
     const result: ViewImageToolResult = {
       file_path: label,
       image_storage_key: imageStorageKey,

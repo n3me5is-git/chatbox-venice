@@ -3,6 +3,7 @@ import { createDefaultSettings } from '@chatbox/core/domain/settings'
 import { SettingsSchema } from '@shared/types'
 import { speechBinding } from '@shared/speech'
 const state=vi.hoisted(()=>({settings:{} as any,header:vi.fn(),project:vi.fn(),sessionSettings:vi.fn(),request:vi.fn()}))
+vi.mock('@shared/defaults',async()=>{const {ModelProviderType}=await import('@shared/types');return {SystemProviders:()=>[{id:'venice',type:ModelProviderType.OpenAI,defaultSettings:{apiHost:'https://api.venice.ai/api/v1'}}]}})
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>state.settings})}}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{getSessionHeader:state.header}}}))
 vi.mock('@/stores/session/session-settings',()=>({getSessionSettings:state.sessionSettings}))

@@ -1514,6 +1514,12 @@ Object.assign(forkEnglish,Object.fromEntries(Object.keys(speechExportItalian).ma
 Object.assign(forkTranslations['it-IT'],speechExportItalian)
 
 const globalSearchItalian:Record<string,string>={
+  'Question for you':'Domanda per te','Your answer':'La tua risposta','Send answers':'Invia risposte',
+  'Your answers are shared with the model in this chat.':'Le risposte vengono condivise con il modello di questa chat.',
+  'You can choose an option, write your own answer, or do both.':'Puoi scegliere un’opzione, scrivere una risposta personale o fare entrambe le cose.',
+  'The previous generation failed':'La generazione precedente è fallita','The provider did not supply an error reason.':'Il provider non ha indicato il motivo dell’errore.',
+  'Generation needs attention':'Problema con la generazione','Retry generation':'Riprova la generazione','Skip generation':'Salta la generazione',
+  'Retry starts a new generation and may incur another charge. Skipping stops further retry prompts for this failed job until you send a new message.':'Riprovare avvia una nuova generazione e può comportare un altro addebito. Saltando, non compariranno altre richieste per questa generazione fallita finché non invii un nuovo messaggio.',
   'Microphone access was denied. Check the app or browser microphone permission and the device microphone privacy switch, then try again.':'Accesso al microfono negato. Controlla il permesso del microfono per l’app o il browser e l’interruttore privacy del microfono del dispositivo, poi riprova.',
   'Give the model separate Brave, Google and Exa search tools through Venice. This applies to Chatbox web search independently of Venice model search.':'Rendi disponibili al modello strumenti distinti per Brave, Google ed Exa tramite Venice. Questa scelta riguarda la ricerca web di Chatbox ed è indipendente dalla ricerca del modello Venice.',
   'Brave, Google and Exa are available as separate tools. The selected engine remains the default for search checks and clients using a single search action.':'Brave, Google ed Exa sono disponibili come strumenti distinti. Il motore selezionato resta quello predefinito per le verifiche di ricerca e i client che usano una singola azione di ricerca.',
