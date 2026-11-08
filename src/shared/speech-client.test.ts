@@ -1,11 +1,12 @@
 import { expect,it,vi } from 'vitest'
 import { SettingsSchema } from '@chatbox/core/domain/settings/settings-schema'
+import { createDefaultSettings } from '@chatbox/core/domain/settings'
 import { SpeechClient,speechBase,MAX_SPEECH_BYTES } from './speech-client'
 import { speechBinding,type SpeechPrivacy } from './speech'
 async function fixture(privacy:SpeechPrivacy='private',metadata:Record<string,unknown>|undefined={privacy:'private',voices:['sky'],default_voice:'sky',supported_formats:['pcm','mp3']}){
   const provider={id:'venice',apiHost:'https://api.venice.ai/api/v1',apiKey:'TEST_ONLY_KEY',enabled:true,audioEnabled:true}
   const binding=await speechBinding(provider.id,speechBase(provider.apiHost),provider.apiKey)
-  const settings=SettingsSchema.parse({defaultASRModel:{provider:'venice',model:'asr-test'},defaultTTSModel:{provider:'venice',model:'tts-test'},speechCatalog:['asr','tts'].map(kind=>({provider:'venice',model:kind+'-test',kind,name:kind,binding,metadata}))})
+  const settings=SettingsSchema.parse({...createDefaultSettings(),defaultASRModel:{provider:'venice',model:'asr-test'},defaultTTSModel:{provider:'venice',model:'tts-test'},speechCatalog:['asr','tts'].map(kind=>({provider:'venice',model:kind+'-test',kind,name:kind,binding,metadata}))})
   const request=vi.fn(async(_options:any)=>new Response(new Uint8Array([1,2,3]),{headers:{'content-type':'audio/mpeg'}})),access=vi.fn(async()=>{})
   const client=new SpeechClient({settings:()=>settings,provider:()=>provider,privacy:async()=>privacy,assertAccess:access,request})
   return {client,settings,provider,request,access}

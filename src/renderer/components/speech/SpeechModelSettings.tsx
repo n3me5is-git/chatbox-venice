@@ -10,6 +10,7 @@ import { VeniceModelBadges } from '@/components/venice/VeniceModelBadges'
 export function SpeechModelSettings({kind}:{kind:SpeechKind}){
   useTranslation();const settings=useSettingsStore(state=>state),selection=speechSelection(settings,kind)
   const [provider,setProvider]=useState(selection?.provider||''),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  useEffect(()=>{if(selection?.provider)setProvider(selection.provider)},[selection?.provider])
   const controller=useRef<AbortController>();useEffect(()=>()=>controller.current?.abort(),[])
   const providers=speechProviders(),models=(settings.speechCatalog??[]).filter(item=>item.provider===provider&&item.kind===kind),model=models.find(item=>item.model===selection?.model),spec=model?.metadata
   const choose=(modelId:string|null)=>{const state=settingsStore.getState();state.setSettings({[kind==='asr'?'defaultASRModel':'defaultTTSModel']:modelId?{provider,model:modelId}:undefined,...(kind==='tts'?{speechOptions:{...state.speechOptions,voice:undefined,speed:undefined}}:{})})}

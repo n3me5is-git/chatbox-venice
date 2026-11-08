@@ -1742,7 +1742,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
                 onPaste={onPaste}
               />
 
-              {sessionType!=='picture'&&<SpeechMicrophone context={{sessionId,selected:model}} disabled={submitAvailability.blockReason!==undefined&&!compactionQueable} onText={text=>{messageInputFieldRef.current?.setValue(previous=>previous+(previous&&!/\s$/.test(previous)?'\n':'')+text);messageInputFieldRef.current?.getElement()?.focus()}}/>}
+              <SpeechMicrophone context={{sessionId,selected:model}} disabled={submitAvailability.blockReason!==undefined&&!compactionQueable} onText={text=>{messageInputFieldRef.current?.setValue(previous=>previous+(previous&&!/\s$/.test(previous)?'\n':'')+text);messageInputFieldRef.current?.getElement()?.focus()}}/>
               <Tooltip
                 // `n` rather than `count`, so i18next does not engage plural resolution for a
                 // label that is only ever shown for more than one reply.

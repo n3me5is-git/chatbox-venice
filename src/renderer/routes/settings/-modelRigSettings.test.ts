@@ -129,6 +129,8 @@ describe('model rig slot settings', () => {
       ocrModel: undefined,
       defaultEmbeddingModel: undefined,
       defaultRerankModel: undefined,
+      defaultASRModel: undefined,
+      defaultTTSModel: undefined,
     })
     expect(applyAllPresetsExtension(current).webSearch.provider).toBe('build-in')
     expect(applyAllPresetsExtension(current).documentParser?.type).toBe('chatbox-ai')

@@ -44,18 +44,18 @@ export async function standaloneMarkdown(element:HTMLElement,title:string,headin
   await waitForMarkdownPreview(element,signal)
   const fetcher=options.fetcher??fetch,copy=element.cloneNode(true) as HTMLElement
   copy.querySelectorAll('script,iframe,object,embed,style,link,base,form,button,textarea,select').forEach(node=>node.remove())
-  for(const node of [copy,...copy.querySelectorAll('*')])for(const attribute of [...node.attributes]){
+  for(const node of [copy,...Array.from(copy.querySelectorAll('*'))])for(const attribute of Array.from(node.attributes)){
     if(/^on/i.test(attribute.name)||['srcset','formaction','action','contenteditable','data-export-pending'].includes(attribute.name))node.removeAttribute(attribute.name)
   }
   let images=0,total=0
-  for(const image of copy.querySelectorAll('img')){
+  for(const image of Array.from(copy.querySelectorAll('img'))){
     signal.throwIfAborted();if(++images>64)throw Error('The standalone document exceeds the export size limit')
     const src=image.getAttribute('src')||''
     if(!/^(?:blob:|data:image\/(?:png|jpeg|gif|webp|svg\+xml);base64,|https?:\/\/)/i.test(src))throw Error('Unexpected document image location')
     const {bytes,mime}=await fetchBytes(src,2*1024*1024,signal,fetcher)
     try{total+=bytes.length;if(total>20*1024*1024)throw Error('The standalone document exceeds the export size limit');if(!/^image\/(?:png|jpeg|gif|webp|svg\+xml)$/i.test(mime))throw Error('Unexpected document image type');image.src=dataURL(bytes,mime);image.removeAttribute('loading')}finally{bytes.fill(0)}
   }
-  for(const link of copy.querySelectorAll('a')){
+  for(const link of Array.from(copy.querySelectorAll('a'))){
     const href=link.getAttribute('href')||''
     if(href.startsWith('#')){let slug=href.slice(1);try{slug=decodeURIComponent(slug)}catch{}const heading=headings.find(item=>item.slug===slug||item.id===slug);if(heading)link.setAttribute('href','#'+heading.id)}
     else if(!/^https?:\/\//i.test(href))link.removeAttribute('href')

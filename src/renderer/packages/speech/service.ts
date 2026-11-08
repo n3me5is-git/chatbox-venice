@@ -11,7 +11,7 @@ import platform from '@/platform'
 
 export function speechProviders(){
   const settings=settingsStore.getState().getSettings()
-  return [...SystemProviders(),...(settings.customProviders??[])].filter(provider=>provider.type===ModelProviderType.OpenAI&&provider.id!=='chatbox-ai'&&(settings.providers?.[provider.id]?.apiKey||provider.isCustom)&&!(provider.id==='venice'&&settings.providers?.venice?.venice?.enabled===false))
+  return [...SystemProviders(),...(settings.customProviders??[])].filter(provider=>provider.type===ModelProviderType.OpenAI&&(['venice','openai','groq'].includes(provider.id)||provider.isCustom)&&(settings.providers?.[provider.id]?.apiKey||provider.isCustom)&&!(provider.id==='venice'&&settings.providers?.venice?.venice?.enabled===false))
 }
 async function assertAccess(context:SpeechContext){
   if(!context.sessionId)return
@@ -22,7 +22,7 @@ export const speechClient=new SpeechClient({
   settings:()=>settingsStore.getState().getSettings(),
   provider:id=>{
     const settings=settingsStore.getState().getSettings(),definition=[...SystemProviders(),...(settings.customProviders??[])].find(provider=>provider.id===id)
-    if(!definition||definition.type!==ModelProviderType.OpenAI||id==='chatbox-ai')throw new SpeechError('Choose an OpenAI-compatible speech provider')
+    if(!definition||definition.type!==ModelProviderType.OpenAI||!(['venice','openai','groq'].includes(id)||definition.isCustom))throw new SpeechError('Choose an OpenAI-compatible speech provider')
     const saved=settings.providers?.[id]
     return {id,apiHost:saved?.apiHost||definition.defaultSettings?.apiHost||'',apiKey:saved?.apiKey||'',enabled:id!=='venice'||saved?.venice?.enabled!==false,audioEnabled:id!=='venice'||saved?.venice?.audioEnabled===true}
   },

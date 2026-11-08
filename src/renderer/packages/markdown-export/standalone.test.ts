@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { expect,it,vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { standaloneMarkdown,mathFontData } from './standalone'
 const headings=[{id:'section-1',slug:'title',title:'Title',level:1},{id:'section-5',slug:'details',title:'Details',level:2}]
 it('bundles math fonts for offline desktop/mobile exports without file or network fetches',async()=>{
   expect(Object.keys(mathFontData).length).toBeGreaterThan(10)
   const article=document.createElement('article');article.innerHTML='<span class="katex">Formula</span>';const fetcher=vi.fn()
-  const html=await standaloneMarkdown(article,'Formula',[],new AbortController().signal,{fetcher})
+  const fontCSS=readFileSync(createRequire(import.meta.url).resolve('katex/dist/katex.min.css'),'utf8')
+  const html=await standaloneMarkdown(article,'Formula',[],new AbortController().signal,{fetcher,fontCSS})
   expect(html).toContain('base64,');expect(html).not.toContain('url(fonts/');expect(fetcher).not.toHaveBeenCalled()
 })
 it('creates one offline HTML document with embedded images, KaTeX fonts, TOC and working heading links',async()=>{
