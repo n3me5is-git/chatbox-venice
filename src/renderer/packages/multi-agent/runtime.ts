@@ -112,6 +112,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     const messages = await convertToModelMessages([createMessage('system', system), ...history, user], { modelSupportVision: model.isSupportVision() })
     let pending: Promise<unknown> = Promise.resolve(), last = 0
     try {
+      await multiAgentRuntime.check(caller); signal.throwIfAborted()
       const output = await model.chat(messages, { sessionId: run.sessionId, agentMode: true, tools, signal, maxSteps: 30,
         prepareStep: images?.injectImagesIntoStepMessages ? async step => ({ messages: await images.injectImagesIntoStepMessages!(step.messages) }) : undefined,
         providerOptions: settings.providerOptionsByModel?.[settings.provider + ':' + settings.modelId],

@@ -99,6 +99,15 @@ describe('multi-agent authority and privacy boundaries', () => {
     await f.runtime.cancelTree(b.id); expect(b.status).toBe('cancelled')
     f.held.get(a.id)!('done'); await vi.waitFor(() => expect(a.status).toBe('completed')); expect(f.host.execute).toHaveBeenCalledTimes(1)
   })
+  it('rechecks a queued dedicated agent permission before disclosing its task to the worker model', async () => {
+    const f = fixture(1), parent = await f.runtime.spawn(f.caller,task)
+    await vi.waitFor(()=>expect(f.held.has(parent.id)).toBe(true))
+    const queued = await f.runtime.spawn(f.caller,{...task,dedicatedId:'dedicated'})
+    expect(queued.status).toBe('queued')
+    f.policy.dedicatedIds=[];f.held.get(parent.id)!('done')
+    await vi.waitFor(()=>expect(queued.status).toBe('failed'))
+    expect(queued.error).toContain('revoked');expect(f.host.execute).toHaveBeenCalledTimes(1)
+  })
   it('yields a waiting parent slot so nested execution does not deadlock at concurrency one', async () => {
     const f = fixture(1), parent = await f.runtime.spawn(f.caller, task)
     await vi.waitFor(() => expect(f.held.has(parent.id)).toBe(true))

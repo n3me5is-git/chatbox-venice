@@ -124,6 +124,7 @@ export class MultiAgentRuntime {
     try {
       await this.host.assertRoot(run.rootId); controller.signal.throwIfAborted()
       await this.set(run, { status: 'running', error: undefined })
+      await this.authorize(this.caller(run)); controller.signal.throwIfAborted()
       await this.host.execute(run, task, controller.signal)
       controller.signal.throwIfAborted()
       await this.set(run, { status: 'completed' })
