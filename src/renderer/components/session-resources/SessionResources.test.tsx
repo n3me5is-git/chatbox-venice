@@ -47,5 +47,5 @@ it('opens text attachments as editable copies without changing the original atta
   const api=fixture([{id:'attachment',path:'attachments/report.md',name:'report.md',mime:'text/markdown',origin:'attachment',bytes:10}])
   fireEvent.click(await screen.findByRole('button',{name:/^report.md/}));await screen.findByRole('heading',{name:'Notes'})
   fireEvent.click(screen.getByRole('button',{name:'Edit a copy'}));fireEvent.change(screen.getByRole('textbox',{name:'File content'}),{target:{value:'# Edited attachment'}})
-  fireEvent.click(screen.getByRole('button',{name:'Save editable copy'}));await waitFor(()=>expect(api.create).toHaveBeenCalledWith('session-one',expect.stringMatching(/^edits\/.+-report\.md$/),expect.any(Uint8Array),'text/markdown'));expect(api.save).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button',{name:'Save editable copy'}));await waitFor(()=>expect(api.create).toHaveBeenCalledTimes(1));const [id,path,bytes,mime]=api.create.mock.calls[0] as unknown as [string,string,Uint8Array,string];expect(id).toBe('session-one');expect(path).toMatch(/^edits\/.+-report\.md$/);expect(new TextDecoder().decode(bytes)).toBe('# Edited attachment');expect(mime).toBe('text/markdown');expect(api.save).not.toHaveBeenCalled()
 })
