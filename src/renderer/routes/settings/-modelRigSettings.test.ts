@@ -158,7 +158,7 @@ describe('model rig slot tests', () => {
       searchWeb: async () => undefined,
     })
     expect(result.status).toBe('fail')
-    expect(result.error).toMatch(/not available/i)
+    expect(result.error).toMatch(/speech model/i)
   })
 
   test('fast helper auto mode passes without a network ping', async () => {

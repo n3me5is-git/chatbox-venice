@@ -21,5 +21,5 @@ export function LocalMermaid({source}:{source:string}){
     queue=job;void job.catch(()=>active&&setError(true))
     return()=>{active=false;if(owned)URL.revokeObjectURL(owned)}
   },[source,theme])
-  return url?<img src={url} alt={ft('Mermaid diagram')} style={{maxWidth:'100%',height:'auto'}}/>:error?<pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{source}</pre>:<span>{ft('Rendering diagram')}</span>
+  return url?<img src={url} alt={ft('Mermaid diagram')} style={{maxWidth:'100%',height:'auto'}}/>:error?<pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{source}</pre>:<span data-export-pending="true">{ft('Rendering diagram')}</span>
 }

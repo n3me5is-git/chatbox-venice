@@ -22,7 +22,7 @@ export type ModelRef = { provider: string; model: string }
 
 export type PictureRef = { provider: string; modelId: string }
 
-export const FUTURE_SLOT_IDS: ReadonlySet<ModelRigSlotId> = new Set(['asr', 'tts'])
+export const FUTURE_SLOT_IDS: ReadonlySet<ModelRigSlotId> = new Set()
 
 export const MODEL_SLOTS = ['llm', 'fast', 'ocr', 'embedding', 'rerank'] as const
 export type ModelSlotId = (typeof MODEL_SLOTS)[number]
@@ -128,6 +128,8 @@ export function applyAllPresetsSettings(): Pick<
   | 'ocrModel'
   | 'defaultEmbeddingModel'
   | 'defaultRerankModel'
+  | 'defaultASRModel'
+  | 'defaultTTSModel'
 > {
   return {
     defaultChatModel: undefined,
@@ -136,6 +138,8 @@ export function applyAllPresetsSettings(): Pick<
     ocrModel: undefined,
     defaultEmbeddingModel: undefined,
     defaultRerankModel: undefined,
+    defaultASRModel: undefined,
+    defaultTTSModel: undefined,
   }
 }
 

@@ -574,6 +574,10 @@ export const SettingsSchema = GlobalSessionSettingsSchema.extend({
     .catch(undefined),
   defaultEmbeddingModel: DefaultModelSelectionSchema,
   defaultRerankModel: DefaultModelSelectionSchema,
+  defaultASRModel: DefaultModelSelectionSchema,
+  defaultTTSModel: DefaultModelSelectionSchema,
+  speechOptions: z.object({ voice:z.string().max(256).optional(), speed:z.number().min(0.25).max(4).optional(), language:z.string().max(32).optional() }).optional().catch(undefined),
+  speechCatalog: z.array(z.object({ provider:z.string(), model:z.string(), kind:z.enum(['asr','tts']), name:z.string(), binding:z.string(), metadata:z.record(z.string(),z.unknown()).optional() })).max(2000).optional().catch(undefined),
 
   // chatboxai
   licenseKey: z.string().optional(),

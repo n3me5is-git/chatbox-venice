@@ -63,6 +63,7 @@ import {
 } from './-modelRigSettings'
 import { runSlotTest, type SlotTestStatus } from './-modelRigTest'
 import { modelEndpointLocation } from './-modelSource'
+import { SpeechModelSettings } from '@/components/speech/SpeechModelSettings'
 
 export const Route = createFileRoute('/settings/default-models')({
   component: RouteComponent,
@@ -83,6 +84,7 @@ const GROUPS: { title: string; hint: string; slotIds: ModelRigSlotId[] }[] = [
     slotIds: ['embedding', 'rerank', 'search'],
   },
   { title: 'Image creation', hint: 'Choose the model used in Image Creator.', slotIds: ['image'] },
+  { title: 'Speech recognition & speech synthesis', hint: 'Use global speech models for dictation and reading replies on demand.', slotIds: ['asr','tts'] },
 ]
 
 const SLOT_COPY: Record<ModelRigSlotId, { name: string; desc: string }> = {
@@ -391,14 +393,6 @@ export function RouteComponent() {
           })}
         </Stack>
       ))}
-      <Stack gap="xs" pt="sm" className="border-0 border-t border-solid border-chatbox-border-primary">
-        <Text size="sm" fw={500}>
-          {t('Speech recognition & speech synthesis')}
-        </Text>
-        <Text size="xs" c="chatbox-tertiary">
-          {t('Not available yet. No setup is needed.')}
-        </Text>
-      </Stack>
       <Button
         variant="subtle"
         color="gray"
@@ -487,7 +481,7 @@ function SlotCard(props: {
         </Stack>
       </Flex>
 
-      <Flex align="center" gap="xs" wrap="wrap">
+      {props.slotId==='asr'||props.slotId==='tts'?<SpeechModelSettings kind={props.slotId}/>:<Flex align="center" gap="xs" wrap="wrap">
         <fieldset className="w-full sm:w-[320px] min-w-0 m-0 p-0 border-0 [&>button]:w-full" disabled={props.running}>
           <SlotSelector {...props} selection={selection} autoText={autoText} modelText={modelText} />
         </fieldset>
@@ -501,7 +495,7 @@ function SlotCard(props: {
           {t(isConnectionCheck(props.slotId, selection, props.parser) ? 'Test connection' : 'Check configuration')}
         </Button>
         <SlotStatus result={props.result} connection={isConnectionCheck(props.slotId, selection, props.parser)} />
-      </Flex>
+      </Flex>}
 
       <Text size="xs" c="chatbox-tertiary">
         {t(
@@ -757,6 +751,7 @@ function sourceForSlot(
   settings: ReturnType<typeof settingsStore.getState>,
   parser: DocumentParserType
 ) {
+  if(slotId==='asr'||slotId==='tts')return 'Speech requests use the explicitly selected global model. No automatic fallback is used.'
   if (slotId === 'parser')
     return parser === 'mineru'
       ? 'Remote service'

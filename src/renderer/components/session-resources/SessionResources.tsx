@@ -20,6 +20,7 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
   const [items,setItems]=useState<SessionResource[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[truncated,setTruncated]=useState(false)
   const [selected,setSelected]=useState<SessionResource>(),[text,setText]=useState(''),[url,setUrl]=useState(''),[opening,setOpening]=useState(false),[editing,setEditing]=useState(false),[draft,setDraft]=useState('')
   const [busy,setBusy]=useState(false),[deleting,setDeleting]=useState<SessionResource>(),[creating,setCreating]=useState(false),[newPath,setNewPath]=useState('notes.md')
+  const [readable,setReadable]=useState(false)
   const [toolsEnabled,setToolsEnabled]=useState(true),[executing,setExecuting]=useState(false),[code,setCode]=useState(''),[inputPaths,setInputPaths]=useState<string[]>([]),[result,setResult]=useState('')
   const executionAbort=useRef<AbortController>()
   const [pythonEnabled,setPythonEnabled]=useState(false),[pythonReady,setPythonReady]=useState(false),[codeLanguage,setCodeLanguage]=useState<'javascript'|'python'>('javascript')
@@ -36,11 +37,12 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
   useEffect(()=>()=>executionAbort.current?.abort(),[sessionId])
   useEffect(()=>{
     if(!selected)return
-    let active=true,owned='';setText('');setUrl('');setOpening(true);setEditing(false)
+    let active=true,owned='';setText('');setUrl('');setOpening(true);setReadable(false);setEditing(false)
     void api.read(sessionId,selected).then(({bytes})=>{
       if(!active)return
       if(isTextResource(selected)){if(bytes.length>MAX_RESOURCE_PREVIEW_BYTES)throw Error('File is too large for text preview');setText(new TextDecoder().decode(bytes))}
       else{owned=URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:selected.mime}));setUrl(owned)}
+      setReadable(true)
     }).catch(reason=>{if(active)setError(String(reason?.message||reason))}).finally(()=>active&&setOpening(false))
     const back=registerBackSurface('session-resource:'+sessionId,clear)
     return()=>{active=false;if(owned)URL.revokeObjectURL(owned);back()}
@@ -70,19 +72,20 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
       <Group wrap="wrap" gap="xs"><Button variant="subtle" leftSection={<IconArrowLeft size={16}/>} onClick={clear}>{ft('All session files')}</Button><Text size="sm" style={{overflowWrap:'anywhere',flex:1}}>{selected.path}</Text></Group>
       <Group gap="xs" wrap="wrap">
         <Button size="xs" variant="light" leftSection={<IconDownload size={14}/>} loading={busy} onClick={()=>void run(()=>api.export(sessionId,selected))}>{ft('Export')}</Button>
-        {isTextResource(selected)&&!selected.readOnly&&(selected.origin==='file'||selected.origin==='workspace')&&<Button size="xs" variant="light" disabled={opening||busy} onClick={()=>{setDraft(text);setEditing(!editing)}}>{editing?ft('Cancel editing'):ft('Edit file')}</Button>}
+        {isTextResource(selected)&&<Button size="xs" variant="light" disabled={opening||busy||!readable} onClick={()=>{setDraft(text);setEditing(!editing)}}>{editing?ft('Cancel editing'):ft(!selected.readOnly&&(selected.origin==='file'||selected.origin==='workspace')?'Edit file':'Edit a copy')}</Button>}
         <Button size="xs" variant="light" disabled={busy||opening} onClick={()=>void run(async()=>{await api.deliver(sessionId,selected);clear()})}>{selected.origin==='file'&&selected.deliverable?ft('Keep as working file'):ft('Save to deliverables')}</Button>
         {/\.(?:m?js|py)$/i.test(selected.name)&&<Button size="xs" variant="light" disabled={busy||opening||!toolsEnabled||selected.name.endsWith('.py')&&(!pythonEnabled||!pythonReady)} onClick={()=>{setCodeLanguage(selected.name.endsWith('.py')?'python':'javascript');setCode(text);setResult('');setInputPaths([]);setExecuting(true)}}>{selected.name.endsWith('.py')?ft('Run Python'):ft('Run JavaScript')}</Button>}
         <ActionIcon size="lg" variant="subtle" color="red" aria-label={ft('Delete resource')} disabled={selected.readOnly} onClick={()=>setDeleting(selected)}><IconTrash size={17}/></ActionIcon>
       </Group>
       {opening?<Loader size="sm"/>:<div style={{flex:1,minHeight:0,overflow:'auto',overscrollBehavior:'contain',touchAction:'pan-y',paddingBottom:16}}>
-        {editing?<Stack><Textarea label={ft('File content')} value={draft} onChange={event=>setDraft(event.currentTarget.value)} minRows={15} autosize maxRows={30} styles={{input:{fontFamily:'monospace'}}}/><Button loading={busy} onClick={()=>void run(async()=>{await api.save(sessionId,selected,draft);setText(draft);setEditing(false)})}>{ft('Save file')}</Button></Stack>
-        :/\.(?:md|markdown)$/i.test(selected.name)?<MarkdownFilePreview source={text} path={selected.path} resolveImage={resolveImage} openFile={openPath} openExternal={url=>void platform.openLink(url)}/>
+        {editing?<Stack><Textarea label={ft('File content')} value={draft} onChange={event=>setDraft(event.currentTarget.value)} minRows={15} autosize maxRows={30} styles={{input:{fontFamily:'monospace'}}}/><Button loading={busy} onClick={()=>void run(async()=>{if(!selected.readOnly&&(selected.origin==='file'||selected.origin==='workspace'))await api.save(sessionId,selected,draft);else{const created=await api.create(sessionId,'edits/'+crypto.randomUUID().slice(0,8)+'-'+selected.name.replace(/[\\/:*?"<>|%\u0000-\u001f]/g,'_'),new TextEncoder().encode(draft),selected.mime);setSelected(created)}setText(draft);setEditing(false)})}>{ft(!selected.readOnly&&(selected.origin==='file'||selected.origin==='workspace')?'Save file':'Save editable copy')}</Button></Stack>
+        :/\.(?:md|markdown)$/i.test(selected.name)&&readable?<MarkdownFilePreview source={text} path={selected.path} resolveImage={resolveImage} openFile={openPath} openExternal={url=>void platform.openLink(url)}/>
         :selected.mime==='text/html'?<iframe title={ft('Local file preview')} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={buildWorkArtifactPreview(text)} style={{width:'100%',height:'65vh',border:0}}/>
         :isTextResource(selected)?<pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',margin:0}}>{text}</pre>
         :selected.mime.startsWith('image/')&&url?<img src={url} alt={selected.name} style={{maxWidth:'100%',height:'auto'}}/>
         :selected.mime.startsWith('audio/')&&url?<audio controls src={url} style={{width:'100%'}}/>
         :selected.mime.startsWith('video/')&&url?<video controls src={url} style={{width:'100%',maxHeight:'60vh'}}/>
+        :selected.mime==='application/pdf'&&platform.isDesktopLike&&url?<iframe title={ft('Local file preview')} src={url} style={{width:'100%',height:'65vh',border:0}}/>
         :<Text c="dimmed">{ft('Export this file to open it in another app.')}</Text>}
       </div>}
     </>:<>

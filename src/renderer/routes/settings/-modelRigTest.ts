@@ -44,7 +44,8 @@ export async function runSlotTest(slotId: ModelRigSlotId, deps: ModelRigTestDeps
     switch (slotId) {
       case 'asr':
       case 'tts':
-        return fail('This feature is not available yet', 'No setup is needed.')
+        {const selected=slotId==='asr'?deps.settings.defaultASRModel:deps.settings.defaultTTSModel
+        return selected&&deps.configuredProviderIds.has(selected.provider)?ok(0):fail('Choose a global speech model in Settings → Default models first','Load speech models')}
       case 'llm':
       case 'fast':
         return await testChatSlot(slotId, deps)

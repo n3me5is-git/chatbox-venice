@@ -51,6 +51,7 @@ import { trackJkClickEvent } from '@/analytics/jk'
 import { JK_EVENTS, JK_PAGE_NAMES } from '@/analytics/jk-events'
 import { rendererApplication } from '@/app/renderer-application'
 import Markdown from '@/components/Markdown'
+import { SpeechReadAloud } from '@/components/speech/SpeechControls'
 import StreamingTextFade from '@/components/StreamingTextFade'
 import { AppTooltip as Tooltip1 } from '@/components/ui/tooltip'
 import { useMessageGenerationStop } from '@/hooks/useGenerationStop'
@@ -1234,6 +1235,7 @@ const _Message: FC<Props> = (props) => {
         {!msg.generating && props.sessionType === 'picture' && msg.role === 'assistant' && (
           <MessageActionIcon icon={IconPhotoPlus} tooltip={t('Generate More Images Below')} onClick={onGenerateMore} />
         )}
+        {msg.role==='assistant'&&msg.contentParts.some(part=>part.type==='text'&&part.text.trim())&&<SpeechReadAloud context={{sessionId}} text={()=>getMessageText(msg)}/>}
         <ActionMenu
           items={actionMenuItems}
           contentTestId={TestId.message.actionMenu}

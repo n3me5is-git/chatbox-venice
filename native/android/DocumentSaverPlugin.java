@@ -40,6 +40,35 @@ public class DocumentSaverPlugin extends Plugin {
         });
     }
     @PluginMethod
+    public void printHtml(PluginCall call) {
+        String html=call.getString("html"),name=call.getString("name","Document");
+        if(html==null || html.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>32*1024*1024){call.reject("The standalone document exceeds the export size limit");return;}
+        getActivity().runOnUiThread(()->{
+            android.webkit.WebView view=new android.webkit.WebView(getActivity());
+            view.getSettings().setJavaScriptEnabled(false);view.getSettings().setDomStorageEnabled(false);view.getSettings().setAllowFileAccess(false);view.getSettings().setAllowContentAccess(false);view.getSettings().setBlockNetworkLoads(true);
+            view.setWebViewClient(new android.webkit.WebViewClient(){
+                private boolean started=false;
+                @Override public boolean shouldOverrideUrlLoading(android.webkit.WebView web,android.webkit.WebResourceRequest request){return true;}
+                @Override public void onPageFinished(android.webkit.WebView web,String url){
+                    if(started)return;started=true;
+                    try{
+                        android.print.PrintManager manager=(android.print.PrintManager)getActivity().getSystemService(android.content.Context.PRINT_SERVICE);
+                        if(manager==null)throw new IllegalStateException("PDF printing is unavailable");
+                        android.print.PrintDocumentAdapter delegate=view.createPrintDocumentAdapter(name);
+                        android.print.PrintDocumentAdapter adapter=new android.print.PrintDocumentAdapter(){
+                            @Override public void onStart(){delegate.onStart();}
+                            @Override public void onLayout(android.print.PrintAttributes oldAttributes,android.print.PrintAttributes newAttributes,android.os.CancellationSignal cancellation,LayoutResultCallback callback,android.os.Bundle extras){delegate.onLayout(oldAttributes,newAttributes,cancellation,callback,extras);}
+                            @Override public void onWrite(android.print.PageRange[] pages,android.os.ParcelFileDescriptor destination,android.os.CancellationSignal cancellation,WriteResultCallback callback){delegate.onWrite(pages,destination,cancellation,callback);}
+                            @Override public void onFinish(){try{delegate.onFinish();}finally{view.stopLoading();view.destroy();}}
+                        };
+                        manager.print(name,adapter,new android.print.PrintAttributes.Builder().setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4).build());call.resolve();
+                    }catch(Exception error){view.destroy();call.reject("Unable to prepare PDF export",error);}
+                }
+            });
+            view.loadDataWithBaseURL(null,html,"text/html","UTF-8",null);
+        });
+    }
+    @PluginMethod
     public void openInChrome(PluginCall call) {
         String url = call.getString("url");
         if (url == null || !"https".equals(Uri.parse(url).getScheme())) { call.reject("Only HTTPS documentation links are allowed"); return; }

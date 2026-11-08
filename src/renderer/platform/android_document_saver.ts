@@ -11,6 +11,7 @@ export interface SaveFileResult {
 }
 
 export interface AndroidDocumentSaverPlugin {
+  printHtml(options:{html:string;name:string}):Promise<void>
   saveFile(options: SaveFileOptions): Promise<SaveFileResult>
 }
 

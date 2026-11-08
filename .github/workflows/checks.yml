@@ -46,6 +46,9 @@ jobs:
       - name: Session resource pagination, branches and deletion
         if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
         run: pnpm exec vitest run src/shared/preview-images.test.ts src/renderer/packages/session-resources/service.test.ts
+      - name: Markdown exports and global speech privacy
+        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        run: pnpm exec vitest run src/shared/speech.test.ts src/shared/speech-client.test.ts src/renderer/packages/markdown-export/standalone.test.ts src/renderer/routes/settings/-modelRigSettings.test.ts src/renderer/routes/settings/-default-models.test.ts
       - name: Full unit test suite (optional)
         if: inputs.test_scope == 'unit'
         run: pnpm test:unit
