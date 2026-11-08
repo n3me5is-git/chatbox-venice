@@ -1,5 +1,7 @@
 # Chatbox Venice
 
+
+La scansione QR in tempo reale e le opzioni di connessione sono descritte nella [guida di accoppiamento](docs/collaboration-troubleshooting.md).
 Fork di Chatbox Community Edition con dati locali, parametri vendor per modello e supporto Venice.
 
 - [Download e changelog delle release](https://github.com/n3me5is-git/chatbox-venice/releases)

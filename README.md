@@ -1,5 +1,7 @@
 # Chatbox Venice
 
+
+Live camera QR scanning and connection troubleshooting are described in the [pairing guide](docs/collaboration-troubleshooting.md).
 A local-first fork of [Chatbox Community Edition](https://github.com/chatboxai/chatbox), focused on Venice and configurable vendor APIs. GPL-3.0.
 
 [Downloads and release notes](https://github.com/n3me5is-git/chatbox-venice/releases) · [Builds and logs](https://github.com/n3me5is-git/chatbox-venice/actions) · [Italiano](README.it.md)
