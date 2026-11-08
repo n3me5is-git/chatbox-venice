@@ -73,6 +73,7 @@ async function guardContent(boundary: AgentBoundary, vision: boolean) {
 }
 export const multiAgentRuntime = new MultiAgentRuntime({
   policy: rootPolicy, assertRoot,
+  async assertCaller(caller) { if (caller.depth === 0 && grants.get(caller.rootId)?.caller !== caller) throw Error('This orchestrator grant was replaced. Start a new request.') },
   preset: async id => (await listDedicatedAgents()).find(agent => agent.id === id || agent.name === id),
   async create(run, isolated, workspaceId) {
     const parent = (await rendererApplication.sessions.getSessionHeader(run.rootId))?.header
@@ -186,13 +187,14 @@ export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: To
     acquiringExternal.set(grant.sessionId, pending)
     try { return await pending } finally { if (acquiringExternal.get(grant.sessionId) === pending) acquiringExternal.delete(grant.sessionId) }
   }
-  return createLocalMCPAgentTools(grant, multiAgentRuntime, { acquire, assert, catalog: listDedicatedAgents, readResult })
+  return createLocalMCPAgentTools(grant, multiAgentRuntime, { acquire, assert: async () => { const current = grants.get(grant.sessionId)?.external; if (!current || current.key !== grant.token) throw Error('Local MCP agent access was revoked'); await current.assert() }, catalog: listDedicatedAgents, readResult })
 }
 export async function revokeExternalAgents(key: string) {
   for (const [rootId, grant] of grants) if (grant.external?.key === key) { grants.delete(rootId); await multiAgentRuntime.stopRoot(rootId) }
 }
 export async function buildMultiAgentTools(rootId: string, settings: SessionSettings, tools: ToolSet, messages: Message[]) {
-  if (grants.get(rootId)?.external) throw Error('Stop MCP sharing before starting app-managed agents in this Work chat')
+  const assertAppControl = () => { if (grants.get(rootId)?.external || acquiringExternal.has(rootId)) throw Error('Stop MCP sharing before starting app-managed agents in this Work chat') }
+  assertAppControl()
   const policy = MultiAgentPolicySchema.parse(settings.multiAgent || {})
   const user = messages.filter(message => message.role === 'user' && !message.backgroundTask).at(-1)
   const text = user?.contentParts.filter(part => part.type === 'text').map(part => part.text).join('\n') || ''
@@ -204,6 +206,7 @@ export async function buildMultiAgentTools(rootId: string, settings: SessionSett
   const effective = { ...policy, enabled: true, dedicatedIds: [...new Set([...policy.dedicatedIds, ...tagged.map(agent => agent.id)])], ...(!policy.enabled ? { nestedDedicatedIds: [] } : {}) }
   const settingsSnapshot = settings.provider && settings.modelId ? settings : await getSessionSettings(rootId)
   const caller: AgentCaller = { id: rootId, rootId, workspaceId: rootId, depth: 0, model: { provider: settingsSnapshot.provider!, modelId: settingsSnapshot.modelId! }, tools: Object.keys(tools).filter(name => dedicatedToolOptions().includes(name)), allowOnDemand: effective.allowOnDemand, dedicatedIds: effective.dedicatedIds }
+  assertAppControl()
   grants.set(rootId, { caller, settings: settingsSnapshot, requester: collaborationRequester(messages).id, policyFingerprint: JSON.stringify(settings.multiAgent || null), ...(!policy.enabled || tagged.length ? { explicit: effective } : {}) })
   multiAgentRuntime.reopen(rootId); await loadAgentRuns(rootId)
   return { tools: agentTools(caller), instructions: '\n## Delegation\nMulti-agent tools are enabled. Use them when the user requests parallel work or it helps a complex task. On-demand workers share this model and session file workspace. Dedicated workers receive only explicitly passed context and files. Respect guardian blocks; never encode, rename, split or reroute data to evade them. Available dedicated agents:\n' + agents.filter(agent => effective.dedicatedIds.includes(agent.id)).map(agent => `${agent.id} (@${agent.name}): ${agent.title} — ${agent.description}`).join('\n') }

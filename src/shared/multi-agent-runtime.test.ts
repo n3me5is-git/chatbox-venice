@@ -17,6 +17,12 @@ function fixture(concurrency = 3) {
 }
 const task = { title: 'Research', task: 'Summarize this pseudonymous input' }
 describe('multi-agent authority and privacy boundaries', () => {
+  it('rejects a replaced root orchestrator before delegating under another grant', async () => {
+    const f = fixture()
+    f.host.assertCaller = vi.fn(async () => { throw Error('Orchestrator grant was replaced') })
+    await expect(f.runtime.spawn(f.caller, task)).rejects.toThrow('replaced')
+    expect(f.host.guard).not.toHaveBeenCalled(); expect(f.host.create).not.toHaveBeenCalled(); expect(f.host.execute).not.toHaveBeenCalled()
+  })
   it('uses the same model and workspace for on-demand children; dedicated workers are isolated', async () => {
     const f = fixture(), shared = await f.runtime.spawn(f.caller, task), isolated = await f.runtime.spawn(f.caller, { ...task, dedicatedId: 'dedicated' })
     expect(shared.model).toEqual(f.caller.model); expect(shared.workspaceId).toBe('root')

@@ -6,6 +6,7 @@ export interface AgentHost {
   policy(rootId: string): Promise<MultiAgentPolicy>
   preset(id: string): Promise<DedicatedAgent | undefined>
   assertRoot(rootId: string): Promise<void>
+  assertCaller?(caller: AgentCaller): Promise<void>
   create(run: Omit<AgentRun, 'sessionId' | 'workspaceId'>, isolated: boolean, workspaceId: string): Promise<{ sessionId: string; workspaceId: string }>
   save(run: AgentRun): Promise<void>
   execute(run: AgentRun, task: string, signal: AbortSignal): Promise<string>
@@ -39,6 +40,7 @@ export class MultiAgentRuntime {
   private async authorize(caller: AgentCaller) {
     if (this.rootsStopping.has(caller.rootId)) throw new Error('This agent workspace is stopping')
     await this.host.assertRoot(caller.rootId)
+    await this.host.assertCaller?.(caller)
     const policy = await this.host.policy(caller.rootId)
     if (!policy.enabled) throw new Error('Multi-agent mode is disabled for this Work chat')
     if (caller.id !== caller.rootId) {
