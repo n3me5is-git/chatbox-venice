@@ -35,8 +35,10 @@ export async function runPythonWorker(request:any,limitMemory:(bytes:Uint8Array)
       return new Response(name==='pyodide.asm.wasm'?limitMemory(bytes):bytes,{headers:{'content-type':name.endsWith('.wasm')?'application/wasm':'application/octet-stream'}})
     }) as typeof fetch
     const moduleURL=(name:string)=>'data:text/javascript;base64,'+bytes64(assets[name])
-    const {loadPyodide}=await import(/* @vite-ignore */ moduleURL('pyodide.mjs'))
-    const {default:createPyodideModule}=await import(/* @vite-ignore */ moduleURL('pyodide.asm.mjs'))
+    // Keep module loading inside this disposable worker. Dev bundler helpers live in the app realm.
+    const importModule=Function('url','return import(url)')
+    const {loadPyodide}=await importModule(moduleURL('pyodide.mjs'))
+    const {default:createPyodideModule}=await importModule(moduleURL('pyodide.asm.mjs'))
     const py=await loadPyodide({indexURL:base,packageBaseUrl:base,lockFileContents:lock,createPyodideModule,jsglobals:Object.create(null),stdout:append,stderr:append,stdin:()=>null,env:{HOME:'/workspace',MPLBACKEND:'Agg'}})
     if(packages.length)await py.loadPackage(packages)
     py.FS.mkdirTree('/workspace')
@@ -68,3 +70,4 @@ window.addEventListener('message',event=>{if(event.source!==parent||event.data?.
 parent.postMessage({channel:${JSON.stringify(PYTHON_MESSAGE_CHANNEL)},token:${JSON.stringify(token)},id:${JSON.stringify(id)},ready:true},'*');
 </script>`
 }
+
