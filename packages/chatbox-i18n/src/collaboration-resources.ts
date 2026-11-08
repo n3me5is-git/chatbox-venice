@@ -1,4 +1,5 @@
 export const collaborationItalian = {
+  'This creation is individually protected and cannot be shared with this chat':'Questa creazione è protetta separatamente e non può essere condivisa con questa chat',
   'Share and collaborate':'Condividi e collabora',
   'Collaborative chats':'Chat collaborative',
   'Collaborative chat':'Chat collaborativa',

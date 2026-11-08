@@ -2,6 +2,7 @@ import { openSessionChatExport } from '@chatbox/core/utils/chat-export'
 import { createMessage,type Message } from '@shared/types'
 import { sessionFilePath,type SessionFile,type SessionResource } from '@shared/session-resources'
 import type { SharedSnapshot,SharedFile,SharedAuthor,HitlInput,HitlAnswer } from '@shared/collaboration'
+import {canShareAsset} from '@shared/collaboration'
 import { rendererApplication } from '@/app/renderer-application'
 import { listSessionResources,readSessionResource,subscribeSessionResources } from '@/packages/session-resources/service'
 import { resourcesChanged,sessionFiles } from '@/packages/session-resources/files'
@@ -12,17 +13,19 @@ import { submitNewUserMessage } from '@/stores/session/messages'
 import { deleteSession,switchCurrentSession } from '@/stores/session/crud'
 import { CollaborationHub } from './hub'
 import { b64 } from './crypto'
-import { installCollaborationBridge } from './bridge'
+import { installCollaborationBridge,notifySharedChatStatus } from './bridge'
 import { getImageGenerationService } from '@/stores/imageGenerationActions'
 
 const vault=()=>vaultRuntimeFor(platform)
+async function shareable(id:string,item:SessionResource){return canShareAsset(await vault().projects.sessionScope(id)||undefined,item.key?(await vault().assets.header(item.key))?.scope:undefined)}
 async function publicId(item:SessionResource){return b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([item.id,item.key,item.updatedAt,item.bytes])))))}
 function safePath(item:SessionResource){try{return sessionFilePath(item.path)}catch{return 'files/'+item.id.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,60)+'/'+item.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,80)}}
 function text(message:Message){return message.contentParts.map(part=>part.type==='text'?part.text:part.type==='tool-call'?'\n['+part.toolName+']\n'+JSON.stringify({args:part.args,result:part.result}):'').join('\n')}
 async function snapshot(id:string):Promise<SharedSnapshot>{
   await vault().projects.assertSession(id)
   const source=await openSessionChatExport(platform.getSessionRowStore(),rendererApplication.sessions,id);if(!source)throw Error('This chat is no longer available')
-  const resources=await listSessionResources(id),files:SharedFile[]=[],resourceIds=new Map<string,string>(),imageCalls=new Map<string,string|undefined>(),callFiles=new Map<string,string[]>()
+  const all=await listSessionResources(id),items:SessionResource[]=[];for(const item of all.items)if(await shareable(id,item))items.push(item)
+  const resources={...all,items},files:SharedFile[]=[],resourceIds=new Map<string,string>(),imageCalls=new Map<string,string|undefined>(),callFiles=new Map<string,string[]>()
   for(const item of resources.items){const fileId=await publicId(item);files.push({id:fileId,path:safePath(item),name:item.name.slice(0,240),mime:item.mime,bytes:item.bytes,deliverable:item.deliverable});if(item.messageId){const list=resourceIds.get(item.messageId);resourceIds.set(item.messageId,list?list+'\n'+fileId:fileId)}}
   for(let index=0;index<resources.items.length;index++){const item=resources.items[index];if(item.origin!=='image'||!item.recordId)continue;if(!imageCalls.has(item.recordId)){const record=await getImageGenerationService().getRecord(item.recordId);imageCalls.set(item.recordId,record?.source?.sessionId===id?record.source.toolCallId:undefined)}const call=imageCalls.get(item.recordId);if(call)callFiles.set(call,[...callFiles.get(call)||[],files[index].id])}
   const messages:SharedSnapshot['messages']=[];let truncated=resources.truncated,characters=0
@@ -45,9 +48,10 @@ async function* file(id:string,fileId:string){
   let found:SessionResource|undefined
   for(const item of (await listSessionResources(id)).items)if(await publicId(item)===fileId){found=item;break}
   if(!found)throw Error('This file changed or was deleted. Refresh the shared chat.')
+  if(!await shareable(id,found))throw Error('This creation is individually protected and cannot be shared with this chat')
   if(found.key&&await vault().assets.header(found.key)){
-    for await(const bytes of vault().assets.read(found.key)){await vault().projects.assertSession(id);yield bytes}
-  }else{const value=await readSessionResource(id,found);try{for(let offset=0;offset<value.bytes.length;offset+=32768){await vault().projects.assertSession(id);yield value.bytes.slice(offset,offset+32768)}}finally{value.bytes.fill(0)}}
+    for await(const bytes of vault().assets.read(found.key)){await vault().projects.assertSession(id);if(!await shareable(id,found)){bytes.fill(0);throw Error('This creation is individually protected and cannot be shared with this chat')}yield bytes}
+  }else{const value=await readSessionResource(id,found);try{for(let offset=0;offset<value.bytes.length;offset+=32768){await vault().projects.assertSession(id);if(!await shareable(id,found))throw Error('This creation is individually protected and cannot be shared with this chat');yield value.bytes.slice(offset,offset+32768)}}finally{value.bytes.fill(0)}}
 }
 export const collaboration=new CollaborationHub({
   snapshot,
@@ -89,7 +93,7 @@ export const collaboration=new CollaborationHub({
 let initialized=false
 export function initializeCollaboration(){
   if(initialized)return;initialized=true
-  installCollaborationBridge((...args)=>collaboration.decision(...args),id=>!!collaboration.shared(id))
+  installCollaborationBridge((...args)=>collaboration.decision(...args),id=>!!collaboration.shared(id),id=>{const room=collaboration.shared(id);return {active:!!room,participants:room?[...room.peers.values()].filter(peer=>peer.approved).length:0,pending:room?.hitl.requests('owner').length||0}})
   const timers=new Map<string,ReturnType<typeof setTimeout>>(),resources=new Map<string,()=>void>()
   const schedule=(id:string)=>{if(!collaboration.shared(id)||timers.has(id))return;timers.set(id,setTimeout(()=>{timers.delete(id);void collaboration.refresh(id)},700))}
   rendererApplication.sessionEvents.subscribe(event=>{
@@ -98,6 +102,7 @@ export function initializeCollaboration(){
     if(event.type==='session-derived-data-patched'||event.type==='session-text-tokens-cached')schedule(event.sessionId)
   })
   collaboration.subscribe(()=>{
+    notifySharedChatStatus()
     for(const room of collaboration.hosts.values())if(!resources.has(room.sessionId))resources.set(room.sessionId,subscribeSessionResources(room.sessionId,()=>schedule(room.sessionId),()=>{void vault().projects.assertSession(room.sessionId).catch(()=>collaboration.stop(room.id))}))
     for(const [id,unsubscribe]of resources)if(!collaboration.shared(id)){unsubscribe();resources.delete(id)}
   })

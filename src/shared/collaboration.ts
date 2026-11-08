@@ -9,6 +9,8 @@ export type HitlPolicy = z.infer<typeof HitlPolicySchema>
 export const defaultSharePermissions:SharePermissions = {write:false,interact:false,clone:false}
 export const SharedAuthorSchema = z.object({id:z.string().max(100),name:z.string().trim().min(1).max(60)}).strict()
 export type SharedAuthor = z.infer<typeof SharedAuthorSchema>
+/** Sharing a chat must not silently unlock its individually protected creations. */
+export function canShareAsset(sessionScope:string|undefined,assetScope:string|undefined){return assetScope===undefined||assetScope==='public'||assetScope===(sessionScope||'public')}
 export function collaborationRequester(messages:Message[]):SharedAuthor{const message=[...messages].reverse().find(message=>message.role==='user');return message?.collaborationRequester||message?.collaborationAuthor||{id:'owner',name:'Owner'}}
 export const SharedFileSchema=z.object({id:z.string().max(400),path:z.string().max(240),name:z.string().max(240),mime:z.string().max(100),bytes:z.number().int().min(0).max(128*1024*1024).optional(),deliverable:z.boolean().optional()}).strict()
 export const SharedMessageSchema=z.object({id:z.string().max(240),role:z.enum(['user','assistant','system']),text:z.string().max(200000),author:SharedAuthorSchema.optional(),files:z.array(z.string().max(400)).max(100).optional()}).strict()

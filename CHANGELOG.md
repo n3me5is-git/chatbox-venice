@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.35.0
+
+See [release notes](docs/releases/v1.35.0.md). Adds encrypted peer chat sharing, participant permissions, three shared HITL policies and streamed file cloning. Repairs stale Venice image classifications, reviews all 405 catalog entries, shows model costs and exposes safe provider failure reasons directly.
+
 ## 1.34.1
 
 See [release notes](docs/releases/v1.34.1.md). Adds independent separate engines in global Web Search settings and agent questions. Fixes new-chat dictation, Android microphone permissions, live file-explorer revision conflicts, recovery/preview of saved images, and repeated generation approval after failure.

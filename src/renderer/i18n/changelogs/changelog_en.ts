@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.35.0
+1. Share encrypted peer chats by QR/code, with participant IDs, permissions and revocation
+2. Route agent questions and Venice approvals to the owner, everyone (first answer), or the requester
+3. Preview shared files and clone accessible resources into encrypted local storage
+4. Repair obsolete Venice model classifications, including hidden enabled image models
+5. Show catalog costs in menus and creator controls; display generation failure reasons directly
+
 ## Chatbox Venice 1.34.1
 1. Expose separate Brave, Google and Exa tools from global Web Search settings
 2. Fix microphone access on Android and in unsaved new chats

@@ -8,6 +8,10 @@ Fork di Chatbox Community Edition con dati locali, parametri vendor per modello 
 
 ## Uso
 
+Dalla 1.35.0 puoi condividere una chat con l’icona delle persone o accedere da **Chat collaborative** nella sidebar usando codice/QR. Il proprietario approva i partecipanti e concede separatamente scrittura, uso di AI/strumenti e clonazione. Gli HITL possono essere riservati al proprietario, inviati a tutti (prima risposta valida), oppure solo a chi ha inviato la richiesta. La comunicazione tra dispositivi è cifrata; le creazioni protette separatamente restano escluse dalla condivisione di una chat pubblica. [Guida e limiti](docs/collaboration.md).
+
+I selettori Venice mostrano costi e unità quando disponibili; i tipi aggiornati del catalogo correggono eventuali vecchie classificazioni, anche per Krea 2 Turbo. Crea immagine e Studio mostrano subito il motivo degli errori. [Verifica dei 405 modelli](docs/venice-catalog-audit-2026-11-08.md).
+
 Per i tool della **ricerca globale Chatbox**, vai in **Impostazioni → Ricerca web → Venice → Esponi i motori di ricerca separatamente**. Abilitandolo ottieni `web_search_brave`, `web_search_google` e `web_search_exa`, indipendenti dai tool della ricerca del modello Venice. Dalla 1.34.1 sono corretti anche il microfono delle nuove chat e i permessi audio Android; l’explorer gestisce gli aggiornamenti della chat e l’agente può rivedere immagini salvate. Il tool `ask_user` permette domande con scelte e testo libero; dopo una generazione fallita compare una decisione Riprova/Salta con il motivo dell’errore.
 
 Dalla 1.34.0 il visualizzatore Markdown esporta anche in **PDF** e **HTML autonomo**, incorporando immagini, diagrammi e font delle formule. I file testuali hanno l'editor; gli allegati in sola lettura si modificano come copie. In **Impostazioni → Modelli predefiniti** scegli STT e TTS globali, poi usa il microfono della chat o **Leggi ad alta voce** sotto una risposta. La dettatura aggiunge testo modificabile alla bozza senza inviarlo. Le chat private bloccano i servizi vocali non privati/sconosciuti; nelle chat E2EE serve conferma per ogni richiesta a un servizio vocale privato, che usa HTTPS. Vedi la [guida italiana](docs/markdown-export-and-speech.it.md).
@@ -59,4 +63,3 @@ Vedi anche [test simulati](docs/fork-testing.md) e [installazione personale e fi
 Da Venice approvals, accanto al saldo della chat, scegli conferma ogni volta, ricorda le generazioni simili o approvazione automatica. Le regole riguardano immagini, voce, video e musica Venice della sola chat corrente e restano in memoria fino alla chiusura dell’app. Simili significa stesso tool, modello e parametri; il prompt può cambiare. Il reset revoca le autorizzazioni. Modelli immagine ambigui o riferimenti da caricare richiedono comunque la scelta dell’utente; le cancellazioni chiedono conferma.
 
 La lingua sorgente su GitHub e nell’app è inglese. Le nuove funzioni usano i18n con fallback inglese, traduzioni italiane e controlli principali delle approvazioni nelle 15 lingue desktop supportate. Le traduzioni nuove ancora mancanti usano l’inglese.
-

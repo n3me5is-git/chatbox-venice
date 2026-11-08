@@ -1,9 +1,10 @@
 import {describe,it,expect,vi} from 'vitest'
-import {SharedHitlQueue,validHitlAnswer,collaborationRequester,type HitlPolicy} from './collaboration'
+import {SharedHitlQueue,validHitlAnswer,collaborationRequester,canShareAsset,type HitlPolicy} from './collaboration'
 import {createMessage} from './types'
 const input={kind:'questions' as const,input:{questions:[{question:'Choose',options:['A','B'],multiple:true}]}}
 const reply={answers:[{selected:['A','B'],text:'Details'}]}
 describe('collaborative HITL authority',()=>{
+  it('does not expose individually protected or other-project assets through a shared chat',()=>{expect(canShareAsset(undefined,'public')).toBe(true);expect(canShareAsset(undefined,'app')).toBe(false);expect(canShareAsset('project:a','project:a')).toBe(true);expect(canShareAsset('project:a','project:b')).toBe(false);expect(canShareAsset('project:a','app')).toBe(false)})
   it.each(['owner','first','requester'] as HitlPolicy[])('enforces %s, validates answers and accepts only one response',async policy=>{
     const queue=new SharedHitlQueue(()=>policy,()=>new Set(['alice','bob']),()=>{}),promise=queue.ask('alice',input)
     const id=queue.requests(policy==='owner'?'owner':'alice')[0].id

@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.35.0
+1. Condividi chat cifrate tramite QR/codice, con ID partecipanti, permessi e revoca
+2. Invia domande e approvazioni al proprietario, a tutti (prima risposta) o a chi ha inviato la richiesta
+3. Visualizza file condivisi e clona le risorse accessibili nello storage locale cifrato
+4. Corregge vecchie classificazioni Venice, inclusi modelli immagine abilitati ma nascosti
+5. Mostra costi nei selettori e nei generatori e rende visibili i motivi degli errori
+
 ## Chatbox Venice 1.34.1
 1. Esponi strumenti Brave, Google ed Exa separati dalle impostazioni globali di ricerca web
 2. Corregge il microfono su Android e nelle nuove chat ancora non salvate

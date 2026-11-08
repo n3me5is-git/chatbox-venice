@@ -20,6 +20,12 @@ On desktop, optionally share the selected chat with a trusted external agent thr
 
 Markdown previews also offer **Export PDF** and **Export single-file HTML**, including embedded images, diagrams and math fonts. Text attachments can be edited as managed copies. Configure independent recognition/synthesis models in **Settings → Default models**, then use the chat microphone or **Read aloud** under a reply. Dictation appends editable draft text without sending it. Private chats refuse non-private/unknown speech; E2EE chats ask for consent on every private speech request because the audio endpoints use HTTPS, not text E2EE. See [export and speech setup](docs/markdown-export-and-speech.md).
 
+## Collaborative chats
+
+Use the people icon in a saved chat to share it, or **Collaborative chats** in the sidebar to join by QR/code. The owner admits participant IDs and grants write, AI/tools and clone permissions. Agent questions and Venice approvals can go to the owner, everyone (first valid answer), or only the requester. Traffic between devices is encrypted; files transfer on demand, and sharing stops on lock/exit. Individually protected creations are excluded from public-chat shares. See [collaboration, privacy and limits](docs/collaboration.md).
+
+Venice model menus now show available costs and units. Live classifications replace obsolete saved types, including image entries such as Krea 2 Turbo. Generation failures show the provider's reason directly. See the [405-entry catalog audit](docs/venice-catalog-audit-2026-11-08.md).
+
 ## Configure Venice
 
 For separate **global Chatbox search** tools, open **Settings → Web Search → Venice** and enable **Expose separate search engines**. This offers `web_search_brave`, `web_search_google` and `web_search_exa`, independently of the Venice model/profile search controls.
@@ -98,4 +104,3 @@ Development, tests, Windows packaging and Android compilation can all run on Git
 [Changelog](CHANGELOG.md) · [Upstream source and license](https://github.com/chatboxai/chatbox) · [Venice CLI reference](https://github.com/veniceai/venice-cli) · [Venice MCP reference](https://github.com/veniceai/venice-mcp-server)
 
 The external Venice MCP server can also be configured explicitly; it is not installed automatically or given your API key. The fork's internal MCP runs inside the app.
-
