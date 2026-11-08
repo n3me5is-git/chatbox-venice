@@ -152,11 +152,15 @@ export async function loadAgentRuns(rootId: string) {
   await vault().projects.assertSession(rootId)
   if (!loaded.has(rootId)) { loaded.add(rootId); try { await multiAgentRuntime.restore(await readAgentData<AgentRun[]>(manifest(rootId), [])); agentEvents.set(rootId, await readAgentData('private-agents:events:' + encodeURIComponent(rootId), [])) } catch (error) { loaded.delete(rootId); throw error } }
 }
-async function agentFiles(id: string) {
+async function agentFiles(id: string, offset: number, limit: number) {
   const run = multiAgentRuntime.runs.get(id)
   if (!run) throw Error('Agent sandbox is unavailable')
   const result = await listSessionResources(run.workspaceId)
-  return { files: result.items.map(({path,mime,bytes,deliverable}) => ({path,mime,bytes,deliverable})), truncated: result.truncated }
+  const resources = run.workspaceId !== run.sessionId ? await listSessionResources(run.sessionId) : undefined
+  const metadata = (items: typeof result.items, area: 'files'|'resources') => items.map(({path,mime,bytes,deliverable}) => ({area,path,mime,bytes,deliverable}))
+  const all = [...metadata(result.items,'files'), ...metadata(resources?.items || [],'resources')], page = all.slice(offset,offset+limit)
+  const stripArea = ({area,...item}:typeof page[number]) => item
+  return { files: page.filter(item=>item.area==='files').map(stripArea), resources: page.filter(item=>item.area==='resources').map(stripArea), nextOffset: offset+page.length<all.length ? offset+page.length : null, truncated: result.truncated || resources?.truncated === true }
 }
 function agentTools(caller: AgentCaller): ToolSet { return createAgentTools(multiAgentRuntime, caller, async id => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || '')), agentFiles) }
 export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: ToolSet, assert: () => Promise<void>) {

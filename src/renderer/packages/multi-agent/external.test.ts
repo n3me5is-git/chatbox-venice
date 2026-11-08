@@ -3,7 +3,7 @@ import { asSchema, tool } from 'ai'
 import { z } from 'zod'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { defaultLocalMCPPermissions, type LocalMCPGrant } from '@shared/local-mcp'
-const state=vi.hoisted(()=>({headers:new Map<string,any>(),messages:new Map<string,any[]>(),data:new Map<string,any>(),chat:vi.fn(),write:vi.fn(),request:vi.fn()}))
+const state=vi.hoisted(()=>({headers:new Map<string,any>(),messages:new Map<string,any[]>(),data:new Map<string,any>(),resources:new Map<string,any[]>(),chat:vi.fn(),write:vi.fn(),request:vi.fn()}))
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessionEvents:{subscribe:vi.fn()},sessions:{
   getSessionHeader:async(id:string)=>state.headers.has(id)?{header:state.headers.get(id)}:null,
@@ -23,7 +23,7 @@ vi.mock('@/packages/model-calls/toolsets/web-search',()=>({buildWebSearchTools:(
 vi.mock('@/packages/mcp/controller',()=>({mcpController:{getAvailableTools:()=>({})}}))
 vi.mock('@/packages/session-resources/tools',()=>({sessionWorkspaceInstructions:'Workspace',buildSessionWorkspaceTools:async()=>({session_file:tool({inputSchema:z.object({action:z.string(),path:z.string().optional(),content:z.string().optional()}),execute:state.write})})}))
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{list:async()=>[]}}))
-vi.mock('@/packages/session-resources/service',()=>({listSessionResources:async()=>({items:[]}),readSessionResource:vi.fn()}))
+vi.mock('@/packages/session-resources/service',()=>({listSessionResources:async(id:string)=>({items:state.resources.get(id)||[],truncated:false}),readSessionResource:vi.fn()}))
 vi.mock('@/packages/collaboration/bridge',()=>({assertSharedTurn:vi.fn(),routeSharedDecision:vi.fn()}))
 vi.mock('@/components/agent/UserQuestion',()=>({requestUserAnswers:state.request}))
 vi.mock('./library',()=>({listDedicatedAgents:async()=>[]}))
@@ -31,7 +31,7 @@ vi.mock('./storage',()=>({readAgentData:async(key:string,fallback:any)=>state.da
 import { buildExternalMultiAgentTools, multiAgentRuntime, revokeExternalAgents } from './runtime'
 let grant:LocalMCPGrant,live:boolean
 beforeEach(()=>{
-  vi.clearAllMocks();state.headers.clear();state.messages.clear();state.data.clear();multiAgentRuntime.runs.clear();live=true
+  vi.clearAllMocks();state.headers.clear();state.messages.clear();state.data.clear();state.resources.clear();multiAgentRuntime.runs.clear();live=true
   grant={running:true,sessionId:crypto.randomUUID(),url:'http://127.0.0.1:31337/mcp',token:crypto.randomUUID(),startedAt:1,permissions:{...defaultLocalMCPPermissions,multiAgent:true}}
   state.headers.set(grant.sessionId,{id:grant.sessionId,settings:{provider:'venice',modelId:'test',agentMode:{value:'on'},multiAgent:{enabled:true}}})
 })
@@ -51,6 +51,12 @@ it('runs the real renderer worker adapter while preserving a read-only file gran
   expect(worker.blocked).toBeUndefined();await call(tools,'agent_wait',{ids:[worker.id]})
   expect(await call(tools,'agent_result',{id:worker.id})).toMatchObject({text:'Completed without writing'})
   expect(state.chat).toHaveBeenCalledOnce();expect(state.write).not.toHaveBeenCalled()
+  state.resources.set(grant.sessionId,[{path:'input.md',mime:'text/markdown',bytes:10}])
+  state.resources.set(multiAgentRuntime.runs.get(worker.id)!.sessionId,[{path:'media/music/saved.wav',mime:'audio/wav',bytes:100}])
+  const first=JSON.parse((await call(tools,'agent_files',{id:worker.id,limit:1})).text)
+  expect(first).toMatchObject({files:[{path:'input.md'}],resources:[],nextOffset:1})
+  const second=JSON.parse((await call(tools,'agent_files',{id:worker.id,offset:first.nextOffset,limit:1})).text)
+  expect(second).toMatchObject({files:[],resources:[{path:'media/music/saved.wav'}],nextOffset:null})
   await revokeExternalAgents(grant.token)
 })
 it('requires Work and explicit multi-agent policy, then cancels a running renderer worker on revocation',async()=>{

@@ -12,7 +12,7 @@ export interface ExternalAgentAccess {
   assert(): Promise<void>
   catalog(): Promise<DedicatedAgent[]>
   readResult(id: string): Promise<string>
-  listFiles?(id: string): Promise<unknown>
+  listFiles?(id: string, offset: number, limit: number): Promise<unknown>
 }
 /** The external caller is always the root orchestrator, never an arbitrary child identity. */
 export function createLocalMCPAgentTools(grant: LocalMCPGrant, runtime: MultiAgentRuntime, access: ExternalAgentAccess): ToolSet {

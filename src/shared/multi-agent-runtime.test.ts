@@ -67,6 +67,14 @@ describe('multi-agent authority and privacy boundaries', () => {
     expect(new TextDecoder().decode(f.files.get(worker.workspaceId + ':data.txt'))).toBe('pseudonym 42')
     expect(boundary.file?.data.every(byte => byte === 0)).toBe(true)
   })
+  it('can recover generated resources from an on-demand child chat into its shared workspace', async () => {
+    const f = fixture(), worker = await f.runtime.spawn(f.caller, task)
+    expect(worker.workspaceId).toBe('root')
+    f.files.set(worker.sessionId + ':media/music/song.wav',new Uint8Array([1,2,3]))
+    const result = await f.runtime.transfer(f.caller,worker.id,'from-agent','media/music/song.wav','deliverables/song.wav',undefined,'resources')
+    expect(result.bytes).toBe(3);expect([...f.files.get('root:deliverables/song.wav')!]).toEqual([1,2,3])
+    await expect(f.runtime.transfer(f.caller,worker.id,'to-agent','input.txt','input.txt',undefined,'resources')).rejects.toThrow('only be copied from')
+  })
   it('does not write rejected files and forbids traversal', async () => {
     const f = fixture(), worker = await f.runtime.spawn(f.caller, { ...task, dedicatedId: 'dedicated' })
     vi.mocked(f.host.guard).mockResolvedValue({ allow: false, reason: 'Private identifier' })

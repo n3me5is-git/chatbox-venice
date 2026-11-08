@@ -147,10 +147,11 @@ export class MultiAgentRuntime {
     await this.boundary(caller, run, { operation: 'result', from: id, to: caller.id, text }, signal)
     return { id, status: run.status, text }
   }
-  async transfer(caller: AgentCaller, id: string, direction: 'to-agent' | 'from-agent', sourcePath: string, targetPath: string, signal?: AbortSignal) {
+  async transfer(caller: AgentCaller, id: string, direction: 'to-agent' | 'from-agent', sourcePath: string, targetPath: string, signal?: AbortSignal, sourceArea: 'workspace' | 'resources' = 'workspace') {
     const run = this.owned(caller, id); await this.authorize(caller)
     sessionFilePath(sourcePath); sessionFilePath(targetPath)
-    const source = direction === 'to-agent' ? caller.workspaceId : run.workspaceId, target = direction === 'to-agent' ? run.workspaceId : caller.workspaceId
+    if (sourceArea === 'resources' && direction !== 'from-agent') throw Error('Generated resources can only be copied from the selected child')
+    const source = direction === 'to-agent' ? caller.workspaceId : sourceArea === 'resources' ? run.sessionId : run.workspaceId, target = direction === 'to-agent' ? run.workspaceId : caller.workspaceId
     if (source === target) throw new Error('On-demand agents already share this workspace; no transfer is needed')
     const { bytes, mime } = await this.host.readFile(source, sourcePath)
     try {

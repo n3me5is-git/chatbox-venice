@@ -67,6 +67,7 @@ it('reviews result egress and exact file bytes, with no write or summary returne
   await f.call('agent_wait',{ids:[worker.id]})
   expect(await f.call('agent_result',{id:worker.id})).toMatchObject({text:'Reviewed summary'})
   const listing=await f.call('agent_files',{id:worker.id});expect(JSON.parse(listing.text)).toEqual({files:[{path:'report.md',mime:'text/markdown',bytes:10}]})
+  expect(f.access.listFiles).toHaveBeenCalledWith(worker.id,0,50)
   f.files.set('root:input.md',new TextEncoder().encode('Pseudonym 42'))
   const transfer=await f.call('agent_file',{id:worker.id,direction:'to-agent',sourcePath:'input.md',targetPath:'input.md'})
   expect(transfer.sha256).toHaveLength(64);expect(f.host.writeFile).toHaveBeenCalledTimes(1)
