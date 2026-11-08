@@ -13,6 +13,7 @@ import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import type { ImageModelOption } from '@/packages/image-model-catalog'
 import type { ImageChoice } from '@shared/providers/definitions/models/venice/image-tools'
 import { VeniceModelBadges } from './VeniceModelBadges'
+import {VeniceModelCost} from './VeniceModelCost'
 import { VeniceModelInfo } from './VeniceModelInfo'
 export const VeniceImageApproval = NiceModal.create(({ models, request, signal, sessionId }: { models: ImageModelOption[]; request: { modelId?: string; prompt: string; count: number; message?: string }; signal?: AbortSignal; sessionId?: string }) => {
   useTranslation()
@@ -39,7 +40,7 @@ export const VeniceImageApproval = NiceModal.create(({ models, request, signal, 
   return <AdaptiveModal opened={modal.visible} onClose={cancel} title={ft("Choose and confirm images")} size="lg"><Stack>
     {request.message && <Alert color="blue">{ft(request.message)}</Alert>}
     <VeniceModelSelect label={ft("Venice image model")} value={modelId || null} models={models.map(model=>({id:model.modelId,type:String(model.vendorMetadata?.veniceType||'image'),model_spec:{...model.vendorMetadata,name:model.displayName}}))} onChange={value => { setModelId(value || ''); setFiles([]); setRatio('auto'); setSafeMode('default'); setFormat('default'); setSeed(''); setExtra('') }} />
-    <VeniceModelBadges metadata={model?.vendorMetadata} /><VeniceModelInfo model={model ? { id: model.modelId, type: String(model.vendorMetadata?.veniceType || 'image'), model_spec: model.vendorMetadata } : undefined} />
+    <VeniceModelBadges metadata={model?.vendorMetadata} />{model&&<VeniceModelCost metadata={model.vendorMetadata} showLabel/>}<VeniceModelInfo model={model ? { id: model.modelId, type: String(model.vendorMetadata?.veniceType || 'image'), model_spec: model.vendorMetadata } : undefined} />
     <Textarea label={ft("Prompt to send")} autosize minRows={3} value={prompt} onChange={e => setPrompt(e.currentTarget.value)} />
     <Group grow><NumberInput label={ft("Number of images")} min={1} max={4} value={count} onChange={value => setCount(Math.min(4, Math.max(1, Number(value) || 1)))} /><Select label={ft("Aspect ratio")} comboboxProps={{ withinPortal: false }} allowDeselect={false} value={ratio} data={['auto', ...(model?.capabilities?.aspectRatio?.values || []).filter(value => value !== 'auto')]} onChange={value => setRatio(value || 'auto')} /></Group>
     {limits && <FileInput cropImages multiple clearable label={ft("Images to edit or use as references")} description={ft("From {{min}} to {{max}} images", {min:limits.min||0,max:limits.max||1})} accept="image/png,image/jpeg,image/webp" value={files} onChange={setFiles} />}

@@ -29,7 +29,7 @@ export async function restoreSessionWorkspace(id:string,file:Blob,password:strin
         incoming.push({id:crypto.randomUUID(),origin:'file',path,name:path.split('/').pop()!,key,mime:info.mime,bytes:info.logicalBytes??header.bytes,deliverable:!!info.deliverable,updatedAt:Date.now()})
       }
       if(!incoming.length)throw new Error('This backup contains no session workspace files')
-      signal.throwIfAborted();await sessionFiles.adopt(id,incoming)
+      signal.throwIfAborted();await sessionFiles.adopt(id,incoming,{transferredMedia:true})
     })
   }catch(error){for(const ref of created)await vault.assets.remove(ref).catch(()=>{});throw error}
   finally{for(const ref of temporary)await vault.assets.remove(ref).catch(()=>{})}

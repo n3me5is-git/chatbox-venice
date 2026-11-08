@@ -1,15 +1,16 @@
 import { Group, Select, type SelectProps, Stack, Text } from '@mantine/core'
 import type { MediaCatalogItem } from '@shared/providers/definitions/models/venice/media'
-import { mediaCategory } from '@shared/providers/definitions/models/venice/media-capabilities'
+import { mediaCategory,mediaCategories } from '@shared/providers/definitions/models/venice/media-capabilities'
 import { forkT as ft } from '@/i18n/fork'
 import { useTranslation } from 'react-i18next'
 import { VeniceModelBadges } from './VeniceModelBadges'
+import { VeniceModelCost } from './VeniceModelCost'
 import {useState} from 'react'
 import {useOverlayManager} from '@/components/layout/Overlay'
 export const categoryLabels:Record<string,string>={chat:'Chat',image:'Images','image-edit':'Image editing',embedding:'Embeddings',speech:'Voice',transcription:'Transcribe',video:'Video',music:'Music','sound-effects':'Sound effects','voice-conversion':'Voice conversion'}
 export function VeniceModelOption({model}:{model:MediaCatalogItem}) {
   useTranslation()
-  return <Stack gap={4} style={{minWidth:0,width:'100%'}}><Group gap="xs" wrap="wrap"><Text size="sm" fw={500} style={{overflowWrap:'anywhere'}}>{model.model_spec?.name||model.id}</Text><Text size="xs" c="dimmed">{ft(categoryLabels[mediaCategory(model)]||model.type)}</Text></Group><VeniceModelBadges metadata={model.model_spec} showUnknown/></Stack>
+  return <Stack gap={4} style={{minWidth:0,width:'100%'}}><Group gap="xs" wrap="wrap"><Text size="sm" fw={500} style={{overflowWrap:'anywhere'}}>{model.model_spec?.name||model.id}</Text><Text size="xs" c="dimmed">{mediaCategories(model).map(category=>ft(categoryLabels[category]||category)).join(' · ')}</Text></Group><Group gap="xs"><VeniceModelBadges metadata={model.model_spec} showUnknown/><VeniceModelCost model={model}/></Group></Stack>
 }
 export function VeniceModelSelect({models,...props}:Omit<SelectProps,'data'> & {models:MediaCatalogItem[]}) {
   useTranslation()

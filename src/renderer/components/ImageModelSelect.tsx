@@ -1,5 +1,6 @@
 import {useOverlayManager} from './layout/Overlay'
 import { VeniceModelBadges } from './venice/VeniceModelBadges'
+import { VeniceModelCost } from './venice/VeniceModelCost'
 import { ActionIcon, Combobox, type ComboboxProps, Flex, HoverCard, Text, useCombobox } from '@mantine/core'
 import type { ModelProvider } from '@shared/types'
 import { IconInfoCircle, IconServer } from '@tabler/icons-react'
@@ -117,9 +118,7 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
                           size={16}
                           className="shrink-0"
                         />
-                        <Text size="sm" className="min-w-0 flex-1 break-words">
-                          {model.displayName}
-                        </Text>
+                        <div className="min-w-0 flex-1"><Text size="sm" className="break-words">{model.displayName}</Text>{group.providerId==='venice'&&<VeniceModelCost metadata={model.vendorMetadata}/>}</div>
                         <VeniceModelBadges metadata={model.vendorMetadata} compact />
                         {isMobile && detail.description && (
                           <ActionIcon

@@ -1,4 +1,4 @@
-import { mediaCategory, validateMediaRequest } from './media-capabilities'
+import { mediaCategory, supportsMediaKind,validateMediaRequest } from './media-capabilities'
 import { privacyAllowed, requireModelPrivacy } from './privacy'
 import { v4 as uuid } from 'uuid'
 import type { RequestAdapter } from '../../../../types/adapters'
@@ -84,7 +84,7 @@ export class VeniceMediaService {
     const form = body instanceof FormData
     const response = await this.request({ url: config.origin + path, method: body === undefined ? 'GET' : 'POST', useProxy: false, retry: 0, signal,
       headers: { Authorization: `Bearer ${config.apiKey}`, ...(form ? {} : { 'Content-Type': 'application/json' }) }, body: body === undefined ? undefined : form ? body : JSON.stringify(body) })
-    if (!response.ok) { await response.body?.cancel(); throw new Error(`Venice ${path} failed (HTTP ${response.status}). No paid request was retried.`) }
+    if (!response.ok) { const {responseFailureReason}=await import('./failure-reason');throw new Error(`Venice ${path} failed (HTTP ${response.status}): ${await responseFailureReason(response)}. No paid request was retried.`) }
     return response
   }
   async cachedCatalog(): Promise<MediaCatalogItem[]> {
@@ -132,8 +132,8 @@ export class VeniceMediaService {
     if (typeof body.model !== 'string' || !body.model.trim()) throw new Error('The request model must be a non-empty string')
     const catalog = await this.cachedCatalog()
     const catalogMatch=catalog.find(item=>item.id===body.model)
-    if(catalogMatch&&mediaCategory(catalogMatch)!==input.kind)throw new Error('Choose a model from the selected content category')
-    const known = catalog.find(item => item.id === body.model && mediaCategory(item) === input.kind)
+    if(catalogMatch&&!supportsMediaKind(catalogMatch,input.kind))throw new Error('Choose a model from the selected content category')
+    const known = catalog.find(item => item.id === body.model && supportsMediaKind(item,input.kind))
     const queuedSpeech=input.kind==='speech'&&known?.type==='music'
     if(queuedSpeech){body.prompt=body.input;delete body.input}
     requireModelPrivacy(known?.model_spec, config.options.privacyFilter)

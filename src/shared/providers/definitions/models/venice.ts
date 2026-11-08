@@ -31,6 +31,12 @@ interface VeniceCatalogModel {
 export async function fetchVeniceModels(
   options: { apiKey: string; apiHost?: string; venice?: VeniceSettings }, dependencies: ModelDependencies
 ): Promise<ProviderModelInfo[]> {
+  return (await fetchVeniceCatalogModels(options,dependencies)).filter(model=>privacyAllowed(model.vendorMetadata,options.venice?.privacyFilter))
+}
+/** Internal readers need unfiltered facts to replace obsolete saved classifications/privacy claims. */
+export async function fetchVeniceCatalogModels(
+  options: { apiKey: string; apiHost?: string; venice?: VeniceSettings }, dependencies: ModelDependencies
+): Promise<ProviderModelInfo[]> {
   assertVeniceEnabled(options.venice || {})
   const response = await dependencies.request.apiRequest({
     url: `${(options.apiHost || 'https://api.venice.ai/api/v1').replace(/\/+$/, '')}/models?type=all`,
@@ -39,7 +45,7 @@ export async function fetchVeniceModels(
   if (!response.ok) throw new ApiError('Venice model discovery failed', await response.text(), response.status)
   const result = await response.json() as { data?: VeniceCatalogModel[] }
   if (!Array.isArray(result.data)) throw new ApiError('Invalid Venice model catalog')
-  return result.data.filter((item) => ['text', 'image', 'inpaint', 'embedding'].includes(item.type) && !item.model_spec?.offline && privacyAllowed(item.model_spec, options.venice?.privacyFilter))
+  return result.data.filter((item) => ['text', 'image', 'inpaint', 'embedding'].includes(item.type) && !item.model_spec?.offline)
     .map((item): ProviderModelInfo => {
       const spec = item.model_spec
       const capabilities: NonNullable<ProviderModelInfo['capabilities']> = []

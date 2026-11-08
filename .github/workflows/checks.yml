@@ -61,6 +61,9 @@ jobs:
       - name: Collaboration identity, encryption and HITL permissions
         if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
         run: pnpm exec vitest run src/shared/collaboration.test.ts src/renderer/packages/collaboration/crypto.test.ts src/renderer/packages/collaboration/hub.test.ts src/renderer/components/collaboration/HitlCard.test.tsx
+      - name: Full Venice catalog classification, pricing and failure reasons
+        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        run: pnpm exec vitest run src/shared/providers/definitions/models/venice/catalog-audit.test.ts src/shared/providers/definitions/models/venice/failure-reason.test.ts
       - name: Check private Android signing backup logic
         run: node --test scripts/android-signing.test.mjs scripts/android-signing-migration.test.mjs
       - name: Verify generated Android audio permissions

@@ -1,5 +1,6 @@
 import {forkT as ft} from '@/i18n/fork'
 import { VeniceModelBadges } from './venice/VeniceModelBadges'
+import { VeniceModelCost } from './venice/VeniceModelCost'
 import { privacyLabels } from '@shared/providers/definitions/models/venice/media-capabilities'
 import { Badge, Button, Flex, Select, Group, Stack, Text, TextInput } from '@mantine/core'
 import { AutomationAdjacentAttr, TestId } from '@shared/automation/testids'
@@ -127,6 +128,7 @@ export function ModelList({
                 </Flex>
 
                 <VeniceModelBadges metadata={model.vendorMetadata}/>
+                {model.vendorMetadata?.veniceType&&<VeniceModelCost metadata={model.vendorMetadata} type={String(model.vendorMetadata.veniceType)}/>}
                 {(model.type !== 'chat' || model.capabilities?.length || model.contextWindow || model.maxOutput) && (
                   <Flex gap="xs" align="center" wrap="wrap">
                     {model.type && model.type !== 'chat' && <Badge color="blue">{t(capitalize(model.type))}</Badge>}

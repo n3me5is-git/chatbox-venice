@@ -28,3 +28,20 @@ export function formatPrice(amount:number,currency:'USD'|'DIEM',locale='en'){
  if(!valid(amount))throw Error('Invalid catalog price')
  return new Intl.NumberFormat(locale,{maximumSignificantDigits:9}).format(amount)+' '+currency
 }
+export interface QuickPrice{amount:number;maximum?:number;currency:'USD'|'DIEM';unit:'1M tokens'|'1M characters'|'1,000 characters'|'image'|'second'|'generation';output?:number;from?:boolean}
+/** Compare prices only within a declared billing unit; never infer model quality from price. */
+export function quickModelPrice(model:MediaCatalogItem):QuickPrice|undefined{
+ const rows=modelPriceRows(model).filter(row=>!['upscale','inputImages','cache_input','cache_write'].some(key=>row.id===key||row.id.startsWith(key+'.')))
+ const currency=rows.some(row=>row.usd!==undefined)?'USD':'DIEM',value=(row:PriceRow)=>currency==='USD'?row.usd:row.diem
+ const input=rows.find(row=>row.id==='input'),output=rows.find(row=>row.id==='output')
+ if(input&&value(input)!==undefined)return {amount:value(input)!,currency,unit:model.type==='tts'?'1M characters':'1M tokens',...(output&&value(output)!==undefined?{output:value(output)}:{})}
+ const group=rows.filter(row=>value(row)!==undefined&&row.id.startsWith('per_thousand_characters'))
+ if(group.length)return {amount:Math.min(...group.map(row=>value(row)!)),currency,unit:'1,000 characters',from:group.length>1}
+ const seconds=rows.filter(row=>value(row)!==undefined&&/^per_(audio_)?second(?:\.|$)/.test(row.id))
+ if(seconds.length)return {amount:Math.min(...seconds.map(row=>value(row)!)),currency,unit:'second',from:seconds.length>1}
+ const images=rows.filter(row=>value(row)!==undefined&&/^(generation|inpaint|resolutions|quality)(?:\.|$)/.test(row.id))
+ const selected=images.length?images:rows.filter(row=>value(row)!==undefined&&row.id.startsWith('durations'))
+ if(!selected.length)return undefined
+ const amounts=selected.map(row=>value(row)!),amount=Math.min(...amounts),maximum=Math.max(...amounts)
+ return {amount,currency,unit:['image','inpaint'].includes(model.type)?'image':'generation',...(maximum>amount?{maximum,from:true}:{})}
+}

@@ -1,4 +1,5 @@
 import {useOverlayManager} from '@/components/layout/Overlay'
+import {VeniceModelCost} from '@/components/venice/VeniceModelCost'
 import { VeniceModelBadges } from '@/components/venice/VeniceModelBadges'
 import { ActionIcon, Box, Flex, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core'
 import type { ImageGeneration } from '@shared/types'
@@ -188,9 +189,7 @@ export function MobileModelDrawer({
                             size={20}
                             className="shrink-0"
                           />
-                          <Text size="sm" fw={isSelected ? 600 : 400} className="min-w-0 break-words">
-                            {model.displayName}
-                          </Text>
+                          <div className="min-w-0 flex-1"><Text size="sm" fw={isSelected ? 600 : 400} className="break-words">{model.displayName}</Text>{group.providerId==='venice'&&<VeniceModelCost metadata={model.vendorMetadata}/>}</div>
                           <VeniceModelBadges metadata={model.vendorMetadata} compact />
                         </UnstyledButton>
                         {model.description?.trim() && (

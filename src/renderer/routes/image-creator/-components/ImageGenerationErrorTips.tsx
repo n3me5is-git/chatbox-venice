@@ -4,6 +4,7 @@ import type { ImageGeneration } from '@shared/types'
 import { IconCheck, IconCopy, IconRefresh, IconSettings } from '@tabler/icons-react'
 import { Trans, useTranslation } from 'react-i18next'
 import { ErrorNotice } from '@/components/common/ErrorNotice'
+import { GenerationFailureReason } from '@/components/venice/GenerationFailureReason'
 import classes from '@/components/common/ErrorNotice.module.css'
 import LinkTargetBlank from '@/components/common/Link'
 import { AppTooltip as Tooltip } from '@/components/ui/tooltip'
@@ -107,10 +108,9 @@ export function ImageGenerationErrorTips({ record, onRetry, isRetrying }: ImageG
           <ImageGenerationTaskErrorMessage errorCode={imageGenerationTaskErrorCode} />
         </Text>
       ) : (
-        <Text size="sm" c="chatbox-secondary" lh="20px" className="whitespace-pre-wrap break-words">
-          {record.error}
-        </Text>
+        null
       )}
+      <GenerationFailureReason error={record.error}/>
 
       {showErrorDebugInfo && (
         <div className={classes.details}>

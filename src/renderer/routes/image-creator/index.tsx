@@ -28,6 +28,7 @@ import {
 } from '@mantine/core'
 import type { ImageGeneration, ImageGenerationModel } from '@shared/types'
 import { ModelProviderEnum } from '@shared/types'
+import { VeniceModelCost } from '@/components/venice/VeniceModelCost'
 import {
   IconArrowUp,
   IconAspectRatio,
@@ -632,6 +633,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   <Group justify="space-between" align="end" wrap="wrap"><NumberInput label={ft('Images per request')} description={ft("Each image may incur a cost")} min={1} max={4} value={batchCount} onChange={value => setBatchCount(Math.min(4, Math.max(1, Number(value) || 1)))} w={170} />
                   {selectedProvider === 'venice' && <><VeniceModelBadges metadata={selectedOption?.vendorMetadata} /><VeniceModelInfo model={selectedOption ? { id: selectedModel, type: String(selectedOption.vendorMetadata?.veniceType || 'image'), model_spec: selectedOption.vendorMetadata } : undefined} /></>}</Group>
                   </Stack></AdaptiveModal>
+                  {selectedProvider==='venice'&&selectedOption&&<VeniceModelCost metadata={selectedOption.vendorMetadata} showLabel/>}
                   <InputToolbar
                     isSmallScreen={isSmallScreen}
                     modelGroups={imageModelGroups}

@@ -116,13 +116,15 @@ export function buildImageModelGroups(options: {
     if (!provider || (provider.id === ModelProviderEnum.Venice && settings.providers?.venice?.venice?.enabled === false)) return
     const manualModels = manual
       ? (settings.providers?.[provider.id]?.models ?? [])
-          .filter((model) => model.type === 'image')
+          .filter((model) => model.type === 'image'||provider.id===ModelProviderEnum.Venice&&remote.some(row=>row.modelId===model.modelId))
           .map(manualImageModelToOption)
       : []
     let models = mergeImageModels(remote, manualModels)
     if (provider.id === ModelProviderEnum.Venice) {
       const config = settings.providers?.venice
-      const selected = config?.models?.filter(model => model.type === 'image') || []
+      // A stale/manual type must not hide a selected model that the catalog identifies as an image model.
+      const selected = config?.models || []
+      models=models.map(model=>{const current=remote.find(row=>row.modelId===model.modelId);return current?{...model,vendorMetadata:current.vendorMetadata,capabilities:current.capabilities}:model})
       models = models.filter(model => privacyAllowed(model.vendorMetadata, config?.venice?.privacyFilter) && (config?.venice?.showOtherModels === true || !config?.models?.length || selected.some(saved => saved.modelId === model.modelId)))
     }
     if (provider.id === ModelProviderEnum.ChatboxAI) {

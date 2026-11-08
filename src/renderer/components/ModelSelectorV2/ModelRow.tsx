@@ -1,4 +1,5 @@
 import { VeniceModelBadges } from '@/components/venice/VeniceModelBadges'
+import { VeniceModelCost } from '@/components/venice/VeniceModelCost'
 import { ActionIcon, Flex, Text } from '@mantine/core'
 import { AutomationAdjacentAttr, TestId } from '@shared/automation/testids'
 import type { ProviderModelInfo } from '@shared/types'
@@ -80,7 +81,7 @@ export function ModelRow({
         'w-full flex items-center border-0 bg-transparent text-left cursor-pointer text-chatbox-tint-primary focus:outline-none focus-visible:outline-none',
         mobile
           ? clsx('min-h-11 pr-3 gap-2.5', brandedInset ? 'pl-4' : 'pl-3')
-          : clsx('h-9 pr-2.5 gap-1.5', brandedInset ? 'pl-4' : 'pl-2.5'),
+          : clsx(detail.providerId==='venice'?'min-h-11 py-1':'h-9','pr-2.5 gap-1.5', brandedInset ? 'pl-4' : 'pl-2.5'),
         selected ? SELECTED_CLASS : HOVER_CLASS,
         isDisabled && 'opacity-50 cursor-not-allowed'
       )}
@@ -96,7 +97,7 @@ export function ModelRow({
         size={mobile ? 20 : 18}
         className="flex-shrink-0"
       />
-      <Text
+      <div className="min-w-0 flex-shrink"><Text
         data-testid={TestId.model.optionName}
         span
         size="sm"
@@ -105,7 +106,7 @@ export function ModelRow({
         className="min-w-0 flex-shrink truncate"
       >
         {detail.name}
-      </Text>
+      </Text>{detail.providerId==='venice'&&<VeniceModelCost metadata={providerModel.vendorMetadata} type="text"/>}</div>
       <Flex align="center" gap={mobile ? 6 : 4} className="min-w-0 flex-shrink-0">
         <VeniceModelBadges metadata={providerModel.vendorMetadata} compact />
         {providerModel.capabilities?.includes('vision') && (

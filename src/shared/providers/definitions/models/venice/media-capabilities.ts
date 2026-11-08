@@ -11,6 +11,9 @@ export function mediaCategory(model: MediaCatalogItem): string {
   }
   return model.type === 'inpaint' ? 'image-edit' : model.type === 'text' ? 'chat' : model.type
 }
+/** Some audio generators serve both sound design and short musical clips. Transport type is unchanged. */
+export function mediaCategories(model:MediaCatalogItem){const category=mediaCategory(model);return category==='music'&&model.id==='stable-audio-25'?['music','sound-effects']:[category]}
+export function supportsMediaKind(model:MediaCatalogItem,kind:string){return mediaCategories(model).includes(kind)}
 // Venice exposes music, effects and some asynchronous voices under type=music.
 // Prefer explicit catalog categories; known catalog IDs/names cover today's untagged rows.
 export function isSoundEffectsModel(model?: MediaCatalogItem) {
@@ -23,10 +26,11 @@ export function isSoundEffectsModel(model?: MediaCatalogItem) {
 export function videoInputs(model?: MediaCatalogItem) {
   const c = model?.model_spec?.constraints || {}; const caps = model?.model_spec?.capabilities || {}
   const id = model?.id || ''; const type = String(c.model_type || '')
-  const references = c.supports_reference_images === true || caps.supportsReferenceImages === true || /reference-to-video|omni-reference|recast/.test(id)
-  const start = !references && (type === 'image-to-video' || c.image_input === true || caps.supportsImageInput === true)
-  const end = c.supports_end_image === true || caps.supportsEndImage === true || /first-last|first-and-last|start-end|transition/.test(id)
-  return { start, end, references, video: c.video_input === true || /edit-video|video-to-video|recast|extend-video/.test(id),
+  const declared=(...values:unknown[])=>values.find((value):value is boolean=>typeof value==='boolean')
+  const references = declared(c.supports_reference_images,caps.supportsReferenceImages)??/reference-to-video|omni-reference|recast/.test(id)
+  const start = !references && (declared(c.image_input,caps.supportsImageInput)??type==='image-to-video')
+  const end = declared(c.supports_end_image,caps.supportsEndImage)??/first-last|first-and-last|start-end|transition/.test(id)
+  return { start, end, references, video: declared(c.video_input,caps.supportsVideoInput)??/edit-video|video-to-video|recast|extend-video/.test(id),
     referenceVideos: references && (c.video_input === true || /seedance-2|wan-3/.test(id)),
     referenceAudio: references && (c.per_reference_audio === true || /seedance-2|wan-3/.test(id)),
     audioInput: c.audio_input === true, audio: c.audio_configurable === true || caps.supportsAudio === true }
@@ -50,7 +54,7 @@ export function musicOptions(model: MediaCatalogItem | undefined, value: { secon
 }
 export function validateMediaRequest(kind: MediaKind, body: Record<string, unknown>, model?: MediaCatalogItem) {
   const s = model?.model_spec; if (!s) return
-  if (kind === 'sound-effects' && !isSoundEffectsModel(model)) throw new Error('Choose a sound-effects model from the Venice catalog')
+  if (kind === 'sound-effects' && !supportsMediaKind(model,kind)) throw new Error('Choose a sound-effects model from the Venice catalog')
   const prompt = String(body.prompt ?? body.input ?? '')
   if (!['transcription','voice-conversion'].includes(kind) && ((s.min_prompt_length && prompt.length < s.min_prompt_length) || (s.prompt_character_limit && prompt.length > s.prompt_character_limit))) throw new Error(`The prompt for this model must contain ${s.min_prompt_length || 1} to ${s.prompt_character_limit || '∞'} characters.`)
   if (kind === 'music' || kind === 'sound-effects') {
