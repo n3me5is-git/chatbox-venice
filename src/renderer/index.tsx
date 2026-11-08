@@ -27,6 +27,7 @@ import { CHATBOX_BUILD_TARGET } from './variables'
 
 const MobileExecutionHost = lazy(() => import('./packages/mobile-work-mode/MobileExecutionHost'))
 const PythonExecutionHost = lazy(() => import('./components/session-resources/PythonExecutionHost'))
+const LocalMCPHost = lazy(() => import('./components/session-resources/LocalMCPHost'))
 
 // 按需加载 polyfill
 import './setup/load_polyfill'
@@ -122,6 +123,7 @@ void runRendererStartup({
             <Suspense fallback={null}>
               <MobileExecutionHost />
               <PythonExecutionHost />
+              <LocalMCPHost />
             </Suspense>
             <RouterProvider router={router} />
           </ChatboxProvider>

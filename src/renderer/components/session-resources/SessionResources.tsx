@@ -11,6 +11,7 @@ import { forkT as ft } from '@/i18n/fork'
 import platform from '@/platform'
 import { MarkdownFilePreview } from './MarkdownFilePreview'
 import { PythonSettings } from './PythonSettings'
+import { LocalMCPSettings } from './LocalMCPSettings'
 
 type API=typeof sessionResourceAPI
 export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:string;api?:API}){
@@ -62,7 +63,7 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
       <FileButton onChange={upload}>{props=><ActionIcon {...props} size="lg" variant="subtle" aria-label={ft('Import session file')}><IconUpload size={18}/></ActionIcon>}</FileButton>
     </Group></Group>
     {error&&<Alert color="red" role="alert" style={{overflowWrap:'anywhere'}}>{ft(error)}</Alert>}
-    <details><summary>{ft('Workspace settings')}</summary><Stack mt="xs" gap="xs"><Checkbox checked={toolsEnabled} label={ft('Allow the agent to manage session files and run isolated code')} onChange={event=>{const enabled=event.currentTarget.checked;void run(()=>api.configure(sessionId,enabled))}}/><Group gap="xs"><Button size="xs" variant="default" onClick={()=>{setPassword('');setRepeated('');setBackup('export')}}>{ft('Back up workspace files')}</Button><Button size="xs" variant="default" onClick={()=>{setPassword('');setArchive(null);setBackup('import')}}>{ft('Restore workspace files')}</Button></Group><PythonSettings sessionId={sessionId} enabled={pythonEnabled} onReady={setPythonReady} api={api} onChanged={load}/></Stack></details>
+    <details><summary>{ft('Workspace settings')}</summary><Stack mt="xs" gap="xs"><Checkbox checked={toolsEnabled} label={ft('Allow the agent to manage session files and run isolated code')} onChange={event=>{const enabled=event.currentTarget.checked;void run(()=>api.configure(sessionId,enabled))}}/><Group gap="xs"><Button size="xs" variant="default" onClick={()=>{setPassword('');setRepeated('');setBackup('export')}}>{ft('Back up workspace files')}</Button><Button size="xs" variant="default" onClick={()=>{setPassword('');setArchive(null);setBackup('import')}}>{ft('Restore workspace files')}</Button></Group><PythonSettings sessionId={sessionId} enabled={pythonEnabled} onReady={setPythonReady} api={api} onChanged={load}/><LocalMCPSettings sessionId={sessionId}/></Stack></details>
     {selected?<>
       <Group wrap="wrap" gap="xs"><Button variant="subtle" leftSection={<IconArrowLeft size={16}/>} onClick={clear}>{ft('All session files')}</Button><Text size="sm" style={{overflowWrap:'anywhere',flex:1}}>{selected.path}</Text></Group>
       <Group gap="xs" wrap="wrap">

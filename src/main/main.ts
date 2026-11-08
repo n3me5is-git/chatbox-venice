@@ -11,6 +11,7 @@ import { CHATBOX_QA_PREFLIGHT } from './qa-preflight'
 import './legacy-database-migration'
 import { registerFileTransferIpc } from './file-transfer-ipc'
 import { registerVaultKeyIpc } from './vault-key'
+import { registerLocalMCPIPC } from './local-mcp/ipc'
 
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 
@@ -871,6 +872,7 @@ app.on('open-url', async (_event, url) => {
 
 registerFileTransferIpc()
 registerVaultKeyIpc(() => mainWindow)
+registerLocalMCPIPC(() => mainWindow)
 
 ipcMain.handle('getStoreValue', (event, key) => {
   return store.get(key)

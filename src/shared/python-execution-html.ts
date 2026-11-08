@@ -72,4 +72,3 @@ window.addEventListener('message',event=>{if(event.source!==parent||event.data?.
 parent.postMessage({channel:${JSON.stringify(PYTHON_MESSAGE_CHANNEL)},token:${JSON.stringify(token)},id:${JSON.stringify(id)},ready:true},'*');
 </script>`
 }
-

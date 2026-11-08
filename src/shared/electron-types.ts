@@ -1,6 +1,7 @@
 import type { BuiltInBrowserTabs } from './built-in-browser'
 
 export interface ElectronIPC {
+  onLocalMCPRequest?: (callback:(request:import('./local-mcp').LocalMCPRequest)=>void)=>()=>void
   invoke: (channel: string, ...args: any[]) => Promise<any>
   getPathForFile: (file: File) => string
   onSystemThemeChange: (callback: () => void) => () => void

@@ -12,6 +12,10 @@ import { prepareMobileMCPTools } from '@/packages/mcp/mobile-tools'
 import type { MCPServerConfig } from '@/packages/mcp/types'
 import platform from '@/platform'
 import { settingsStore } from '@/stores/settingsStore'
+import { useAtomValue } from 'jotai'
+import { currentSessionIdAtom } from '@/stores/atoms/sessionAtoms'
+import { LocalMCPSettings } from '@/components/session-resources/LocalMCPSettings'
+import { SettingsSection } from '@/components/settings/SettingsLayout'
 import { decodeBase64 } from '@/utils/base64'
 
 const searchSchema = z.object({
@@ -25,6 +29,7 @@ export const Route = createFileRoute('/settings/mcp')({
 
 export function RouteComponent() {
   const { t } = useTranslation()
+  const sharedSessionId=useAtomValue(currentSessionIdAtom)
   const navigate = useNavigate()
   const searchParams = Route.useSearch()
   const [installConfig, setInstallConfig] = useState<MCPServerConfig | undefined>(undefined)
@@ -69,6 +74,7 @@ export function RouteComponent() {
       }
     >
       <VeniceMCPSettings />
+      {sharedSessionId&&<SettingsSection><LocalMCPSettings sessionId={sharedSessionId}/></SettingsSection>}
       <BuiltinServersSection />
       <CustomServersSection installConfig={installConfig} />
     </SettingsPage>
