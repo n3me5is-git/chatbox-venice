@@ -103,7 +103,7 @@ For another harness, preserve the separation between validated policy, determini
 - Shared on-demand workspaces require conflict handling and cannot provide the same data separation as dedicated workers.
 - Browser/mobile execution remains constrained by existing sandbox and platform limits. Parallel workers do not gain an operating-system terminal or arbitrary native package installation.
 - Cross-session publication/rollback and physical-device networking need integration tests; they must not be inferred from unit tests or mocked transport alone.
-# Desktop MCP entry point
+## Desktop MCP entry point
 
 The local server can expose a separate default-off multi-agent tool group. `createLocalMCPAgentTools` reuses `createAgentTools` and `MultiAgentRuntime`, so guardian task/message/result/file checks are identical for local and external callers. A live sharing lease is asserted through the main-process server status. It is never derived from client-supplied caller IDs, workspace IDs or policy JSON.
 

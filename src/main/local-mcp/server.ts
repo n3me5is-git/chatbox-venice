@@ -70,7 +70,7 @@ export class LocalMCPServer {
     server.setRequestHandler(CallToolRequestSchema,async message=>{
       alive();const args=message.params.arguments??{},name=message.params.name
       if(!localMCPAllows(grant.permissions,name,args))return {isError:true,content:[{type:'text',text:'This tool or action is outside the shared chat permissions'}]}
-      try{const output=await this.backend.callTool(grant,name,args,'local-mcp:'+grant.startedAt+':'+requestId,controller.signal);alive();const text=JSON.stringify(output??null);if(Buffer.byteLength(text)>16*1024*1024)throw new Error('MCP output exceeds the size limit');return {content:[{type:'text',text}]}}
+      try{const output=await this.backend.callTool(grant,name,args,'local-mcp:'+grant.startedAt+':'+requestId,controller.signal);alive();const text=JSON.stringify(output??null);if(Buffer.byteLength(text)>16*1024*1024)throw new Error('MCP output exceeds the size limit');const blocked=!!output&&typeof output==='object'&&'blocked' in output&&output.blocked===true;return {...(blocked?{isError:true}:{}),content:[{type:'text',text}]}}
       catch(error){return {isError:true,content:[{type:'text',text:String((error as Error)?.message||error).slice(0,2000)}]}}
     })
     server.setRequestHandler(ListResourcesRequestSchema,async()=>{alive();return {resources:grant.permissions.readFiles?await this.backend.listResources(grant,controller.signal):[]}})

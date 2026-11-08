@@ -12,13 +12,14 @@ export interface ExternalAgentAccess {
   assert(): Promise<void>
   catalog(): Promise<DedicatedAgent[]>
   readResult(id: string): Promise<string>
+  listFiles?(id: string): Promise<unknown>
 }
 /** The external caller is always the root orchestrator, never an arbitrary child identity. */
 export function createLocalMCPAgentTools(grant: LocalMCPGrant, runtime: MultiAgentRuntime, access: ExternalAgentAccess): ToolSet {
   if (!grant.permissions.multiAgent) return {}
   const safe = (work: () => Promise<unknown>) => work().catch(error => ({ blocked: true, error: String((error as Error).message) }))
   // Only the schemas are used here; acquisition happens when a tool is executed, not on tools/list.
-  const shape = createAgentTools(runtime, {} as AgentCaller, access.readResult)
+  const shape = createAgentTools(runtime, {} as AgentCaller, access.readResult, access.listFiles)
   const tools: ToolSet = {}
   for (const [name, definition] of Object.entries(shape)) {
     if (!localMCPAllows(grant.permissions, name)) continue
@@ -26,7 +27,7 @@ export function createLocalMCPAgentTools(grant: LocalMCPGrant, runtime: MultiAge
       options.abortSignal?.throwIfAborted()
       const context = await access.acquire()
       if (input.id && !context.owned.has(input.id) || input.ids?.some((id: string) => !context.owned.has(id))) throw Error('Only direct workers created by this MCP sharing grant can be controlled')
-      const member = createAgentTools(runtime, context.caller, access.readResult)[name]
+      const member = createAgentTools(runtime, context.caller, access.readResult, access.listFiles)[name]
       const result: any = await member.execute!(input, options)
       if (name === 'agent_spawn' && result?.id) context.owned.add(result.id)
       await access.assert(); options.abortSignal?.throwIfAborted()

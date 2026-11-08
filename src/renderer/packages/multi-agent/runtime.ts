@@ -152,7 +152,13 @@ export async function loadAgentRuns(rootId: string) {
   await vault().projects.assertSession(rootId)
   if (!loaded.has(rootId)) { loaded.add(rootId); try { await multiAgentRuntime.restore(await readAgentData<AgentRun[]>(manifest(rootId), [])); agentEvents.set(rootId, await readAgentData('private-agents:events:' + encodeURIComponent(rootId), [])) } catch (error) { loaded.delete(rootId); throw error } }
 }
-function agentTools(caller: AgentCaller): ToolSet { return createAgentTools(multiAgentRuntime, caller, async id => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || ''))) }
+async function agentFiles(id: string) {
+  const run = multiAgentRuntime.runs.get(id)
+  if (!run) throw Error('Agent sandbox is unavailable')
+  const result = await listSessionResources(run.workspaceId)
+  return { files: result.items.map(({path,mime,bytes,deliverable}) => ({path,mime,bytes,deliverable})), truncated: result.truncated }
+}
+function agentTools(caller: AgentCaller): ToolSet { return createAgentTools(multiAgentRuntime, caller, async id => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || '')), agentFiles) }
 export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: ToolSet, assert: () => Promise<void>) {
   const readResult = async (id: string) => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || ''))
   const acquire = async (): Promise<ExternalAgentContext> => {
@@ -173,11 +179,12 @@ export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: To
       const names = Object.keys(available).map(name => name.startsWith('mcp_') ? name.slice(4) : name).filter(name => options.has(name))
       const caller: AgentCaller = { id: grant.sessionId, rootId: grant.sessionId, workspaceId: grant.sessionId, depth: 0, model: { provider: settings.provider, modelId: settings.modelId }, tools: [...new Set([...names,'ask_user'])], allowOnDemand: policy.allowOnDemand, dedicatedIds: policy.dedicatedIds }
       const context: ExternalAgentContext = { caller, owned: new Set() }
-      const fingerprint = JSON.stringify({ provider: settings.provider, modelId: settings.modelId, multiAgent: settings.multiAgent, agentMode: settings.agentMode })
+      const configuration = (value: SessionSettings) => JSON.stringify({ provider: value.provider, modelId: value.modelId, multiAgent: value.multiAgent, agentMode: value.agentMode, veniceSecurity: value.veniceSecurity, veniceProfile: value.veniceProfile, providerOptionsByModel: value.providerOptionsByModel, temperature: value.temperature, topP: value.topP, maxTokens: value.maxTokens, sessionPromptContextSnapshot: value.sessionPromptContextSnapshot })
+      const fingerprint = configuration(settings)
       const check = async () => {
         await assert()
         const current = await getSessionSettings(grant.sessionId)
-        if (JSON.stringify({ provider: current.provider, modelId: current.modelId, multiAgent: current.multiAgent, agentMode: current.agentMode }) !== fingerprint) throw Error('The Work chat configuration changed. Restart MCP sharing before using agents')
+        if (configuration(current) !== fingerprint) throw Error('The Work chat configuration changed. Restart MCP sharing before using agents')
       }
       const sharedNames = new Set(Object.keys(available))
       grants.set(grant.sessionId, { caller, settings, requester: 'owner', policyFingerprint: JSON.stringify(settings.multiAgent || null), external: { key: grant.token, assert: check, context, allows: (name,input) => localMCPWorkerAllows(grant.permissions, sharedNames, name, input) } })
@@ -187,7 +194,7 @@ export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: To
     acquiringExternal.set(grant.sessionId, pending)
     try { return await pending } finally { if (acquiringExternal.get(grant.sessionId) === pending) acquiringExternal.delete(grant.sessionId) }
   }
-  return createLocalMCPAgentTools(grant, multiAgentRuntime, { acquire, assert: async () => { const current = grants.get(grant.sessionId)?.external; if (!current || current.key !== grant.token) throw Error('Local MCP agent access was revoked'); await current.assert() }, catalog: listDedicatedAgents, readResult })
+  return createLocalMCPAgentTools(grant, multiAgentRuntime, { acquire, assert: async () => { const current = grants.get(grant.sessionId)?.external; if (!current || current.key !== grant.token) throw Error('Local MCP agent access was revoked'); await current.assert() }, catalog: listDedicatedAgents, readResult, listFiles: agentFiles })
 }
 export async function revokeExternalAgents(key: string) {
   for (const [rootId, grant] of grants) if (grant.external?.key === key) { grants.delete(rootId); await multiAgentRuntime.stopRoot(rootId) }

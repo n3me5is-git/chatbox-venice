@@ -22,7 +22,7 @@ function fixture() {
   const runtime = new MultiAgentRuntime(host)
   const caller: AgentCaller = { id:'root',rootId:'root',workspaceId:'root',depth:0,model:{provider:'venice',modelId:'encrypted'},tools:['session_file'],allowOnDemand:true,dedicatedIds:['worker'] }
   const owned = new Set<string>()
-  const access = { acquire: vi.fn(async () => { await assert(); return {caller,owned} }), assert, catalog: async () => [preset, {...preset,id:'hidden',name:'hidden'}], readResult: vi.fn(async (id:string) => results.get(id) || '') }
+  const access = { acquire: vi.fn(async () => { await assert(); return {caller,owned} }), assert, catalog: async () => [preset, {...preset,id:'hidden',name:'hidden'}], readResult: vi.fn(async (id:string) => results.get(id) || ''), listFiles: vi.fn(async()=>({files:[{path:'report.md',mime:'text/markdown',bytes:10}]})) }
   const grant: LocalMCPGrant = { running:true,sessionId:'root',url:'http://127.0.0.1:31337/mcp',token:'LOCAL_TOKEN',startedAt:1,permissions:{...defaultLocalMCPPermissions,writeFiles:true,multiAgent:true} }
   const tools = createLocalMCPAgentTools(grant,runtime,access)
   const call = async (name:string,input:unknown={}) => {
@@ -38,6 +38,7 @@ it('is absent by default and lists schemas without acquiring a runtime grant or 
   expect(Object.keys(f.tools)).toEqual(expect.arrayContaining(['agent_catalog','agent_tree','agent_spawn','agent_status','agent_wait','agent_result','agent_message','agent_file','agent_stop']))
   expect(f.access.acquire).not.toHaveBeenCalled(); expect(f.host.execute).not.toHaveBeenCalled()
   expect(createLocalMCPAgentTools({...f.grant,permissions:{...f.grant.permissions,writeFiles:false}},f.runtime,f.access)).not.toHaveProperty('agent_file')
+  expect(createLocalMCPAgentTools({...f.grant,permissions:{...f.grant.permissions,readFiles:false}},f.runtime,f.access)).not.toHaveProperty('agent_files')
 })
 it('returns only permitted catalog entries and inherited tools, without agent or guardian prompts',async()=>{
   const f=fixture(),catalog=await f.call('agent_catalog')
@@ -65,12 +66,14 @@ it('reviews result egress and exact file bytes, with no write or summary returne
   const f=fixture(),worker=await f.call('agent_spawn',{title:'Review',task:'Task',dedicatedId:'worker'})
   await f.call('agent_wait',{ids:[worker.id]})
   expect(await f.call('agent_result',{id:worker.id})).toMatchObject({text:'Reviewed summary'})
+  const listing=await f.call('agent_files',{id:worker.id});expect(JSON.parse(listing.text)).toEqual({files:[{path:'report.md',mime:'text/markdown',bytes:10}]})
   f.files.set('root:input.md',new TextEncoder().encode('Pseudonym 42'))
   const transfer=await f.call('agent_file',{id:worker.id,direction:'to-agent',sourcePath:'input.md',targetPath:'input.md'})
   expect(transfer.sha256).toHaveLength(64);expect(f.host.writeFile).toHaveBeenCalledTimes(1)
   const reviewed=vi.mocked(f.host.guard).mock.calls.at(-1)![1];expect(reviewed.file?.sha256).toBe(transfer.sha256);expect(reviewed.file?.data.every(byte=>byte===0)).toBe(true)
   vi.mocked(f.host.guard).mockResolvedValue({allow:false,reason:'Forbidden result'})
   const result=await f.call('agent_result',{id:worker.id});expect(result).toMatchObject({blocked:true});expect(JSON.stringify(result)).not.toContain('Reviewed summary')
+  expect(await f.call('agent_files',{id:worker.id})).toMatchObject({blocked:true})
   expect(await f.call('agent_file',{id:worker.id,direction:'to-agent',sourcePath:'input.md',targetPath:'next.md'})).toMatchObject({blocked:true});expect(f.host.writeFile).toHaveBeenCalledTimes(1)
 })
 it('rejects forged caller/settings fields and revokes existing worker access on stop',async()=>{
