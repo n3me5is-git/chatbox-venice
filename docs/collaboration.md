@@ -24,6 +24,8 @@ Every shared session has **Who can answer agent questions and approvals?**:
 
 This covers the agent's `ask_user` tool, Venice image/media generation and deletion approvals, and Retry/Skip decisions after a failed generation. Questions support single choices, multiple choices and custom text. The original requester is retained through image background follow-ups. Replies are checked on the host; expired, duplicate, revoked or unauthorized responses are refused. Requests expire after ten minutes or cancel when the turn/share stops. Changing the policy cancels existing decisions.
 
+Guest-originated tool turns also recheck membership and interaction permission when tools execute. Revoked/disconnected requests cannot resume as an automatically approved owner task, including after restart. Send a new owner message to continue a former guest task locally.
+
 While a chat is shared, paid Venice operations require an explicit decision even if that chat previously had automatic/similar approval enabled. Guests cannot change the owner's automatic-approval policy. Local operating-system commands, security prompts, project PINs and device access remain owner-side controls.
 
 Image approvals let participants choose the model, prompt, count and supported aspect ratio, with catalog pricing when available. Reference-dependent image editing needs files on the owner's device and its full local image dialog. Remote choices do not upload guest-device reference images. Models requiring those references are disabled in the remote basic approval form; the owner can use owner approval mode for that workflow.

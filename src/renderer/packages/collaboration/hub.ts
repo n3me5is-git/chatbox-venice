@@ -150,7 +150,7 @@ export class CollaborationHub{
   }
   async clone(id:string,signal:AbortSignal){const guest=this.guests.get(id);if(!guest?.snapshot||!guest.permissions.clone)throw Error('Cloning is not allowed');if(guest.snapshot.truncated)throw Error('The full chat is not ready. Ask the owner to wait for generation to finish.');return this.adapter.clone(guest.snapshot,file=>this.readFile(id,file,true,signal),signal)}
   async decision<T>(sessionId:string,requester:string,input:HitlInput,local:(signal:AbortSignal)=>Promise<T>,encode:(value:T)=>HitlAnswer,decode:(answer:HitlAnswer)=>T,signal?:AbortSignal):Promise<T>{
-    const room=this.shared(sessionId);if(!room)return local(signal||new AbortController().signal)
+    const room=this.shared(sessionId);if(!room)return requester==='owner'?local(signal||new AbortController().signal):decode(null)
     const controller=new AbortController();const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel()
     if(requester!=='owner'&&!room.peers.get(requester)?.approved){signal?.removeEventListener('abort',cancel);return decode(null)}
     const answer=room.hitl.ask(requester,input,controller.signal),request=room.hitl.requests('owner').at(-1);let chosen:T|undefined,localWon=false

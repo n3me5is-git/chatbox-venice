@@ -50,7 +50,7 @@ import platform from '@/platform'
 import * as settingActions from '@/stores/settingActions'
 import { settingsStore } from '@/stores/settingsStore'
 import { collaborationRequester } from '@shared/collaboration'
-import { routeSharedDecision } from '@/packages/collaboration/bridge'
+import { routeSharedDecision,assertSharedTurn } from '@/packages/collaboration/bridge'
 
 // Cache discoverSkills() to avoid IPC on every message generation
 let cachedSkills: Array<{ name: string; description: string }> | null = null
@@ -335,6 +335,8 @@ export async function buildToolsForSession(
   options: BuildToolsOptions
 ): Promise<BuildToolsResult> {
   const { webBrowsing, knowledgeBase, messages, agentMode, codeExecution, commandExecution } = options
+  const requester=collaborationRequester(messages).id
+  if(options.sessionId)assertSharedTurn(options.sessionId,requester)
   const agentToolContractVersion = options.agentToolContractVersion ?? 1
   const legacyCommandTools = agentToolContractVersion === 1
   const commandApprovalMode = resolveCommandApprovalMode(options.sessionSettings ?? {})
@@ -671,6 +673,7 @@ When you create a Git commit that includes code changes, append this exact trail
     instructions = buildToolUseCommunicationInstruction() + instructions
   }
 
+  if(options.sessionId&&requester!=='owner')for(const tool of Object.values(tools)){const execute=tool.execute;if(execute)tool.execute=((...args:Parameters<typeof execute>)=>{assertSharedTurn(options.sessionId!,requester);return execute(...args)}) as typeof execute}
   return { tools, instructions, ...(prepareStepMessages ? { prepareStepMessages } : {}) }
 }
 
