@@ -40,7 +40,7 @@ export async function buildSessionWorkspaceTools(id:string,imageResults?:ImageTo
           const {bytes}=await readSessionResource(id,file)
           try{
             if(bytes.length>VIEW_IMAGE_MAX_READ_BYTES)throw new Error('Image is too large for model preview')
-            const bounds=readRasterImageBounds(bytes)
+            const bounds=readRasterImageBounds(bytes,file.mime)
             if(!bounds||bounds.maxWidth>VIEW_IMAGE_MAX_SOURCE_DIMENSION||bounds.maxHeight>VIEW_IMAGE_MAX_SOURCE_DIMENSION||bounds.maxPixels>VIEW_IMAGE_MAX_SOURCE_PIXELS)throw new Error('Image dimensions exceed the model preview limit')
             const {getImageBase64AndResize}=await import('@/packages/pic_utils')
             const dataUrl=await getImageBase64AndResize(new File([Uint8Array.from(bytes)],file.name,{type:file.mime}),{outputType:'image/webp',quality:0.85})

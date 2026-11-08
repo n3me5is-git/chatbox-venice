@@ -38,7 +38,7 @@ describe('Venice chat media tools', () => {
     const s = setup(); s.settings.confirmMediaTools = false; s.confirm.mockResolvedValue(false)
     await s.call({ action: 'cleanup_remote', id: 'mine' }); expect(s.confirm).toHaveBeenCalledTimes(1); expect(s.service.cleanup).not.toHaveBeenCalled()
   })
-  it('uses chat approvals even when an old provider-wide bypass is present', async () => { const s=setup(); s.settings.confirmMediaTools=false; s.confirm.mockResolvedValue(false); expect(await s.call({action:'generate',kind:'speech',model:'tts',prompt:'hello'})).toEqual({cancelled:true}); expect(s.service.start).not.toHaveBeenCalled() })
+  it('uses chat approvals even when an old provider-wide bypass is present', async () => { const s=setup(); s.settings.confirmMediaTools=false; s.confirm.mockResolvedValue(false); expect(await s.call({action:'generate',kind:'speech',model:'tts',prompt:'hello'})).toMatchObject({cancelled:true}); expect(s.service.start).not.toHaveBeenCalled() })
   it('supports the default enabled tool policy', async () => {const s=setup(); delete s.settings.chatToolsEnabled; await s.call({action:'list'}); expect(s.service.list).toHaveBeenCalled()})
   it('rejects malformed JSON before approval or generation', async () => {
     const s = setup(); await expect(s.call({ action: 'generate', kind: 'video', model: 'video', prompt: 'hello', extra_json: '[]' })).rejects.toThrow('JSON object'); expect(s.confirm).not.toHaveBeenCalled(); expect(s.service.start).not.toHaveBeenCalled()

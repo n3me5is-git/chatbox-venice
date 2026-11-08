@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.34.1
+1. Expose separate Brave, Google and Exa tools from global Web Search settings
+2. Fix microphone access on Android and in unsaved new chats
+3. Keep saved files visible while chat revisions change; refresh generated image/media outputs
+4. Preview saved session images with vision models without regenerating them
+5. Ask interactive questions with choices and custom text; show generation failure before Retry or Skip
+
 ## Chatbox Venice 1.34.0
 1. Export rendered Markdown to PDF or a single offline HTML file with embedded images, diagrams and math fonts
 2. Edit text files and save editable copies of read-only text attachments

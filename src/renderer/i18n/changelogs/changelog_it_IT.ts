@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.34.1
+1. Esponi strumenti Brave, Google ed Exa separati dalle impostazioni globali di ricerca web
+2. Corregge il microfono su Android e nelle nuove chat ancora non salvate
+3. Mantiene visibili i file durante gli aggiornamenti della chat e aggiorna immagini e media generati
+4. Mostra le immagini salvate ai modelli con visione senza rigenerarle
+5. Domande interattive con scelte e testo libero; mostra gli errori di generazione prima di Riprova o Salta
+
 ## Chatbox Venice 1.34.0
 1. Esporta Markdown renderizzato in PDF o HTML autonomo con immagini, diagrammi e font delle formule incorporati
 2. Modifica i file testuali e salva copie modificabili degli allegati in sola lettura

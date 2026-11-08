@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.34.1
+
+See [release notes](docs/releases/v1.34.1.md). Adds independent separate engines in global Web Search settings and agent questions. Fixes new-chat dictation, Android microphone permissions, live file-explorer revision conflicts, recovery/preview of saved images, and repeated generation approval after failure.
+
 ## 1.34.0
 
 See [release notes](docs/releases/v1.34.0.md). Adds PDF and self-contained HTML export from rendered Markdown, editable copies of text attachments, global speech-recognition/synthesis models, microphone-to-draft dictation and on-demand reply reading. Private chats block non-private speech; E2EE chats require per-request consent for private speech over HTTPS.

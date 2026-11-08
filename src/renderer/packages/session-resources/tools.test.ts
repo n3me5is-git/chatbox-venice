@@ -6,7 +6,7 @@ vi.mock('./python-tools',()=>({sessionPythonTool:async()=>({})}))
 vi.mock('@/packages/mobile-work-mode/execution-service',()=>({capacitorExecution:{}}))
 vi.mock('@/packages/pic_utils',()=>({getImageBase64AndResize:state.resize}))
 import { buildSessionWorkspaceTools } from './tools'
-const context={toolCallId:'view',messages:[],abortSignal:new AbortController().signal}
+const context={toolCallId:'view',messages:[],abortSignal:new AbortController().signal,context:{}}
 beforeEach(()=>{
   vi.clearAllMocks();state.index.mockResolvedValue({files:[],removed:[]});state.write.mockResolvedValue({key:'session-file:encrypted-preview'})
   state.list.mockResolvedValue({items:[{id:'image:one',path:'images/one/1.png',name:'1.png',mime:'image/png',origin:'image',key:'picture:generated'}]})

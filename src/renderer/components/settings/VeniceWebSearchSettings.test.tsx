@@ -17,7 +17,7 @@ it('selects and persists separate global tools independently from Venice model s
   fireEvent.click(screen.getByRole('switch',{name:'Expose separate search engines'}))
   fireEvent.click(screen.getByRole('textbox',{name:'Search engine through Venice'}));fireEvent.click(screen.getByRole('option',{name:'Google'}))
   expect(saved.extension.webSearch).toMatchObject({provider:'venice',veniceSearchToolMode:'separate',veniceSearchProvider:'google'})
-  expect(saved.providers.venice.venice?.searchToolMode).toBe('selected')
+  expect(saved.providers?.venice.venice?.searchToolMode).toBe('selected')
   view.unmount();render(<MantineProvider><Controls/></MantineProvider>)
   expect((screen.getByRole('switch',{name:'Expose separate search engines'}) as HTMLInputElement).checked).toBe(true)
   expect((screen.getByRole('textbox',{name:'Search engine through Venice'}) as HTMLInputElement).value).toBe('Google')

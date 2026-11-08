@@ -1,6 +1,6 @@
 import { expect,it,vi } from 'vitest'
 import { createAskUserTool } from './user-questions'
-const context={toolCallId:'question',messages:[],abortSignal:new AbortController().signal}
+const context={toolCallId:'question',messages:[],abortSignal:new AbortController().signal,context:{}}
 it('waits for selected choices and custom text without inventing an answer',async()=>{
   const ask=vi.fn(async()=>({answers:[{selected:['A','B'],text:'Additional context'}]})),tool=createAskUserTool(ask)
   expect(await tool.execute!({questions:[{question:'Choose',options:['A','B','C'],multiple:true}]},context)).toEqual({cancelled:false,answers:[{question:'Choose',selected:['A','B'],text:'Additional context'}]})

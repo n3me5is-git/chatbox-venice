@@ -66,7 +66,7 @@ describe('webSearchTool', () => {
     webSearchExecutorMock.mockResolvedValue({searchResults:[]})
     const tools=buildWebSearchTools(),signal=new AbortController().signal
     expect(Object.keys(tools)).toEqual(['web_search_brave','web_search_google','web_search_exa'])
-    for(const engine of ['brave','google','exa'])await tools[`web_search_${engine}`].execute!({query:'source query'},{toolCallId:engine,messages:[],abortSignal:signal})
+    for(const engine of ['brave','google','exa'])await tools[`web_search_${engine}`].execute!({query:'source query'},{toolCallId:engine,messages:[],abortSignal:signal,context:{}})
     expect(webSearchExecutorMock.mock.calls.slice(-3)).toEqual(['brave','google','exa'].map(engine=>[{query:'source query'},{abortSignal:signal,veniceSearchProvider:engine}]))
     await expect(toModelOutput(tools.web_search_google,{searchResults:[{title:'Source',link:'https://example.com',snippet:'Result'}]})).resolves.toMatchObject({type:'text',value:expect.stringContaining('https://example.com')})
   })
