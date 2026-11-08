@@ -12,10 +12,13 @@ export interface AdaptiveModalProps extends Omit<MantineModalProps, 'opened' | '
 
 export function AdaptiveModal({ opened, onClose, onExitTransitionEnd, children, title, ...props }: AdaptiveModalProps) {
   const isSmallScreen = useIsSmallScreen()
+  const {t}=useTranslation()
+  const closeButtonProps={...props.closeButtonProps,'aria-label':props.closeButtonProps?.['aria-label']??t('Close')}
 
   if (isSmallScreen) {
     return (
       <ManagedDrawer opened={opened} onClose={onClose} title={title} position="bottom" size="auto" lockScroll={false}
+        closeButtonProps={closeButtonProps}
         onExitTransitionEnd={onExitTransitionEnd} closeOnEscape={props.closeOnEscape} closeOnClickOutside={props.closeOnClickOutside}
         styles={{content:{maxHeight:'92dvh',overflow:'hidden',display:'flex',flexDirection:'column',borderRadius:'16px 16px 0 0'},
           overlay:{touchAction:'none'},header:{flexShrink:0,touchAction:'none'},body:{flex:'1 1 auto',maxHeight:'calc(92dvh - 64px)',minHeight:0,overflowY:'auto',overscrollBehavior:'contain',touchAction:'pan-y',WebkitOverflowScrolling:'touch',paddingBottom:'max(16px, env(safe-area-inset-bottom))'}}}>
@@ -25,7 +28,7 @@ export function AdaptiveModal({ opened, onClose, onExitTransitionEnd, children, 
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} onExitTransitionEnd={onExitTransitionEnd} title={title} {...props}>
+    <Modal opened={opened} onClose={onClose} onExitTransitionEnd={onExitTransitionEnd} title={title} {...props} closeButtonProps={closeButtonProps}>
       {children}
     </Modal>
   )
@@ -66,3 +69,4 @@ function AdaptiveModalCloseButton(props: ButtonProps & HTMLAttributes<HTMLButton
 }
 
 AdaptiveModal.CloseButton = AdaptiveModalCloseButton
+
