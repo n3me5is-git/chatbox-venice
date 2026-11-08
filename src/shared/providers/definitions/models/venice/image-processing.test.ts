@@ -8,6 +8,11 @@ function fixture(){
  return {input,store,request,config:{apiKey:'synthetic',options:{enabled:true}},signal:new AbortController().signal}
 }
 describe('Venice image processing without paid live calls',()=>{
+ it('stores the structured provider failure for background removal and upscaling',async()=>{
+  const f=fixture();f.request.mockResolvedValueOnce(new Response('{"error":{"message":"Insufficient image credits"},"request":{"prompt":"secret-in-body"}}',{status:402}))
+  await expect(processVeniceImage(f.input,f.config,f.store,f.request,f.signal)).rejects.toThrow('Insufficient image credits')
+  expect(f.store.update).toHaveBeenCalledWith(expect.any(String),expect.objectContaining({status:'error',error:expect.stringContaining('Insufficient image credits')}));expect(JSON.stringify(f.store.update.mock.calls)).not.toContain('secret-in-body');expect(f.request).toHaveBeenCalledTimes(1)
+ })
  it('uses multipart background removal once and retains protection in metadata and the saved output',async()=>{
   const f=fixture();const record=await processVeniceImage(f.input,f.config,f.store,f.request,f.signal)
   expect(f.request).toHaveBeenCalledTimes(1);expect(f.request.mock.calls[0][0]).toMatchObject({url:'https://api.venice.ai/api/v1/image/background-remove',retry:0,useProxy:false})

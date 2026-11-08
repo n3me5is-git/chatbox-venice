@@ -3,6 +3,7 @@ import type { RequestAdapter } from '../../../../types/adapters'
 import { imageDimensions } from '../../../../utils/image-dimensions'
 import { assertVeniceEnabled,type VeniceOptions } from './options'
 import { requireModelPrivacy } from './privacy'
+import {responseFailureReason} from './failure-reason'
 export type ImageOperation='background-remove'|'upscale'
 export interface ImageProcessingStore {
  ensure(scope:string):Promise<void>;create(record:ImageGeneration):Promise<void>;update(id:string,patch:Partial<ImageGeneration>):Promise<unknown>;
@@ -26,7 +27,7 @@ export async function processVeniceImage(input:{file:File;operation:ImageOperati
   if(input.operation==='upscale'){body.set('scale',String(input.scale||2));body.set('creativity',String(input.creativity??0.01))}
   signal.throwIfAborted()
   const response=await request({url:(configuration.apiHost||'https://api.venice.ai/api/v1').replace(/\/+$/,'')+'/image/'+input.operation,method:'POST',headers:{Authorization:'Bearer '+configuration.apiKey},body,signal,useProxy:false,retry:0})
-  if(!response.ok){await response.body?.cancel();throw Error(`Venice image processing failed (HTTP ${response.status}). No paid request was retried.`)}
+  if(!response.ok)throw Error(`Venice image processing failed (HTTP ${response.status}): ${await responseFailureReason(response)}. No paid request was retried.`)
   const mime=(response.headers.get('content-type')||'').split(';')[0].toLowerCase()
   if(!['image/png','image/webp','image/jpeg'].includes(mime)||input.operation==='background-remove'&&mime!=='image/png'){await response.body?.cancel();throw Error('Venice returned an unexpected image type')}
   const key=await store.save(record,response,mime,signal);signal.throwIfAborted()

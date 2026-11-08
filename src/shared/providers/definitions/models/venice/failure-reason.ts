@@ -6,7 +6,7 @@ function detail(value:unknown):string{
  return ''
 }
 export function failureReason(error:string){
- const value=error.replace(/^Venice [^\n]+?failed \(HTTP \d+\):\s*/,'').replace(/\.? No paid request was retried\.?$/,'').trim()
+ const value=error.replace(/^(?:API Error:\s*)?Venice [^\n]+?failed \(HTTP \d+\):\s*/,'').replace(/\.? No paid request was retried\.?$/,'').trim()
  try{return clean(detail(JSON.parse(value))||value)}catch{return clean(value)}
 }
 /** Bound error bodies too: do not discard the useful validation message on HTTP 400/422. */

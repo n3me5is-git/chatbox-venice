@@ -15,6 +15,12 @@ function dependencies(apiRequest = vi.fn()): ModelDependencies {
 class TestVenice extends Venice { exposeModel(): LanguageModelV4 { return this.getChatModel() } }
 
 describe('Venice direct API integration', () => {
+  it('keeps the provider image failure reason in the saved message without retaining the request body',async()=>{
+    const api=vi.fn().mockResolvedValue(new Response(JSON.stringify({error:{message:'Krea does not support style references'},request:{prompt:'secret-in-body'}}),{status:400}))
+    const model=new Venice({apiKey:'test',apiHost:'https://api.venice.ai/api/v1',model:{modelId:'krea-2-turbo'}},dependencies(api))
+    const error=await model.paint({prompt:'image',num:1}).catch(error=>error)
+    expect(error.message).toContain('Krea does not support style references');expect(error.statusCode).toBe(400);expect(error.responseBody).toBeUndefined();expect(JSON.stringify(error)).not.toContain('secret-in-body');expect(api).toHaveBeenCalledTimes(1);expect(api.mock.calls[0][0].retry).toBe(0)
+  })
   it('discovers chat, generation and editing models with capabilities, excluding offline and unrelated media', async () => {
     const api = vi.fn().mockResolvedValue(json({ data: [
       { id: 'chat', type: 'text', model_spec: { name: 'Chat', availableContextTokens: 32000, capabilities: { supportsVision: true, supportsFunctionCalling: true, supportsWebSearch: true } } },

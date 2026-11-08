@@ -1,6 +1,7 @@
 import OpenAICompatible, { type OpenAICompatibleSettings } from '../../../models/openai-compatible'
 import { assertVeniceEnabled } from './venice/options'
 import { ApiError } from '../../../models/errors'
+import {responseFailureReason} from './venice/failure-reason'
 import { createFetchWithProxy } from '../../../models/utils/fetch-proxy'
 import { mergeExtraBody } from '../../../models/utils/extra-body'
 import type { ProviderModelInfo, ProviderSettings, ImageModelCapabilities, ToolUseScope } from '../../../types'
@@ -210,7 +211,7 @@ export default class Venice extends OpenAICompatible {
         // Billable requests must never be replayed automatically.
         retry: 0,
       })
-      if (!response.ok) throw new ApiError('Venice image generation failed', await response.text(), response.status)
+      if (!response.ok) throw new ApiError(`Venice image generation failed (HTTP ${response.status}): ${await responseFailureReason(response)}`,undefined,response.status)
       if (editing || response.headers.get('content-type')?.startsWith('image/')) {
         const bytes = new Uint8Array(await response.arrayBuffer())
         if (!bytes.length) throw new ApiError('Venice returned an empty image')
