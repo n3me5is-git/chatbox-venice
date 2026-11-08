@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { MantineProvider } from '@mantine/core'
 import { cleanup,fireEvent,render,screen } from '@testing-library/react'
-import { afterEach,expect,it,vi } from 'vitest'
+import { afterEach,beforeEach,expect,it,vi } from 'vitest'
 import { UserQuestionForm } from './UserQuestion'
 import { GenerationFailureContent } from '@/components/venice/GenerationFailure'
-afterEach(cleanup)
+Object.defineProperty(window,'matchMedia',{writable:true,value:()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn(),addListener:vi.fn(),removeListener:vi.fn()})})
+beforeEach(()=>{vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})})
+afterEach(()=>{cleanup();vi.unstubAllGlobals()})
 it('accepts multiple choices plus custom text only after explicit submission',()=>{
   const submit=vi.fn(),cancel=vi.fn()
   render(<MantineProvider><UserQuestionForm input={{questions:[{question:'Choose the deliverables',options:['PDF','HTML','Markdown'],multiple:true}]}} onSubmit={submit} onCancel={cancel}/></MantineProvider>)
@@ -27,3 +29,4 @@ it('shows the failed model and reason before offering retry or skip',()=>{
   expect(screen.getByText('HTTP 400: unsupported size')).toBeTruthy();expect(screen.getByText('Image · test-model')).toBeTruthy()
   expect(retry).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Skip generation'}));expect(skip).toHaveBeenCalledOnce();expect(retry).not.toHaveBeenCalled()
 })
+
