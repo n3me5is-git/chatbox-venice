@@ -35,7 +35,7 @@ export function VeniceModelInfo({model}:{model?:MediaCatalogItem}){
  if(!model)return null
  return <><Button size="xs" variant="subtle" leftSection={<IconInfoCircle size={16}/>} onClick={()=>setOpened(true)}>{ft('Model details and options')}</Button><VeniceModelDetails model={opened?model:undefined} onClose={()=>setOpened(false)}/></>
 }
-export function VeniceModelDetails({model,onClose}:{model?:MediaCatalogItem;onClose:()=>void}){
+export function VeniceModelDetails({model,onClose,inline=false}:{model?:MediaCatalogItem;onClose:()=>void;inline?:boolean}){
  const {i18n}=useTranslation();const [error,setError]=useState('')
  if(!model)return null
  const spec=model.model_spec||{},locale=i18n.resolvedLanguage||i18n.language||'en'
@@ -43,7 +43,7 @@ export function VeniceModelDetails({model,onClose}:{model?:MediaCatalogItem;onCl
  const card=model.type==='video'?videoModelDocumentation(model):`https://venice.ai/models/${encodeURIComponent(model.id)}`
  const open=(url:string)=>{setError('');void openVeniceDocumentation(url).catch(()=>setError(ft('Unable to open documentation. Use Open in browser.')))}
  const options=Object.fromEntries(Object.entries(spec).filter(([key])=>/^(supports_|min_|max_|default_|duration|supported_formats|voices|lyrics_required|prompt_character_limit|lyrics_character_limit|accepted_audio)/.test(key)))
- return <AdaptiveModal opened={!!model} onClose={onClose} title={spec.name||model.id} size="lg"><Stack gap="md">
+ const content=<Stack gap="md">
    <Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{model.id} · {ft(categoryLabels[mediaCategory(model)]||model.type)}</Text>
    {videoVariant(model)&&<Text size="sm" fw={600}>{ft(videoVariant(model)!)}</Text>}
    {seedanceReferenceModel(model)&&<Text size="sm">{ft('Also supports video editing through reference videos.')}</Text>}
@@ -56,5 +56,6 @@ export function VeniceModelDetails({model,onClose}:{model?:MediaCatalogItem;onCl
    {error&&<Alert color="orange">{ft(error)}</Alert>}
    <Title order={5}>{ft('Options allowed by the catalog')}</Title><Facts value={{...spec.capabilities,...spec.constraints,...options}} locale={locale}/>
    <Accordion><Accordion.Item value="raw"><Accordion.Control>{ft('Technical catalog data')}</Accordion.Control><Accordion.Panel><Code block style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{JSON.stringify(spec,null,2)}</Code></Accordion.Panel></Accordion.Item></Accordion>
- </Stack></AdaptiveModal>
+ </Stack>
+ return inline?content:<AdaptiveModal opened={!!model} onClose={onClose} title={spec.name||model.id} size="lg">{content}</AdaptiveModal>
 }

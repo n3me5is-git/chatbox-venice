@@ -14,7 +14,7 @@ function fixture(){
 describe('local video duration inspection',()=>{
  it('reads metadata without decoding the file and releases the local URL',async()=>{
   const video=fixture(),file=new File(['container'],'clip.mp4',{type:'video/mp4'})
-  const read=vi.spyOn(file,'arrayBuffer')
+  const read=vi.fn();Object.defineProperty(file,'arrayBuffer',{value:read})
   const pending=videoFileDuration(file)
   Object.defineProperty(video,'duration',{value:5.2});video.dispatchEvent(new Event('loadedmetadata'))
   await expect(pending).resolves.toBe(5.2)
