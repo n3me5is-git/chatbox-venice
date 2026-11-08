@@ -3,6 +3,7 @@ import {runPrivacyReview} from './run-privacy-review.mjs'
 import {runSearchReview} from './run-search-review.mjs'
 import {runMobileReview} from './run-mobile-review.mjs'
 import {runModelPickerReview} from './run-model-picker-review.mjs'
+import {runMediaArtifactsReview} from './run-media-artifacts-review.mjs'
 import {runSessionWorkspace} from './run-session-workspace.mjs'
 import {runSpeechReview} from './run-speech-review.mjs'
 import { spawn } from 'node:child_process'
@@ -148,6 +149,7 @@ try {
   await runImageReview({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSessionWorkspace({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSpeechReview({click,evaluate,wait,byText,byLabel,fill,cdp,delay,output})
+  await runMediaArtifactsReview({click,evaluate,wait,byText,cdp,output})
   assert.deepEqual(exceptions, [], 'Browser exceptions')
   const external = requests.filter(url => !/^(http:\/\/127\.0\.0\.1:4174\/|data:|blob:)/.test(url))
   assert.deepEqual(external, [], 'UI simulation made an unexpected external request')

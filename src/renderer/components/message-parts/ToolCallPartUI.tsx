@@ -42,7 +42,8 @@ import {
   IconX,
 } from '@tabler/icons-react'
 import clsx from 'clsx'
-import { type FC, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type FC, lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { mediaArtifactIds } from '@/packages/venice/media-artifacts'
 import { useTranslation } from 'react-i18next'
 import { ImageGenerationResultGallery } from '@/components/chat/ImageGenerationResultGallery'
 import { ImageInStorage } from '@/components/Image'
@@ -1065,9 +1066,10 @@ function isDownloadArtifact(part: MessageToolCallPart): boolean {
   return result?.downloadable === true || getWorkArtifacts(part).length > 0
 }
 
+const MediaArtifacts=lazy(()=>import('@/components/venice/VeniceMediaArtifacts').then(module=>({default:module.VeniceMediaArtifacts})))
 export const MessageArtifactsUI: FC<
-  { imageParts: MessageToolCallPart[]; downloadParts: MessageToolCallPart[] } & ToolCallActionContext
-> = ({ imageParts, downloadParts, sessionId, messageId }) => {
+  { imageParts: MessageToolCallPart[]; downloadParts: MessageToolCallPart[]; mediaParts?:MessageToolCallPart[] } & ToolCallActionContext
+> = ({ imageParts, downloadParts, mediaParts=[], sessionId, messageId }) => {
   const { t } = useTranslation()
   const artifacts = downloadParts.filter(isDownloadArtifact)
   const imageRecordIds = useMemo(
@@ -1082,7 +1084,7 @@ export const MessageArtifactsUI: FC<
 
   // A run that is still generating has no artifact to show yet — stay invisible
   // instead of leaving an empty section behind.
-  if (artifacts.length === 0 && generatedImages.length === 0) return null
+  if (artifacts.length === 0 && generatedImages.length === 0 && !mediaArtifactIds(mediaParts).length) return null
 
   return (
     <Stack
@@ -1100,6 +1102,7 @@ export const MessageArtifactsUI: FC<
       </Group>
       <Stack gap={6}>
         <ImageGenerationResultGallery images={generatedImages} />
+        {mediaParts.length>0&&<Suspense fallback={null}><MediaArtifacts parts={mediaParts} sessionId={sessionId}/></Suspense>}
         {artifacts.map((part) => (
           <CreateDownloadUI key={part.toolCallId} part={part} sessionId={sessionId} messageId={messageId} />
         ))}

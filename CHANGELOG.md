@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.36.0
+
+See [release notes](docs/releases/v1.36.0.md). Adds bounded waiting for existing Venice media jobs and local audio/video artifact cards in chat. Recall saved results without another paid request and open them with the shared explorer viewer.
+
 ## 1.35.1
 
 See [release notes](docs/releases/v1.35.1.md). Adds live local camera QR scanning alongside image upload, readable collaborative transport errors, pairing timeouts/retry and optional TURN configuration. Includes real direct/relayed WebRTC and Android camera/data-channel runtime checks.

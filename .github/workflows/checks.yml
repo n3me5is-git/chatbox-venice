@@ -35,6 +35,9 @@ jobs:
       - name: Protection history persistence and background lock timeout
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run packages/chatbox-react/src/image-generation-hooks.test.ts src/renderer/storage/__tests__/SQLiteImageGenerationStorage.test.ts src/renderer/packages/vault/background-lock.test.ts src/renderer/packages/vault/image-records.test.ts src/renderer/packages/vault/media-records.test.ts
+      - name: Media wait and chat artifact boundaries
+        if: ${{ !cancelled() }}
+        run: pnpm exec vitest run src/shared/providers/definitions/models/venice/media-wait.test.ts src/shared/providers/definitions/models/venice/tools.test.ts src/renderer/packages/venice/media-artifacts.test.ts src/renderer/components/venice/VeniceMediaArtifacts.test.tsx
       - name: Build optional live-test driver without credentials
         run: node scripts/build-venice-live-smoke.mjs
       - uses: actions/upload-artifact@v4

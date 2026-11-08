@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid'
 import type { RequestAdapter } from '../../../../types/adapters'
 import { mergeExtraBody } from '../../../../models/utils/extra-body'
 import { assertVeniceEnabled, type VeniceOptions } from './options'
+import { waitForMediaRecord } from './media-wait'
 
 export type MediaKind = 'speech' | 'transcription' | 'video' | 'music' | 'sound-effects' | 'voice-conversion'
 export type MediaRecord = {
@@ -65,6 +66,9 @@ export class VeniceMediaService {
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   list = async () => (await this.store.read()).filter(record => record && typeof record.id === 'string').sort((a, b) => b.createdAt - a.createdAt)
   isActive = (id: string) => this.active.has(id)
+  waitFor(id: string, timeoutMs = 30000, signal?: AbortSignal) {
+    return waitForMediaRecord({ read: async () => (await this.list()).find(record => record.id === id) || null, subscribe: this.subscribe }, timeoutMs, signal)
+  }
   private async mutate(update: (records: MediaRecord[]) => MediaRecord[]) {
     const task = this.updates.then(async () => { await this.store.write(update(await this.list())); for (const listener of this.listeners) listener() })
     this.updates = task.catch(() => {}); await task

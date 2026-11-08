@@ -548,6 +548,7 @@ const _Message: FC<Props> = (props) => {
       ),
     [contentParts]
   )
+  const mediaArtifactParts=useMemo(()=>contentParts.filter((item):item is MessageToolCallPart=>item.type==='tool-call'&&(item as MessageToolCallPart).toolName==='venice_media'),[contentParts])
   // Generated images are an outcome of the run, not a step of it: they are shown in the
   // artifacts area so the collapsed work process never hides them.
   const imageArtifactParts = useMemo(
@@ -1064,6 +1065,7 @@ const _Message: FC<Props> = (props) => {
           <MessageArtifactsUI
             imageParts={imageArtifactParts}
             downloadParts={msg.generating ? [] : downloadArtifactParts}
+            mediaParts={mediaArtifactParts}
             sessionId={sessionId}
             messageId={msg.id}
           />

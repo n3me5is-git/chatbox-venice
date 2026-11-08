@@ -43,6 +43,7 @@ function getChatboxCliToolName(input: unknown): string {
 }
 
 export function getToolName(toolName: string, input?: unknown): string {
+  if(toolName==='venice_media'){const action=(input as {action?:string}|undefined)?.action;return ft(action==='wait'?'Waiting for generation':action==='show'?'Show generated media':'Venice media')}
   if(toolName==='ask_user')return ft('Question for you')
   const globalEngine=toolName.match(/^web_search_(brave|google|exa)$/)?.[1]
   if(globalEngine)return `${t('Web Search')} · ${globalEngine==='exa'?'Exa':globalEngine==='brave'?'Brave':'Google'}`
