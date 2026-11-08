@@ -2,6 +2,8 @@ import {runImageReview} from './run-image-review.mjs'
 import {runPrivacyReview} from './run-privacy-review.mjs'
 import {runSearchReview} from './run-search-review.mjs'
 import {runMobileReview} from './run-mobile-review.mjs'
+import {runModelPickerReview} from './run-model-picker-review.mjs'
+import {runMediaArtifactsReview} from './run-media-artifacts-review.mjs'
 import {runSessionWorkspace} from './run-session-workspace.mjs'
 import {runSpeechReview} from './run-speech-review.mjs'
 import { spawn } from 'node:child_process'
@@ -136,14 +138,18 @@ try {
   await click(byText('Simulate app key lock'));await wait(()=>evaluate(`!!(${byText('Use device unlock')})`),'Device unlock option is missing');assert.equal(await evaluate(`[...document.querySelectorAll('label')].some(e=>e.textContent==='PIN or passphrase')`),false)
   await writeFile(path.join(output,'security-unlock-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
   await click(byText('Use device unlock'));await wait(()=>evaluate(`!!(${byText('Save unlock methods')})`),'Simulated device unlock failed')
+  await fill('Background lock delay','30');await wait(()=>evaluate(`(${byLabel('Background lock delay')}).value.startsWith('30')`),'Background lock input did not accept the value');await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');await evaluate('document.activeElement.blur()')
+  await wait(()=>evaluate(`window.__securitySettingsRead('background-lock-delay-seconds').then(value=>value===30)`),'Background lock delay did not persist')
   assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'),true,'Privacy settings overflow on mobile')
   assert.equal(await evaluate('window.__simulationRequestCount'),4,'Privacy and edit simulation made a real service request')
   await runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fill,delay,output})
+  await runModelPickerReview({click,evaluate,cdp,wait,byText,byLabel,fill,delay,output})
   await runSearchReview({click,evaluate,cdp,wait,byText,byLabel,output})
   await runPrivacyReview({click,evaluate,cdp,wait,byText,byLabel,output})
   await runImageReview({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSessionWorkspace({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSpeechReview({click,evaluate,wait,byText,byLabel,fill,cdp,delay,output})
+  await runMediaArtifactsReview({click,evaluate,wait,byText,cdp,output})
   assert.deepEqual(exceptions, [], 'Browser exceptions')
   const external = requests.filter(url => !/^(http:\/\/127\.0\.0\.1:4174\/|data:|blob:)/.test(url))
   assert.deepEqual(external, [], 'UI simulation made an unexpected external request')

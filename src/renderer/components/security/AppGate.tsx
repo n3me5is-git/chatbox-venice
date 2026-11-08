@@ -8,6 +8,7 @@ import { ScopeUnlock,useScopeStatus } from './ScopeUnlock'
 import { AppTitleBar } from '@/components/layout/AppTitleBar'
 import { dismissPrivateSurfaces } from './usePrivacyDismiss'
 import { sharingMayPreventLock } from '@/packages/collaboration/background'
+import { BACKGROUND_LOCK_DELAY, installBackgroundLock, lockDelaySeconds } from '@/packages/vault/background-lock'
 const AppLockContext=createContext(false)
 let locking=false,pendingLock:Promise<void>|undefined
 const lockListeners=new Set<()=>void>()
@@ -30,8 +31,9 @@ export function lockApplication():Promise<void>{
 export function AppGate({children}:{children:ReactNode}){
   const closing=useSyncExternalStore(subscribeLock,lockSnapshot,lockSnapshot)
   useTranslation();const vault=vaultRuntimeFor(platform);const {status,revision,error}=useScopeStatus(vault.keys);const [enabled,setEnabled]=useState<boolean|null>(null);const [background,setBackground]=useState(true);const [settingError,setSettingError]=useState('')
-  useEffect(()=>{let active=true;Promise.all([vault.db.getSetting<boolean>('app-lock-enabled'),vault.db.getSetting<boolean>('lock-on-background')]).then(([value,background])=>{if(active){setEnabled(value===true);setBackground(background!==false);setSettingError('')}},()=>{if(active)setSettingError(ft('Unable to read protection settings'))});return()=>{active=false}},[vault,revision])
-  useEffect(()=>{if(!enabled||!background)return;const hide=()=>{if(document.visibilityState==='hidden')void sharingMayPreventLock().catch(()=>false).then(keep=>{if(!keep&&document.visibilityState==='hidden')void lockApplication()})};document.addEventListener('visibilitychange',hide);return()=>document.removeEventListener('visibilitychange',hide)},[enabled,background])
+  const [delaySeconds,setDelaySeconds]=useState(0)
+  useEffect(()=>{let active=true;Promise.all([vault.db.getSetting<boolean>('app-lock-enabled'),vault.db.getSetting<boolean>('lock-on-background'),vault.db.getSetting<number>(BACKGROUND_LOCK_DELAY)]).then(([value,background,delay])=>{if(active){setEnabled(value===true);setBackground(background!==false);setDelaySeconds(lockDelaySeconds(delay));setSettingError('')}},()=>{if(active)setSettingError(ft('Unable to read protection settings'))});return()=>{active=false}},[vault,revision])
+  useEffect(()=>{if(!enabled||!background)return;return installBackgroundLock({delaySeconds,lock:()=>{void sharingMayPreventLock().catch(()=>false).then(keep=>{if(!keep)void lockApplication()})},trackWindowFocus:platform.type!=='mobile'})},[enabled,background,delaySeconds])
   if(settingError||error)return <Box p="lg"><Alert color="red">{settingError||error}</Alert></Box>
   if(enabled===null||enabled&&!status)return <Box p="lg"><Text>{ft('Loading protection settings…')}</Text></Box>
   if(closing||enabled&&!vault.keys.isUnlocked('app'))return <Box className="App relative flex flex-col"><AppTitleBar/><Stack align="center" justify="center" style={{flex:1,minHeight:300}} p="lg"><Box maw={380} w="100%">{closing?<Text>{ft('Locking and stopping active generations…')}</Text>:<ScopeUnlock keys={vault.keys} title={ft('Unlock Chatbox Venice')}/>}</Box></Stack></Box>

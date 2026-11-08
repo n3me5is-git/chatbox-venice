@@ -4,9 +4,11 @@ const manifest = 'android/app/src/main/AndroidManifest.xml'
 let xml = readFileSync(manifest, 'utf8')
 // Capacitor's AUDIO_CAPTURE permission callback requires both permissions. An
 // undeclared MODIFY_AUDIO_SETTINGS makes the whole callback deny microphone use.
-for (const permission of ['RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'USE_BIOMETRIC', 'USE_FINGERPRINT', 'WAKE_LOCK', 'POST_NOTIFICATIONS', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_REMOTE_MESSAGING']) {
+for (const permission of ['RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'CAMERA', 'USE_BIOMETRIC', 'USE_FINGERPRINT', 'WAKE_LOCK', 'POST_NOTIFICATIONS', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_REMOTE_MESSAGING']) {
   if (!xml.includes(`android.permission.${permission}`)) xml = xml.replace('<application', `<uses-permission android:name="android.permission.${permission}" /><application`)
 }
+// QR scanning stays optional on camera-less devices.
+if (!xml.includes('android.hardware.camera')) xml = xml.replace('<application', '<uses-feature android:name="android.hardware.camera" android:required="false" /><application')
 if (!xml.includes('android:usesCleartextTraffic=')) xml = xml.replace('<application', '<application android:usesCleartextTraffic="false"')
 writeFileSync(manifest, xml)
 if (!xml.includes('SharingBackgroundService')) { xml = xml.replace('</application>', '<service android:name=".SharingBackgroundService" android:exported="false" android:stopWithTask="true" android:foregroundServiceType="remoteMessaging" /></application>'); writeFileSync(manifest, xml) }

@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid'
 import type { RequestAdapter } from '../../../../types/adapters'
 import { mergeExtraBody } from '../../../../models/utils/extra-body'
 import { assertVeniceEnabled, type VeniceOptions } from './options'
+import { waitForMediaRecord } from './media-wait'
 
 export type MediaKind = 'speech' | 'transcription' | 'video' | 'music' | 'sound-effects' | 'voice-conversion'
 export type MediaRecord = {
@@ -65,6 +66,9 @@ export class VeniceMediaService {
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   list = async () => (await this.store.read()).filter(record => record && typeof record.id === 'string').sort((a, b) => b.createdAt - a.createdAt)
   isActive = (id: string) => this.active.has(id)
+  waitFor(id: string, timeoutMs = 30000, signal?: AbortSignal) {
+    return waitForMediaRecord({ read: async () => (await this.list()).find(record => record.id === id) || null, subscribe: this.subscribe }, timeoutMs, signal)
+  }
   private async mutate(update: (records: MediaRecord[]) => MediaRecord[]) {
     const task = this.updates.then(async () => { await this.store.write(update(await this.list())); for (const listener of this.listeners) listener() })
     this.updates = task.catch(() => {}); await task
@@ -111,7 +115,7 @@ export class VeniceMediaService {
     const config = this.config()
     if (config.options.privacyFilter && config.options.privacyFilter !== 'all') requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === input.model)?.model_spec, config.options.privacyFilter)
     if (!['video', 'music', 'sound-effects', 'voice-conversion'].includes(input.kind) && !(input.kind==='speech' && (await this.cachedCatalog()).some(item=>item.id===input.model&&item.type==='music'&&mediaCategory(item)==='speech'))) throw new Error('Quotes are available for queued media models')
-    const allowed = input.kind === 'video' ? ['duration', 'aspect_ratio', 'resolution', 'audio', 'video_url', 'upscale_factor'] : ['duration_seconds', 'character_count']
+    const allowed = input.kind === 'video' ? ['duration', 'aspect_ratio', 'resolution', 'audio', 'video_url', 'upscale_factor', 'reference_video_total_duration'] : ['duration_seconds', 'character_count']
     const merged = mergeExtraBody({ model: input.model }, input.options || {})
     if (typeof merged.model !== 'string' || !merged.model.trim()) throw new Error('Choose a model')
     const body: Record<string, unknown> = { model: merged.model }
