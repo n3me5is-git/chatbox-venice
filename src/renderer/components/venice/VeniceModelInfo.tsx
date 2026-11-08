@@ -48,6 +48,7 @@ export function VeniceModelDetails({model,onClose}:{model?:MediaCatalogItem;onCl
    {videoVariant(model)&&<Text size="sm" fw={600}>{ft(videoVariant(model)!)}</Text>}
    {seedanceReferenceModel(model)&&<Text size="sm">{ft('Also supports video editing through reference videos.')}</Text>}
    <VeniceModelBadges metadata={spec} showUnknown/>
+   {/^elevenlabs-music(?:-v2(?:-5)?)?$/.test(model.id)&&<Paper withBorder p="sm" radius="sm"><Text size="sm" fw={600}>{ft('Audio references')}</Text><Text size="sm">{ft('The model website advertises audio references, but the current public Venice audio API does not document an input field. Support through this integration has not been verified.')}</Text></Paper>}
    <VenicePricing key={model.id} model={model} onQuote={async input=>{const {veniceMediaService}=await import('@/packages/venice/service');return veniceMediaService.quote(input)}}/>
    {spec.description&&<Text size="sm">{spec.description}</Text>}
    <Text size="xs" c="dimmed">{ft('Privacy, filters, pricing and parameters are declared by Venice. A missing option is not a verified capability.')}</Text>

@@ -105,7 +105,7 @@ export function validateMediaRequest(kind: MediaKind, body: Record<string, unkno
     if(inputs.references&&!visualReferences)throw new Error('Add a reference image or video for this model.')
     if(Array.isArray(body.reference_audio_urls)&&body.reference_audio_urls.length&&!visualReferences)throw new Error('Reference audio needs a reference image or video.')
     const limits=videoReferenceLimits(model)
-    for(const [key,max]of [['reference_image_urls',limits.images],['reference_video_urls',limits.videos],['reference_audio_urls',limits.audio]] as const)if(Array.isArray(body[key])&&(body[key] as unknown[]).length>max)throw new Error('Too many references for this model. Check the model details.')
+    if(model.id.startsWith('seedance-2-'))for(const [key,max]of [['reference_image_urls',limits.images],['reference_video_urls',limits.videos],['reference_audio_urls',limits.audio]] as const)if(Array.isArray(body[key])&&(body[key] as unknown[]).length>max)throw new Error('Too many references for this model. Check the model details.')
     if(body.omni_reference_task_type!==undefined&&(!seedanceReferenceModel(model)||!model.id.startsWith('seedance-2-5-')||!['auto','reference','edit','extend'].includes(String(body.omni_reference_task_type))))throw new Error('This model does not support the selected video workflow.')
     if(body.omni_reference_task_type==='edit'&&(!sourceMatched||(body.reference_video_urls as unknown[]).length!==1))throw new Error('Video editing requires one source video.')
   }

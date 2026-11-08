@@ -109,6 +109,7 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
                     const option = (
                       <Combobox.Option
                         key={`${group.providerId}:${model.modelId}`}
+                        aria-label={model.displayName}
                         value={JSON.stringify({ provider: group.providerId, modelId: model.modelId })}
                         className="!rounded-lg flex items-center gap-2"
                       >

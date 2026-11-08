@@ -13,7 +13,8 @@ import type { DetailModel } from './ModelSelectorV2/types'
 
 const screenSize = vi.hoisted(() => ({ mobile: false }))
 
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key, i18n: {language:'en',resolvedLanguage:'en'} }) }))
+vi.mock('react-i18next', async (importOriginal) => ({ ...await importOriginal<typeof import('react-i18next')>(), useTranslation: () => ({ t: (key: string) => key, i18n: {language:'en',resolvedLanguage:'en'} }) }))
+vi.mock('@/platform',()=>({default:{type:'web',isDesktopLike:false,openLink:vi.fn()}}))
 vi.mock('@/hooks/useScreenChange', () => ({ useIsSmallScreen: () => screenSize.mobile }))
 vi.mock('./icons/ModelIcon', () => ({ ModelIcon: () => null }))
 vi.mock('./icons/ProviderIcon', () => ({ default: () => null }))

@@ -1,4 +1,6 @@
 export const catalogItalian={
+ 'Audio references':'Riferimenti audio',
+ 'The model website advertises audio references, but the current public Venice audio API does not document an input field. Support through this integration has not been verified.':'Il sito del modello descrive i riferimenti audio, ma l’API audio pubblica di Venice attuale non documenta un campo per inviarli. Il supporto tramite questa integrazione non è stato verificato.',
  'What would you like to do?':'Che cosa vuoi fare?',
  'All video workflows':'Tutte le modalità video',
  'Choose a workflow to show models that accept the inputs you need.':'Scegli una modalità per mostrare i modelli compatibili con i contenuti da usare.',

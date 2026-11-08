@@ -58,7 +58,7 @@ export function VeniceModelSelect({ models, ...props }: Omit<SelectProps, 'data'
 
   return <>
     <Select searchable={!mobile} allowDeselect={false} maxDropdownHeight={320}
-      comboboxProps={{ withinPortal: false }} {...props} withScrollArea={false}
+      {...props} comboboxProps={{ ...props.comboboxProps, withinPortal: false, keepMounted: false }} withScrollArea={false}
       styles={{ options: { maxHeight: `min(${props.maxDropdownHeight || 320}px, 50dvh)`, overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } }}
       dropdownOpened={!mobile && opened}
       onDropdownOpen={() => { setSearch(''); setOpened(true); props.onDropdownOpen?.() }} onDropdownClose={mobile ? undefined : close}
