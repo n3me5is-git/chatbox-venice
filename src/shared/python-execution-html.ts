@@ -28,7 +28,9 @@ export async function runPythonWorker(request:any,limitMemory:(bytes:Uint8Array)
     const base='https://chatbox-runtime.invalid/'
     // Package loading is local too. The browser CSP independently blocks every network connection.
     globalThis.fetch=(async(input:any)=>{
-      const url=new URL(typeof input==='string'?input:input.url,base)
+      const target=typeof input==='string'?input:input instanceof URL?input.href:input?.url
+      if(typeof target!=='string')throw new Error('Invalid Python runtime request')
+      const url=new URL(target,base)
       if(url.origin!==new URL(base).origin||url.search)throw new Error('Python network access is disabled')
       const name=decodeURIComponent(url.pathname.slice(1)),bytes=assets[name]
       if(!bytes)throw new Error('Python package is not installed: '+name)
