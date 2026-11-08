@@ -3,6 +3,7 @@ import {runPrivacyReview} from './run-privacy-review.mjs'
 import {runSearchReview} from './run-search-review.mjs'
 import {runMobileReview} from './run-mobile-review.mjs'
 import {runSessionWorkspace} from './run-session-workspace.mjs'
+import {runSpeechReview} from './run-speech-review.mjs'
 import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -13,7 +14,7 @@ await mkdir(output, { recursive: true })
 const profile = await mkdtemp(path.join(tmpdir(), 'venice-ui-'))
 const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--config', 'scripts/ui-simulation/vite.config.ts'], { stdio: ['ignore', 'pipe', 'pipe'] })
 let serverLog = ''; vite.stdout.on('data', x => { serverLog += x }); vite.stderr.on('data', x => { serverLog += x })
-const chrome = spawn(process.env.CHROME_PATH || '/usr/bin/google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--remote-debugging-port=9222', '--remote-allow-origins=*', '--user-data-dir=' + profile, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] })
+const chrome = spawn(process.env.CHROME_PATH || '/usr/bin/google-chrome', ['--headless=new', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--remote-debugging-port=9222', '--remote-allow-origins=*', '--user-data-dir=' + profile, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] })
 let chromeLog = ''; chrome.stderr.on('data', chunk => { chromeLog += chunk });
 let browserError; chrome.on('error', error => { browserError = error }); vite.on('error', error => { browserError = error })
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -142,6 +143,7 @@ try {
   await runPrivacyReview({click,evaluate,cdp,wait,byText,byLabel,output})
   await runImageReview({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSessionWorkspace({click,evaluate,wait,byText,byLabel,fill,cdp,output})
+  await runSpeechReview({click,evaluate,wait,byText,byLabel,fill,cdp,delay,output})
   assert.deepEqual(exceptions, [], 'Browser exceptions')
   const external = requests.filter(url => !/^(http:\/\/127\.0\.0\.1:4174\/|data:|blob:)/.test(url))
   assert.deepEqual(external, [], 'UI simulation made an unexpected external request')

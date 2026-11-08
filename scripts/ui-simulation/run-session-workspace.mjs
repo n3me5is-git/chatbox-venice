@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {writeFile} from 'node:fs/promises'
 import path from 'node:path'
+import {checkPrintedExport} from './print-export.mjs'
 export async function runSessionWorkspace({click,evaluate,cdp,wait,byText,byLabel,fill,output}){
   await click(byText('Test session workspace'))
   await wait(()=>evaluate(`!!document.querySelector('[aria-label="Session file tree"]')`),'Session file explorer did not open')
@@ -14,6 +15,10 @@ export async function runSessionWorkspace({click,evaluate,cdp,wait,byText,byLabe
   await click(byText('Workflow'))
   assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Workspace overflows phone width')
   await writeFile(path.join(output,'session-markdown-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+  await click(byText('Export single-file HTML'))
+  await wait(()=>evaluate(`typeof window.__simulationExportHTML==='string'`),'Single-file Markdown export did not finish')
+  const exported=await evaluate('window.__simulationExportHTML');assert.ok(exported.includes('data:image/'));assert.ok(exported.includes('base64,'));assert.ok(!exported.includes('blob:'))
+  await checkPrintedExport(exported,output)
   await click(`[...document.querySelectorAll('[data-markdown-file] a')].find(e=>e.textContent==='Open data')`)
   await wait(()=>evaluate(`document.body.textContent.includes('Local reference data')`),'Relative Markdown link did not open the session file')
   await click(byText('All session files'));await click(file('report.js'));await click(byText('Run JavaScript'))

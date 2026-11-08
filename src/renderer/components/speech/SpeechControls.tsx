@@ -31,18 +31,18 @@ function useSpeechGuard(context:SpeechContext,kind:SpeechKind,stop:()=>void){
   },[identity])
   return blocked
 }
-export function SpeechMicrophone({context,onText,disabled=false}:{context:SpeechContext;onText:(text:string)=>void;disabled?:boolean}){
+export function SpeechMicrophone({context,onText,disabled=false,client=speechClient}:{context:SpeechContext;onText:(text:string)=>void;disabled?:boolean;client?:Pick<typeof speechClient,'check'|'transcribe'>}){
   const [opened,setOpened]=useState(false),[ready,setReady]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[file,setFile]=useState<File|null>(null),[formats,setFormats]=useState<string[]>()
   const controller=useRef<AbortController>()
   const stop=useCallback(()=>{controller.current?.abort();setOpened(false);setReady(false);setBusy(false);setFile(null);setError('')},[])
   const blocked=useSpeechGuard(context,'asr',stop)
   const open=async()=>{
     window.dispatchEvent(new Event('chatbox:speech-start'));setOpened(true);setError('');setReady(false);const task=new AbortController();controller.current=task
-    try{const selected=await speechClient.check('asr',context);task.signal.throwIfAborted();const values=selected.model?.metadata?.accepted_audio_formats;setFormats(Array.isArray(values)?values.map(String):undefined);setReady(true)}catch(error){if(!task.signal.aborted)setError(failure(error))}
+    try{const selected=await client.check('asr',context);task.signal.throwIfAborted();const values=selected.model?.metadata?.accepted_audio_formats;setFormats(Array.isArray(values)?values.map(String):undefined);setReady(true)}catch(error){if(!task.signal.aborted)setError(failure(error))}
   }
   const transcribe=async()=>{
     if(!file||busy)return;const task=new AbortController();controller.current=task;setBusy(true);setError('')
-    try{const text=await speechClient.transcribe(context,file,task.signal,()=>requestSpeechConsent(task.signal));task.signal.throwIfAborted();onText(text);stop()}catch(error){if(!task.signal.aborted&&(error as Error)?.name!=='AbortError')setError(failure(error))}finally{if(!task.signal.aborted)setBusy(false)}
+    try{const text=await client.transcribe(context,file,task.signal,()=>requestSpeechConsent(task.signal));task.signal.throwIfAborted();onText(text);stop()}catch(error){if(!task.signal.aborted&&(error as Error)?.name!=='AbortError')setError(failure(error))}finally{if(!task.signal.aborted)setBusy(false)}
   }
   return <>
     <ActionIcon aria-label={ft('Dictate a prompt')} title={ft('Dictate a prompt')} aria-disabled={blocked||disabled} disabled={disabled} variant="subtle" size={32} radius="xl" style={{opacity:blocked?0.45:1,flexShrink:0,marginBottom:4}} onClick={()=>void open()}><IconMicrophone size={20}/></ActionIcon>
@@ -57,14 +57,14 @@ export function SpeechMicrophone({context,onText,disabled=false}:{context:Speech
     </Stack></AdaptiveModal>
   </>
 }
-export function SpeechReadAloud({context,text}:{context:SpeechContext;text:()=>string}){
+export function SpeechReadAloud({context,text,client=speechClient}:{context:SpeechContext;text:()=>string;client?:Pick<typeof speechClient,'synthesize'>}){
   const [opened,setOpened]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[url,setUrl]=useState('')
   const controller=useRef<AbortController>(),owned=useRef(''),audio=useRef<HTMLAudioElement|null>(null)
   const stop=useCallback(()=>{controller.current?.abort();audio.current?.pause();if(owned.current)URL.revokeObjectURL(owned.current);owned.current='';setUrl('');setBusy(false);setOpened(false);setError('')},[])
   const blocked=useSpeechGuard(context,'tts',stop)
   const read=async()=>{
     window.dispatchEvent(new Event('chatbox:speech-start'));setOpened(true);setBusy(true);setError('');const task=new AbortController();controller.current=task
-    try{const blob=await speechClient.synthesize(context,spokenMarkdown(text()),task.signal,()=>requestSpeechConsent(task.signal));task.signal.throwIfAborted();owned.current=URL.createObjectURL(blob);setUrl(owned.current)}catch(error){if(!task.signal.aborted&&(error as Error)?.name!=='AbortError')setError(failure(error))}finally{if(!task.signal.aborted)setBusy(false)}
+    try{const blob=await client.synthesize(context,spokenMarkdown(text()),task.signal,()=>requestSpeechConsent(task.signal));task.signal.throwIfAborted();owned.current=URL.createObjectURL(blob);setUrl(owned.current)}catch(error){if((error as Error)?.name==='AbortError')stop();else if(!task.signal.aborted)setError(failure(error))}finally{if(!task.signal.aborted)setBusy(false)}
   }
   return <>
     <ActionIcon aria-label={ft('Read aloud')} title={ft('Read aloud')} aria-disabled={blocked} variant="subtle" color="chatbox-secondary" size="lg" style={{opacity:blocked?0.45:1}} onClick={()=>void read()}><IconVolume size={20}/></ActionIcon>

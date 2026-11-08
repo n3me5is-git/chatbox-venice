@@ -15,8 +15,8 @@ vi.mock('react-i18next',()=>({useTranslation:()=>({})}))
 Object.defineProperty(window,'matchMedia',{value:vi.fn(()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()}))})
 vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})
 afterEach(cleanup)
-function fixture(){
-  let files:SessionResource[]=[{id:'one',path:'notes.md',name:'notes.md',mime:'text/markdown',origin:'file',bytes:10},{id:'two',path:'output/data.json',name:'data.json',mime:'application/json',origin:'file',bytes:2}]
+function fixture(initial?:SessionResource[]){
+  let files:SessionResource[]=initial??[{id:'one',path:'notes.md',name:'notes.md',mime:'text/markdown',origin:'file',bytes:10},{id:'two',path:'output/data.json',name:'data.json',mime:'application/json',origin:'file',bytes:2}]
   const api={configurePython:vi.fn(async()=>{}),pythonStatus:vi.fn(async()=>({ready:false,bytes:0,packages:[]})),installPython:vi.fn(async()=>({ready:true,bytes:0,packages:[]})),clearPython:vi.fn(async()=>{}),executePython:vi.fn(async()=>({stdout:"",files:[],exitCode:0})),backup:vi.fn(async()=>{}),restore:vi.fn(async()=>0),configure:vi.fn(async()=>{}),execute:vi.fn(async()=>({stdout:"",files:[],exitCode:0})),list:vi.fn(async()=>({items:files,truncated:false,options:{toolsEnabled:true,pythonEnabled:false}})),read:vi.fn(async()=>({bytes:new TextEncoder().encode('# Notes'),file:files[0]})),save:vi.fn(async()=>{}),remove:vi.fn(async(_id:string,item:SessionResource)=>{files=files.filter(file=>file.id!==item.id)}),export:vi.fn(async()=>{}),subscribe:vi.fn(()=>()=>{}),create:vi.fn(async()=>files[0]),deliver:vi.fn(async()=>files[0])}
   render(<MantineProvider><SessionResources sessionId="session-one" api={api as ComponentProps<typeof SessionResources>['api']}/></MantineProvider>)
   return api
@@ -42,4 +42,10 @@ it('preserves imported basenames so Markdown and separately imported images can 
   const file=new File(['# Report'],'report.md',{type:'text/markdown'});Object.defineProperty(file,'arrayBuffer',{value:async()=>new TextEncoder().encode('# Report').buffer})
   fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}})
   await waitFor(()=>expect(api.create).toHaveBeenCalledWith('session-one','input/report.md',expect.any(Uint8Array),'text/markdown'))
+})
+it('opens text attachments as editable copies without changing the original attachment',async()=>{
+  const api=fixture([{id:'attachment',path:'attachments/report.md',name:'report.md',mime:'text/markdown',origin:'attachment',bytes:10}])
+  fireEvent.click(await screen.findByRole('button',{name:/^report.md/}));await screen.findByRole('heading',{name:'Notes'})
+  fireEvent.click(screen.getByRole('button',{name:'Edit a copy'}));fireEvent.change(screen.getByRole('textbox',{name:'File content'}),{target:{value:'# Edited attachment'}})
+  fireEvent.click(screen.getByRole('button',{name:'Save editable copy'}));await waitFor(()=>expect(api.create).toHaveBeenCalledWith('session-one',expect.stringMatching(/^edits\/.+-report\.md$/),expect.any(Uint8Array),'text/markdown'));expect(api.save).not.toHaveBeenCalled()
 })
