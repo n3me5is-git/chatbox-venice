@@ -40,7 +40,7 @@ async function catalog(grant:LocalMCPGrant){
       const metadata=model.vendorMetadata,capabilities=metadata?.capabilities as Record<string,unknown>|undefined
       if(provider.id===ModelProviderEnum.Venice&&effectiveTextPrivacy(privacy)==='e2ee'&&capabilities?.supportsE2EE!==true)continue
       if(provider.id===ModelProviderEnum.Venice&&effectiveTextPrivacy(privacy)==='tee'&&capabilities?.supportsTeeAttestation!==true&&capabilities?.supportsE2EE!==true)continue
-      output.push({provider:provider.id,providerName:provider.name,modelId:model.modelId,name:model.nickname||model.displayName||model.modelId,capabilities:model.capabilities,privacy:metadata?.privacy,uncensored:metadata?.uncensored,secure:capabilities?.supportsE2EE===true||capabilities?.supportsTeeAttestation===true})
+      output.push({provider:provider.id,providerName:provider.name,modelId:model.modelId,name:model.nickname||model.modelId,capabilities:model.capabilities,privacy:metadata?.privacy,uncensored:metadata?.uncensored,secure:capabilities?.supportsE2EE===true||capabilities?.supportsTeeAttestation===true})
     }
   }
   return output.slice(0,2000)
@@ -65,7 +65,7 @@ async function modelTools(grant:LocalMCPGrant):Promise<ToolSet>{
         // Re-evaluate after approval: settings or privacy may have changed while the dialog was open.
         if(settingsStore.getState().getSettings().providers?.[input.provider]!==configuration||!(await catalog(grant)).some(model=>model.provider===input.provider&&model.modelId===input.modelId))throw new Error('The model configuration changed. Review the request again.')
         const settings=await getSessionSettings(grant.sessionId),model=await createModel({...settings,provider:input.provider,modelId:input.modelId,maxTokens:input.maxOutputTokens})
-        const result=await model.chat(input.messages,{sessionId:grant.sessionId,signal:options.abortSignal,maxSteps:1})
+        const result=await model.chat(input.messages,{sessionId:grant.sessionId,signal:options.abortSignal,maxSteps:1}).catch(()=>{throw new Error(options.abortSignal?.aborted?'Model call cancelled':'Model call failed. Check the provider in the app before retrying.')})
         await assertChat(grant)
         return {provider:input.provider,modelId:input.modelId,text:result.contentParts?.filter(part=>part.type==='text').map(part=>part.text).join('\n')||'',usage:result.usage}
       },
@@ -98,7 +98,7 @@ export async function localMCPTools(grant:LocalMCPGrant):Promise<LocalMCPTool[]>
       const properties=schema.properties as Record<string,any>|undefined
       if(properties?.action?.enum)properties.action.enum=properties.action.enum.filter((action:string)=>localMCPAllows(grant.permissions,name,{action}))
     }
-    result.push({name,description:member.description,inputSchema:schema})
+    result.push({name,description:typeof member.description==='function'?member.description({context:{}}):member.description,inputSchema:schema})
   }
   if(result.length>256)throw new Error('Too many shared MCP tools. Disable some connected services.')
   return result
@@ -129,6 +129,6 @@ export async function handleLocalMCP(request:LocalMCPRequest,signal:AbortSignal)
   const forward=request.name.startsWith('mcp_')
   if(forward&&forwarding.has(grant.token))throw new Error('Recursive MCP forwarding is blocked')
   if(forward)forwarding.add(grant.token)
-  try{return await member.execute(validated.value,{toolCallId:request.callId||request.id,messages:[],abortSignal:signal})}
+  try{return await member.execute(validated.value,{toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}})}
   finally{if(forward)forwarding.delete(grant.token)}
 }

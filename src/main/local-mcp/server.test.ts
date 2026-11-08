@@ -1,12 +1,13 @@
 import { afterEach,expect,it,vi } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { request as httpRequest } from 'node:http'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { defaultLocalMCPPermissions,type LocalMCPGrant } from '../../shared/local-mcp'
 import { LocalMCPServer,type LocalMCPBackend } from './server'
 const running:LocalMCPServer[]=[]
 afterEach(async()=>{await Promise.all(running.splice(0).map(server=>server.stop()))})
 async function fixture(){
-  const backend:LocalMCPBackend={listTools:vi.fn(async()=>[{name:'session_file',description:'Scoped files',inputSchema:{type:'object',properties:{action:{type:'string'}}}}]),callTool:vi.fn(async(grant,_name,args)=>({sessionId:grant.sessionId,action:args.action})),listResources:vi.fn(async()=>[{name:'report.md',uri:'chatbox-session://chat/report',mimeType:'text/markdown'}]),readResource:vi.fn(async(_grant,uri)=>({contents:[{uri,text:'# Local report',mimeType:'text/markdown'}]}))}
+  const backend:LocalMCPBackend={listTools:vi.fn(async()=>[{name:'session_file',description:'Scoped files',inputSchema:{type:'object' as const,properties:{action:{type:'string'}}}}]),callTool:vi.fn(async(grant,_name,args)=>({sessionId:grant.sessionId,action:args.action})),listResources:vi.fn(async()=>[{name:'report.md',uri:'chatbox-session://chat/report',mimeType:'text/markdown'}]),readResource:vi.fn(async(_grant,uri)=>({contents:[{uri,text:'# Local report',mimeType:'text/markdown'}]}))}
   const server=new LocalMCPServer(backend);running.push(server)
   const state=await server.start({sessionId:'chat',port:0,permissions:{...defaultLocalMCPPermissions}}) as LocalMCPGrant
   return {server,backend,state}
@@ -30,7 +31,8 @@ it('rejects browser origins, rebinding Host, absent/invalid tokens, oversized bo
   expect((await fetch(state.url,{method:'POST',body})).status).toBe(401)
   expect((await fetch(state.url,{method:'POST',headers:{...headers,Authorization:'Bearer wrong'},body})).status).toBe(401)
   expect((await fetch(state.url,{method:'POST',headers:{...headers,Origin:'https://evil.example'},body})).status).toBe(403)
-  expect((await fetch(state.url,{method:'POST',headers:{...headers,Host:'evil.example'},body})).status).toBe(403)
+  const rebinding=await new Promise<number|undefined>((resolve,reject)=>{const request=httpRequest(state.url,{method:'POST',headers:{...headers,Host:'evil.example'}},response=>{response.resume();resolve(response.statusCode)});request.on('error',reject);request.end(body)})
+  expect(rebinding).toBe(403)
   expect((await fetch(state.url,{method:'POST',headers,body:'['+body+']'})).status).toBe(400)
   expect((await fetch(state.url,{method:'POST',headers,body:'x'.repeat(513*1024)})).status).toBe(413)
   expect(backend.listTools).not.toHaveBeenCalled();expect(backend.callTool).not.toHaveBeenCalled()

@@ -45,14 +45,15 @@ export class LocalMCPServer {
     if(!grant){deny(response,503,'Local MCP server is stopped');return}
     const expectedHost=new URL(grant.url).host
     if(request.headers.host!==expectedHost||request.headers.origin!==undefined||!['127.0.0.1','::ffff:127.0.0.1'].includes(request.socket.remoteAddress||'')){request.resume();deny(response,403,'Only authorized local clients without a browser origin are accepted');return}
-    const authorization=Buffer.from(request.headers.authorization||''),expected=Buffer.from('Bearer '+grant.token)
+    const authorization=new TextEncoder().encode(request.headers.authorization||''),expected=new TextEncoder().encode('Bearer '+grant.token)
     if(authorization.length!==expected.length||!timingSafeEqual(authorization,expected)){request.resume();deny(response,401,'A valid local MCP bearer token is required');return}
     if(request.url!=='/mcp'){request.resume();deny(response,404,'Unknown MCP endpoint');return}
     if(request.method!=='POST'){request.resume();deny(response,405,'Use MCP Streamable HTTP POST requests');return}
     if(Number(request.headers['content-length'])>512*1024){request.resume();deny(response,413,'MCP request exceeds the size limit');return}
-    const chunks:Buffer[]=[];let length=0
-    for await(const chunk of request){length+=chunk.length;if(length>512*1024){deny(response,413,'MCP request exceeds the size limit');return}chunks.push(chunk)}
-    let body:any;try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{deny(response,400,'Invalid MCP JSON');return}
+    const chunks:Uint8Array<ArrayBuffer>[]=[];let length=0
+    for await(const chunk of request){length+=chunk.length;if(length>512*1024){deny(response,413,'MCP request exceeds the size limit');return}chunks.push(Uint8Array.from(chunk))}
+    const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
+    let body:any;try{body=JSON.parse(new TextDecoder().decode(bytes))}catch{deny(response,400,'Invalid MCP JSON');return}
     if(!body||Array.isArray(body)||typeof body!=='object'){deny(response,400,'Only single MCP messages are accepted');return}
     if(body.method==='notifications/cancelled'){
       this.pending.get(String(body.params?.requestId))?.abort();response.writeHead(202).end();return

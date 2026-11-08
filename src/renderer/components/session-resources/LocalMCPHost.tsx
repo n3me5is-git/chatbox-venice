@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import platform from '@/platform'
+import { redactLocalMCPResult } from '@shared/local-mcp-redaction'
+import { settingsStore } from '@/stores/settingsStore'
 export default function LocalMCPHost(){
   useEffect(()=>{
     const ipc=window.electronAPI;if(platform.type!=='desktop'||!ipc?.onLocalMCPRequest)return
@@ -9,7 +11,8 @@ export default function LocalMCPHost(){
     const unsubscribe=ipc.onLocalMCPRequest(request=>{
       if(request.operation==='cancel'){requests.get(request.id)?.abort();return}
       const controller=new AbortController();requests.set(request.id,controller)
-      void import('@/packages/local-mcp/backend').then(module=>module.handleLocalMCP(request,controller.signal)).then(result=>ipc.invoke('local-mcp:reply',request.id,{result})).catch(error=>ipc.invoke('local-mcp:reply',request.id,{error:String(error?.message||error).slice(0,2000)}).catch(()=>{})).finally(()=>requests.delete(request.id))
+      const reply=(value:unknown)=>ipc.invoke('local-mcp:reply',request.id,redactLocalMCPResult(value,settingsStore.getState().getSettings()))
+      void import('@/packages/local-mcp/backend').then(module=>module.handleLocalMCP(request,controller.signal)).then(result=>reply({result})).catch(error=>reply({error:String(error?.message||error).slice(0,2000)}).catch(()=>{})).finally(()=>requests.delete(request.id))
     })
     const unlock=vaultRuntimeFor(platform).keys.subscribe(stop)
     window.addEventListener('chatbox:privacy-lock',stop)
