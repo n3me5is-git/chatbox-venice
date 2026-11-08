@@ -21,6 +21,17 @@ function setup(){
  const make=()=>{const hub=new CollaborationHub(adapter);hubs.push(hub);return hub};return {make,submit,clone,snapshot,adapter}
 }
 describe('host-authoritative collaboration',()=>{
+ it('shows structured join errors and replaces a failed connection when retrying',async()=>{
+   const {make}=setup(),owner=make(),visitor=make(),host=await owner.host('chat'),first=await visitor.join(host.code,'Alice')
+   await vi.waitFor(()=>expect(first.status).toBe('waiting'))
+   const endpoint=[...network.rooms.get(host.id).guests.values()][0] as any
+   endpoint.handlers.error({error:'could not connect to peer test after exchanging SDP; configure TURN servers',roomId:'private-room'})
+   expect(first.error).toContain('TURN relay');expect(first.error).not.toContain('[object Object]');expect(first.error).not.toContain('private-room')
+   const second=await visitor.join(host.code,'Alice')
+   expect(second).not.toBe(first);await vi.waitFor(()=>expect(second.status).toBe('waiting'));expect(second.error).toBeUndefined()
+   endpoint.handlers.error({error:'Stale connection failure'})
+   expect(second.error).toBeUndefined()
+ })
  it('publishes the final revision when it changes during a snapshot read',async()=>{
    const {make,adapter,snapshot}=setup(),owner=make(),visitor=make(),host=await owner.host('chat'),guest=await visitor.join(host.code,'Alice');await vi.waitFor(()=>expect(host.peers.size).toBe(1));await owner.admit(host.id,[...host.peers.keys()][0],true)
    let release:()=>void=()=>{},reads=0;adapter.snapshot=async()=>{const value=structuredClone(snapshot);if(++reads===1)await new Promise<void>(resolve=>release=resolve);return value}

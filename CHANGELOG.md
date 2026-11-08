@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.35.1
+
+See [release notes](docs/releases/v1.35.1.md). Adds live local camera QR scanning alongside image upload, readable collaborative transport errors, pairing timeouts/retry and optional TURN configuration. Includes real direct/relayed WebRTC and Android camera/data-channel runtime checks.
+
 ## 1.35.0
 
 See [release notes](docs/releases/v1.35.0.md). Adds encrypted peer chat sharing, participant permissions, three shared HITL policies and streamed file cloning. Repairs stale Venice image classifications, reviews all 405 catalog entries, shows model costs and exposes safe provider failure reasons directly.

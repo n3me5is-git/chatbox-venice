@@ -1,0 +1,20 @@
+{
+  "nostr.mjs": "60bac742f9d03211dd39465f3641386952cef1f667e08dd330458ab5ce86ce66",
+  "secp256k1.mjs": "ba5aadb469e9208f2da1c9878ab6bb93d2c894f84e6c7ebf9dbf9462741b9fb7",
+  "core/action-receiver.mjs": "9ba489d0b04752f884013cb141e04f92011d87efb15464f263efd30ca07adab0",
+  "core/action-wire.mjs": "0840c6eefb095b72fcdafb905aa0c4e53a3393530782e69d8ac960102e7c11f5",
+  "core/actions.mjs": "63ea88c17409fbc1c8f5e1275f4e298b46b2e128f349a932e027ffe6d0501693",
+  "core/crypto.mjs": "fa511f5c6212f3c46a1218923943f6d97678e780d2e174006dff8d5e8527f95b",
+  "core/data-limits.mjs": "a9bfefafa9c2be3b78ba2d5a8fe12ec9a766e7a30dc93cf6b1dd881b2ebb0089",
+  "core/handshake.mjs": "6c9f96cd8ac1c7dbf30417c0b814656343e0b82ea1c0a542f7c58075526bc877",
+  "core/index.mjs": "48c0bf986ff3dd8d7d77292fbcbd81be6aa850209efffbb2dc36f93c70b4431d",
+  "core/media.mjs": "5b8d23f1dbe168d1c632d8e77d6b0181f4a0ea9b9e19ba0fbb802758001ca18f",
+  "core/offer-manager.mjs": "2c93a3ff8c9c33174d1960aa316a9ab7501370eecf17964767cb8234a7f6dbbe",
+  "core/peer.mjs": "2f5e2494917d7709d1fda9e0ed2bc860eb64dfa76f497e9b585e288c8fd04d6f",
+  "core/room.mjs": "39507b87801bffae6908361b3b77240b1c4de32369b1e1b1b2e930d3861412bc",
+  "core/shared-peer.mjs": "e79a7c956a1ebb78b5ef7b235cdeef952efdce844214e42b62e55d45f386b417",
+  "core/signal-handler.mjs": "f0503ce9397841c97b043df0f0e830afd56275e3e76aa3d6212e16076a38af02",
+  "core/strategy.mjs": "6da9a3ccd08688cf1ce312dc1ea28e5082696d91dbfe3a562f22c098d0539eb2",
+  "core/topic-strategy.mjs": "16e258abe5b8262cc6c7dffefe6d6870261d51c0ddc0f3941aaaf0e870618458",
+  "core/utils.mjs": "0b1565acc74094af14166d25efa328ad0f20d2c5121db125a754945f95cbbb53"
+}

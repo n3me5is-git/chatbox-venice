@@ -17,7 +17,7 @@ import javax.crypto.spec.GCMParameterSpec;
 
 /** Executes the production key-generation method against the Android Keystore service. */
 @RunWith(AndroidJUnit4.class)
-public class VaultKeyDeviceTest {
+public class VaultKeyDeviceTest extends EmulatorDeviceFixture {
     @Test public void productionDeviceKeyRoundTripAndReload() throws Exception {
         String alias="chatbox_test_"+UUID.randomUUID();
         KeyStore store=KeyStore.getInstance("AndroidKeyStore");store.load(null);

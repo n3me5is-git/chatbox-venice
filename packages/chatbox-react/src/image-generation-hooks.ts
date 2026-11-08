@@ -108,11 +108,12 @@ export class ImageGenerationQueryBridge {
           ...data,
           pages: data.pages.map((page) => ({
             ...page,
-            items: page.items.map(
-              (record) =>
-                this.queryClient.getQueryData<ImageGeneration | null>(ImageGenerationQueryKeys.record(record.id)) ??
-                record
-            ),
+            items: page.items.map((record) => {
+              const cached = this.queryClient.getQueryState<ImageGeneration | null>(ImageGenerationQueryKeys.record(record.id))
+              // Storage changes and privacy locks invalidate record queries too. An inactive
+              // record may still contain the previous scope (or plaintext) until refetched.
+              return cached && !cached.isInvalidated ? cached.data ?? record : record
+            }),
           })),
         }
       },

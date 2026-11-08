@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { SharedHitlQueue,SharePermissionsSchema,HitlPolicySchema,SnapshotSchema,HitlRequestSchema,SharedAuthorSchema,defaultSharePermissions,type SharePermissions,type SharedAuthor,type SharedSnapshot,type HitlPolicy,type HitlInput,type HitlAnswer,type HitlRequest } from '@shared/collaboration'
 import { b64,un64,encodeInvitation,makeInvitation,parseInvitation,keyPair,type Invitation } from './crypto'
 import { connectRoom,deviceIdentity,type Transport,type Link } from './transport'
+import { collaborationError } from './errors'
+import type { ConnectionOptions } from './network'
 
 export interface CollaborationAdapter {
   snapshot(sessionId:string):Promise<SharedSnapshot>
@@ -29,7 +31,7 @@ const Response=z.discriminatedUnion('type',[
  z.object({type:z.literal('chunk'),id:z.string().uuid(),data:z.string().max(65536),done:z.boolean()}).strict(),
  z.object({type:z.literal('closed')}).strict(),
 ])
-const messageError=(error:unknown)=>error instanceof Error?error.message:String(error)
+const messageError=collaborationError
 
 /** Volatile rooms; the existing app database remains authoritative on the owner. */
 export class CollaborationHub{
@@ -42,27 +44,27 @@ export class CollaborationHub{
   getVersion=()=>this.version
   changed=()=>{this.version++;for(const listener of this.listeners)listener()}
   shared(sessionId:string){return [...this.hosts.values()].find(room=>room.sessionId===sessionId)}
-  async host(sessionId:string,policy:HitlPolicy='owner',permissions:SharePermissions=defaultSharePermissions,relay?:string){
+  async host(sessionId:string,policy:HitlPolicy='owner',permissions:SharePermissions=defaultSharePermissions,relay?:string,options?:ConnectionOptions){
     const existing=this.shared(sessionId);if(existing)return existing
     if(this.hosts.size>=8)throw Error('At most eight shared chats can be active')
     const snapshot=await this.adapter.snapshot(sessionId);const identity=await keyPair(),invite=makeInvitation(identity.publicKey)
     const room={} as HostShare
     Object.assign(room,{id:invite.room,sessionId,title:snapshot.title,code:encodeInvitation(invite),policy:HitlPolicySchema.parse(policy),permissions:SharePermissionsSchema.parse(permissions),peers:new Map(),busy:false,transferring:new Set()})
     room.hitl=new SharedHitlQueue(()=>room.policy,()=>new Set([...room.peers.values()].filter(peer=>peer.approved).map(peer=>peer.author.id)),()=>{this.changed();for(const peer of room.peers.values())if(peer.approved)void peer.link.send({type:'hitls',hitls:room.hitl.requests(peer.author.id)}).catch(()=>{})})
-    room.transport=connectRoom(invite,identity,true,{message:(link,value)=>this.receiveHost(room,link,value),leave:id=>{room.peers.get(id)?.operation?.abort();room.peers.delete(id);room.hitl.revoke(id);this.changed()},error:error=>{room.error=messageError(error);this.changed()}},relay)
+    room.transport=connectRoom(invite,identity,true,{message:(link,value)=>{room.error=undefined;return this.receiveHost(room,link,value)},leave:id=>{room.peers.get(id)?.operation?.abort();room.peers.delete(id);room.hitl.revoke(id);this.changed()},error:error=>{room.error=messageError(error);this.changed()}},relay,options)
     this.hosts.set(room.id,room);this.changed();return room
   }
-  async join(code:string,name:string,relay?:string){
+  async join(code:string,name:string,relay?:string,options?:ConnectionOptions){
     const invite=parseInvitation(code);if(this.hosts.has(invite.room))throw Error('This device owns this shared chat')
-    const existing=this.guests.get(invite.room);if(existing)return existing
+    const existing=this.guests.get(invite.room);if(existing){if(existing.status!=='disconnected'&&!existing.error)return existing;this.stop(existing.id)}
     if(this.guests.size>=8)throw Error('At most eight shared chats can be active')
     name=SharedAuthorSchema.shape.name.parse(name)
     const identity=await deviceIdentity(),guest={} as GuestShare
     Object.assign(guest,{id:invite.room,code:encodeInvitation(invite),name,status:'connecting',permissions:{...defaultSharePermissions},hitls:[],busy:false,pending:new Map()})
-    guest.transport=connectRoom(invite,identity,false,{connected:link=>{void link.send({type:'join',name}).catch(error=>this.errorGuest(guest,error))},message:(link,value)=>{guest.link=link;this.receiveGuest(guest,value)},leave:()=>{guest.status='disconnected';guest.hitls=[];guest.snapshot=undefined;this.failPending(guest);this.changed()},error:error=>this.errorGuest(guest,error)},relay)
+    guest.transport=connectRoom(invite,identity,false,{connected:link=>{void link.send({type:'join',name}).catch(error=>this.errorGuest(guest,error))},message:(link,value)=>{if(this.guests.get(guest.id)!==guest)return;guest.link=link;this.receiveGuest(guest,value)},leave:()=>{guest.status='disconnected';guest.hitls=[];guest.snapshot=undefined;this.failPending(guest);this.changed()},error:error=>this.errorGuest(guest,error)},relay,options)
     this.guests.set(guest.id,guest);this.changed();return guest
   }
-  private errorGuest(guest:GuestShare,error:unknown){guest.error=messageError(error);this.changed()}
+  private errorGuest(guest:GuestShare,error:unknown){if(this.guests.get(guest.id)!==guest)return;guest.error=messageError(error);this.changed()}
   private failPending(guest:GuestShare){for(const item of guest.pending.values()){clearTimeout(item.timer);item.reject(Error('Shared chat disconnected'))}guest.pending.clear();if(guest.file){guest.file.error=Error('Shared chat disconnected');guest.file.wake?.()}}
   private async receiveHost(room:HostShare,link:Link,raw:unknown){
     if(!this.hosts.has(room.id))return
@@ -106,7 +108,7 @@ export class CollaborationHub{
   }
   private receiveGuest(guest:GuestShare,raw:unknown){
     const input=Response.parse(raw)
-    if(input.type==='waiting')guest.status='waiting'
+    if(input.type==='waiting'){guest.status='waiting';guest.error=undefined}
     if(input.type==='state'){guest.snapshot=input.snapshot;guest.permissions=input.permissions;guest.hitls=input.hitls;guest.busy=input.busy;guest.status='connected';guest.error=undefined}
     if(input.type==='hitls')guest.hitls=input.hitls
     if(input.type==='closed'){this.stop(guest.id);return}

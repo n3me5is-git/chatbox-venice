@@ -13,7 +13,7 @@ import static org.junit.Assert.*;
 
 /** Real Capacitor WebView capture after the user has already allowed RECORD_AUDIO. */
 @RunWith(AndroidJUnit4.class)
-public class MicrophoneDeviceTest {
+public class MicrophoneDeviceTest extends EmulatorDeviceFixture {
     @Test public void grantedMicrophoneCanRecordThroughCapacitor() throws Exception {
         var instrumentation=InstrumentationRegistry.getInstrumentation();
         var context=instrumentation.getTargetContext();
