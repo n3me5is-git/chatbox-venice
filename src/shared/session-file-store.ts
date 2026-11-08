@@ -75,6 +75,15 @@ export class SessionFileStore {
   async tools(id:string,enabled:boolean){
     await this.edit(id,async()=>{await this.storage.saveIndex(id,{...await this.index(id),toolsEnabled:enabled})})
   }
+  /** Adopt already encrypted, verified archive copies without replacing existing paths. */
+  async adopt(id:string,incoming:SessionFile[]){
+    return this.edit(id,async()=>{
+      const index=await this.index(id),files=[...index.files]
+      for(const file of incoming){sessionFilePath(file.path);if(files.some(item=>item.path===file.path))throw new Error('A file already exists at this path');if((file.bytes??0)>MAX_RESOURCE_FILE_BYTES)throw new Error('Session files must not exceed 10 MB');files.push(file)}
+      if(files.length>2048||files.reduce((sum,file)=>sum+(file.bytes??0),0)>512*1024*1024)throw new Error('Session file storage limit reached')
+      await this.storage.saveIndex(id,{...index,files})
+    })
+  }
   /** Publish execution changes together, after checking for edits made while code ran. */
   async commit(id:string,changes:Record<string,Uint8Array>,baseline:Record<string,string>,signal:AbortSignal){
     return this.edit(id,async()=>{

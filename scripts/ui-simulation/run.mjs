@@ -149,7 +149,7 @@ try {
   console.log('Venice Studio browser simulation passed; desktop/mobile screenshots saved.')
 } catch(error) {
   if(cdp&&evaluate){try{await writeFile(path.join(output,'failure.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'));await writeFile(path.join(output,'failure.json'),JSON.stringify(await evaluate(`({body:document.body.innerText,dialogs:[...document.querySelectorAll('[role="dialog"]')].map(e=>e.outerHTML.slice(0,10000))})`),null,2))}catch{}}
-  throw error
+  console.error(JSON.stringify({exceptions,requests},null,2)); throw error
 } finally {
   socket?.close(); chrome.kill('SIGTERM'); vite.kill('SIGTERM'); await writeFile(path.join(output, 'vite.log'), serverLog); await writeFile(path.join(output, 'chrome.log'), chromeLog)
 }

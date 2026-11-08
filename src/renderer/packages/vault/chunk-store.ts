@@ -1,5 +1,5 @@
 import { aesKey, decode64, encode64, open, seal, type SealedBytes } from './crypto'
-export type AssetInfo={name:string;mime:string;kind:'image'|'audio'|'video'|'document'|'chat'|'thumbnail';prompt?:string;model?:string;sourceId?:string;sessionId?:string;resourcePath?:string;deliverable?:boolean;hidden?:boolean}
+export type AssetInfo={name:string;mime:string;kind:'image'|'audio'|'video'|'document'|'chat'|'thumbnail';prompt?:string;model?:string;sourceId?:string;sessionId?:string;resourcePath?:string;deliverable?:boolean;hidden?:boolean;logicalBytes?:number}
 export type AssetHeader={version:1;id:string;alias?:string;scope:string;createdAt:number;bytes:number;chunks:number;status:'writing'|'ready';key:SealedBytes;info:SealedBytes;manifest?:SealedBytes}
 export interface CipherBlobStore {get(key:string):Promise<string|null>;set(key:string,value:string):Promise<void>;remove(key:string):Promise<void>;keys():Promise<string[]>}
 export interface AssetIndex {get(id:string):Promise<AssetHeader|null>;byAlias(alias:string):Promise<AssetHeader|null>;put(header:AssetHeader):Promise<void>;remove(id:string):Promise<void>;page(scope:string|undefined,cursor:number,limit:number):Promise<{items:AssetHeader[];next:number|null}>;all():AsyncIterable<AssetHeader>}

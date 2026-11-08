@@ -18,7 +18,7 @@ export async function* exportVault(assets:EncryptedChunkStore,password:string,sc
 }
 async function* lines(file:Blob,signal?:AbortSignal){const reader=file.stream().getReader();const decoder=new TextDecoder('utf-8',{fatal:true});let pending='';try{while(true){signal?.throwIfAborted();const value=await reader.read();if(value.done)break;pending+=decoder.decode(value.value,{stream:true});let newline:number;while((newline=pending.indexOf('\n'))>=0){if(newline>MAX_LINE)throw new Error('Backup record exceeds the size limit');yield pending.slice(0,newline);pending=pending.slice(newline+1)}if(pending.length>MAX_LINE)throw new Error('Backup record exceeds the size limit')}pending+=decoder.decode();if(pending.length)throw new Error('The backup is incomplete')}finally{await reader.cancel().catch(()=>{});reader.releaseLock()}}
 /** Stage only encrypted records. Verify the complete file before publishing any restored content. */
-export async function importVault(assets:EncryptedChunkStore,temporary:CipherBlobStore,file:Blob,password:string,targetScope:string,signal?:AbortSignal){
+export async function importVault(assets:EncryptedChunkStore,temporary:CipherBlobStore,file:Blob,password:string,targetScope:string,signal?:AbortSignal,onRestored?:(refs:readonly string[])=>Promise<void>){
   passwordCheck(password);const id=crypto.randomUUID(),stage=(n:number)=>`vault-backup-stage-${id}-${n}`;let staged=0;const imported:string[]=[],lease=`vault-backup-lease-${id}`
   try{
     await temporary.set(lease,JSON.stringify({updatedAt:Date.now()}))
@@ -42,7 +42,7 @@ export async function importVault(assets:EncryptedChunkStore,temporary:CipherBlo
       // New identities prevent restore from replacing a file already referenced by a chat.
       imported.push(await assets.put(source(),record.info,targetScope,undefined,signal))
     }
-    if(imported.length!==expectedAssets)throw new Error('Backup item count mismatch');return imported.length
+    if(imported.length!==expectedAssets)throw new Error('Backup item count mismatch');await onRestored?.(imported);return imported.length
   }catch(error){for(const ref of imported)await assets.remove(ref).catch(()=>{});throw error}
   finally{for(let n=0;n<staged;n++)await temporary.remove(stage(n)).catch(()=>{});await temporary.remove(lease).catch(()=>{})}
 }

@@ -24,7 +24,7 @@ async function put(id:string,key:string,data:Uint8Array,info:AssetInfo){
   await vault().assets.put((async function*(){yield data.length?data:new Uint8Array([0])})(),info,await scope(id),key)
   if(previous)await vault().assets.remove('vault-asset-'+previous.id)
 }
-const info=(id:string,file:SessionFile):AssetInfo=>({name:file.name,mime:file.mime,kind:file.mime.startsWith('image/')?'image':file.mime.startsWith('audio/')?'audio':file.mime.startsWith('video/')?'video':'document',sessionId:id,resourcePath:file.path,deliverable:file.deliverable})
+const info=(id:string,file:SessionFile):AssetInfo=>({name:file.name,mime:file.mime,kind:file.mime.startsWith('image/')?'image':file.mime.startsWith('audio/')?'audio':file.mime.startsWith('video/')?'video':'document',sessionId:id,resourcePath:file.path,deliverable:file.deliverable,logicalBytes:file.bytes})
 export const sessionFiles=new SessionFileStore({
   assertAccess:access,
   loadIndex:async id=>{

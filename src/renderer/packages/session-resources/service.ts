@@ -139,6 +139,7 @@ export function subscribeSessionResources(id:string,change:()=>void,locked:()=>v
 }
 export async function exportSessionResource(id:string,item:SessionResource){
   await assertSession(id)
+  if(item.origin==='file'&&item.bytes===0){await platform.exporter.exportTextFile(resourceName(item.name),'');return}
   const assets=vaultRuntimeFor(platform).assets,header=item.key?await assets.header(item.key):null
   if(header){
     const safeName=resourceName(item.name).replace(/[\\/:*?"<>|%\u0000-\u001f]/g,'_')||'export'
