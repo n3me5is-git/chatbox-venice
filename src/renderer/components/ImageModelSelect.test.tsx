@@ -13,7 +13,7 @@ import type { DetailModel } from './ModelSelectorV2/types'
 
 const screenSize = vi.hoisted(() => ({ mobile: false }))
 
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key, i18n: {language:'en',resolvedLanguage:'en'} }) }))
 vi.mock('@/hooks/useScreenChange', () => ({ useIsSmallScreen: () => screenSize.mobile }))
 vi.mock('./icons/ModelIcon', () => ({ ModelIcon: () => null }))
 vi.mock('./icons/ProviderIcon', () => ({ default: () => null }))
@@ -134,6 +134,18 @@ afterEach(() => {
 })
 
 describe('image model details', () => {
+  it('opens Venice pricing and full capabilities even when the catalog has no description', async () => {
+    screenSize.mobile = true
+    const onSelect = vi.fn()
+    render(<MantineProvider><ImageModelSelect modelGroups={[{providerId:'venice',label:'Venice',models:[{modelId:'no-description',displayName:'No description',vendorMetadata:{privacy:'private',uncensored:true,capabilities:{supportsE2EE:true},constraints:{maxInputImages:3},pricing:{generation:{usd:0.04}}}}]}]} onSelect={onSelect}>Pick Venice</ImageModelSelect></MantineProvider>)
+    fireEvent.click(screen.getByRole('button',{name:'Pick Venice'}))
+    fireEvent.click(screen.getByRole('button',{name:'Model details'}))
+    expect(await screen.findByText('Options allowed by the catalog')).toBeTruthy()
+    expect(screen.getByText('Maximum reference images')).toBeTruthy()
+    expect(screen.getByText('End-to-end encryption')).toBeTruthy()
+    expect(screen.getByText('Technical catalog data')).toBeTruthy()
+    expect(onSelect).not.toHaveBeenCalled()
+  })
   it.each(['click', 'keyboard'])('opens a controlled model list with $0', async (method) => {
     const user = userEvent.setup()
     const { onChange, onSelect } = mountControlled(false)

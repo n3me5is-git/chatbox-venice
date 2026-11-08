@@ -118,16 +118,17 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
                           size={16}
                           className="shrink-0"
                         />
-                        <div className="min-w-0 flex-1"><Text size="sm" className="break-words">{model.displayName}</Text>{group.providerId==='venice'&&<VeniceModelCost metadata={model.vendorMetadata}/>}</div>
+                        <div className="min-w-0 flex-1"><Text size="sm" className="break-words">{model.displayName}</Text>{group.providerId==='venice'&&<><Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{model.modelId}</Text><VeniceModelCost metadata={model.vendorMetadata}/></>}</div>
                         <VeniceModelBadges metadata={model.vendorMetadata} compact />
-                        {isMobile && detail.description && (
+                        {(
                           <ActionIcon
                             aria-label={t('Model details') as string}
                             data-mantine-stop-propagation
                             variant="transparent"
-                            size="sm"
+                            size={isMobile ? 'lg' : 'md'}
                             className="shrink-0 text-chatbox-tint-tertiary hover:text-chatbox-tint-secondary"
                             onKeyDown={(event) => event.stopPropagation()}
+                            onMouseDown={(event) => event.preventDefault()}
                             onClick={(event) => {
                               event.stopPropagation()
                               openingDetailRef.current = true

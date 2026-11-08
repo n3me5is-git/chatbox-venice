@@ -2,6 +2,7 @@ import {runImageReview} from './run-image-review.mjs'
 import {runPrivacyReview} from './run-privacy-review.mjs'
 import {runSearchReview} from './run-search-review.mjs'
 import {runMobileReview} from './run-mobile-review.mjs'
+import {runModelPickerReview} from './run-model-picker-review.mjs'
 import {runSessionWorkspace} from './run-session-workspace.mjs'
 import {runSpeechReview} from './run-speech-review.mjs'
 import { spawn } from 'node:child_process'
@@ -139,6 +140,7 @@ try {
   assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'),true,'Privacy settings overflow on mobile')
   assert.equal(await evaluate('window.__simulationRequestCount'),4,'Privacy and edit simulation made a real service request')
   await runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fill,delay,output})
+  await runModelPickerReview({click,evaluate,cdp,wait,byText,byLabel,fill,delay,output})
   await runSearchReview({click,evaluate,cdp,wait,byText,byLabel,output})
   await runPrivacyReview({click,evaluate,cdp,wait,byText,byLabel,output})
   await runImageReview({click,evaluate,wait,byText,byLabel,fill,cdp,output})

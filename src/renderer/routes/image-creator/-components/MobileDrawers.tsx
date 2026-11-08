@@ -1,7 +1,7 @@
 import {useOverlayManager} from '@/components/layout/Overlay'
 import {VeniceModelCost} from '@/components/venice/VeniceModelCost'
 import { VeniceModelBadges } from '@/components/venice/VeniceModelBadges'
-import { ActionIcon, Box, Flex, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core'
+import { ActionIcon, Box, Flex, Stack, Text, UnstyledButton } from '@mantine/core'
 import type { ImageGeneration } from '@shared/types'
 import { IconInfoCircle, IconPlus, IconServer } from '@tabler/icons-react'
 import { useRef, useState } from 'react'
@@ -151,7 +151,7 @@ export function MobileModelDrawer({
             </Drawer.Title>
           </Flex>
 
-          <ScrollArea flex={1} mih={0} style={{ overflow: 'hidden' }} type="auto" offsetScrollbars data-vaul-no-drag>
+          <Box flex={1} mih={0} data-model-scroll="image" style={{ overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }} data-vaul-no-drag>
             <Stack gap="md" p="xs" pb="xl">
               {modelGroups.map((group, groupIndex) => (
                 <Stack key={group.providerId} gap={2}>
@@ -189,10 +189,10 @@ export function MobileModelDrawer({
                             size={20}
                             className="shrink-0"
                           />
-                          <div className="min-w-0 flex-1"><Text size="sm" fw={isSelected ? 600 : 400} className="break-words">{model.displayName}</Text>{group.providerId==='venice'&&<VeniceModelCost metadata={model.vendorMetadata}/>}</div>
+                          <div className="min-w-0 flex-1"><Text size="sm" fw={isSelected ? 600 : 400} className="break-words">{model.displayName}</Text>{group.providerId==='venice'&&<><Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{model.modelId}</Text><VeniceModelCost metadata={model.vendorMetadata}/></>}</div>
                           <VeniceModelBadges metadata={model.vendorMetadata} compact />
                         </UnstyledButton>
-                        {model.description?.trim() && (
+                        {(
                           <ActionIcon
                             aria-label={t('Model details') as string}
                             variant="transparent"
@@ -215,7 +215,7 @@ export function MobileModelDrawer({
                 </Stack>
               ))}
             </Stack>
-          </ScrollArea>
+          </Box>
         </Drawer.Content>
       </Drawer.Portal>
       <ImageModelDetailDrawer

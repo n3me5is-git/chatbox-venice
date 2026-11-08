@@ -29,11 +29,34 @@ export function videoInputs(model?: MediaCatalogItem) {
   const declared=(...values:unknown[])=>values.find((value):value is boolean=>typeof value==='boolean')
   const references = declared(c.supports_reference_images,caps.supportsReferenceImages)??/reference-to-video|omni-reference|recast/.test(id)
   const start = !references && (declared(c.image_input,caps.supportsImageInput)??type==='image-to-video')
-  const end = declared(c.supports_end_image,caps.supportsEndImage)??/first-last|first-and-last|start-end|transition/.test(id)
+  const end = declared(c.supports_end_image,caps.supportsEndImage)??(/first-last|first-and-last|start-end|transition/.test(id)||/^seedance-2-(?:0(?:-fast)?|5)-image-to-video-basic$/.test(id))
   return { start, end, references, video: declared(c.video_input,caps.supportsVideoInput)??/edit-video|video-to-video|recast|extend-video/.test(id),
     referenceVideos: references && (c.video_input === true || /seedance-2|wan-3/.test(id)),
     referenceAudio: references && (c.per_reference_audio === true || /seedance-2|wan-3/.test(id)),
     audioInput: c.audio_input === true, audio: c.audio_configurable === true || caps.supportsAudio === true }
+}
+export type VideoWorkflow = 'all' | 'text' | 'image' | 'references' | 'edit'
+/** Current guide documents editing via reference_video_urls, not video_url. */
+export function seedanceReferenceModel(model?:MediaCatalogItem){return !!model&&/^seedance-2-(?:0(?:-fast)?|5)-reference-to-video-basic$/.test(model.id)}
+export function videoWorkflows(model:MediaCatalogItem):VideoWorkflow[]{
+  if(model.type!=='video')return []
+  const input=videoInputs(model),mode=String(model.model_spec?.constraints?.model_type||'')
+  const workflows:VideoWorkflow[]=[]
+  if(mode==='text-to-video'||/text-to-video/.test(model.id))workflows.push('text')
+  if(input.start)workflows.push('image')
+  if(input.references)workflows.push('references')
+  if(input.video||seedanceReferenceModel(model))workflows.push('edit')
+  return workflows
+}
+export function videoReferenceLimits(model?:MediaCatalogItem){
+  if(model?.id.startsWith('seedance-2-5-'))return {images:30,videos:10,audio:10,seconds:30}
+  if(model?.id.startsWith('seedance-2-0-'))return {images:9,videos:3,audio:3,seconds:15}
+  return {images:4,videos:4,audio:4,seconds:undefined}
+}
+export function videoWorkflowRequest(model:MediaCatalogItem|undefined,workflow:VideoWorkflow,prompt:string){
+  const edit=workflow==='edit'&&seedanceReferenceModel(model)
+  return {prompt:edit&&!/^Strictly edit <Video 1>/i.test(prompt)?`Strictly edit <Video 1>, ${prompt}`:prompt,
+    options:edit?{aspect_ratio:'adaptive',...(model!.id.startsWith('seedance-2-5-')?{duration:'auto',omni_reference_task_type:'edit'}:{})}:{} as Record<string,unknown>}
 }
 export function musicDuration(model?: MediaCatalogItem) {
   const s = model?.model_spec
@@ -69,11 +92,22 @@ export function validateMediaRequest(kind: MediaKind, body: Record<string, unkno
   }
   if (kind === 'video') {
     const c = s.constraints || {}; const inputs = videoInputs(model)
-    for (const [key, values] of [['duration', c.durations], ['aspect_ratio', c.aspect_ratios], ['resolution', c.resolutions]] as const) if (body[key] !== undefined && Array.isArray(values) && values.length && !values.includes(body[key])) throw new Error(`${key} is not supported by this model. Open the model details.`)
+    const sourceMatched=seedanceReferenceModel(model)&&Array.isArray(body.reference_video_urls)&&body.reference_video_urls.length>0
+    for (const [key, values] of [['duration', c.durations], ['aspect_ratio', c.aspect_ratios], ['resolution', c.resolutions]] as const) if (body[key] !== undefined && Array.isArray(values) && !values.includes(body[key])) {
+      if(sourceMatched&&(key==='aspect_ratio'&&['adaptive','auto'].includes(String(body[key]))||key==='duration'&&model.id.startsWith('seedance-2-5-')&&['auto','-1'].includes(String(body[key]))))continue
+      throw new Error(`${key} is not supported by this model. Open the model details.`)
+    }
     for (const [key, supported] of [['image_url', inputs.start], ['end_image_url', inputs.end], ['reference_image_urls', inputs.references], ['video_url', inputs.video], ['audio', inputs.audio], ['reference_video_urls', inputs.referenceVideos], ['reference_audio_urls', inputs.referenceAudio], ['audio_url', inputs.audioInput]] as const) if (body[key] !== undefined && !supported) throw new Error(`This model does not support ${key}. Choose a compatible model.`)
     if (inputs.start && !body.image_url) throw new Error("This model requires a start image.")
     if (inputs.video && !inputs.references && !body.video_url) throw new Error("This model requires a source video.")
-    if (inputs.end && !body.end_image_url) throw new Error("This model requires an end frame.")
+    if ((c.requires_end_image===true||/first-last|first-and-last|start-end|transition/.test(model.id)) && inputs.end && !body.end_image_url) throw new Error("This model requires an end frame.")
+    const visualReferences=(Array.isArray(body.reference_image_urls)?body.reference_image_urls.length:0)+(Array.isArray(body.reference_video_urls)?body.reference_video_urls.length:0)
+    if(inputs.references&&!visualReferences)throw new Error('Add a reference image or video for this model.')
+    if(Array.isArray(body.reference_audio_urls)&&body.reference_audio_urls.length&&!visualReferences)throw new Error('Reference audio needs a reference image or video.')
+    const limits=videoReferenceLimits(model)
+    for(const [key,max]of [['reference_image_urls',limits.images],['reference_video_urls',limits.videos],['reference_audio_urls',limits.audio]] as const)if(Array.isArray(body[key])&&(body[key] as unknown[]).length>max)throw new Error('Too many references for this model. Check the model details.')
+    if(body.omni_reference_task_type!==undefined&&(!seedanceReferenceModel(model)||!model.id.startsWith('seedance-2-5-')||!['auto','reference','edit','extend'].includes(String(body.omni_reference_task_type))))throw new Error('This model does not support the selected video workflow.')
+    if(body.omni_reference_task_type==='edit'&&(!sourceMatched||(body.reference_video_urls as unknown[]).length!==1))throw new Error('Video editing requires one source video.')
   }
 }
 export function privacyLabels(metadata?: Record<string, unknown>) {

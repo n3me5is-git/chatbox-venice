@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VeniceStudio } from './VeniceStudio'
 import type { MediaRecord, MediaCatalogItem } from '@shared/providers/definitions/models/venice/media'
 vi.mock('@/platform', () => ({ default: { exporter: { exportTextFile: vi.fn(), exportBlob: vi.fn() } } }))
+vi.mock('@/packages/video-file',()=>({videoFileDuration:vi.fn().mockResolvedValue(5.2)}))
 Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener:vi.fn(), removeListener:vi.fn() })) })
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn() })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
@@ -21,6 +22,32 @@ function setup(records: MediaRecord[] = []) {
 function show(service: ReturnType<typeof setup>, options = { audioEnabled: true, videoEnabled: true, musicEnabled: true }) { return render(<MantineProvider><VeniceStudio initialKind={service.testKind} service={service} options={options} /></MantineProvider>) }
 async function loadModels() { fireEvent.click(screen.getByRole('button', { name: "Load models" })); await waitFor(() => expect((screen.getByLabelText("Model", { selector: 'input' }) as HTMLInputElement).value).toBe('Kokoro')) }
 describe('Venice Studio simulated user journeys', () => {
+  it('filters video models by intent and sends a Seedance edit through references with the correct quote',async()=>{
+    const service=setup()
+    service.testKind='video'
+    service.catalog.mockResolvedValue([
+      {id:'seedance-2-5-text-to-video-basic',type:'video',model_spec:{name:'Seedance 2.5',constraints:{model_type:'text-to-video',durations:['5s']}}},
+      {id:'seedance-2-5-image-to-video-basic',type:'video',model_spec:{name:'Seedance 2.5',constraints:{model_type:'image-to-video',durations:['5s']}}},
+      {id:'seedance-2-5-reference-to-video-basic',type:'video',model_spec:{name:'Seedance 2.5 R2V',constraints:{model_type:'image-to-video',video_input:false,durations:['5s'],aspect_ratios:['16:9']}}},
+    ])
+    const view=show(service)
+    fireEvent.click(screen.getByRole('button',{name:'Load models'}))
+    await waitFor(()=>expect((screen.getByLabelText('Model',{selector:'input'}) as HTMLInputElement).value).toContain('Seedance 2.5'))
+    fireEvent.click(screen.getByLabelText('What would you like to do?',{selector:'input'}));fireEvent.click(screen.getByRole('option',{name:'Video editing'}))
+    await waitFor(()=>expect((screen.getByLabelText('Model',{selector:'input'}) as HTMLInputElement).value).toBe('Seedance 2.5 R2V'))
+    fireEvent.change(screen.getByLabelText('Describe your video'),{target:{value:'change the sky to sunset'}})
+    expect((screen.getByRole('button',{name:'Create video'}) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText('Same duration as the source video')).toBeTruthy()
+    const videoInput=screen.getByLabelText('Video to edit or extend',{selector:'input'})
+    fireEvent.change(videoInput,{target:{files:[new File(['clip'],'source.mp4',{type:'video/mp4'})]}})
+    await waitFor(()=>expect((screen.getByRole('button',{name:'Create video'}) as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByRole('button',{name:'Show cost'}))
+    await waitFor(()=>expect(service.quote).toHaveBeenCalledWith(expect.objectContaining({options:expect.objectContaining({duration:'auto',aspect_ratio:'adaptive',reference_video_total_duration:5.2})})))
+    fireEvent.click(screen.getByRole('button',{name:'Create video'}))
+    await waitFor(()=>expect(service.start).toHaveBeenCalledWith(expect.objectContaining({prompt:'Strictly edit <Video 1>, change the sky to sunset',model:'seedance-2-5-reference-to-video-basic',options:expect.objectContaining({duration:'auto',aspect_ratio:'adaptive',omni_reference_task_type:'edit',reference_video_urls:[expect.stringContaining('data:video/mp4;base64,')]})})))
+    expect(service.start.mock.calls).toEqual([[expect.objectContaining({options:expect.not.objectContaining({reference_video_total_duration:expect.anything()})})]])
+    expect(view.container.querySelectorAll('input[type="file"]')).not.toHaveLength(0)
+  })
   it('opens local history without network, and keeps technical settings collapsed', async () => {
     const service = setup(); show(service); await screen.findByText("Your first creation is waiting")
     expect(service.catalog).not.toHaveBeenCalled(); expect(service.start).not.toHaveBeenCalled(); expect(service.cachedCatalog).toHaveBeenCalledTimes(1)

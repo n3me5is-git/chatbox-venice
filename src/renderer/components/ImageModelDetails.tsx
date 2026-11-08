@@ -4,6 +4,9 @@ import { Drawer } from 'vaul'
 import type { ImageModelGroup } from '@/hooks/useImageModelGroups'
 import type { ImageModelOption } from '@/packages/image-model-catalog'
 import { useOverlayManager } from './layout/Overlay'
+import { useIsSmallScreen } from '@/hooks/useScreenChange'
+import { AdaptiveModal } from './common/AdaptiveModal'
+import { VeniceModelDetails } from './venice/VeniceModelInfo'
 import { DRAWER_SURFACE_STYLE, MODEL_SELECTOR_SURFACE_CLASS } from './ModelSelectorV2/constants'
 import { DetailCard } from './ModelSelectorV2/DetailCard'
 import type { DetailModel } from './ModelSelectorV2/types'
@@ -30,13 +33,19 @@ export function ImageModelDetailDrawer({
   onRestoreFocus: () => void
 }) {
   const { t } = useTranslation()
-  const isTopOverlay = useOverlayManager(!!model,onClose)
+  const mobile = useIsSmallScreen()
+  const venice = model?.providerId === 'venice'
+  const isTopOverlay = useOverlayManager(!!model && mobile && !venice,onClose)
+  if (venice) return <VeniceModelDetails model={{ id: model.modelId, type: String(model.vendorMetadata?.veniceType || 'image'), model_spec: { ...model.vendorMetadata, name: model.name, description: model.description } }} onClose={onClose}/>
+  if (!mobile) return <AdaptiveModal opened={!!model} onClose={onClose} title={t('Model details')} size="sm">{model && <DetailCard model={model} onClose={onClose} mobile/>}</AdaptiveModal>
   return (
     <Drawer.Root open={!!model} onOpenChange={(open) => !open && onClose()} noBodyStyles autoFocus>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-chatbox-background-mask-overlay" />
         <Drawer.Content
           className="fixed bottom-0 left-0 right-0 outline-none max-h-[90dvh] overflow-y-auto"
+          data-vaul-no-drag
+          style={{overscrollBehavior:'contain',touchAction:'pan-y',WebkitOverflowScrolling:'touch'}}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             onRestoreFocus()
