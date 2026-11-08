@@ -4,7 +4,7 @@ describe('collaboration authenticated encryption',()=>{
   it('round-trips invitations without accepting truncated or malformed codes',async()=>{
     const owner=await keyPair(),invite=makeInvitation(owner.publicKey),code=encodeInvitation(invite)
     expect(parseInvitation(code)).toEqual(invite);expect(parseInvitation('https://example.test/#'+code)).toEqual(invite)
-    expect(()=>parseInvitation(code.slice(0,-20))).toThrow();expect(()=>parseInvitation('CB1.invalid')).toThrow()
+    expect(code.startsWith('CB2.')).toBe(true);expect(()=>parseInvitation(code.slice(0,-20))).toThrow();expect(()=>parseInvitation('CB1.invalid')).toThrow('Update both apps')
     expect((await fingerprint(owner.publicKey)).length).toBe(32)
   })
   it('encrypts both directions and rejects tampering, replays, a wrong owner and a previous connection',async()=>{

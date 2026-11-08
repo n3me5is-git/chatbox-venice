@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import vendor from './vendor/chic-transfer-vendor.js'
+import { joinRoom, defaultRelayUrls } from './vendor/trystero026/nostr.mjs'
 import { channel,connectionNonce,fingerprint,type Identity,type Invitation,type EncryptedFrame } from './crypto'
 import { rtcConfiguration, type ConnectionOptions } from './network'
 
@@ -13,7 +14,7 @@ export interface Transport {close():void;remove(id:string):void}
 export function connectRoom(invite:Invitation,identity:Identity,host:boolean,handlers:{connected?:(link:Link)=>void;message:(link:Link,value:unknown)=>Promise<void>|void;leave:(id:string)=>void;error:(error:unknown)=>void},relay?:string,options?:ConnectionOptions):Transport{
   if(relay&&(!relay.startsWith('wss://')&&!/^ws:\/\/(127\.0\.0\.1|localhost):\d+$/.test(relay)||relay.length>300))throw Error('Use a secure wss:// signaling relay')
   let closed=false,ownerPeer:string|undefined
-  const room=vendor.joinRoom({appId:'chatbox-venice-collaboration-v1',password:invite.secret,trickleIce:false,relayConfig:{urls:relay?[relay]:vendor.defaultRelayUrls.slice(0,5)},rtcConfig:rtcConfiguration(options)},invite.room,{onJoinError:(error:unknown)=>{if(!closed)handlers.error(error)}})
+  const room=joinRoom({appId:'chatbox-venice-collaboration-v2',maxReceiveBytes:2097152,password:invite.secret,relayConfig:{urls:relay?[relay]:defaultRelayUrls.slice(0,5)},rtcConfig:rtcConfiguration(options)},invite.room,{onJoinError:(error:unknown)=>{if(!closed)handlers.error(error)}})
   const action=room.makeAction('cbsecure'),peers=new Map<string,{queue:Promise<void>;sendQueue:Promise<void>;secure?:Awaited<ReturnType<typeof channel>>;nonce:string;id?:string;authenticated?:boolean;fragments?:{id:string;total:number;parts:string[];deadline:number};timer:ReturnType<typeof setTimeout>}>()
   const pairingTimer=host?undefined:setTimeout(()=>{if(!closed&&!ownerPeer)handlers.error(Error('No response from the owner. Keep the owner’s app open, check that both devices use the same signaling relay, and retry pairing.'))},90000)
   const remove=(peer:string)=>{const state=peers.get(peer);if(state){clearTimeout(state.timer);peers.delete(peer);if(state.id&&state.authenticated)handlers.leave(state.id);if(ownerPeer===peer)ownerPeer=undefined}}
@@ -61,7 +62,7 @@ export function connectRoom(invite:Invitation,identity:Identity,host:boolean,han
       }
     }).catch(error=>{remove(peerId);handlers.error(error)})
   }
-  return {close(){closed=true;clearTimeout(pairingTimer);for(const peer of [...peers.keys()])remove(peer);room.leave()},remove(id){for(const [peer,state]of peers)if(state.id===id)remove(peer)}}
+  return {close(){closed=true;clearTimeout(pairingTimer);for(const peer of [...peers.keys()])remove(peer);void room.leave()},remove(id){for(const [peer,state]of peers)if(state.id===id)remove(peer)}}
 }
 
 /** A stable non-extractable local key binds participant IDs to this browser installation. */

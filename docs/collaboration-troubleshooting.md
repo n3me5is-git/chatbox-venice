@@ -1,5 +1,7 @@
 # Collaborative pairing and QR scanning
 
+Both devices need version 1.35.1 or later and a new CB2 invitation. The bundled transport is Trystero 0.26.0, which fixes [expired offers losing their data-channel transport](https://github.com/dmotz/trystero/issues/204), [stale rejoin bindings](https://github.com/dmotz/trystero/issues/203) and the old eager offer pool. The expired-offer problem was reproduced in the browser tests: signaling still exchanged descriptions, but an owner waiting beyond 57 seconds could send an offer with no usable candidates.
+
 In **Share and collaborate**, choose **Scan with camera** for live QR recognition or **Upload QR image** for an existing photo/screenshot. Both use the bundled jsQR decoder on the device. Scanning fills the pairing code; you still choose **Join chat** and the owner must admit you. Camera frames are not uploaded or saved. Closing the scanner, locking the app or putting the scanner in the background stops capture. Android requests camera permission when scanning; microphone access is not requested.
 
 Keep both apps open during pairing. The invitation must belong to an active share. A QR code from a share that was stopped cannot restart it. A participant whose connection fails can choose **Retry connection**. This creates a new connection and requires owner admission again.

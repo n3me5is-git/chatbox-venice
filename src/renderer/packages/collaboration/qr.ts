@@ -5,6 +5,7 @@ import { encodeInvitation, parseInvitation } from './crypto'
 export function pairingFromPixels(data: Uint8ClampedArray, width: number, height: number): string | undefined {
   const result = vendor.jsQR(data, width, height)
   if (!result) return undefined
+  if (result.data.trim().replace(/^.*#/, '').startsWith('CB1.')) throw Error('This invitation uses an older sharing version. Update both apps and create a new invitation.')
   try { return encodeInvitation(parseInvitation(result.data)) } catch { return undefined }
 }
 

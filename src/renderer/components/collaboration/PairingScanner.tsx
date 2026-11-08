@@ -2,6 +2,7 @@ import { Alert, Button, Card, Stack, Text } from '@mantine/core'
 import { useEffect, useRef, useState } from 'react'
 import { forkT as ft } from '@/i18n/fork'
 import { pairingFromFrame } from '@/packages/collaboration/qr'
+import { collaborationError } from '@/packages/collaboration/errors'
 
 export function PairingScanner({ onCode, onClose }: { onCode: (code: string) => void; onClose: () => void }) {
   const video = useRef<HTMLVideoElement>(null), [error, setError] = useState(''), [ready, setReady] = useState(false)
@@ -20,7 +21,7 @@ export function PairingScanner({ onCode, onClose }: { onCode: (code: string) => 
           if (code) { stop(); onCode(code); return }
         }
         timer = setTimeout(scan, 250)
-      } catch { stop(); setError('QR scanning is unavailable on this device') }
+      } catch (failure) { stop(); setError(collaborationError(failure)) }
     }
     const canvas = document.createElement('canvas')
     void (async () => {
@@ -49,4 +50,3 @@ export function PairingScanner({ onCode, onClose }: { onCode: (code: string) => 
     <Button variant="default" onClick={onClose}>{ft('Close scanner')}</Button>
   </Stack></Card>
 }
-

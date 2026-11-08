@@ -6,14 +6,14 @@ const random=()=>b64(crypto.getRandomValues(new Uint8Array(32)))
 export async function keyPair(){const pair=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},false,['deriveBits']);return {privateKey:pair.privateKey,publicKey:b64(new Uint8Array(await crypto.subtle.exportKey('raw',pair.publicKey)))}}
 export type Identity=Awaited<ReturnType<typeof keyPair>>
 export async function fingerprint(publicKey:string){return b64(new Uint8Array(await crypto.subtle.digest('SHA-256',un64(publicKey)))).slice(0,32)}
-export interface Invitation{version:1;room:string;secret:string;host:string}
-export function makeInvitation(host:string):Invitation{return {version:1,room:random(),secret:random(),host}}
-export function encodeInvitation(invite:Invitation){return 'CB1.'+b64(encoder.encode(JSON.stringify(invite)))}
+export interface Invitation{version:2;room:string;secret:string;host:string}
+export function makeInvitation(host:string):Invitation{return {version:2,room:random(),secret:random(),host}}
+export function encodeInvitation(invite:Invitation){return 'CB2.'+b64(encoder.encode(JSON.stringify(invite)))}
 export function parseInvitation(input:string):Invitation{
-  const code=input.trim().replace(/^.*#(CB1\.)/,'$1');if(!code.startsWith('CB1.')||code.length>700)throw Error('Invalid pairing code')
+  const code=input.trim().replace(/^.*#(CB[12]\.)/,'$1');if(code.startsWith('CB1.'))throw Error('This invitation uses an older sharing version. Update both apps and create a new invitation.');if(!code.startsWith('CB2.')||code.length>700)throw Error('Invalid pairing code')
   const value=JSON.parse(decoder.decode(un64(code.slice(4))))
-  if(value.version!==1||un64(value.room).length!==32||un64(value.secret).length!==32||un64(value.host).length!==65)throw Error('Invalid pairing code')
-  return {version:1,room:value.room,secret:value.secret,host:value.host}
+  if(value.version!==2||un64(value.room).length!==32||un64(value.secret).length!==32||un64(value.host).length!==65)throw Error('Invalid pairing code')
+  return {version:2,room:value.room,secret:value.secret,host:value.host}
 }
 export const connectionNonce=random
 export interface EncryptedFrame{seq:number;data:string}

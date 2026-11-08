@@ -1,4 +1,6 @@
 export const collaborationItalian = {
+  'This invitation uses an older sharing version. Update both apps and create a new invitation.':'Questo invito usa una vecchia versione della condivisione. Aggiorna entrambe le app e crea un nuovo invito.',
+  'Both devices need Chatbox Venice 1.35.1 or later. Create a new pairing code after updating.':'Entrambi i dispositivi devono avere Chatbox Venice 1.35.1 o successivo. Dopo l’aggiornamento crea un nuovo codice.',
   "The devices exchanged pairing information, but WebRTC could not connect. Try the same Wi-Fi or configure a TURN relay in Connection options on both devices.":"I dispositivi hanno scambiato i dati di accoppiamento, ma WebRTC non è riuscito a collegarli. Prova la stessa rete Wi-Fi oppure configura un relay TURN in Opzioni di connessione su entrambi i dispositivi.",
   "The pairing invitation could not be verified. Ask the owner for a new pairing code.":"Non è stato possibile verificare l’invito. Chiedi un nuovo codice di accoppiamento al proprietario.",
   "The shared connection failed. Retry pairing while the owner keeps the app open.":"La connessione condivisa non è riuscita. Riprova mentre il proprietario tiene aperta l’app.",

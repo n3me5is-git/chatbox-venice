@@ -67,7 +67,7 @@ jobs:
       - name: Check private Android signing backup logic
         run: node --test scripts/android-signing.test.mjs scripts/android-signing-migration.test.mjs
       - name: Verify generated Android audio permissions
-        run: node --test scripts/configure-fork-android.test.mjs
+        run: node --test scripts/configure-fork-android.test.mjs scripts/collaboration-test/vendor.test.mjs
 
 
   ui:
