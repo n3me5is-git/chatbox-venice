@@ -11,7 +11,7 @@ export async function checkPrintedExport(html,output){
   try{
     await command('Network.enable');await command('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0})
     await command('Page.enable');await command('Emulation.setDeviceMetricsOverride',{width:1000,height:1200,deviceScaleFactor:1,mobile:false})
-    const loaded=new Promise(resolve=>{onLoad=resolve});await command('Page.navigate',{url:'data:text/html;charset=utf-8,'+encodeURIComponent(html)});await loaded
+    const loaded=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Offline export did not load')),30000);onLoad=()=>{clearTimeout(timer);resolve()}});await command('Page.navigate',{url:'data:text/html;charset=utf-8,'+encodeURIComponent(html)});await loaded
     const result=await command('Runtime.evaluate',{expression:'new Promise(resolve=>{const ready=async()=>{await document.fonts.ready;await Promise.all(Array.from(document.images,image=>image.decode().catch(()=>{})));resolve({text:document.body.innerText,images:Array.from(document.images,image=>({complete:image.complete,width:image.naturalWidth})),fonts:document.fonts.size})};if(document.readyState==="complete")ready();else addEventListener("load",ready,{once:true})})',returnByValue:true,awaitPromise:true})
     if(result.exceptionDetails)throw Error('Exported HTML failed to load')
     const content=result.result.value;assert.ok(content.text.includes('Local report'));assert.ok(content.images.length>=2);assert.ok(content.images.every(image=>image.complete&&image.width>0));assert.ok(content.fonts>10)

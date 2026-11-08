@@ -1,6 +1,6 @@
 import katexCSS from 'katex/dist/katex.min.css?raw'
 import { relativeResourcePath } from '@shared/session-resources'
-const bundledFonts=import.meta.glob('/node_modules/katex/dist/fonts/*.woff2',{eager:true,query:'?inline',import:'default',exhaustive:true}) as Record<string,string>
+const bundledFonts=import.meta.glob('../../../../node_modules/katex/dist/fonts/*.woff2',{eager:true,query:'?inline',import:'default',exhaustive:true}) as Record<string,string>
 export const mathFontData=Object.fromEntries(Object.entries(bundledFonts).map(([path,data])=>[path.split('/').pop()!,data]))
 export interface ExportHeading {id:string;slug:string;title:string;level:number}
 const MAX_HTML_BYTES=32*1024*1024
