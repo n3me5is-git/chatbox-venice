@@ -5,7 +5,7 @@ export default defineConfig({
   // Runtime bytes must be served unchanged: Vite transforms would invalidate pinned hashes.
   publicDir:path.resolve('test-results/python-assets'),
   resolve: { alias: [
-    { find: '@/platform', replacement: path.resolve('scripts/ui-simulation/platform.ts') },
+    { find: /^@\/platform$/, replacement: path.resolve('scripts/ui-simulation/platform.ts') },
     { find: '@shared', replacement: path.resolve('src/shared') },
     { find: '@', replacement: path.resolve('src/renderer') },
   ] },

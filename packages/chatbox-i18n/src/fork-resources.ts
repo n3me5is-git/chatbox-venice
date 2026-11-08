@@ -1484,6 +1484,7 @@ const sessionWorkspaceItalian:Record<string,string>={
 Object.assign(forkEnglish,Object.fromEntries(Object.keys(sessionWorkspaceItalian).map(key=>[key,key])))
 Object.assign(forkTranslations['it-IT'],sessionWorkspaceItalian)
 const speechExportItalian:Record<string,string>={
+ 'Auto detect':'Rileva automaticamente',
  'Speech privacy warning':'Avviso sulla privacy della voce',
  'Speech does not use the chat model’s E2EE. Your recording or reply text will be sent over HTTPS to the selected private speech provider.':'La voce non usa la cifratura E2EE del modello della chat. La registrazione o il testo della risposta verranno inviati tramite HTTPS al provider vocale privato selezionato.',
  'Private is a provider privacy claim. The speech request is not end-to-end encrypted. This permission applies only to this request.':'Privato è una dichiarazione del provider. La richiesta vocale non è cifrata end-to-end. Questa autorizzazione vale solo per questa richiesta.',

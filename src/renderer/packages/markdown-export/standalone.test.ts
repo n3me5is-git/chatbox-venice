@@ -23,6 +23,11 @@ it('removes active content and unsafe URL attributes without loading unrelated r
   const fetcher=vi.fn();const html=await standaloneMarkdown(article,'Report',[],new AbortController().signal,{fetcher})
   expect(html).not.toContain('<script');expect(html).not.toContain('onclick');expect(html).not.toContain('<iframe');expect(html).not.toContain('javascript:');expect(html).not.toContain('tracker.test');expect(html).toContain('https://example.test');expect(fetcher).not.toHaveBeenCalled()
 })
+it('preserves safe document links while refusing links that escape the session path',async()=>{
+  const article=document.createElement('article');article.innerHTML='<a href="../data.csv">Data</a><a href="../../../outside.txt">Escape</a>'
+  const html=await standaloneMarkdown(article,'Report',[],new AbortController().signal,{documentPath:'docs/report.md'})
+  const parsed=new DOMParser().parseFromString(html,'text/html');expect(parsed.querySelector('a')?.getAttribute('href')).toBe('../data.csv');expect(parsed.querySelectorAll('a')[1].hasAttribute('href')).toBe(false)
+})
 it('waits for diagrams and cancels an export while rendering without contacting any host',async()=>{
   const article=document.createElement('article');article.innerHTML='<span data-export-pending="true">Rendering</span>';const controller=new AbortController(),fetcher=vi.fn()
   const exportTask=standaloneMarkdown(article,'Report',[],controller.signal,{fetcher});controller.abort();await expect(exportTask).rejects.toMatchObject({name:'AbortError'});expect(fetcher).not.toHaveBeenCalled()

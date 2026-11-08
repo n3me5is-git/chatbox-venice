@@ -1,4 +1,5 @@
 import katexCSS from 'katex/dist/katex.min.css?raw'
+import { relativeResourcePath } from '@shared/session-resources'
 const bundledFonts=import.meta.glob('/node_modules/katex/dist/fonts/*.woff2',{eager:true,query:'?inline',import:'default',exhaustive:true}) as Record<string,string>
 export const mathFontData=Object.fromEntries(Object.entries(bundledFonts).map(([path,data])=>[path.split('/').pop()!,data]))
 export interface ExportHeading {id:string;slug:string;title:string;level:number}
@@ -40,7 +41,7 @@ export function waitForMarkdownPreview(element:HTMLElement,signal:AbortSignal){
   })
 }
 /** Capture the rendered document, with no scripts or app controls and no runtime network dependencies. */
-export async function standaloneMarkdown(element:HTMLElement,title:string,headings:ExportHeading[],signal:AbortSignal,options:{fetcher?:typeof fetch;fontCSS?:string}={}){
+export async function standaloneMarkdown(element:HTMLElement,title:string,headings:ExportHeading[],signal:AbortSignal,options:{fetcher?:typeof fetch;fontCSS?:string;documentPath?:string}={}){
   await waitForMarkdownPreview(element,signal)
   const fetcher=options.fetcher??fetch,copy=element.cloneNode(true) as HTMLElement
   copy.querySelectorAll('script,iframe,object,embed,style,link,base,form,button,textarea,select').forEach(node=>node.remove())
@@ -58,7 +59,7 @@ export async function standaloneMarkdown(element:HTMLElement,title:string,headin
   for(const link of Array.from(copy.querySelectorAll('a'))){
     const href=link.getAttribute('href')||''
     if(href.startsWith('#')){let slug=href.slice(1);try{slug=decodeURIComponent(slug)}catch{}const heading=headings.find(item=>item.slug===slug||item.id===slug);if(heading)link.setAttribute('href','#'+heading.id)}
-    else if(!/^https?:\/\//i.test(href))link.removeAttribute('href')
+    else if(!/^https?:\/\//i.test(href)&&!relativeResourcePath(options.documentPath??'document.md',href))link.removeAttribute('href')
     link.setAttribute('rel','noreferrer noopener')
   }
   const document=globalThis.document.implementation.createHTMLDocument(title),charset=document.createElement('meta');charset.setAttribute('charset','UTF-8');document.head.prepend(charset)

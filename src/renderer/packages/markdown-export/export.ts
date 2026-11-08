@@ -4,11 +4,11 @@ import platform from '@/platform'
 import { standaloneMarkdown,type ExportHeading } from './standalone'
 export async function exportMarkdownDocument(element:HTMLElement,path:string,headings:ExportHeading[],format:'html'|'pdf',signal:AbortSignal){
   const filename=(path.split('/').pop()||'document').replace(/\.(?:md|markdown)$/i,'').replace(/[\\/:*?"<>|%\u0000-\u001f]/g,'_')
-  const html=await standaloneMarkdown(element,filename,headings,signal);signal.throwIfAborted()
+  const html=await standaloneMarkdown(element,filename,headings,signal,{documentPath:path});signal.throwIfAborted()
   if(format==='html'){await platform.exporter.exportBlob(filename+'.html',new Blob([html],{type:'text/html;charset=utf-8'}));return}
   if(platform.type==='desktop'){
     const bytes:Uint8Array=await window.electronAPI.invoke('markdown:pdf',html)
-    signal.throwIfAborted();await platform.exporter.exportBlob(filename+'.pdf',new Blob([Uint8Array.from(bytes)],{type:'application/pdf'}));return
+    try{signal.throwIfAborted();await platform.exporter.exportStreamingFile(filename+'.pdf',async function*(){yield bytes},'application/pdf',signal)}finally{bytes.fill(0)}return
   }
   if(platform.type==='mobile'&&CHATBOX_BUILD_PLATFORM==='android'){await AndroidDocumentSaver.printHtml({html,name:filename});return}
   const frame=document.createElement('iframe');frame.setAttribute('sandbox','allow-same-origin allow-modals');frame.style.cssText='position:fixed;left:-100000px;width:210mm;height:297mm;border:0';frame.srcdoc=html

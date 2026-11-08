@@ -1,7 +1,7 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: auto-text fallbacks are always defined for these selectors */
 
 import NiceModal from '@ebay/nice-modal-react'
-import { Anchor, Button, Flex, Stack, Text, Title } from '@mantine/core'
+import { Anchor, Button, Flex, Group,Stack, Text, Title } from '@mantine/core'
 import { TestId } from '@shared/automation/testids'
 import { SystemProviders } from '@shared/defaults'
 import type { ProviderModelInfo } from '@shared/types'
@@ -481,7 +481,7 @@ function SlotCard(props: {
         </Stack>
       </Flex>
 
-      {props.slotId==='asr'||props.slotId==='tts'?<SpeechModelSettings kind={props.slotId}/>:<Flex align="center" gap="xs" wrap="wrap">
+      {props.slotId==='asr'||props.slotId==='tts'?<Stack gap="xs"><SpeechModelSettings kind={props.slotId}/><Group gap="xs"><Button variant="default" size="sm" onClick={props.onTest} disabled={props.running}>{t('Check configuration')}</Button><SlotStatus result={props.result} connection={false}/></Group></Stack>:<Flex align="center" gap="xs" wrap="wrap">
         <fieldset className="w-full sm:w-[320px] min-w-0 m-0 p-0 border-0 [&>button]:w-full" disabled={props.running}>
           <SlotSelector {...props} selection={selection} autoText={autoText} modelText={modelText} />
         </fieldset>
