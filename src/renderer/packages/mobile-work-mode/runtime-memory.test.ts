@@ -14,6 +14,7 @@ import { prepareCapacitorMemoryContext } from './memory-context'
 import { capacitorWorkMode, prepareCapacitorWorkMode } from './runtime'
 
 const state = vi.hoisted(() => ({ memory: undefined as MemoryService | undefined, seed: vi.fn() }))
+vi.mock('@/packages/session-resources/tools',()=>({buildSessionWorkspaceTools:async()=>({}),sessionWorkspaceInstructions:''}))
 
 function memory() {
   if (!state.memory) throw new Error('Missing test memory service')

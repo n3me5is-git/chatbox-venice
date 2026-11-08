@@ -3,7 +3,7 @@ import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MarkdownFilePreview } from './MarkdownFilePreview'
-vi.mock('@/components/Mermaid',()=>({MessageMermaid:({source}:{source:string})=><div data-testid="diagram">{source}</div>}))
+vi.mock('./LocalMermaid',()=>({LocalMermaid:({source}:{source:string})=><span data-testid="diagram">{source}</span>}))
 Object.defineProperty(window,'matchMedia',{value:vi.fn(()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()}))})
 HTMLElement.prototype.scrollIntoView=vi.fn()
 afterEach(cleanup)

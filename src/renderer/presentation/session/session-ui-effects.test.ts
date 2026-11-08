@@ -1,6 +1,7 @@
 import { RowBackedSessionRepository, SessionEventBus, SessionRowWriteQueue } from '@chatbox/core/application/session'
 import { InMemorySessionRecordStore, InMemorySessionRowStore } from '@chatbox/core/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('@/packages/session-resources/files',()=>({cleanupSessionFiles:vi.fn()}))
 
 const mocks = vi.hoisted(() => ({
   dispose: vi.fn().mockResolvedValue(undefined),

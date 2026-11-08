@@ -98,6 +98,8 @@ export async function prepareCapacitorWorkMode(
   const images = capacitorImageTools(request.model, request.session.id, request.signal)
   const veniceTools = request.model.name === 'Venice' && request.globalSettings.providers?.venice?.venice?.chatToolsEnabled !== false && request.globalSettings.providers?.venice?.venice?.enabled !== false
     ? (await import('@/packages/venice/tools')).veniceChatTools(request.session.id) : {}
+  const {buildSessionWorkspaceTools,sessionWorkspaceInstructions}=await import('@/packages/session-resources/tools')
+  const workspaceTools=await buildSessionWorkspaceTools(request.session.id)
   const { tools, active } = await capacitorWorkMode.createTools(
     {
       sessionId: request.session.id,
@@ -106,14 +108,14 @@ export async function prepareCapacitorWorkMode(
       ...workModelDisclosure(request.settings, request.globalSettings),
       signal: request.signal,
     },
-    { ...web.tools, ...images?.tools, ...memory.tools, ...mcp.tools, ...veniceTools }
+    { ...web.tools, ...images?.tools, ...memory.tools, ...mcp.tools, ...veniceTools, ...workspaceTools }
   )
   const prepared = await new BasicGenerationPreparation<ModelDependencies>({
     attachmentPolicy: { workspacePath: workspaceInputPath },
     prepareTools: async () => ({
       ...memory,
       tools,
-      instructions: `${memory.instructions ?? ''}${WORK_INSTRUCTIONS}${Object.keys(veniceTools).length ? '\nUse venice_image for Venice image creation/editing; resolve the exact requested model from its catalog, then follow the human-selected chat approval policy enforced by the tool. Use venice_media for other Venice media. Only the human can change ask/similar/automatic approval in the app. Required model/reference choices still open a dialog.' : ''}${mcp.unavailable.length ? '\nSome enabled MCP services are unavailable. Do not claim to have used their tools.' : ''}`,
+      instructions: `${memory.instructions ?? ''}${WORK_INSTRUCTIONS}${Object.keys(workspaceTools).length?'\n'+sessionWorkspaceInstructions:''}${Object.keys(veniceTools).length ? '\nUse venice_image for Venice image creation/editing; resolve the exact requested model from its catalog, then follow the human-selected chat approval policy enforced by the tool. Use venice_media for other Venice media. Only the human can change ask/similar/automatic approval in the app. Required model/reference choices still open a dialog.' : ''}${mcp.unavailable.length ? '\nSome enabled MCP services are unavailable. Do not claim to have used their tools.' : ''}`,
     }),
   }).prepare(request)
   return {

@@ -517,7 +517,7 @@ describe('ImageGenerationService', () => {
   it('deletes one batch output and thumbnail while preserving siblings and shared references',async()=>{
     const f=fixture(),a='picture:image-gen:batch-a',b='picture:image-gen:batch-b'
     const record=await existing(f,{generatedImages:[a,b],generatedImageThumbnails:[a+':thumbnail',b+':thumbnail']})
-    await f.storage.create({...record,id:'other',generatedImages:[],referenceImages:[a]})
+    await f.storage.create({...record,id:'other',generatedImages:[],generatedImageThumbnails:[],referenceImages:[a]})
     await f.service.deleteOutput('existing',a)
     expect(f.records.get('existing')?.generatedImages).toEqual([b]);expect(f.records.get('existing')?.generatedImageThumbnails).toEqual([b+':thumbnail'])
     expect(f.blobStorage.remove).not.toHaveBeenCalledWith(a);expect(f.blobStorage.remove).toHaveBeenCalledWith(a+':thumbnail');expect(f.blobStorage.remove).not.toHaveBeenCalledWith(b)

@@ -1,0 +1,13 @@
+.session-markdown-file { line-height:1.65; }
+.session-markdown-file h1,.session-markdown-file h2,.session-markdown-file h3,.session-markdown-file h4 { font-weight:650;line-height:1.3;margin:1.2em 0 .55em;scroll-margin-top:12px; }
+.session-markdown-file h1 { font-size:1.7rem; }
+.session-markdown-file h2 { font-size:1.35rem; }
+.session-markdown-file h3 { font-size:1.12rem; }
+.session-markdown-file p { margin:.7em 0; }
+.session-markdown-file ul,.session-markdown-file ol { padding-left:1.5em;list-style:revert; }
+.session-markdown-file li { margin:.25em 0; }
+.session-markdown-file a { color:var(--mantine-color-blue-6);text-decoration:underline; }
+.session-markdown-file blockquote { border-left:3px solid var(--mantine-color-gray-4);padding-left:1em;opacity:.85; }
+.session-markdown-file th,.session-markdown-file td { padding:.5em .75em;border:1px solid var(--mantine-color-gray-4); }
+.session-markdown-file .katex-display { max-width:100%;overflow-x:auto;overflow-y:hidden; }
+.session-markdown-file pre { white-space:pre; }

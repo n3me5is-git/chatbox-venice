@@ -31,7 +31,7 @@ it('requires a confirmation and deletes only the chosen file',async()=>{
   const api=fixture();await screen.findByRole('button',{name:/^notes.md/})
   fireEvent.click(screen.getByRole('button',{name:'Delete resource: notes.md'}));expect(api.remove).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button',{name:'Delete'}));await waitFor(()=>expect(api.remove).toHaveBeenCalledTimes(1))
-  await waitFor(()=>expect(screen.queryByRole('button',{name:/^notes.md/})).toBeNull());expect(screen.getByRole('button',{name:/data.json/})).toBeTruthy()
+  await waitFor(()=>expect(screen.queryByRole('button',{name:/^notes.md/})).toBeNull());expect(screen.getByRole('button',{name:/^data.json/})).toBeTruthy()
 })
 it('native Back closes a file preview before leaving the explorer',async()=>{
   fixture();fireEvent.click(await screen.findByRole('button',{name:/^notes.md/}));await screen.findByRole('heading',{name:'Notes'})

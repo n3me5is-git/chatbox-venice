@@ -69,7 +69,7 @@ export async function listSessionResources(id:string,signal?:AbortSignal){
   const priority={file:5,image:4,media:4,artifact:3,workspace:2,attachment:1,message:0}
   const unique=items.sort((a,b)=>priority[b.origin]-priority[a.origin]).filter(item=>{if(removed.has(item.id))return false;const key=item.key&&item.origin!=='file'?item.key:item.id;if(seen.has(key))return false;seen.add(key);return true})
   await assertSession(id)
-  return {items:unique,truncated}
+  return {items:unique,truncated,options:{toolsEnabled:index.toolsEnabled!==false,pythonEnabled:!!index.pythonEnabled}}
 }
 export async function readSessionResource(id:string,item:SessionResource){
   await assertSession(id)
@@ -115,8 +115,7 @@ export async function removeSessionResource(id:string,item:SessionResource){
     else{const result=await platform.sessionDiskFiles!({sessionId:id,action:'remove',path:item.key});if(!result.success)throw new Error(result.error)}
   }else if(item.origin==='artifact'&&item.key?.startsWith('artifacts/'))await workspace.removeFile(id,item.key)
   else if(item.origin==='artifact'&&item.key)await currentBlobStorage.remove(item.key)
-  // Original chat attachments can be shared by other chats. Detach them here;
-  // their global ownership/garbage collector decides when the bytes may be freed.
+  else if(item.origin==='attachment'&&item.key)await currentBlobStorage.remove(item.key)
   await sessionFiles.remove(id,item.id)
   resourcesChanged(id)
 }
@@ -138,6 +137,17 @@ export function subscribeSessionResources(id:string,change:()=>void,locked:()=>v
   return()=>{window.removeEventListener('session-resources:changed',listener);unsubscribe()}
 }
 export async function exportSessionResource(id:string,item:SessionResource){
+  await assertSession(id)
+  const assets=vaultRuntimeFor(platform).assets,header=item.key?await assets.header(item.key):null
+  if(header){
+    const safeName=resourceName(item.name).replace(/[\\/:*?"<>|%\u0000-\u001f]/g,'_')||'export'
+    await platform.exporter.exportStreamingFile(safeName,async function*(){
+      for await(const chunk of assets.read(item.key!)){
+        try{await assertSession(id);yield chunk}finally{chunk.fill(0)}
+      }
+    },item.mime,undefined,{requiresStreaming:header.bytes>20*1024*1024,estimatedBytes:header.bytes})
+    return
+  }
   const {bytes}=await readSessionResource(id,item)
   const {shareLocalWorkArtifact}=await import('@/packages/mobile-work-mode/artifacts')
   let text='';for(const byte of bytes)text+=String.fromCharCode(byte)

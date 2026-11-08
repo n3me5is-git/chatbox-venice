@@ -118,11 +118,9 @@ void runRendererStartup({
       <StrictMode>
         <ErrorBoundary>
           <ChatboxProvider application={rendererApplication}>
-            {platform.type === 'mobile' ? (
-              <Suspense fallback={null}>
-                <MobileExecutionHost />
-              </Suspense>
-            ) : null}
+            <Suspense fallback={null}>
+              <MobileExecutionHost />
+            </Suspense>
             <RouterProvider router={router} />
           </ChatboxProvider>
         </ErrorBoundary>

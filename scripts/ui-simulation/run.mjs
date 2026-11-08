@@ -2,6 +2,7 @@ import {runImageReview} from './run-image-review.mjs'
 import {runPrivacyReview} from './run-privacy-review.mjs'
 import {runSearchReview} from './run-search-review.mjs'
 import {runMobileReview} from './run-mobile-review.mjs'
+import {runSessionWorkspace} from './run-session-workspace.mjs'
 import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -140,6 +141,7 @@ try {
   await runSearchReview({click,evaluate,cdp,wait,byText,byLabel,output})
   await runPrivacyReview({click,evaluate,cdp,wait,byText,byLabel,output})
   await runImageReview({click,evaluate,wait,byText,byLabel,fill,cdp,output})
+  await runSessionWorkspace({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   assert.deepEqual(exceptions, [], 'Browser exceptions')
   const external = requests.filter(url => !/^(http:\/\/127\.0\.0\.1:4174\/|data:|blob:)/.test(url))
   assert.deepEqual(external, [], 'UI simulation made an unexpected external request')

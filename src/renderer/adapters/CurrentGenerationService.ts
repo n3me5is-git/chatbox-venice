@@ -141,6 +141,7 @@ async function buildToolsForPausedToolCall(
           ...capacitorImageTools(model, session.id, signal)?.tools,
           ...mcp.tools,
           ...veniceTools,
+          ...await (await import('@/packages/session-resources/tools')).buildSessionWorkspaceTools(session.id),
           ...buildPausedAgentMemoryTools({
             targetMessage,
             languageName: languageNameMap[settingsService.getSettings().language],

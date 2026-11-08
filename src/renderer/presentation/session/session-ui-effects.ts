@@ -60,6 +60,8 @@ export function registerSessionUiEffects(events: SessionEventBus): () => void {
         rendererApplication.generationRuntime.abort(sessionId, undefined, 'session-deleted')
       }
       await cleanupAttachmentRagEntries(event)
+      const { cleanupSessionFiles } = await import('@/packages/session-resources/files')
+      for (const sessionId of event.ids) await cleanupSessionFiles(sessionId)
       return
     }
     if (event.type === 'session-command-committed') {

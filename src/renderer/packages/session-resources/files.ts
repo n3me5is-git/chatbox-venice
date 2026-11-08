@@ -1,7 +1,7 @@
 import { SessionFileStore } from '@shared/session-file-store'
 import { emptyResourceIndex, type SessionFile, type SessionResourceIndex } from '@shared/session-resources'
 import { sessionDirectoryName } from '@shared/mobile-work/workspace-path'
-import { vaultRuntimeFor } from '@/packages/vault/runtime'
+import { vaultRuntimeFor, installedVaultFor } from '@/packages/vault/runtime'
 import type { AssetInfo } from '@/packages/vault/chunk-store'
 import platform from '@/platform'
 
@@ -43,3 +43,26 @@ export const sessionFiles=new SessionFileStore({
     await vault().assets.describe(key,{...old,name:file.name,resourcePath:file.path,deliverable:file.deliverable})
   },
 })
+
+/** Deletion runs before chat metadata disappears, while its project key is accessible. */
+export async function cleanupSessionFiles(id:string){
+  if(!installedVaultFor(platform))return
+  await access(id)
+  const key=indexKey(id)
+  if(!await vault().assets.header(key))return
+  for(const file of await sessionFiles.list(id))await vault().assets.remove(file.key)
+  await vault().assets.remove(key)
+  resourcesChanged(id)
+}
+
+/** Keep a session index consistent when a deliverable is deleted from the library. */
+export async function removeManagedLibraryFile(key:string){
+  const header=await vault().assets.header(key)
+  if(!header)return false
+  const info=await vault().assets.info(header)
+  if(!info.sessionId||!info.resourcePath)return false
+  const file=(await sessionFiles.list(info.sessionId)).find(file=>file.path===info.resourcePath&&file.key===(header.alias||key))
+  if(file)await sessionFiles.remove(info.sessionId,file.id)
+  else await vault().assets.remove(key)
+  return true
+}

@@ -25,6 +25,7 @@ export interface SessionResourceIndex {
   files: SessionFile[]
   removed: string[]
   pythonEnabled?: boolean
+  toolsEnabled?: boolean
 }
 export const emptyResourceIndex = (): SessionResourceIndex => ({ version: 1, files: [], removed: [] })
 export const MAX_RESOURCE_PREVIEW_BYTES = 2 * 1024 * 1024

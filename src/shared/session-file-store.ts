@@ -72,4 +72,32 @@ export class SessionFileStore {
   async python(id: string, enabled: boolean) {
     await this.edit(id, async () => { await this.storage.saveIndex(id,{...await this.index(id),pythonEnabled:enabled}) })
   }
+  async tools(id:string,enabled:boolean){
+    await this.edit(id,async()=>{await this.storage.saveIndex(id,{...await this.index(id),toolsEnabled:enabled})})
+  }
+  /** Publish execution changes together, after checking for edits made while code ran. */
+  async commit(id:string,changes:Record<string,Uint8Array>,baseline:Record<string,string>,signal:AbortSignal){
+    return this.edit(id,async()=>{
+      signal.throwIfAborted()
+      const index=await this.index(id),files=[...index.files],created:string[]=[],obsolete:string[]=[]
+      for(const [path,bytes]of Object.entries(changes)){
+        sessionFilePath(path)
+        if(bytes.length>MAX_RESOURCE_FILE_BYTES)throw new Error('Session files must not exceed 10 MB')
+        if(files.find(file=>file.path===path)?.key!==(Object.hasOwn(baseline,path)?baseline[path]:undefined))throw new Error('Session files changed during execution. Inspect them before retrying.')
+      }
+      try{
+        for(const [path,bytes]of Object.entries(changes)){
+          signal.throwIfAborted();const previous=files.find(file=>file.path===path)
+          const key='session-file:'+encodeURIComponent(id)+':'+crypto.randomUUID()
+          const file:SessionFile={id:previous?.id??crypto.randomUUID(),origin:'file',path,name:resourceName(path),key,mime:previous?.mime??resourceMime(path),bytes:bytes.length,deliverable:previous?.deliverable??false,updatedAt:Date.now()}
+          await this.storage.put(id,key,bytes,file);created.push(key)
+          if(previous){obsolete.push(previous.key);files.splice(files.indexOf(previous),1)}
+          files.push(file)
+        }
+        if(files.length>2048||files.reduce((total,file)=>total+(file.bytes??0),0)>512*1024*1024)throw new Error('Session file storage limit reached')
+        signal.throwIfAborted();await this.storage.assertAccess(id);await this.storage.saveIndex(id,{...index,files})
+      }catch(error){for(const key of created)await this.storage.remove(key).catch(()=>{});throw error}
+      for(const key of obsolete)await this.storage.remove(key).catch(()=>{})
+    })
+  }
 }

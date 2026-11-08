@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionArtifactRequest } from '@chatbox/core/ports'
+vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{index:async()=>({removed:[]})}}))
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn<(request: SessionArtifactRequest) => AsyncIterable<string>>(),

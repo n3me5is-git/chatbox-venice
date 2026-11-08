@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+vi.mock('@/packages/session-resources/tools',()=>({buildSessionWorkspaceTools:async()=>({}),sessionWorkspaceInstructions:''}))
 
 // ── Hoisted mocks (environment + modules) ──────────────────────────────────
 

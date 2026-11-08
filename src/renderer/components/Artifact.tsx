@@ -11,6 +11,7 @@ import { rendererApplication } from '@/app/renderer-application'
 import { appendArtifactMarkdown, createArtifactCode, renderArtifactCode, type ArtifactCode } from './artifact-code'
 import ArrowRightIcon from './icons/ArrowRightIcon'
 import FullscreenIcon from './icons/FullscreenIcon'
+import { forkT as ft } from '@/i18n/fork'
 
 const RENDERABLE_CODE_LANGUAGES = ['html'] as const
 export type RenderableCodeLanguage = (typeof RENDERABLE_CODE_LANGUAGES)[number]
@@ -56,6 +57,14 @@ export function MessageArtifact(props: {
   const [history, setHistory] = useState<{ key: string; code: ArtifactCode }>()
   const [loadingKey, setLoadingKey] = useState<string>()
   const [errorKey, setErrorKey] = useState<string>()
+  const [deleted,setDeleted]=useState(false)
+  useEffect(()=>{
+    let active=true
+    const refresh=()=>{void import('@/packages/session-resources/files').then(({sessionFiles})=>sessionFiles.index(sessionId)).then(index=>{if(active)setDeleted(index.removed.includes('message:'+messageId))}).catch(()=>{})}
+    const change=(event:Event)=>{if((event as CustomEvent).detail===sessionId)refresh()}
+    refresh();window.addEventListener('session-resources:changed',change)
+    return()=>{active=false;window.removeEventListener('session-resources:changed',change)}
+  },[sessionId,messageId])
 
   const loadHistory = useCallback((): Promise<ArtifactCode> => {
     if (cached.current?.key === key) return Promise.resolve(cached.current.code)
@@ -118,6 +127,7 @@ export function MessageArtifact(props: {
     [history, key, messageContent]
   )
 
+  if(deleted)return <div>{ft('This session resource was deleted')}</div>
   return (
     <>
       <ArtifactWithButtons

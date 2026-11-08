@@ -1,4 +1,5 @@
 import { App } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
 import { buildExecutionHtml } from '@shared/mobile-work/execution-html'
 import { workerSource } from '@shared/mobile-work/generated/worker-source'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
@@ -21,6 +22,7 @@ export default function MobileExecutionHost() {
   }, [job])
 
   useEffect(() => {
+    if(!Capacitor.isNativePlatform())return
     let cancelled = false
     let receivedState = false
     // WebView visibility can lag behind the native resume event.

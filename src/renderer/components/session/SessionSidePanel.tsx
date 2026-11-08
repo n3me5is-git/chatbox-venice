@@ -312,8 +312,8 @@ function OpenSessionPanel({
 
   const tabs: PanelTabKey[] = [
     'settings',
-    'files',
     ...(showThreads ? (['threads'] as const) : []),
+    'files',
     ...pages.map((page) => `web:${page.id}` as const),
   ]
   const requested: PanelTabKey = panel.tab === 'web' ? `web:${panel.webTab ?? ''}` : panel.tab

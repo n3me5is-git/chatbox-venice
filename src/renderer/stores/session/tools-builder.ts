@@ -654,6 +654,12 @@ When you create a Git commit that includes code changes, append this exact trail
     instructions += '\nUse venice_image for Venice image generation/editing. Resolve an explicitly requested model name with its live catalog; do not substitute another model. The tool enforces the human-selected chat approval policy: ask by default, remember similar requests, or explicitly automatic. A dialog resolves model ambiguity, required references and per-call options. Only the human can change that policy in the app. Use venice_media for other Venice media. Do not install an external server or use chatbox_cli to bypass these native tools.\n'
   }
 
+  if(includeAgentTools&&options.sessionId){
+    const {buildSessionWorkspaceTools,sessionWorkspaceInstructions}=await import('@/packages/session-resources/tools')
+    const workspaceTools=await buildSessionWorkspaceTools(options.sessionId)
+    tools={...tools,...workspaceTools}
+    if(Object.keys(workspaceTools).length)instructions+='\n'+sessionWorkspaceInstructions+'\n'
+  }
   if (Object.keys(tools).length > 0) {
     instructions = buildToolUseCommunicationInstruction() + instructions
   }
