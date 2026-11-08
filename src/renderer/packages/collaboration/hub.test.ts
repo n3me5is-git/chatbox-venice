@@ -18,9 +18,14 @@ afterEach(()=>{for(const hub of hubs)hub.stopAll();hubs.length=0;network.rooms.c
 function setup(){
  const snapshot={title:'Shared test',messages:[{id:'m',role:'user' as const,text:'Hello'}],files:[{id:'f',name:'test.bin',path:'test.bin',mime:'application/octet-stream',bytes:100000}],truncated:false,revision:1}
  const submit=vi.fn(async()=>{}),clone=vi.fn(async()=> 'cloned-chat'),adapter:CollaborationAdapter={snapshot:async()=>structuredClone(snapshot),submit,clone,async *file(){yield new Uint8Array(100000).fill(42)}}
- const make=()=>{const hub=new CollaborationHub(adapter);hubs.push(hub);return hub};return {make,submit,clone,snapshot}
+ const make=()=>{const hub=new CollaborationHub(adapter);hubs.push(hub);return hub};return {make,submit,clone,snapshot,adapter}
 }
 describe('host-authoritative collaboration',()=>{
+ it('publishes the final revision when it changes during a snapshot read',async()=>{
+   const {make,adapter,snapshot}=setup(),owner=make(),visitor=make(),host=await owner.host('chat'),guest=await visitor.join(host.code,'Alice');await vi.waitFor(()=>expect(host.peers.size).toBe(1));await owner.admit(host.id,[...host.peers.keys()][0],true)
+   let release:()=>void=()=>{},reads=0;adapter.snapshot=async()=>{const value=structuredClone(snapshot);if(++reads===1)await new Promise<void>(resolve=>release=resolve);return value}
+   const first=owner.refresh('chat');await vi.waitFor(()=>expect(reads).toBe(1));snapshot.revision=2;void owner.refresh('chat');release();await first;await vi.waitFor(()=>expect(guest.snapshot?.revision).toBe(2));expect(reads).toBe(2)
+ })
  it('shares nothing before admission and rejects forged write and AI permissions on the host',async()=>{
    const {make,submit}=setup(),owner=make(),visitor=make(),host=await owner.host('chat'),guest=await visitor.join(host.code,'Alice')
    await vi.waitFor(()=>expect(guest.status).toBe('waiting'));expect(guest.snapshot).toBeUndefined();const actor=[...host.peers.keys()][0]

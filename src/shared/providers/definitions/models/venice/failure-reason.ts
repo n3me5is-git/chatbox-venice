@@ -13,6 +13,6 @@ export function failureReason(error:string){
 export async function responseFailureReason(response:Response){
  let text='';const reader=response.body?.getReader(),decoder=new TextDecoder()
  try{if(reader){let size=0;while(size<32768){const part=await reader.read();if(part.done)break;const bytes=part.value.subarray(0,32768-size);text+=decoder.decode(bytes,{stream:true});size+=bytes.length}text+=decoder.decode()}else text=(await response.text()).slice(0,32768)}finally{if(reader){await reader.cancel().catch(()=>{});reader.releaseLock()}}
- if(/^\s*</.test(text))return 'The provider returned an unreadable error response.'
- return failureReason(text)||'The provider did not supply an error reason.'
+ try{const parsed=JSON.parse(text);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))return clean(detail(parsed))||'The provider did not supply an error reason.'}catch{/* Unstructured bodies can echo request data, credentials or proxy HTML. Do not persist them. */}
+ return 'The provider returned an unreadable error response.'
 }

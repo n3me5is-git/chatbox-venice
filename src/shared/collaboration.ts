@@ -11,19 +11,20 @@ export const SharedAuthorSchema = z.object({id:z.string().max(100),name:z.string
 export type SharedAuthor = z.infer<typeof SharedAuthorSchema>
 export function collaborationRequester(messages:Message[]):SharedAuthor{const message=[...messages].reverse().find(message=>message.role==='user');return message?.collaborationRequester||message?.collaborationAuthor||{id:'owner',name:'Owner'}}
 export const SharedFileSchema=z.object({id:z.string().max(400),path:z.string().max(240),name:z.string().max(240),mime:z.string().max(100),bytes:z.number().int().min(0).max(128*1024*1024).optional(),deliverable:z.boolean().optional()}).strict()
-export const SharedMessageSchema=z.object({id:z.string().max(100),role:z.enum(['user','assistant','system']),text:z.string().max(200000),author:SharedAuthorSchema.optional(),files:z.array(z.string().max(400)).max(100).optional()}).strict()
+export const SharedMessageSchema=z.object({id:z.string().max(240),role:z.enum(['user','assistant','system']),text:z.string().max(200000),author:SharedAuthorSchema.optional(),files:z.array(z.string().max(400)).max(100).optional()}).strict()
 export const SnapshotSchema=z.object({title:z.string().max(240),messages:z.array(SharedMessageSchema).max(10000),files:z.array(SharedFileSchema).max(4000),truncated:z.boolean(),revision:z.number().int().min(0)}).strict()
 export type SharedSnapshot=z.infer<typeof SnapshotSchema>
 export type SharedFile=z.infer<typeof SharedFileSchema>
+const QuickPriceSchema=z.object({amount:z.number().nonnegative(),maximum:z.number().nonnegative().optional(),output:z.number().nonnegative().optional(),currency:z.enum(['USD','DIEM']),unit:z.enum(['1M tokens','1M characters','1,000 characters','image','second','generation']),from:z.boolean().optional()}).strict()
 export const HitlInputSchema=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('questions'),input:UserQuestionsSchema}).strict(),
   z.object({kind:z.literal('confirm'),title:z.string().max(240),detail:z.string().max(20000)}).strict(),
-  z.object({kind:z.literal('image'),prompt:z.string().max(20000),modelId:z.string().max(200).optional(),count:z.number().int().min(1).max(4),models:z.array(z.object({id:z.string().max(200),name:z.string().max(240)})).max(300)}).strict(),
+  z.object({kind:z.literal('image'),prompt:z.string().max(20000),modelId:z.string().max(200).optional(),count:z.number().int().min(1).max(4),models:z.array(z.object({id:z.string().max(200),name:z.string().max(240),requiresReferences:z.boolean().optional(),ratios:z.array(z.string().max(10)).max(30).optional(),price:QuickPriceSchema.optional()})).max(300)}).strict(),
 ])
 export type HitlInput=z.infer<typeof HitlInputSchema>
 export const HitlRequestSchema=z.object({id:z.string().uuid(),requester:z.string().max(100),input:HitlInputSchema,expires:z.number(),policy:HitlPolicySchema}).strict()
 export type HitlRequest=z.infer<typeof HitlRequestSchema>
-export const HitlAnswerSchema=z.union([z.null(),z.boolean(),z.object({answers:z.array(z.object({selected:z.array(z.string().max(240)).max(8),text:z.string().max(10000)}).strict()).max(3)}).strict(),z.object({modelId:z.string().max(200),prompt:z.string().trim().min(1).max(20000),count:z.number().int().min(1).max(4),aspectRatio:z.enum(['auto','1:1','16:9','9:16','4:3','3:4'])}).strict()])
+export const HitlAnswerSchema=z.union([z.null(),z.boolean(),z.object({answers:z.array(z.object({selected:z.array(z.string().max(240)).max(8),text:z.string().max(10000)}).strict()).max(3)}).strict(),z.object({modelId:z.string().max(200),prompt:z.string().trim().min(1).max(20000),count:z.number().int().min(1).max(4),aspectRatio:z.string().regex(/^(auto|\d{1,2}:\d{1,2})$/)}).strict()])
 export type HitlAnswer=z.infer<typeof HitlAnswerSchema>
 export function validHitlAnswer(input:HitlInput,answer:unknown):answer is HitlAnswer{
   if(!HitlAnswerSchema.safeParse(answer).success)return false
@@ -56,6 +57,7 @@ export class SharedHitlQueue{
   accept(id:string,actor:string,answer:unknown){
     const item=this.pending.get(id)
     if(!item||item.request.expires<Date.now()||!this.allowed(item.request,actor)||!validHitlAnswer(item.request.input,answer))return false
+    if(actor!=='owner'&&item.request.input.kind==='image'&&answer&&typeof answer==='object'&&'modelId'in answer){const model=item.request.input.models.find(model=>model.id===answer.modelId);if(model?.requiresReferences||answer.aspectRatio!=='auto'&&model?.ratios&&!model.ratios.includes(answer.aspectRatio))return false}
     this.finish(id,answer);return true
   }
   private finish(id:string,answer:HitlAnswer){const item=this.pending.get(id);if(!item)return;this.pending.delete(id);item.cleanup();item.resolve(answer);this.publish()}

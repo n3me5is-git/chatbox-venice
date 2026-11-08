@@ -27,6 +27,14 @@ describe('collaborative HITL authority',()=>{
     expect(validHitlAnswer(input,{answers:[{selected:[],text:'Custom answer'}]})).toBe(true)
     expect(validHitlAnswer(input,{answers:[]})).toBe(false)
   })
+  it('requires owner-side references for edits and checks remote aspect ratios against the catalog',async()=>{
+    const queue=new SharedHitlQueue(()=> 'first',()=>new Set(['alice']),()=>{}),input={kind:'image' as const,prompt:'Edit',count:1,models:[{id:'edit',name:'Editor',requiresReferences:true},{id:'new',name:'Generator',ratios:['1:1','21:9']}]}
+    const pending=queue.ask('alice',input),id=queue.requests('owner')[0].id
+    expect(queue.accept(id,'alice',{modelId:'edit',prompt:'Edit',count:1,aspectRatio:'auto'})).toBe(false)
+    expect(queue.accept(id,'alice',{modelId:'new',prompt:'New',count:1,aspectRatio:'9:16'})).toBe(false)
+    expect(queue.accept(id,'alice',{modelId:'new',prompt:'New',count:1,aspectRatio:'21:9'})).toBe(true);expect(await pending).toMatchObject({aspectRatio:'21:9'})
+    const owner=queue.ask('owner',input),ownerId=queue.requests('owner')[0].id;expect(queue.accept(ownerId,'owner',{modelId:'edit',prompt:'Edit',count:1,aspectRatio:'auto'})).toBe(true);await owner
+  })
   it('keeps the original requester through a background follow-up',()=>{
     const first={...createMessage('user','Alice'),collaborationAuthor:{id:'alice',name:'Alice'}},second={...createMessage('user','Bob'),collaborationAuthor:{id:'bob',name:'Bob'}}
     const followup={...createMessage('user','Completion'),collaborationRequester:first.collaborationAuthor}

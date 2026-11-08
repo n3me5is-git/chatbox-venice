@@ -241,6 +241,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   const { t } = useTranslation()
   const isSmallScreen = useIsSmallScreen()
   const { providers } = useProviders()
+  const venicePrivacyFilter=useSettingsStore(state=>state.providers?.venice?.venice?.privacyFilter||'all')
   const allImageModelGroups = useImageModelGroups()
   const imageModelGroups = useMemo(() => onlyVenice ? allImageModelGroups.filter(group => group.providerId === 'venice') : allImageModelGroups, [allImageModelGroups, onlyVenice])
   const Frame = embedded ? ImageCreatorEmbeddedFrame : Page
@@ -634,6 +635,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   {selectedProvider === 'venice' && <><VeniceModelBadges metadata={selectedOption?.vendorMetadata} /><VeniceModelInfo model={selectedOption ? { id: selectedModel, type: String(selectedOption.vendorMetadata?.veniceType || 'image'), model_spec: selectedOption.vendorMetadata } : undefined} /></>}</Group>
                   </Stack></AdaptiveModal>
                   {selectedProvider==='venice'&&selectedOption&&<VeniceModelCost metadata={selectedOption.vendorMetadata} showLabel/>}
+                  {(onlyVenice||selectedProvider==='venice')&&venicePrivacyFilter!=='all'&&<Text size="xs" c="dimmed">{ft('Some models are hidden by your Venice Privacy Only filter.')}</Text>}
                   <InputToolbar
                     isSmallScreen={isSmallScreen}
                     modelGroups={imageModelGroups}

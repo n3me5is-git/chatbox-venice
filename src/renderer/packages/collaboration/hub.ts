@@ -35,6 +35,7 @@ const messageError=(error:unknown)=>error instanceof Error?error.message:String(
 export class CollaborationHub{
   hosts=new Map<string,HostShare>();guests=new Map<string,GuestShare>()
   private listeners=new Set<()=>void>();private version=0;private refreshes=new Map<string,Promise<void>>()
+  private dirty=new Set<string>()
   private fileAcks=new Map<string,()=>void>()
   constructor(private adapter:CollaborationAdapter){}
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener)}}
@@ -74,7 +75,7 @@ export class CollaborationHub{
     }
     const peer=room.peers.get(link.id);if(!peer?.approved)throw Error('The owner must admit this participant')
     try{
-      if(input.type==='answer'){if(!room.hitl.accept(input.id,link.id,input.answer))throw Error('This question is closed or you cannot answer it');return}
+      if(input.type==='answer'){if(!room.hitl.accept(input.id,link.id,input.answer))throw Error('This question is closed or you cannot answer it');await link.send({type:'ack',id:input.id});return}
       if(input.type==='cancel-file'){room.transferring.delete(link.id+':'+input.id);this.fileAcks.get(link.id+':'+input.id)?.();return}
       if(input.type==='file-ack'){this.fileAcks.get(link.id+':'+input.id)?.();return}
       if(input.type==='file'){
@@ -127,12 +128,12 @@ export class CollaborationHub{
   setPolicy(id:string,policy:HitlPolicy){const room=this.hosts.get(id);if(!room)return;room.hitl.cancel();room.policy=HitlPolicySchema.parse(policy);this.changed()}
   revoke(id:string,actor:string){const room=this.hosts.get(id),peer=room?.peers.get(actor);if(!room||!peer)return;peer.approved=false;peer.operation?.abort();room.peers.delete(actor);room.hitl.revoke(actor);void peer.link.send({type:'closed'}).catch(()=>{}).finally(()=>room.transport.remove(actor));this.changed()}
   refresh(sessionId:string):Promise<void>{
-    const previous=this.refreshes.get(sessionId);if(previous)return previous
-    const work=(async()=>{const room=this.shared(sessionId);if(!room)return;try{const snapshot=SnapshotSchema.parse(await this.adapter.snapshot(sessionId));for(const peer of room.peers.values())if(peer.approved)await peer.link.send({type:'state',snapshot,permissions:peer.permissions,hitls:room.hitl.requests(peer.author.id),busy:room.busy})}catch(error){room.error=messageError(error);this.changed()}})().finally(()=>this.refreshes.delete(sessionId))
+    const previous=this.refreshes.get(sessionId);if(previous){this.dirty.add(sessionId);return previous}
+    const work=(async()=>{const room=this.shared(sessionId);if(!room)return;try{const snapshot=SnapshotSchema.parse(await this.adapter.snapshot(sessionId));room.title=snapshot.title;room.error=undefined;for(const peer of room.peers.values())if(peer.approved)await peer.link.send({type:'state',snapshot,permissions:peer.permissions,hitls:room.hitl.requests(peer.author.id),busy:room.busy})}catch(error){room.error=messageError(error);this.changed()}})().finally(()=>{this.refreshes.delete(sessionId);if(this.dirty.delete(sessionId))void this.refresh(sessionId)})
     this.refreshes.set(sessionId,work);return work
   }
   async post(id:string,text:string,interact:boolean){const guest=this.guests.get(id);if(!guest?.link||guest.status!=='connected'||!guest.permissions.write||interact&&!guest.permissions.interact)throw Error('This action is not allowed');const request=crypto.randomUUID();return new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{guest.pending.delete(request);reject(Error('The owner has not completed this request. Check the conversation before retrying.'))},10*60*1000);guest.pending.set(request,{resolve,reject,timer});void guest.link!.send({type:'post',id:request,text,interact}).catch(error=>{clearTimeout(timer);guest.pending.delete(request);reject(error)})})}
-  async answer(id:string,request:string,answer:HitlAnswer){const guest=this.guests.get(id);if(!guest?.link||!guest.hitls.some(item=>item.id===request))throw Error('This question is no longer available');await guest.link.send({type:'answer',id:request,answer})}
+  async answer(id:string,request:string,answer:HitlAnswer){const guest=this.guests.get(id);if(!guest?.link||!guest.hitls.some(item=>item.id===request))throw Error('This question is no longer available');if(guest.pending.has(request))throw Error('A response is already pending');return new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{guest.pending.delete(request);reject(Error('The owner did not confirm this response'))},30000);guest.pending.set(request,{resolve,reject,timer});void guest.link!.send({type:'answer',id:request,answer}).catch(error=>{clearTimeout(timer);guest.pending.delete(request);reject(error)})})}
   async *readFile(id:string,fileId:string,clone=false,signal?:AbortSignal):AsyncGenerator<Uint8Array>{
     const guest=this.guests.get(id);if(!guest?.link||guest.status!=='connected'||clone&&!guest.permissions.clone)throw Error('This action is not allowed');if(guest.file)throw Error('A file transfer is already active')
     const request=crypto.randomUUID(),file:NonNullable<GuestShare['file']>={request,queue:[],bytes:0};guest.file=file

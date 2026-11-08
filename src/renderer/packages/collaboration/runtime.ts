@@ -13,24 +13,28 @@ import { deleteSession,switchCurrentSession } from '@/stores/session/crud'
 import { CollaborationHub } from './hub'
 import { b64 } from './crypto'
 import { installCollaborationBridge } from './bridge'
+import { getImageGenerationService } from '@/stores/imageGenerationActions'
 
 const vault=()=>vaultRuntimeFor(platform)
 async function publicId(item:SessionResource){return b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([item.id,item.key,item.updatedAt,item.bytes])))))}
 function safePath(item:SessionResource){try{return sessionFilePath(item.path)}catch{return 'files/'+item.id.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,60)+'/'+item.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,80)}}
-function text(message:Message){return message.contentParts.map(part=>part.type==='text'?part.text:part.type==='tool-call'?'\n['+part.toolName+']\n'+JSON.stringify({args:part.args,result:part.result}):'').join('\n').slice(0,200000)}
+function text(message:Message){return message.contentParts.map(part=>part.type==='text'?part.text:part.type==='tool-call'?'\n['+part.toolName+']\n'+JSON.stringify({args:part.args,result:part.result}):'').join('\n')}
 async function snapshot(id:string):Promise<SharedSnapshot>{
   await vault().projects.assertSession(id)
   const source=await openSessionChatExport(platform.getSessionRowStore(),rendererApplication.sessions,id);if(!source)throw Error('This chat is no longer available')
-  const resources=await listSessionResources(id),files:SharedFile[]=[],resourceIds=new Map<string,string>()
+  const resources=await listSessionResources(id),files:SharedFile[]=[],resourceIds=new Map<string,string>(),imageCalls=new Map<string,string|undefined>(),callFiles=new Map<string,string[]>()
   for(const item of resources.items){const fileId=await publicId(item);files.push({id:fileId,path:safePath(item),name:item.name.slice(0,240),mime:item.mime,bytes:item.bytes,deliverable:item.deliverable});if(item.messageId){const list=resourceIds.get(item.messageId);resourceIds.set(item.messageId,list?list+'\n'+fileId:fileId)}}
-  const messages:SharedSnapshot['messages']=[];let truncated=resources.truncated
-  for await(const thread of source.threads(true)){
+  for(let index=0;index<resources.items.length;index++){const item=resources.items[index];if(item.origin!=='image'||!item.recordId)continue;if(!imageCalls.has(item.recordId)){const record=await getImageGenerationService().getRecord(item.recordId);imageCalls.set(item.recordId,record?.source?.sessionId===id?record.source.toolCallId:undefined)}const call=imageCalls.get(item.recordId);if(call)callFiles.set(call,[...callFiles.get(call)||[],files[index].id])}
+  const messages:SharedSnapshot['messages']=[];let truncated=resources.truncated,characters=0
+  threads:for await(const thread of source.threads(true)){
     if(thread.threadId!==source.activeThreadId)messages.push({id:'thread-'+thread.threadId,role:'system',text:'Archived thread: '+thread.name})
     for await(const row of source.allRows(thread)){
-      if(messages.length>=10000){truncated=true;break}
+      if(messages.length>=10000||characters>6000000){truncated=true;break threads}
       const message=await source.message(row.messageId)
       if(!['user','assistant','system'].includes(message.role))continue
-      messages.push({id:message.id,role:message.role as 'user'|'assistant'|'system',text:text(message),...(message.collaborationAuthor?{author:message.collaborationAuthor}:message.role==='user'?{author:{id:'owner',name:'Owner'}}:{}),...(resourceIds.has(message.id)?{files:resourceIds.get(message.id)!.split('\n')}: {})})
+      const value=text(message);if(value.length>200000)truncated=true;characters+=Math.min(value.length,200000)
+      const attached=[...resourceIds.get(message.id)?.split('\n')||[],...message.contentParts.flatMap(part=>part.type==='tool-call'?callFiles.get(part.toolCallId)||[]:[])]
+      messages.push({id:thread.threadId+':'+message.id,role:message.role as 'user'|'assistant'|'system',text:value.slice(0,200000),...(message.collaborationAuthor?{author:message.collaborationAuthor}:message.role==='user'?{author:{id:'owner',name:'Owner'}}:{}),...(attached.length?{files:[...new Set(attached)]}: {})})
     }
   }
   await source.assertCurrent();await vault().projects.assertSession(id)

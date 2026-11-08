@@ -20,6 +20,8 @@ import { VeniceImageApproval } from '@/components/venice/VeniceImageApproval'
 import { GenerationRetryGate } from '@shared/generation-retry'
 import { requestGenerationRetry } from '@/components/venice/GenerationFailure'
 import { routeSharedDecision,isSharedChat } from '@/packages/collaboration/bridge'
+import {privacyAllowed} from '@shared/providers/definitions/models/venice/privacy'
+import {quickModelPrice} from '@shared/providers/definitions/models/venice/pricing'
 const inFlight = new Map<string, Promise<unknown>>()
 const retryGate=new GenerationRetryGate()
 export function veniceChatTools(sessionId: string,turnId='external',requester='owner') {
@@ -28,7 +30,7 @@ export function veniceChatTools(sessionId: string,turnId='external',requester='o
   const options = () => veniceConfiguration().options
   const retry=(failure:Parameters<typeof requestGenerationRetry>[0],signal?:AbortSignal)=>routeSharedDecision(sessionId,requester,{kind:'confirm',title:'The previous generation failed',detail:failure.model+'\n'+failure.error+'\n'+ft('Retry starts a new paid generation. Approve to retry or reject to skip.')},signal=>requestGenerationRetry(failure,signal),value=>value,value=>value===true,signal)
   if (options().enabled === false || options().chatToolsEnabled === false || !veniceConfiguration().apiKey) return {}
-  const images = async () => queryClient.fetchQuery(providerImageModelsQueryOptions(ModelProviderEnum.Venice, veniceConfiguration()))
+  const images = async () => (await queryClient.fetchQuery(providerImageModelsQueryOptions(ModelProviderEnum.Venice, veniceConfiguration()))).filter(model=>privacyAllowed(model.vendorMetadata,options().privacyFilter))
   const latestImage=async()=>{
     await installedVaultFor(platform)?.projects.assertSession(sessionId)
     let cursor:number|null=0
@@ -53,7 +55,7 @@ export function veniceChatTools(sessionId: string,turnId='external',requester='o
       if(failure?.status==='error'&&!await retryGate.allow(sessionId+':'+turnId,{id:failure.id,kind:ft('Image'),model:failure.model.modelId,error:failure.error||''},value=>retry(value,signal)))return null
       const before = veniceConfiguration(); const scope = syncSessionApprovalScope(sessionId); const models = await images()
       const policy=isSharedChat(sessionId)?{...sessionApprovals,allows:()=>false}:sessionApprovals
-      const approved = await requestSessionImageChoice(sessionId, request, models, request => routeSharedDecision<ImageChoice & {approvalMode?:ApprovalMode}|null>(sessionId,requester,{kind:'image',prompt:request.prompt,modelId:request.modelId,count:request.count,models:models.filter(model=>!model.capabilities?.inputReferences?.min).map(model=>({id:model.modelId,name:model.displayName}))},signal=>NiceModal.show(VeniceImageApproval,{models,request,signal,sessionId}) as Promise<ImageChoice & {approvalMode?:ApprovalMode}|null>,value=>value?{modelId:value.modelId,prompt:value.prompt,count:value.count,aspectRatio: ['auto','1:1','16:9','9:16','4:3','3:4'].includes(value.aspectRatio)?value.aspectRatio as 'auto':'auto'}:null,value=>value&&typeof value==='object'&&'modelId'in value?{...value,referenceImages:[]}:null,signal),policy)
+      const approved = await requestSessionImageChoice(sessionId, request, models, request => routeSharedDecision<ImageChoice & {approvalMode?:ApprovalMode}|null>(sessionId,requester,{kind:'image',prompt:request.prompt,modelId:request.modelId,count:request.count,models:models.map(model=>({id:model.modelId,name:model.displayName,requiresReferences:!!model.capabilities?.inputReferences?.min,ratios:model.capabilities?.aspectRatio?.values,price:quickModelPrice({id:model.modelId,type:String(model.vendorMetadata?.veniceType||'image'),model_spec:model.vendorMetadata})}))},signal=>NiceModal.show(VeniceImageApproval,{models,request,signal,sessionId}) as Promise<ImageChoice & {approvalMode?:ApprovalMode}|null>,value=>value?{modelId:value.modelId,prompt:value.prompt,count:value.count,aspectRatio:value.aspectRatio}:null,value=>value&&typeof value==='object'&&'modelId'in value?{...value,referenceImages:[]}:null,signal),policy)
       const current = veniceConfiguration()
       if (before.apiKey !== current.apiKey || before.apiHost !== current.apiHost || scope !== syncSessionApprovalScope(sessionId)) throw new Error('Venice settings changed. Review the request again.')
       if (approved) authorizations.set(approved.choice, {scope, revision:sessionApprovals.revision(sessionId), automatic:approved.automatic})

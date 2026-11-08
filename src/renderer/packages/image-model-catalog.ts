@@ -14,6 +14,7 @@ import {
   type Settings,
 } from '@shared/types'
 import { queryOptions } from '@tanstack/react-query'
+import {requireModelPrivacy} from '@shared/providers/definitions/models/venice/privacy'
 import { getLogger } from '@/lib/utils'
 import type { RemoteModelInfo } from '@/packages/remote'
 import platform from '@/platform'
@@ -111,7 +112,9 @@ export async function getImageModelCapabilities(
   signal?.throwIfAborted()
   if (![ModelProviderEnum.OpenRouter, ModelProviderEnum.Venice].includes(model.provider as ModelProviderEnum)) return undefined
   const models = await waitForCatalog(loadRemoteModels(model.provider as ModelProviderEnum, settings), signal)
-  return models.find((option) => option.modelId === model.modelId)?.capabilities
+  const option=models.find((option) => option.modelId === model.modelId)
+  if(model.provider===ModelProviderEnum.Venice){if(option)requireModelPrivacy(option.vendorMetadata,settings.providers?.venice?.venice?.privacyFilter);else if(settings.providers?.venice?.venice?.privacyFilter&&settings.providers.venice.venice.privacyFilter!=='all')throw Error('Unable to verify this model against your Venice privacy filter. Refresh the model catalog.')}
+  return option?.capabilities
 }
 
 export function isOpenAIImageGenerationAuthSupported(

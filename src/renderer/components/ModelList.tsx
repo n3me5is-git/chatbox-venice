@@ -128,7 +128,7 @@ export function ModelList({
                 </Flex>
 
                 <VeniceModelBadges metadata={model.vendorMetadata}/>
-                {model.vendorMetadata?.veniceType&&<VeniceModelCost metadata={model.vendorMetadata} type={String(model.vendorMetadata.veniceType)}/>}
+                {!!model.vendorMetadata?.veniceType&&<VeniceModelCost metadata={model.vendorMetadata} type={String(model.vendorMetadata.veniceType)}/>}
                 {(model.type !== 'chat' || model.capabilities?.length || model.contextWindow || model.maxOutput) && (
                   <Flex gap="xs" align="center" wrap="wrap">
                     {model.type && model.type !== 'chat' && <Badge color="blue">{t(capitalize(model.type))}</Badge>}
