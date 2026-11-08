@@ -188,11 +188,19 @@ export class MultiAgentRuntime {
     }
   }
   async cancelTree(id: string) {
-    for (const child of this.runs.values()) if (child.parentId === id) await this.cancelTree(child.id)
-    this.active.get(id)?.abort(); this.queue = this.queue.filter(entry => entry.run.id !== id)
-    const run = this.runs.get(id); if (run && ['queued', 'running', 'waiting'].includes(run.status)) await this.set(run, { status: 'cancelled' })
+    const ids = new Set([id])
+    for (let changed = true; changed;) { changed = false; for (const run of this.runs.values()) if (ids.has(run.parentId) && !ids.has(run.id)) { ids.add(run.id); changed = true } }
+    // Revoke execution first. A failed disk write must not leave another worker running.
+    for (const current of ids) this.active.get(current)?.abort()
+    this.queue = this.queue.filter(entry => !ids.has(entry.run.id))
+    await Promise.allSettled([...ids].map(async current => { const run = this.runs.get(current); if (run && ['queued','running','waiting'].includes(run.status)) await this.set(run, { status: 'cancelled' }) }))
   }
-  async stopRoot(rootId: string) { this.rootsStopping.add(rootId); for (const run of this.runs.values()) if (run.rootId === rootId && run.parentId === rootId) await this.cancelTree(run.id) }
+  async stopRoot(rootId: string) {
+    this.rootsStopping.add(rootId)
+    for (const [id, controller] of this.active) if (this.runs.get(id)?.rootId === rootId) controller.abort()
+    this.queue = this.queue.filter(entry => entry.run.rootId !== rootId)
+    await Promise.allSettled([...this.runs.values()].filter(run => run.rootId === rootId && run.parentId === rootId).map(run => this.cancelTree(run.id)))
+  }
   reopen(rootId: string) { this.rootsStopping.delete(rootId) }
   caller(run: AgentRun): AgentCaller { return { id: run.id, rootId: run.rootId, workspaceId: run.workspaceId, depth: run.depth, model: run.model, tools: run.tools, allowOnDemand: run.allowOnDemand, dedicatedIds: run.dedicatedIds } }
 }

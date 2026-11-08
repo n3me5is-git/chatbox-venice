@@ -17,6 +17,16 @@ function fixture(concurrency = 3) {
 }
 const task = { title: 'Research', task: 'Summarize this pseudonymous input' }
 describe('multi-agent authority and privacy boundaries', () => {
+  it('aborts all running workers even when cancellation metadata cannot be saved', async () => {
+    const f = fixture(), signals: AbortSignal[] = []
+    vi.mocked(f.host.execute).mockImplementation(async (_run,_task,signal) => { signals.push(signal); await new Promise<void>(resolve => signal.addEventListener('abort',()=>resolve(),{once:true})); return '' })
+    await f.runtime.spawn(f.caller, task); await f.runtime.spawn(f.caller, task)
+    await vi.waitFor(()=>expect(signals).toHaveLength(2))
+    vi.mocked(f.host.save).mockRejectedValue(Error('Disk unavailable'))
+    await f.runtime.stopRoot('root')
+    expect(signals.every(signal=>signal.aborted)).toBe(true)
+    await expect(f.runtime.spawn(f.caller,task)).rejects.toThrow('stopping')
+  })
   it('rejects a replaced root orchestrator before delegating under another grant', async () => {
     const f = fixture()
     f.host.assertCaller = vi.fn(async () => { throw Error('Orchestrator grant was replaced') })
