@@ -1,4 +1,4 @@
-import { tool } from 'ai'
+import { tool,type ToolSet } from 'ai'
 import { z } from 'zod'
 import { executeSessionCode } from '@shared/session-workspace-execution'
 import { sessionFiles } from './files'
@@ -13,7 +13,7 @@ export async function executeSessionPython(id:string,code:string,paths:string[],
     return result
   }},id,code,paths,signal)
 }
-export async function sessionPythonTool(id:string){
+export async function sessionPythonTool(id:string):Promise<ToolSet>{
   if(!(await sessionFiles.index(id)).pythonEnabled)return {}
   const status=await pythonRuntimeStatus();if(!status.ready)return {}
   return {session_python:tool({
