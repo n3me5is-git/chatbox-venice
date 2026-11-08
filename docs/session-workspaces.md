@@ -42,7 +42,7 @@ Execution itself is offline in a disposable WebAssembly worker. Only the selecte
 
 **Back up workspace files** creates a portable encrypted archive including managed intermediate files and deliverables. Keep its passphrase separately. **Restore workspace files** imports into the current chat without replacing existing paths; collisions go under a `restored-…/` folder. The complete archive must authenticate before files are published. This archive covers managed files, not chat messages or old Work directories. Use the existing chat and library backup controls for those separate data sets.
 
-Current bounds: 2 MiB text preview; 10 MiB per managed file; 2,048 managed files and 512 MiB per chat; 128 input/output files and 20 MiB total per execution. JavaScript has a 20-second execution deadline; Python has a 60-second host deadline including startup. Media previews in this explorer are bounded to 20 MiB; encrypted media export streams larger files through the platform exporter. Very large sessions show a truncation notice instead of loading an unbounded transcript.
+Current bounds: 2 MiB text preview; 10 MiB per managed file; 2,048 managed files and 512 MiB per chat; 128 input/output files and 20 MiB total per execution. JavaScript has a 20-second execution deadline; Python has a 60-second host deadline including startup. Markdown local images load one at a time, up to 64 attempts, 2 MiB each and 20 MiB total per preview. Leaving a preview stops queued image reads. Media previews in this explorer are bounded to 20 MiB; encrypted media export streams larger files through the platform exporter. Very large sessions show a truncation notice instead of loading an unbounded transcript.
 
 ## Share with an external local agent
 

@@ -1,8 +1,9 @@
 import { ActionIcon, Alert, Badge, Button, Checkbox, FileButton, FileInput, Group, Loader, MultiSelect, PasswordInput, Stack, Text, Textarea, TextInput } from '@mantine/core'
 import { IconArrowLeft, IconDownload, IconFile, IconFilePlus, IconFolder, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MAX_RESOURCE_PREVIEW_BYTES, isTextResource, resourceMime, resourceTree, sessionFilePath, type ResourceTree, type SessionResource } from '@shared/session-resources'
+import { PreviewImages } from '@shared/preview-images'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { buildWorkArtifactPreview } from '@shared/mobile-work/artifact-preview'
 import { registerBackSurface } from '@/packages/overlay-back'
@@ -23,8 +24,10 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
   const executionAbort=useRef<AbortController>()
   const [pythonEnabled,setPythonEnabled]=useState(false),[pythonReady,setPythonReady]=useState(false),[codeLanguage,setCodeLanguage]=useState<'javascript'|'python'>('javascript')
   const [backup,setBackup]=useState<'export'|'import'>(),[password,setPassword]=useState(''),[repeated,setRepeated]=useState(''),[archive,setArchive]=useState<File|null>(null)
-  const request=useRef<AbortController>(),imageBudget=useRef(0)
-  const clear=useCallback(()=>{setSelected(undefined);setText('');setDraft('');setEditing(false);setUrl('');imageBudget.current=0},[])
+  const request=useRef<AbortController>()
+  const previewImages=useMemo(()=>new PreviewImages(async item=>(await api.read(sessionId,item)).bytes),[api,sessionId,selected?.id,items])
+  useEffect(()=>{previewImages.activate();return()=>previewImages.close()},[previewImages])
+  const clear=useCallback(()=>{setSelected(undefined);setText('');setDraft('');setEditing(false);setUrl('')},[])
   const load=useCallback(()=>{
     request.current?.abort();const controller=new AbortController();request.current=controller;setLoading(true)
     void api.list(sessionId,controller.signal).then(result=>{if(!controller.signal.aborted){setItems(result.items);setTruncated(result.truncated);setToolsEnabled(result.options?.toolsEnabled!==false);setPythonEnabled(!!result.options?.pythonEnabled);setError('')}}).catch(reason=>{if(!controller.signal.aborted)setError(String(reason?.message||reason))}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
@@ -33,7 +36,7 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
   useEffect(()=>()=>executionAbort.current?.abort(),[sessionId])
   useEffect(()=>{
     if(!selected)return
-    let active=true,owned='';setText('');setUrl('');setOpening(true);setEditing(false);imageBudget.current=0
+    let active=true,owned='';setText('');setUrl('');setOpening(true);setEditing(false)
     void api.read(sessionId,selected).then(({bytes})=>{
       if(!active)return
       if(isTextResource(selected)){if(bytes.length>MAX_RESOURCE_PREVIEW_BYTES)throw Error('File is too large for text preview');setText(new TextDecoder().decode(bytes))}
@@ -45,11 +48,10 @@ export function SessionResources({sessionId,api=sessionResourceAPI}:{sessionId:s
   const run=async(work:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await work();load()}catch(reason){setError(String((reason as Error)?.message||reason))}finally{setBusy(false)}}
   const resolveImage=useCallback(async(path:string)=>{
     const item=items.find(item=>item.path===path)
-    if(!item||!item.mime.startsWith('image/')||imageBudget.current>=20*1024*1024)return
-    const {bytes}=await api.read(sessionId,item);if(bytes.length>2*1024*1024||imageBudget.current+bytes.length>20*1024*1024)return
-    imageBudget.current+=bytes.length
-    return URL.createObjectURL(new Blob([new Uint8Array(bytes)],{type:item.mime}))
-  },[api,sessionId,items])
+    if(!item)return
+    const blob=await previewImages.load(item)
+    return blob?URL.createObjectURL(blob):undefined
+  },[previewImages,items])
   const openPath=(path:string)=>{const item=items.find(item=>item.path===path);if(item){setError('');setSelected(item)}else setError('Session file not found')}
   const upload=(file:File|null)=>{if(!file)return;void run(async()=>{if(file.size>10*1024*1024)throw Error('Session files must not exceed 10 MB');const name=file.name.replace(/[\\/:*?"<>|%\u0000-\u001f]/g,'_');const path='input/'+(items.some(item=>item.path==='input/'+name)?crypto.randomUUID().slice(0,8)+'-':'')+name;await api.create(sessionId,path,new Uint8Array(await file.arrayBuffer()),file.type||resourceMime(file.name))})}
   const renderTree=(tree:ResourceTree):React.ReactNode=><>{tree.folders.map(folder=><details key={folder.path} open style={{paddingLeft:8}}><summary style={{padding:'8px 0',cursor:'pointer',overflowWrap:'anywhere'}}><IconFolder size={16} style={{verticalAlign:'middle',marginRight:6}}/>{folder.name}</summary>{renderTree(folder)}</details>)}{tree.files.map(item=><Group key={item.id} wrap="nowrap" gap="xs" style={{borderBottom:'1px solid var(--chatbox-border-primary)',minWidth:0}}>
