@@ -18,10 +18,10 @@ function messageResources(message:Message,messageId:string):SessionResource[]{
     const key=file.rawStorageKey||file.storageKey
     if(key){const name=file.rawStorageKey?file.name:file.name+'.txt';output.push({id:'attachment:'+file.id,path:'attachments/'+name,name,mime:file.rawStorageKey?resourceMime(name):'text/plain',origin:'attachment',key,messageId})}
   }
-  let html=false
+  let html=false,imageIndex=0
   for(const part of message.contentParts){
     if(part.type==='text'&&/```html\s*\n/i.test(part.text))html=true
-    if(part.type==='image'&&part.storageKey)output.push({id:'blob:'+part.storageKey,path:'images/'+resourceName(part.storageKey)+'.png',name:'Image',mime:'image/png',origin:'attachment',key:part.storageKey,messageId})
+    if(part.type==='image'&&part.storageKey){imageIndex++;output.push({id:'blob:'+part.storageKey,path:'images/'+messageId+'/'+imageIndex+'.png',name:imageIndex+'.png',mime:'image/png',origin:'attachment',key:part.storageKey,messageId})}
     for(const file of getWorkArtifacts(part))output.push({id:'artifact:'+(file.storageKey||file.path),path:'deliverables/'+file.path.replace(/^artifacts\//,''),name:file.name,mime:file.mimeType,bytes:file.size??undefined,origin:'artifact',key:file.storageKey||file.path,messageId,deliverable:true})
   }
   if(html)output.push({id:'message:'+messageId,path:'chat/'+messageId+'.html',name:'Chat artifact.html',mime:'text/html',origin:'message',messageId,deliverable:true})
@@ -64,6 +64,7 @@ export async function listSessionResources(id:string,signal?:AbortSignal){
     for(const record of page.items)if(record.source?.sessionId===id)for(const [n,key]of record.generatedImages.entries())items.push({id:'image:'+record.id+':'+key,path:'images/'+record.id+'/'+(n+1)+'.png',name:(n+1)+'.png',mime:'image/png',origin:'image',key,recordId:record.id,index:n,deliverable:true})
     cursor=page.nextCursor
   }while(cursor!==null&&items.length<4000)
+  truncated ||= cursor!==null
   for(const record of await veniceMediaService.list())if(record.sessionId===id&&record.blobKey)items.push({id:'media:'+record.id,path:'media/'+record.kind+'/'+record.id+'.'+(record.mime?.split('/')[1]||'bin'),name:record.prompt.slice(0,70)||record.model,mime:record.mime||'application/octet-stream',origin:'media',key:record.blobKey,recordId:record.id,deliverable:true})
   const removed=new Set(index.removed),seen=new Set<string>()
   const priority={file:5,image:4,media:4,artifact:3,workspace:2,attachment:1,message:0}

@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.33.0
+1. Esplora file, allegati, artefatti e media della sessione in una struttura ad albero
+2. Visualizza Markdown con LaTeX, Mermaid, indice, immagini locali e collegamenti
+3. Modifica, esporta, elimina e salva backup dei file gestiti cifrati; aggiungi alla libreria solo i risultati finali
+4. Esegui JavaScript isolato e Python facoltativo offline con file e pacchetti selezionati
+5. Condividi una chat desktop tramite server MCP locale facoltativo, con permessi separati e approvazioni dei modelli
+
 ## Chatbox Venice 1.32.2
 1. Corregge le chiamate MCP e di funzione cifrate con DeepSeek e GLM
 2. Riconosce chiamate XML GLM e chiamate nel testo cifrato restituite dai gateway in modalità nativa

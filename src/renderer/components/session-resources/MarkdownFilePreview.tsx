@@ -32,9 +32,9 @@ export function MarkdownFilePreview({source,path,resolveImage,openFile,openExter
   const [external,setExternal]=useState(false)
   useEffect(()=>setExternal(false),[path])
   const headings=useMemo(()=>{
-    const tree=unified().use(remarkParse).use(remarkGfm).use(remarkMath).parse(source),items:{id:string;title:string;level:number}[]=[]
+    const tree=unified().use(remarkParse).use(remarkGfm).use(remarkMath).parse(source),items:{id:string;slug:string;title:string;level:number}[]=[],counts=new Map<string,number>()
     const text=(node:any):string=>typeof node.value==='string'?node.value:(node.children??[]).map(text).join('')
-    visit(tree,'heading',(node:any)=>{items.push({id:'section-'+node.position.start.line,title:text(node),level:node.depth})})
+    visit(tree,'heading',(node:any)=>{const title=text(node),base=title.toLowerCase().replace(/[^\p{L}\p{N}_\s-]/gu,'').replace(/\s/g,'-'),count=counts.get(base)??0;counts.set(base,count+1);items.push({id:'section-'+node.position.start.line,slug:base+(count?'-'+count:''),title,level:node.depth})})
     return items
   },[source])
   const heading=(tag:'h1'|'h2'|'h3'|'h4'|'h5'|'h6')=>({node,...props}:any)=>createElement(tag,{...props,id:'section-'+node.position.start.line})
@@ -45,7 +45,7 @@ export function MarkdownFilePreview({source,path,resolveImage,openFile,openExter
       <ReactMarkdown remarkPlugins={[remarkGfm,remarkMath]} rehypePlugins={[[rehypeKatex,{throwOnError:false,trust:false}]]} skipHtml urlTransform={(url,key)=>key==='src'&&/^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(url)?url:defaultUrlTransform(url)} components={{
         h1:heading('h1'),h2:heading('h2'),h3:heading('h3'),h4:heading('h4'),h5:heading('h5'),h6:heading('h6'),
         img:({src,alt})=><LocalImage src={src} alt={alt} allowed={external} path={path} resolve={resolveImage}/>,
-        a:({href,children})=><a href={href} rel="noreferrer" onClick={event=>{event.preventDefault();if(href?.startsWith('#')){event.currentTarget.closest('[data-markdown-file]')?.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(node=>{if(node.id===href.slice(1)||node.textContent?.toLowerCase().replace(/\s+/g,'-')===href.slice(1))node.scrollIntoView({block:'start'})});return}const target=relativeResourcePath(path,href||'');if(target)openFile(target);else if(/^https?:\/\//i.test(href||''))openExternal(href!)}}>{children}</a>,
+        a:({href,children})=><a href={href} rel="noreferrer" onClick={event=>{event.preventDefault();if(href?.startsWith('#')){let fragment=href.slice(1);try{fragment=decodeURIComponent(fragment)}catch{return}const target=headings.find(item=>item.slug===fragment||item.id===fragment);event.currentTarget.closest('[data-markdown-file]')?.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(node=>{if(node.id===target?.id)node.scrollIntoView({block:'start'})});return}const target=relativeResourcePath(path,href||'');if(target)openFile(target);else if(/^https?:\/\//i.test(href||''))openExternal(href!)}}>{children}</a>,
         code:({className,children})=>className==='language-mermaid'?<span style={{display:'block',maxWidth:'100%',overflow:'auto'}}><LocalMermaid source={String(children).trim()}/></span>:<code className={className}>{children}</code>,
         pre:({children})=><pre style={{maxWidth:'100%',overflow:'auto',padding:12,background:'var(--chatbox-background-secondary)'}}>{children}</pre>,
         table:({children})=><div style={{maxWidth:'100%',overflowX:'auto'}}><table>{children}</table></div>,

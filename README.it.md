@@ -8,6 +8,12 @@ Fork di Chatbox Community Edition con dati locali, parametri vendor per modello 
 
 ## Uso
 
+Dalla 1.33.0, **File e risorse** nell'intestazione della chat apre l'explorer: pannello destro su desktop, scheda scorrevole sul telefono. L'albero raccoglie allegati, artefatti, media generati e file gestiti. Le anteprime Markdown includono LaTeX, Mermaid, indice, immagini locali e link. Puoi modificare, esportare o cancellare una singola risorsa. Gli script intermedi restano nella chat; i documenti finali entrano in libreria solo se li contrassegni come risultati finali.
+
+I nuovi file gestiti e il relativo indice sono cifrati e hanno backup/ripristino dedicati. L'agente può gestirli ed eseguire JavaScript isolato, oppure Python facoltativo con pacchetti selezionati. Python richiede un download esplicito del runtime verificato, poi esegue offline: vede solo i file scelti, senza shell, chiavi API o database dell'app. I vecchi strumenti Work mantengono il loro funzionamento. Vedi la [guida ai file di sessione](docs/session-workspaces.it.md).
+
+Su desktop puoi anche avviare un **server MCP locale** per condividere la chat con un agente esterno fidato. Permessi separati controllano file, esecuzione, modelli, Venice Studio, ricerca e altri MCP. Le chiamate ai modelli richiedono conferma salvo autorizzazione automatica esplicita. Condivisione disattivata inizialmente, token nuovo a ogni avvio e arresto al blocco dell'app. Vedi la [configurazione MCP](docs/local-mcp-server.md).
+
 In Impostazioni → Provider → Venice inserisci la API key, premi Fetch e aggiungi i modelli desiderati. Per la ricerca puoi scegliere Venice integrata, Brave, Google, Exa e, sui modelli compatibili, X. Le richieste passano direttamente dalle API Venice. Le modalità sono disattivata, automatica e sempre attiva; la ricerca automatica con un backend scelto richiede un modello con tool calling.
 
 Dalla 1.29.0 la **Libreria multimediale locale** è nel menu laterale: miniature, anteprime, categorie e aree pubblica/protetta. Il pulsante di caricamento propone dispositivo o libreria locale. Invio nel prompt immagini va a capo; solo il pulsante esplicito avvia la generazione. Le impostazioni avanzate si aprono in un pannello dedicato. Le creazioni protette richiedono lo sblocco della vista.

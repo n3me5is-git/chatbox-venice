@@ -20,6 +20,12 @@ it('opens relative files in this session and external links through the app',()=
   fireEvent.click(screen.getByRole('link',{name:'web'}));expect(props.openExternal).toHaveBeenCalledWith('https://example.test')
   props.openFile.mockClear();fireEvent.click(screen.getByRole('link',{name:'escape'}));expect(props.openFile).not.toHaveBeenCalled()
 })
+it('resolves punctuation and duplicate heading fragments without treating them as CSS selectors',()=>{
+  const spy=vi.fn();HTMLElement.prototype.scrollIntoView=spy
+  render(<MantineProvider><MarkdownFilePreview {...props} source={'[First](#hello-world) [Second](#hello-world-1)\n\n# Hello, world!\n\n# Hello, world!'}/></MantineProvider>)
+  fireEvent.click(screen.getByRole('link',{name:'Second'}));expect(spy).toHaveBeenCalledTimes(1)
+  expect(spy.mock.contexts[0]).toBe(screen.getAllByRole('heading',{name:'Hello, world!'})[1])
+})
 it('does not contact external image hosts until explicitly enabled, and ignores raw HTML',()=>{
   render(<MantineProvider><MarkdownFilePreview {...props} source={'![Remote](https://example.test/tracker.png)\n\n<script>alert(1)</script>'}/></MantineProvider>)
   expect(screen.queryByRole('img')).toBeNull();expect(document.querySelector('script')).toBeNull()

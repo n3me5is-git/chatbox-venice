@@ -12,7 +12,11 @@ export default function LocalMCPHost(){
       if(request.operation==='cancel'){requests.get(request.id)?.abort();return}
       const controller=new AbortController();requests.set(request.id,controller)
       const reply=(value:unknown)=>ipc.invoke('local-mcp:reply',request.id,redactLocalMCPResult(value,settingsStore.getState().getSettings()))
-      void import('@/packages/local-mcp/backend').then(module=>module.handleLocalMCP(request,controller.signal)).then(result=>reply({result})).catch(error=>reply({error:String(error?.message||error).slice(0,2000)}).catch(()=>{})).finally(()=>requests.delete(request.id))
+      void import('@/packages/local-mcp/backend').then(module=>module.handleLocalMCP(request,controller.signal)).then(result=>reply({result})).catch(error=>{
+        // Redact before truncating: cutting a secret in half would defeat exact-value removal.
+        const message=redactLocalMCPResult(String(error?.message||error),settingsStore.getState().getSettings()) as string
+        return reply({error:message.slice(0,2000)}).catch(()=>{})
+      }).finally(()=>requests.delete(request.id))
     })
     const unlock=vaultRuntimeFor(platform).keys.subscribe(stop)
     window.addEventListener('chatbox:privacy-lock',stop)

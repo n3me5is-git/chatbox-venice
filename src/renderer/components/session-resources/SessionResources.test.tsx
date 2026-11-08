@@ -37,3 +37,9 @@ it('native Back closes a file preview before leaving the explorer',async()=>{
   fixture();fireEvent.click(await screen.findByRole('button',{name:/^notes.md/}));await screen.findByRole('heading',{name:'Notes'})
   expect(closeTopSurface()).toBe(true);await screen.findByRole('textbox',{name:'Search session files'})
 })
+it('preserves imported basenames so Markdown and separately imported images can keep relative links',async()=>{
+  const api=fixture();await screen.findByRole('button',{name:/^notes.md/})
+  const file=new File(['# Report'],'report.md',{type:'text/markdown'});Object.defineProperty(file,'arrayBuffer',{value:async()=>new TextEncoder().encode('# Report').buffer})
+  fireEvent.change(document.querySelector('input[type="file"]')!,{target:{files:[file]}})
+  await waitFor(()=>expect(api.create).toHaveBeenCalledWith('session-one','input/report.md',expect.any(Uint8Array),'text/markdown'))
+})

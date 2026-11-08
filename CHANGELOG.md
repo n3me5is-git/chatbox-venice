@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.33.0
+
+See [release notes](docs/releases/v1.33.0.md). Adds a per-chat resource explorer, rich local Markdown previews, encrypted managed files and workspace backups, isolated JavaScript and optional Python, and a permission-scoped desktop MCP server. Intermediate files stay out of the library unless marked as deliverables.
+
 ## 1.32.2
 
 See [release notes](docs/releases/v1.32.2.md). Repairs encrypted MCP calls with backend-safe protocol tags, GLM XML parsing and a verified text bridge for native-mode gateways. Adds NEAR model-prefixed signatures with attestation/model binding and preserves the selected receipt policy, schema validation and permissions.

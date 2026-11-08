@@ -31,6 +31,14 @@ Venice embeddings send the indexed text to Venice. The app keeps the knowledge-b
 
 Delete an entry in Image Creator history to cancel any active request, delete the local record, and clean up generated/reference images that are no longer used by another record. Exported copies and user-created backups must be deleted separately from their saved locations. Local deletion is not a remote deletion request to Venice or a search provider.
 
+## Session files, optional execution and local MCP
+
+Managed session files and metadata are encrypted locally and opened lazily. Existing Work folders keep their original storage. Preview rendering, Mermaid, file search, JavaScript and installed Python execute locally. Remote Markdown images require explicit consent; external links open only on user action. Optional Python installation downloads pinned hash-verified runtime/packages from jsDelivr without prompts, files or API keys; execution itself blocks network access.
+
+An enabled model can request workspace operations only through the exposed tools and current chat controls. Tool results can enter that model's conversation, under its selected transport privacy. Selected code inputs are copied into an isolated runtime; the interpreter does not see the app's provider credentials or full session database.
+
+The opt-in desktop MCP server accepts authenticated loopback clients for a selected chat and separately granted capabilities. It does not start automatically or replace the internal Venice MCP. An external client can receive authorized decrypted files/model results and independently transmit them; use only trusted clients. Text-model calls require approval unless explicitly granted automatic calls. Existing Venice paid-generation approvals still apply. Stop/lock/app exit revokes the local token. See [MCP setup](local-mcp-server.md) and [workspace guide](session-workspaces.md).
+
 ## Other inherited features
 
 Tracking and error reporting default off for new settings. Imported or previously saved choices remain as selected. Desktop document parsing defaults to local; mobile defaults to no automatic cloud parser. Optional Chatbox services, third-party providers, MCP servers and cloud parsers have their own data flows and require configuration. Public model catalogs or optional service metadata may still be requested by inherited app features. A local-first app is not necessarily offline.

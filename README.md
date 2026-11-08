@@ -10,6 +10,14 @@ The fork builds a Windows x64 setup and an Android APK. Download them from this 
 
 Windows installers are unsigned. New versions use a release-mode APK signed for personal sideload installation. Keep the same signing key when updating an installed Android app; see [development and releases](docs/fork-development.md).
 
+## Session files and local agent tools
+
+Open **Files and resources** in a chat header: desktop uses the right sidebar, mobile a scrollable sheet. Browse attachments, generated media, existing artifacts and managed files in one tree. Markdown previews render LaTeX, Mermaid, tables, a table of contents, local images and relative links. Edit, export or delete individual files. Working scripts stay out of the library; mark a final document as a deliverable to include it.
+
+Managed files and their index use authenticated encrypted local storage and have a dedicated encrypted backup/restore flow. Agent mode can manage those files and run isolated JavaScript; optional Python downloads a verified local runtime and selected packages, then executes offline. These runtimes receive only selected files, with no operating-system shell, provider keys or app-data access. Existing Work tools keep their behavior. See [session workspace guide](docs/session-workspaces.md).
+
+On desktop, optionally share the selected chat with a trusted external agent through an authenticated, loopback-only **MCP server**. File access, isolated execution, text-model calls, Venice Studio, search and forwarding other MCP tools have separate permissions. Text-model calls ask for approval unless you explicitly allow automatic calls. Sharing stops on lock or app exit. See [MCP client setup and trust boundaries](docs/local-mcp-server.md).
+
 ## Configure Venice
 
 1. Open Settings → Providers → Venice and enter your API key.

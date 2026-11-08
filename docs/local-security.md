@@ -34,9 +34,19 @@ Chats can be deleted directly after confirmation. Image Creator deletion cancels
 
 Remix/edit controls show compatible models and allow explicit batch approval. Comment points use percentage coordinates. In painted-area mode, Venice receives a context crop and instructions; the mask remains local and the result is composited into the source on device. This is not a provider-side mask API. If composition fails, the unmasked paid result is retained in the library with an error, without repeating the paid call. File encoding/color profiles can change on export.
 
-## Verification boundaries
+## Session workspaces and external MCP (1.33.0)
+
+New managed session files and their index use the authenticated encrypted asset store, inherit project protection and load file bodies only on selection. Intermediate files remain outside the media library unless explicitly marked as deliverables. Existing Work directories and the ordinary chat/settings databases retain their inherited format; listing them does not encrypt or migrate them. External user-selected desktop directories are read-only in the explorer.
+
+The dedicated workspace backup includes managed intermediate files as well as deliverables. Restore authenticates the complete archive before publishing files and preserves existing paths. Exported backups remain wherever the user saved them. Individual resource deletion can break existing chat/library links to the same bytes; it is not a provider-side deletion request.
+
+QuickJS and optional Python receive only selected managed inputs. They have no OS shell, native filesystem, app database or provider keys. Python downloads verified runtime/package bytes only after explicit installation, then executes offline in a disposable worker with a separate network-blocking CSP. The 256 MiB WASM heap cap excludes loader/browser memory; execution still consumes device RAM. Output changes commit only after success and conflict checks. See [limits and use](session-workspaces.md).
+
+The optional desktop MCP server is local, authenticated and permission-scoped, but trusted clients receive authorized decrypted content. Forwarding other configured MCP services grants their existing authority, which may extend outside session files. Stop/lock revokes the token. App-to-Venice E2EE does not protect data after a client independently exports it. See [client setup and trust boundaries](local-mcp-server.md).
 
 Venice E2EE tools are a separate opt-in transport setting. The default encrypted-tool protocol includes tool schemas, calls and text results in ciphertext; optional native tools expose their current metadata with a warning. These choices do not change local storage protection. Executing search/MCP services receive their arguments. See [search and encrypted tool boundaries](search-and-encrypted-tools.md).
+
+## Verification boundaries
 
 CI tests use synthetic keys/API responses, real browser canvas operations and mocked device-key wrapping. Separate native checks compile the Windows Hello helper and Android Keystore/biometric plugin. They do not verify physical biometric enrollment/unlock, every codec/device, or paid Venice inference. See [testing](fork-testing.md) and [provider data flows](fork-privacy.md).
 

@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.33.0
+1. Browse session files, attachments, artifacts and generated media in a tree
+2. Preview Markdown with LaTeX, Mermaid, a table of contents, local images and links
+3. Edit, export, delete and back up encrypted managed files; publish only final deliverables to the library
+4. Run isolated JavaScript and optional offline Python with selected files and packages
+5. Share a desktop chat through an opt-in local MCP server with separate permissions and model approvals
+
 ## Chatbox Venice 1.32.2
 1. Repair encrypted MCP/function calling with DeepSeek and GLM
 2. Recognize GLM XML calls and encrypted text calls returned by native-mode gateways
