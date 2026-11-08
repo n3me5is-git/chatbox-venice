@@ -75,6 +75,9 @@ function deliverNotification(
   return withSessionGenerationLock(sessionId, async () => {
     const source = await rendererApplication.sessions.getSessionHeader(sessionId)
     if (!source) return 'discard'
+    // Child agents use the dedicated bounded runner. Never wake the ordinary
+    // conversation harness with wider tools after a background media callback.
+    if (source.header.settings?.multiAgentRun) return 'discard'
     let origin: Message | undefined
     await visitSelectedSessionMessages(sessionId, (row) => {
       if (!containsToolCall(row.message, queued.originToolCallId)) return false

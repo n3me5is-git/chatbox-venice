@@ -32,6 +32,6 @@ export function isOAuthExpired(providerSetting: ProviderSettings): boolean {
  */
 export function isUsingOAuth(providerSetting: ProviderSettings, platformType: 'desktop' | 'web' | 'mobile'): boolean {
   return (
-    platformType === 'desktop' && providerSetting.activeAuthMode === 'oauth' && !!providerSetting.oauth?.accessToken
+    (platformType === 'desktop' || platformType === 'mobile' && providerSetting.oauth?.extra?.transport === 'chatgpt-codex-vault') && providerSetting.activeAuthMode === 'oauth' && !!providerSetting.oauth?.accessToken
   )
 }

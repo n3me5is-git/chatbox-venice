@@ -6,6 +6,7 @@ const OAUTH_PROVIDER_MAP: Record<string, string | undefined> = {
   minimax: 'minimax',
   'minimax-cn': 'minimax-cn',
   openai: 'openai',
+  'openai-sub-unofficial': 'openai-sub-unofficial',
   'openai-responses': 'openai',
   'github-copilot': 'github-copilot',
 }

@@ -673,6 +673,12 @@ When you create a Git commit that includes code changes, append this exact trail
     instructions = buildToolUseCommunicationInstruction() + instructions
   }
 
+  if (includeAgentTools && options.sessionId && !options.sessionSettings?.multiAgentRun) {
+    const { buildMultiAgentTools } = await import('@/packages/multi-agent/runtime')
+    const delegation = await buildMultiAgentTools(options.sessionId, options.sessionSettings || {}, tools, messages)
+    Object.assign(tools, delegation.tools); instructions += delegation.instructions
+  }
+
   if(options.sessionId&&requester!=='owner')for(const tool of Object.values(tools)){const execute=tool.execute;if(execute)tool.execute=((...args:Parameters<typeof execute>)=>{assertSharedTurn(options.sessionId!,requester);return execute(...args)}) as typeof execute}
   return { tools, instructions, ...(prepareStepMessages ? { prepareStepMessages } : {}) }
 }

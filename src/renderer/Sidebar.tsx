@@ -271,6 +271,7 @@ export default function Sidebar() {
           />
           <SidebarNavRow label={ft('Local media library')} icon={IconPhotoPlus} onClick={() => { navigate({ to: '/library' }); closeOnSmallScreen() }} />
           <SidebarNavRow label={ft('Collaborative chats')} icon={IconUsers} onClick={() => { void openCollaboration(); closeOnSmallScreen() }} />
+          <SidebarNavRow label={ft('Dedicated agents')} icon={IconMessageChatbot} onClick={() => { void import('@/components/multi-agent/AgentLibrary').then(module => module.openAgentLibrary()); closeOnSmallScreen() }} />
           {showVeniceStudio && <SidebarNavRow label="Venice Studio" icon={IconPhotoPlus} onClick={() => { navigate({ to: '/venice' }); closeOnSmallScreen() }} />}
           <SidebarNavRow
             label={t('My Copilots')}

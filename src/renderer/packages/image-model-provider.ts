@@ -21,6 +21,7 @@ export async function loadProviderImageModels(
   provider: ModelProviderEnum,
   options: ImageModelCatalogOptions = {}
 ): Promise<ImageModelOption[]> {
+  if (provider === ModelProviderEnum.OpenAISubscription) return ['gpt-image-2', 'gpt-image-1.5'].map(modelId => ({ modelId, displayName: modelId, capabilities: { aspectRatio: { values: ['auto', '1:1', '3:2', '2:3'] }, inputReferences: { max: 4 } } }))
   if (provider === ModelProviderEnum.Venice) {
     if (!options.apiKey || options.venice?.enabled === false || settingsStore.getState().providers?.venice?.venice?.enabled === false) return []
     const models = await fetchVeniceCatalogModels({ apiKey: options.apiKey, apiHost: options.apiHost, venice: options.venice }, await createModelDependencies())

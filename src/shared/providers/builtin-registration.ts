@@ -7,6 +7,7 @@
  */
 import './definitions/chatboxai'
 import './definitions/openai'
+import './definitions/openai-subscription'
 import './definitions/openai-responses'
 import './definitions/gemini'
 import './definitions/claude'

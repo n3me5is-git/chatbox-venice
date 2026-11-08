@@ -64,6 +64,9 @@ jobs:
       - name: Full Venice catalog classification, pricing and failure reasons
         if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
         run: pnpm exec vitest run src/shared/providers/definitions/models/venice/catalog-audit.test.ts src/shared/providers/definitions/models/venice/failure-reason.test.ts src/renderer/components/venice/VeniceModelCost.test.tsx
+      - name: Multi-agent permissions, guardians and subscription transport
+        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        run: pnpm exec vitest run src/shared/multi-agent-runtime.test.ts src/shared/oauth/chatgpt-subscription.test.ts src/shared/session-file-store.test.ts
       - name: Check private Android signing backup logic
         run: node --test scripts/android-signing.test.mjs scripts/android-signing-migration.test.mjs
       - name: Verify generated Android audio permissions

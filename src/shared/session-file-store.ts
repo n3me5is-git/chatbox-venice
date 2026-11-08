@@ -27,6 +27,10 @@ export class SessionFileStore {
     return index
   }
   async list(id: string) { return (await this.index(id)).files }
+  async mkdir(id: string, path: string) {
+    sessionFilePath(path)
+    return this.edit(id, async () => { const index = await this.index(id); if (index.files.some(file => file.path === path || path.startsWith(file.path + '/'))) throw Error('A file already exists at this path'); const directories = [...new Set([...(index.directories || []), path])]; if (directories.length > 2048) throw Error('Session folder count limit reached'); await this.storage.saveIndex(id, { ...index, directories }) })
+  }
   async read(id: string, path: string) {
     const file = (await this.list(id)).find(item => item.path === sessionFilePath(path))
     if (!file) throw new Error('Session file not found')
@@ -39,6 +43,7 @@ export class SessionFileStore {
     if (bytes.length > MAX_RESOURCE_FILE_BYTES) throw new Error('Session files must not exceed 10 MB')
     return this.edit(id, async () => {
       const index = await this.index(id), previous = index.files.find(file => file.path === path)
+      if (index.directories?.some(directory => directory === path || directory.startsWith(path + '/')) || index.files.some(file => file.path.startsWith(path + '/') || path.startsWith(file.path + '/'))) throw Error('A file or folder already exists at this path')
       if (!previous && index.files.length >= 2048) throw new Error('Session file count limit reached')
       const total = index.files.reduce((n,file) => n + (file.path === path ? 0 : file.bytes ?? 0), 0) + bytes.length
       if (total > 512 * 1024 * 1024) throw new Error('Session file storage limit reached')

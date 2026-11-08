@@ -83,7 +83,7 @@ export async function listSessionResources(id:string,signal?:AbortSignal){
   const priority={file:5,image:4,media:4,artifact:3,workspace:2,attachment:1,message:0}
   const unique=items.sort((a,b)=>priority[b.origin]-priority[a.origin]).filter(item=>{if(removed.has(item.id)||item.key&&removed.has('key:'+item.key))return false;const key=item.key&&item.origin!=='file'?item.key:item.id;if(seen.has(key))return false;seen.add(key);return true})
   await assertSession(id)
-  return {items:unique,truncated,options:{toolsEnabled:index.toolsEnabled!==false,pythonEnabled:!!index.pythonEnabled}}
+  return {items:unique,truncated,directories:index.directories||[],options:{toolsEnabled:index.toolsEnabled!==false,pythonEnabled:!!index.pythonEnabled}}
 }
 export async function readSessionResource(id:string,item:SessionResource){
   await assertSession(id)
