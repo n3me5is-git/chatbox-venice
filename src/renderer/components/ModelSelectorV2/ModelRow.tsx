@@ -97,7 +97,7 @@ export function ModelRow({
         size={mobile ? 20 : 18}
         className="flex-shrink-0"
       />
-      <div className="min-w-0 flex-shrink"><Text
+      <div className="min-w-0 flex-1 flex flex-col gap-1 py-1"><Text
         data-testid={TestId.model.optionName}
         span
         size="sm"

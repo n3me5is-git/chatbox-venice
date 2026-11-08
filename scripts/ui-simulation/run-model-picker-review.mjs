@@ -5,8 +5,21 @@ import path from 'node:path'
 export async function runModelPickerReview({ click, evaluate, cdp, wait, byText, byLabel, fill, delay, output }) {
   const report = { imageModels: await evaluate('window.__pickerFixture.imageIds.length'), videoModels: await evaluate('window.__pickerFixture.videoIds.length') }
   assert.ok(report.imageModels >= 70 && report.videoModels >= 140)
+  const priceLayout=await evaluate(`(()=>{const row=document.querySelector('[data-chat-price-review]'),name=[...row.querySelectorAll('span')].find(e=>e.textContent==='Long chat model name for pricing review'),price=[...row.querySelectorAll('span')].find(e=>e.textContent.includes('1M tokens'));return {nameBottom:name.getBoundingClientRect().bottom,priceTop:price.getBoundingClientRect().top,rowWidth:row.clientWidth,scrollWidth:row.scrollWidth}})()`)
+  assert.ok(priceLayout.priceTop>=priceLayout.nameBottom,'Chat model price did not start on its own line')
+  assert.ok(priceLayout.scrollWidth<=priceLayout.rowWidth,'Chat model price row overflowed horizontally')
+  report.chatPriceOnSeparateLine=true
+  await evaluate(`document.querySelector('[data-chat-price-review]').scrollIntoView({block:'start'})`)
+  await writeFile(path.join(output,'chat-model-price-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
   async function swipe(selector) {
-    const p = await evaluate(`(() => { const e=${selector}; const r=e.getBoundingClientRect(); return {x:r.x+e.clientWidth/2,y:r.y+Math.min(r.height,innerHeight-r.y)*0.85,distance:Math.min(r.height,innerHeight-r.y)*0.65} })()`)
+    let previous
+    const p = await wait(async () => {
+      const current = await evaluate(`(() => { const e=${selector}; if(!e)return null; const r=e.getBoundingClientRect(); const height=Math.min(r.height,innerHeight-r.y),x=r.x+e.clientWidth/2,y=r.y+height*0.85; return {x,y,height,distance:height*0.65,hit:e.contains(document.elementFromPoint(x,y))} })()`)
+      if(!current || current.height<160 || !current.hit)return false
+      const stable=previous&&Math.abs(current.y-previous.y)<0.5
+      previous=current
+      return stable?current:false
+    }, 'Scrollable model list did not finish opening')
     await cdp('Input.dispatchTouchEvent', { type:'touchStart', touchPoints:[{x:p.x,y:p.y}] })
     for (let i=1;i<=8;i++) { await cdp('Input.dispatchTouchEvent', {type:'touchMove',touchPoints:[{x:p.x,y:p.y-p.distance*i/8}]}); await delay(25) }
     await cdp('Input.dispatchTouchEvent', {type:'touchEnd',touchPoints:[]}); await delay(150)

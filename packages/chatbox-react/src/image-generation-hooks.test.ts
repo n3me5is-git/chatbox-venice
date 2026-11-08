@@ -67,6 +67,37 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('image history query bindings', () => {
+  it('moves between public and protected history when an inactive record cache is invalidated', async () => {
+    const service = source(1), queryClient = client()
+    const bridge = new ImageGenerationQueryBridge(service, queryClient)
+    const observer = new InfiniteQueryObserver(queryClient, bridge.historyOptions())
+    const unsubscribe = observer.subscribe(() => undefined)
+    try {
+      await observer.refetch()
+      await queryClient.fetchQuery(bridge.recordOptions('1'))
+      for (const protection of ['app', undefined, 'app', undefined]) {
+        const stored = { ...record(1), protection }
+        service.getPage.mockResolvedValue({ items: [stored], total: 1, nextCursor: null })
+        await queryClient.invalidateQueries()
+        const history = observer.getCurrentResult().data!.pages[0].items
+        expect(history.filter(row => !!row.protection)).toHaveLength(protection ? 1 : 0)
+        expect(history.filter(row => !row.protection)).toHaveLength(protection ? 0 : 1)
+      }
+    } finally { unsubscribe(); bridge.dispose(); queryClient.clear() }
+  })
+
+  it('does not replace redacted protected history with an invalidated plaintext record', async () => {
+    const service = source(1), queryClient = client()
+    const bridge = new ImageGenerationQueryBridge(service, queryClient)
+    try {
+      await queryClient.fetchQuery(bridge.recordOptions('1'))
+      await queryClient.invalidateQueries({queryKey: ImageGenerationQueryKeys.record('1')})
+      service.getPage.mockResolvedValue({items:[{...record(1),protection:'app',protectedRecord:true,prompt:''}],total:1,nextCursor:null})
+      const history = await queryClient.fetchInfiniteQuery(bridge.historyOptions())
+      expect(history.pages[0].items[0]).toMatchObject({protection:'app',protectedRecord:true,prompt:''})
+    } finally { bridge.dispose(); queryClient.clear() }
+  })
+
   it('reads empty history and missing records with the React Native AbortSignal', async () => {
     expect(new AbortController().signal).not.toHaveProperty('throwIfAborted')
     const service = source(0)

@@ -1,4 +1,6 @@
 export const catalogItalian={
+ 'Background lock delay':'Ritardo del blocco in background',
+ 'Seconds after leaving the app. Use 0 to lock immediately. The app stays unlocked during this delay.':'Secondi dopo aver lasciato l’app. Imposta 0 per bloccarla subito. Durante questo intervallo l’app rimane sbloccata.',
  'Audio references':'Riferimenti audio',
  'The model website advertises audio references, but the current public Venice audio API does not document an input field. Support through this integration has not been verified.':'Il sito del modello descrive i riferimenti audio, ma l’API audio pubblica di Venice attuale non documenta un campo per inviarli. Il supporto tramite questa integrazione non è stato verificato.',
  'What would you like to do?':'Che cosa vuoi fare?',

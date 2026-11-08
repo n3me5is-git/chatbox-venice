@@ -112,6 +112,8 @@ describe('SQLiteImageGenerationStorage', () => {
       'task-1',
       null,
       JSON.stringify(source),
+      null,
+      0,
     ])
 
     mockDatabase.query.mockResolvedValueOnce({ values: [makeRow(record)] })
@@ -147,7 +149,26 @@ describe('SQLiteImageGenerationStorage', () => {
       'task-1',
       null,
       JSON.stringify(source),
+      null,
+      0,
       'record-1',
     ])
+  })
+
+  it('persists scope and redaction markers on Android, and clears both when made public', async () => {
+    const storage=new SQLiteImageGenerationStorage()
+    const record=makeRecord({prompt:'',model:{provider:'venice',modelId:''},protection:'app',protectedRecord:true})
+    await storage.create(record)
+    expect(mockDatabase.execute).toHaveBeenCalledWith('ALTER TABLE image_generation ADD COLUMN protection TEXT')
+    expect(mockDatabase.execute).toHaveBeenCalledWith('ALTER TABLE image_generation ADD COLUMN protected_record INTEGER')
+    expect(mockDatabase.run.mock.calls.at(-1)![1].slice(-2)).toEqual(['app',1])
+    const saved={...makeRow(record),protection:'app',protected_record:1}
+    mockDatabase.query.mockResolvedValueOnce({values:[saved]})
+    await expect(storage.getById(record.id)).resolves.toMatchObject({protection:'app',protectedRecord:true})
+    mockDatabase.query.mockResolvedValueOnce({values:[{total:1}]}).mockResolvedValueOnce({values:[saved]})
+    expect((await storage.getPage()).items[0]).toMatchObject({protection:'app',protectedRecord:true})
+    mockDatabase.query.mockResolvedValueOnce({values:[saved]})
+    await storage.update(record.id,{protection:undefined,protectedRecord:false})
+    expect(mockDatabase.run.mock.calls.at(-1)![1].slice(-3)).toEqual([null,0,'record-1'])
   })
 })

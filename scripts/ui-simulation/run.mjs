@@ -137,6 +137,8 @@ try {
   await click(byText('Simulate app key lock'));await wait(()=>evaluate(`!!(${byText('Use device unlock')})`),'Device unlock option is missing');assert.equal(await evaluate(`[...document.querySelectorAll('label')].some(e=>e.textContent==='PIN or passphrase')`),false)
   await writeFile(path.join(output,'security-unlock-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
   await click(byText('Use device unlock'));await wait(()=>evaluate(`!!(${byText('Save unlock methods')})`),'Simulated device unlock failed')
+  await fill('Background lock delay','30');await evaluate('document.activeElement.blur()')
+  await wait(()=>evaluate(`window.__securitySettingsRead('background-lock-delay-seconds').then(value=>value===30)`),'Background lock delay did not persist')
   assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'),true,'Privacy settings overflow on mobile')
   assert.equal(await evaluate('window.__simulationRequestCount'),4,'Privacy and edit simulation made a real service request')
   await runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fill,delay,output})
