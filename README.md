@@ -22,6 +22,12 @@ On desktop, optionally share the selected chat with a trusted external agent thr
 
 Markdown previews also offer **Export PDF** and **Export single-file HTML**, including embedded images, diagrams and math fonts. Text attachments can be edited as managed copies. Configure independent recognition/synthesis models in **Settings → Default models**, then use the chat microphone or **Read aloud** under a reply. Dictation appends editable draft text without sending it. Private chats refuse non-private/unknown speech; E2EE chats ask for consent on every private speech request because the audio endpoints use HTTPS, not text E2EE. See [export and speech setup](docs/markdown-export-and-speech.md).
 
+## Session RAG and optional device folders
+
+Use **Session RAG and workspace** in the chat header to index session files with an explicitly chosen embedding model. PDF, DOC/DOCX, Markdown and source/text files are parsed locally. Optional OCR and Gemini photo/audio embeddings have independent controls. The encrypted local index reuses unchanged SHA-256 hashes; semantic tools return file links and line/page references.
+
+Desktop and Android can optionally link a real device folder as the workspace. Dedicated agents receive separate subfolders. External files keep their device storage protection; Chatbox does not encrypt that folder. See [setup, privacy and limits](docs/session-rag-and-linked-workspaces.md).
+
 ## Collaborative chats
 
 Use the people icon in a saved chat to share it, or **Collaborative chats** in the sidebar to join by QR/code. The owner admits participant IDs and grants write, AI/tools and clone permissions. Agent questions and Venice approvals can go to the owner, everyone (first valid answer), or only the requester. Traffic between devices is encrypted; files transfer on demand, and sharing stops on lock/exit. Individually protected creations are excluded from public-chat shares. See [collaboration, privacy and limits](docs/collaboration.md).
