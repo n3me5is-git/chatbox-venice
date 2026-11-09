@@ -1,5 +1,7 @@
 export const collaborationItalian = {
   'Remote chat':'Chat remota',
+  'Close remote chat settings':'Chiudi impostazioni della chat remota',
+  'Close shared files':'Chiudi file condivisi',
   'Remote chats':'Chat remote',
   'Remote session':'Sessione remota',
   'Open remote chat':'Apri chat remota',

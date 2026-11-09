@@ -30,6 +30,6 @@ it('forwards thinking and search selections through the host control operation, 
   state.guests.get('remote').permissions={write:true,interact:true,clone:false};mount();fireEvent.click(screen.getByRole('button',{name:'Remote chat settings'}))
   fireEvent.click(await screen.findByLabelText('Chatbox web search'));await waitFor(()=>expect(state.configure).toHaveBeenCalledWith('remote',{webBrowsing:true}))
   fireEvent.click(screen.getByRole('textbox',{name:'Thinking Effort'}));fireEvent.click(await screen.findByRole('option',{name:'High'}));await waitFor(()=>expect(state.configure).toHaveBeenCalledWith('remote',{thinking:'high'}))
-  fireEvent.click(screen.getByRole('button',{name:'Close'}));fireEvent.click(screen.getByRole('button',{name:'Shared files'}));expect(state.read).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button',{name:'Close remote chat settings'}));fireEvent.click(screen.getByRole('button',{name:'Shared files'}));expect(state.read).not.toHaveBeenCalled()
   fireEvent.click(await screen.findByRole('button',{name:'images/pixel.png'}));expect(await screen.findByAltText('pixel.png')).toBeTruthy();expect(state.read).toHaveBeenCalledOnce()
 })
