@@ -6,7 +6,7 @@ import {SessionTransferHub} from '../../src/renderer/packages/session-transfer/h
 import {verifiedTransferBytes,type TransferManifest} from '../../src/shared/session-transfer'
 import {pairingFromFrame} from '../../src/renderer/packages/collaboration/qr'
 import type {ConnectionOptions} from '../../src/renderer/packages/collaboration/network'
-const picture=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/T9sAAAAASUVORK5CYII='),value=>value.charCodeAt(0))
+const picture=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII='),value=>value.charCodeAt(0))
 const snapshot:SharedSnapshot={title:'Collaborative test',messages:[{id:'welcome',role:'assistant',text:'Shared **Markdown** with $a^2+b^2=c^2$.'}],files:[{id:'picture',path:'images/pixel.png',name:'pixel.png',mime:'image/png',bytes:picture.length,deliverable:true},{id:'large',path:'work/intermediate.js',name:'intermediate.js',mime:'text/javascript',bytes:3*1024*1024,deliverable:false}],truncated:false,revision:1}
 snapshot.controls={revision:'controls-1',model:'Owner GLM',thinking:'default',thinkingOptions:['default','low','high'],webBrowsing:false,venice:{webSearch:'auto',webSearchEnabled:true,searchProvider:'brave',searchToolMode:'selected',webCitations:true,webScraping:false,xSearch:false}}
 let cloneBytes=0,submissions=0

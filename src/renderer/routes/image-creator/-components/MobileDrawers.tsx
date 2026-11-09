@@ -134,7 +134,7 @@ export function MobileModelDrawer({
 
   return (
     <ManagedDrawer trapFocus={!detail} opened={open} onClose={()=>onOpenChange(false)} position="bottom" size="auto" title={t('Select Model')} styles={{content:{height:'min(78dvh, 720px)',maxHeight:'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',display:'flex',flexDirection:'column',borderRadius:'16px 16px 0 0'},body:{flex:'1 1 0',minHeight:0,display:'flex',flexDirection:'column',overflow:'hidden',padding:0}}}>
-      <TextInput m="sm" placeholder={t('Search')} aria-label={t('Search image models')} value={search} onChange={event=>setSearch(event.currentTarget.value)} styles={{root:{flexShrink:0}}}/>
+      <TextInput m="sm" placeholder={t('Search') as string} aria-label={t('Search image models') as string} value={search} onChange={event=>setSearch(event.currentTarget.value)} styles={{root:{flexShrink:0}}}/>
           <Box flex={1} mih={0} data-model-scroll="image" style={{ minHeight:0,flex:1,overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }} data-vaul-no-drag>
             <Stack gap="md" p="xs" pb="xl" style={{paddingBottom:'max(24px, env(safe-area-inset-bottom))'}}>
               {modelGroups.map(group=>({...group,models:group.models.filter(model=>(group.label+' '+model.displayName+' '+model.modelId).toLowerCase().includes(search.toLowerCase()))})).filter(group=>group.models.length>0).map((group, groupIndex) => (

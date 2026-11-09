@@ -97,7 +97,7 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
           className="!rounded-lg !border-[var(--chatbox-border-primary)] !shadow-lg"
           style={{ overflow: 'visible',maxWidth:'calc(100vw - 24px)',maxHeight:'min(480px, 70dvh)',display:combobox.dropdownOpened?'flex':'none',flexDirection:'column' }}
         >
-          <Combobox.Search placeholder={t('Search')} aria-label={t('Search image models')} value={search} onChange={event=>setSearch(event.currentTarget.value)}/>
+          <Combobox.Search placeholder={t('Search') as string} aria-label={t('Search image models') as string} value={search} onChange={event=>setSearch(event.currentTarget.value)}/>
           <Combobox.Options data-model-scroll="native-images" style={{ minHeight:0,maxHeight:'min(400px, calc(70dvh - 64px))',overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y',WebkitOverflowScrolling:'touch' }} data-vaul-no-drag className="p-1">
             {modelGroups.length === 0 ? (
               <Text size="sm" c="dimmed" px="sm" py="xs">

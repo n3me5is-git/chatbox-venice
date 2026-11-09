@@ -20,7 +20,7 @@ function RemoteSettings({room,opened,onClose}:{room:GuestShare;opened:boolean;on
   const [pending,setPending]=useState(false),[error,setError]=useState(''),controls=room.snapshot?.controls
   const disabled=pending||room.busy||room.status!=='connected'||!room.permissions.write||!room.permissions.interact
   const change=async(patch:SharedControlPatch)=>{setPending(true);setError('');try{await collaboration.configure(room.id,patch)}catch(error){setError(collaborationError(error))}finally{setPending(false)}}
-  return <Drawer opened={opened} onClose={onClose} title={ft('Remote chat settings')} position="right" size="min(440px, 100vw)" styles={{body:{overflowY:'auto',maxHeight:'calc(100dvh - 70px)',paddingBottom:'max(16px, env(safe-area-inset-bottom))'}}}><Stack>
+  return <Drawer opened={opened} onClose={onClose} closeButtonProps={{'aria-label':ft('Close')}} title={ft('Remote chat settings')} position="right" size="min(440px, 100vw)" styles={{body:{overflowY:'auto',maxHeight:'calc(100dvh - 70px)',paddingBottom:'max(16px, env(safe-area-inset-bottom))'}}}><Stack>
     <Text size="sm">{ft('The host chooses the model, MCP tools and security settings. Changes below apply to the shared conversation for everyone.')}</Text>
     {!room.permissions.interact&&<Alert>{ft('Read-only access')}</Alert>}
     {!controls&&<Alert>{ft('Update the owner’s app to use remote chat controls')}</Alert>}

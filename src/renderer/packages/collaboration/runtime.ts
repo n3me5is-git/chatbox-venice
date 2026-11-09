@@ -69,7 +69,7 @@ async function snapshot(id:string):Promise<SharedSnapshot>{
   const state=await controlState(id),mentions:NonNullable<SharedSnapshot['mentions']>=[]
   if(state.settings.agentMode?.value==='on'){
     for(const agent of await listDedicatedAgents())if(state.settings.multiAgent?.dedicatedIds.includes(agent.id))mentions.push({id:agent.id,kind:'agent',name:agent.name,description:agent.title.slice(0,200),insert:'@'+agent.name})
-    for(const [name,tool]of Object.entries(mcpController.getAvailableTools()))mentions.push({id:name.slice(0,240),kind:'tool',name:name.slice(0,240),description:tool.description?.slice(0,200),insert:'@tool:'+name.slice(0,240)})
+    for(const [name,tool]of Object.entries(mcpController.getAvailableTools()))mentions.push({id:name.slice(0,240),kind:'tool',name:name.slice(0,240),description:typeof tool.description==='string'?tool.description.slice(0,200):undefined,insert:'@tool:'+name.slice(0,240)})
   }
   return boundSharedSnapshot({title:source.header.name.slice(0,240),messages,files,truncated,revision:source.revision,controls:state.controls,busy:rendererApplication.generationRuntime.list(id).length>0,mentions:mentions.slice(0,300)})
 }

@@ -12,7 +12,7 @@ export async function loadPromptMentions(sessionId:string,work:boolean,query:str
   signal.throwIfAborted()
   if(work){
     for(const agent of await listDedicatedAgents())items.push({kind:'agent',id:agent.id,name:agent.name,description:agent.title,insert:'@'+agent.name})
-    for(const [name,tool]of Object.entries(mcpController.getAvailableTools()))items.push({kind:'tool',id:name,name,description:tool.description?.slice(0,200),insert:'@tool:'+name})
+    for(const [name,tool]of Object.entries(mcpController.getAvailableTools()))items.push({kind:'tool',id:name,name,description:typeof tool.description==='string'?tool.description.slice(0,200):undefined,insert:'@tool:'+name})
   }
   if(sessionId!=='new'){
     await vault.projects.assertSession(sessionId)

@@ -42,7 +42,7 @@ export function RemoteFiles({room,opened,initial,onClose}:{room:GuestShare;opene
     }).catch(error=>{if(!controller.signal.aborted)setError(collaborationError(error))}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>{controller.abort();if(url)URL.revokeObjectURL(url)}
   },[current?.id,opened,room.id,room.status,read])
-  return <Drawer opened={opened} onClose={onClose} position="right" size="min(720px, 100vw)" title={ft('Shared files')} styles={{body:{height:'calc(100% - 64px)',overflowY:'auto',overscrollBehavior:'contain',paddingBottom:'max(16px, env(safe-area-inset-bottom))'}}}>
+  return <Drawer opened={opened} onClose={onClose} position="right" size="min(720px, 100vw)" closeButtonProps={{'aria-label':ft('Close')}} title={ft('Shared files')} styles={{body:{height:'calc(100% - 64px)',overflowY:'auto',overscrollBehavior:'contain',paddingBottom:'max(16px, env(safe-area-inset-bottom))'}}}>
     <Stack gap="sm" style={{minWidth:0}}>
       <Text size="xs" c="dimmed">{ft('Files stay on the host and are loaded only when opened. Close the preview to release it.')}</Text>
       <TextInput aria-label={ft('Search shared files')} placeholder={ft('Search shared files')} value={search} onChange={event=>setSearch(event.currentTarget.value)}/>

@@ -3,7 +3,7 @@ import { act,cleanup,fireEvent,render,screen,waitFor } from '@testing-library/re
 import { MantineProvider } from '@mantine/core'
 import { afterEach,beforeEach,expect,it,vi } from 'vitest'
 const state=vi.hoisted(()=>({guests:new Map<string,any>(),listeners:new Set<()=>void>(),version:0,post:vi.fn(),configure:vi.fn(),answer:vi.fn(),clone:vi.fn(),stop:vi.fn(),read:vi.fn()}))
-vi.mock('@/packages/collaboration/runtime',()=>({collaboration:{...state,subscribe:(listener:()=>void)=>{state.listeners.add(listener);return()=>state.listeners.delete(listener)},getVersion:()=>state.version,async *readFile(...args:any[]){state.read(...args);yield Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/T9sAAAAASUVORK5CYII='),c=>c.charCodeAt(0))}},switchCurrentSession:vi.fn()}))
+vi.mock('@/packages/collaboration/runtime',()=>({collaboration:{...state,subscribe:(listener:()=>void)=>{state.listeners.add(listener);return()=>state.listeners.delete(listener)},getVersion:()=>state.version,async *readFile(...args:any[]){state.read(...args);yield Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII='),c=>c.charCodeAt(0))}},switchCurrentSession:vi.fn()}))
 vi.mock('@/platform',()=>({default:{type:'web',openLink:vi.fn()}}))
 vi.mock('react-virtuoso',()=>({Virtuoso:({data,itemContent}:any)=><div>{data.map((item:any,index:number)=><div key={item.id}>{itemContent(index,item)}</div>)}</div>}))
 import { RemoteChat } from './RemoteChat'
