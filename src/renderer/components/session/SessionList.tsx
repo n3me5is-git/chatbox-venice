@@ -443,7 +443,7 @@ export default function SessionList(props: Props) {
                 : {}),
             }}
             groupCounts={groupedItems.counts}
-            computeItemKey={(index) => displayItems[index]?.id ?? index}
+            computeItemKey={(index) => groupedItems.items[index]?.id ?? index}
             scrollerRef={(ref) => {
               if (ref instanceof HTMLDivElement) {
                 props.sessionListViewportRef.current = ref

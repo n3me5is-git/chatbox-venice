@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Blob as NativeBlob } from 'node:buffer'
 import { act,cleanup,fireEvent,render,screen,waitFor } from '@testing-library/react'
 import { MantineProvider } from '@mantine/core'
 import { afterEach,beforeEach,expect,it,vi } from 'vitest'
@@ -11,8 +12,8 @@ Object.defineProperty(window,'matchMedia',{value:vi.fn(()=>({matches:false,addEv
 global.ResizeObserver=class {observe(){}unobserve(){}disconnect(){}}
 HTMLElement.prototype.scrollIntoView=vi.fn();URL.createObjectURL=vi.fn(()=> 'blob:remote-preview');URL.revokeObjectURL=vi.fn()
 const room=()=>({id:'remote',name:'Alice',status:'connected',permissions:{write:false,interact:false,clone:false},hitls:[],pending:new Map(),busy:false,snapshot:{title:'Shared conversation',revision:1,truncated:false,controls:{revision:'r',model:'Host GLM',thinking:'default',thinkingOptions:['default','high'],webBrowsing:false,venice:{webSearch:'auto',webSearchEnabled:true,searchProvider:'brave',searchToolMode:'selected',webCitations:true,webScraping:false,xSearch:false}},messages:[{id:'one',role:'user',text:'Visible prompt',author:{id:'verified-alice',name:'Alice'}},{id:'two',role:'assistant',text:'Live reply',generating:true,tools:[{id:'tool',name:'mcp_lookup',state:'running',detail:'{"query":"test"}'}]},{id:'old',role:'user',text:'Archived branch',archived:true}],files:[{id:'picture',name:'pixel.png',path:'images/pixel.png',mime:'image/png'}]}})
-beforeEach(()=>{vi.clearAllMocks();state.guests.clear();state.guests.set('remote',room());state.version++})
-afterEach(cleanup)
+beforeEach(()=>{vi.stubGlobal('Blob',NativeBlob);vi.clearAllMocks();state.guests.clear();state.guests.set('remote',room());state.version++})
+afterEach(()=>{cleanup();vi.unstubAllGlobals()})
 const mount=()=>render(<MantineProvider><RemoteChat roomId="remote" onManage={vi.fn()} onLeave={vi.fn()}/></MantineProvider>)
 const update=()=>act(()=>{state.version++;state.listeners.forEach(listener=>listener())})
 it('renders a complete remote transcript with authors and live tools, without model selection or local execution',()=>{
