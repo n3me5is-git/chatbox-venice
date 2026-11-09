@@ -24,7 +24,7 @@ export function SessionRagPanel({sessionId,service=ragService,resourceAPI}:{sess
   const run=async(work:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await work()}catch(e){setError(String((e as Error).message))}finally{setBusy(false)}}
   if(!settings)return error?<Alert color="red">{ft(error)}</Alert>:<Loader size="sm"/>
   const multimodal=multimodalEmbedding(settings.provider,settings.model)
-  return <Stack gap="sm" style={{maxHeight:'76dvh',overflowY:'auto',overscrollBehavior:'contain',minWidth:0}}>
+  return <Stack gap="sm" style={{minWidth:0}}>
     {error&&<Alert color="red" role="alert">{ft(error)}</Alert>}
     <Text size="sm">{ft('Search this chat’s files by meaning. The index stays encrypted in the session tree. Text or selected media are sent to the embedding provider; OCR sends images to its selected model.')}</Text>
     <Switch label={ft('Enable session RAG')} checked={settings.enabled} onChange={e=>update({enabled:e.currentTarget.checked})}/>
