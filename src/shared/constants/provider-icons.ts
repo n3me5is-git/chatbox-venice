@@ -4,6 +4,7 @@
  * variants reuse the parent brand's icon asset.
  */
 export const PROVIDER_ICON_ALIASES: Record<string, string> = {
+  'openai-sub-unofficial': 'openai',
   'qwen-portal': 'qwen',
   'minimax-cn': 'minimax',
   'moonshot-cn': 'moonshot',

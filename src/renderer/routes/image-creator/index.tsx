@@ -626,7 +626,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   </Flex>
 
                   {selectedProvider === ModelProviderEnum.Venice && <VeniceBalance />}
-                  {selectedProvider === ModelProviderEnum.OpenAISubscription && <ChatGPTAllowance compact />}
+                  {selectedProvider === ModelProviderEnum.OpenAISubscription && <><ChatGPTAllowance compact /><Text size="xs" c="dimmed">{ft('ChatGPT Images lets the subscription backend choose the image model. Add a custom image model and select its endpoint to request a specific model ID.')}</Text></>}
                   <Button size="xs" variant="subtle" onClick={()=>setImageSettingsOpen(true)}>{ft('Image settings')}</Button>
                   <AdaptiveModal opened={imageSettingsOpen} onClose={()=>setImageSettingsOpen(false)} title={ft('Image settings')} size="lg"><Stack>{selectedProvider===ModelProviderEnum.Venice&&<VeniceImageSettings/>}
 

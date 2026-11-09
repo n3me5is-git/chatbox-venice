@@ -1,6 +1,9 @@
 import type { OAuthCredentials } from './types'
 import type { ModelDependencies } from '../types/adapters'
 import { createFetchWithProxy } from '../models/utils/fetch-proxy'
+import { CHATGPT_CODEX_CLIENT_VERSION } from './chatgpt-model-catalog'
+import { mergeExtraBody } from '../models/utils/extra-body'
+import { observeSubscriptionSources, type SubscriptionSearchSource } from './chatgpt-search-sources'
 
 export const CHATGPT_SUB_PROVIDER = 'openai-sub-unofficial'
 export const CHATGPT_CODEX_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
@@ -41,21 +44,25 @@ export async function refreshChatGPTSubscription(fetcher: Fetch, credential: OAu
   return tokenCredential(await json(response), credential)
 }
 export function subscriptionHeaders(credential: OAuthCredentials): Record<string, string> {
-  return { Authorization: 'Bearer ' + credential.accessToken, 'Content-Type': 'application/json', Accept: 'text/event-stream', originator: 'chatbox-venice', ...(typeof credential.extra?.accountId === 'string' ? { 'ChatGPT-Account-Id': credential.extra.accountId } : {}) }
+  return { Authorization: 'Bearer ' + credential.accessToken, 'Content-Type': 'application/json', Accept: 'text/event-stream', originator: 'codex_cli_rs', version: CHATGPT_CODEX_CLIENT_VERSION, ...(typeof credential.extra?.accountId === 'string' ? { 'ChatGPT-Account-Id': credential.extra.accountId } : {}) }
 }
 /** No caller-supplied host is accepted; tokens can only reach the Codex backend. */
-export function createSubscriptionFetch(dependencies: ModelDependencies): Fetch {
+export function createSubscriptionFetch(dependencies: ModelDependencies, options: { webSearch?: boolean; extraBody?: Record<string, unknown>; onSource?: (source: SubscriptionSearchSource) => void } = {}): Fetch {
   return async (_input, init) => {
     if (!dependencies.subscription) throw new Error('Sign in to OpenAI Sub Unofficial on this device')
     const credential = await dependencies.subscription.getCredential()
-    const body = JSON.parse(String(init?.body || '{}'))
+    const body = mergeExtraBody(JSON.parse(String(init?.body || '{}')), options.extraBody || {}) as Record<string, any>
+    const imageRequest = Array.isArray(body.tools) && body.tools.some((tool: any) => tool.type === 'image_generation')
+    if (options.webSearch === false && Array.isArray(body.tools)) body.tools = body.tools.filter((tool: any) => !['web_search', 'web_search_preview'].includes(tool.type))
+    if (options.webSearch && !imageRequest && !(body.tools || []).some((tool: any) => tool.type === 'web_search')) body.tools = [...(body.tools || []), { type: 'web_search' }]
     body.store = false; body.stream = true
     body.instructions ||= 'You are a helpful assistant.'
     delete body.max_output_tokens; delete body.max_tokens; delete body.temperature; delete body.top_p
     const include = Array.isArray(body.include) ? body.include : []
     body.include = [...new Set([...include, 'reasoning.encrypted_content'])]
     if (Array.isArray(body.tools)) body.tools = body.tools.map((tool: Record<string, unknown>) => tool.type === 'function' ? { ...tool, strict: false } : tool)
-    return createFetchWithProxy(false, dependencies)(CHATGPT_CODEX_ENDPOINT, { ...init, method: 'POST', redirect: 'error', headers: subscriptionHeaders(credential), body: JSON.stringify(body) })
+    const response = await createFetchWithProxy(false, dependencies)(CHATGPT_CODEX_ENDPOINT, { ...init, method: 'POST', redirect: 'error', headers: subscriptionHeaders(credential), body: JSON.stringify(body) })
+    return options.onSource && !imageRequest ? observeSubscriptionSources(response, options.onSource) : response
   }
 }
 export async function readSubscriptionImages(response: Response, signal?: AbortSignal): Promise<string[]> {

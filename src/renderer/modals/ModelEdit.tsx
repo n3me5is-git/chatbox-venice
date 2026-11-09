@@ -1,7 +1,10 @@
 import NiceModal, { useModal } from '@ebay/nice-modal-react'
-import { Button, Checkbox, Flex, Loader, NumberInput, Stack, Text, TextInput, Textarea, UnstyledButton } from '@mantine/core'
+import { Button, Checkbox, Flex, Loader, NumberInput, Stack, Text, TextInput, Textarea, UnstyledButton, MultiSelect } from '@mantine/core'
 import { TestId } from '@shared/automation/testids'
 import type { ProviderModelInfo } from '@shared/types'
+import { CHATGPT_SUB_PROVIDER } from '@shared/oauth/chatgpt-subscription'
+import { subscriptionReasoningEfforts } from '@shared/oauth/chatgpt-model-catalog'
+import { forkT as ft } from '@/i18n/fork'
 import { VeniceProfileEditor } from '@/components/settings/provider/VeniceProfiles'
 import { useProviderSettings } from '@/stores/settingsStore'
 import type { VeniceProfile } from '@shared/providers/definitions/models/venice/options'
@@ -23,7 +26,10 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
   const { providerSettings: veniceSettings } = useProviderSettings('venice')
   const [veniceProfile, setVeniceProfile] = useState<VeniceProfile>(props.model?.veniceProfile || {})
   const isNew = !props.model
-  const canEditExtraBody = props.providerId === 'venice' || settingsStore.getState().customProviders?.some((p) => p.id === props.providerId)
+  const isSubscription = props.providerId === CHATGPT_SUB_PROVIDER
+  const canEditExtraBody = isSubscription || props.providerId === 'venice' || settingsStore.getState().customProviders?.some((p) => p.id === props.providerId)
+  const [subscriptionEndpoint, setSubscriptionEndpoint] = useState<ProviderModelInfo['subscriptionEndpoint']>(props.model?.subscriptionEndpoint || (props.model?.type === 'image' ? 'image-tool' : 'responses'))
+  const [thinkingLevels, setThinkingLevels] = useState<string[]>(subscriptionReasoningEfforts(props.model).length ? subscriptionReasoningEfforts(props.model) : ['low', 'medium', 'high', 'xhigh', 'max'])
   const [extraBodyText, setExtraBodyText] = useState(props.model?.extraBody ? JSON.stringify(props.model.extraBody, null, 2) : '')
   const [extraBodyError, setExtraBodyError] = useState<string>()
   const [nativeWebSearch, setNativeWebSearch] = useState(props.model?.nativeWebSearch ?? false)
@@ -56,6 +62,8 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
     setExtraBodyText(props.model?.extraBody ? JSON.stringify(props.model.extraBody, null, 2) : '')
     setExtraBodyError(undefined)
     setNativeWebSearch(props.model?.nativeWebSearch ?? false)
+    setSubscriptionEndpoint(props.model?.subscriptionEndpoint || (props.model?.type === 'image' ? 'image-tool' : 'responses'))
+    setThinkingLevels(subscriptionReasoningEfforts(props.model).length ? subscriptionReasoningEfforts(props.model) : ['low', 'medium', 'high', 'xhigh', 'max'])
   }, [props.model, props.providerId])
 
   const handleTestModel = async () => {
@@ -107,8 +115,9 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
       capabilities,
       contextWindow,
       maxOutput,
+      ...(isSubscription ? { subscriptionEndpoint: type === 'image' ? (subscriptionEndpoint === 'responses' ? 'image-tool' : subscriptionEndpoint) : 'responses', apiStyle: 'openai-responses' as const, vendorMetadata: { ...props.model?.vendorMetadata, codexReasoningEfforts: capabilities.includes('reasoning') ? thinkingLevels : [], catalogSource: 'manual' } } : {}),
       ...(props.providerId === 'venice' ? { veniceProfile } : {}),
-      ...(canEditExtraBody ? { extraBody: parseExtraBody(extraBodyText), nativeWebSearch } : {}),
+      ...(canEditExtraBody ? { extraBody: parseExtraBody(extraBodyText), ...(!isSubscription ? { nativeWebSearch } : {}) } : {}),
     })
 
   const handleSave = () => {
@@ -171,13 +180,14 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
                 fontWeight: 400,
               },
             }}
-            data={typeOptions}
+            data={isSubscription ? typeOptions.filter(option => option.value === 'chat' || option.value === 'image') : typeOptions}
             value={type}
             onChange={(v) => setType(v as ProviderModelInfo['type'])}
           />
         </Stack>
 
         {/* Capabilities */}
+        {isSubscription && <Stack gap="xs"><AdaptiveSelect comboboxProps={{withinPortal:false}} allowDeselect={false} label={ft('Subscription request endpoint')} value={type === 'image' ? (subscriptionEndpoint === 'responses' ? 'image-tool' : subscriptionEndpoint) : 'responses'} data={type === 'image' ? [{value:'image-tool',label:ft('Image tool · /responses')},{value:'images',label:ft('Images API · /images/generations and /images/edits')}] : [{value:'responses',label:'Codex · /responses'}]} onChange={value => setSubscriptionEndpoint(value as ProviderModelInfo['subscriptionEndpoint'])} /><Text size="xs" c="dimmed">{ft('Custom model IDs are kept when the catalog refreshes. All subscription requests stay on ChatGPT. Unsupported model or endpoint errors are shown without switching providers.')}</Text>{type === 'chat' && capabilities.includes('reasoning') && <MultiSelect comboboxProps={{withinPortal:false}} label={ft('Supported thinking levels')} description={ft('Choose the levels accepted by this model. These values are sent as reasoning.effort.')} data={['none','minimal','low','medium','high','xhigh','max']} value={thinkingLevels} onChange={setThinkingLevels} />}</Stack>}
         {type === 'chat' && (
           <Stack gap="xs">
             <Text fw="600">{t('Capabilities')}</Text>
@@ -272,7 +282,7 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
               onChange={(event) => { setExtraBodyText(event.currentTarget.value); setExtraBodyError(undefined) }}
               styles={{ input: { fontFamily: 'monospace' } }}
             />
-            {type === 'chat' && <Checkbox
+            {type === 'chat' && !isSubscription && <Checkbox
               label={t('Use provider native web search')}
               description={t('Configure search in the extra JSON. Chatbox search tools will not be sent.')}
               checked={nativeWebSearch}
