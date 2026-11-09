@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { sessionImportCandidateId } from '@chatbox/core/ports/session-row-transfer'
+import { sessionImportCandidateId } from '@chatbox/core/ports'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import { deleteSession } from '@/stores/session/crud'
 import platform from '@/platform'

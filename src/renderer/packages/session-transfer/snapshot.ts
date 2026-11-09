@@ -64,7 +64,7 @@ export function portableRecord(record: BackupBusinessRecord, sessionIds: Map<str
       if (!input || typeof input !== 'object') return input
       return Object.fromEntries(Object.entries(input).map(([key, item]) => [key, typeof item === 'string' && ['id', 'recordId'].includes(key) ? recordIds.get(item) || item : remap(item)]))
     }
-    value.message.contentParts = value.message.contentParts.map(part => part.type === 'tool-call' && part.toolName === 'venice_media' ? { ...part, args: remap(part.args), result: remap(part.result) } as typeof part : part)
+    value.message.message.contentParts = value.message.message.contentParts.map(part => part.type === 'tool-call' && part.toolName === 'venice_media' ? { ...part, args: remap(part.args), result: remap(part.result) } as typeof part : part)
   }
   return value
 }

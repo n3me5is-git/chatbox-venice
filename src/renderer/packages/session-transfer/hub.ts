@@ -133,7 +133,7 @@ export class SessionTransferHub {
     if (input.type === 'offer') { if (room.status !== 'waiting') throw Error('Unexpected transfer offer'); room.manifest = input.manifest; room.status = 'ready'; room.error = undefined }
     if (input.type === 'closed') { this.failGuest(room, Error('The sender stopped this transfer')); return }
     if (input.type === 'verified' || input.type === 'error') {
-      if (input.type === 'error') { room.error = input.message; if (room.file?.id === input.id) { room.file.error = Error(input.message); room.file.wake?.() } }
+      if (input.type === 'error') { room.error = input.message; const file = room.file; if (file && file.id === input.id) { file.error = Error(input.message); file.wake?.() } }
       if (input.id) { const pending = room.pending.get(input.id); if (pending) { clearTimeout(pending.timer); room.pending.delete(input.id); input.type === 'error' ? pending.reject(Error(input.message)) : pending.resolve() } }
     }
     if (input.type === 'chunk') {
