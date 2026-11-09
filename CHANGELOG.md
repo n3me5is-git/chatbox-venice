@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.39.1
+
+See [release notes](docs/releases/v1.39.1.md). Keeps UI-selected thinking levels for custom subscription model IDs without requiring internal SDK flags. Includes the 1.39.0 login, model, search and context improvements.
+
 ## 1.39.0
 
 See [release notes](docs/releases/v1.39.0.md). Repairs external-browser subscription login, refreshes Codex models, adds explicit custom endpoints and native web search, and makes thinking/context budgets configurable without changing other providers.
