@@ -3,7 +3,7 @@ import { asSchema, tool } from 'ai'
 import { z } from 'zod'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { defaultLocalMCPPermissions, type LocalMCPGrant } from '@shared/local-mcp'
-const state=vi.hoisted(()=>({headers:new Map<string,any>(),messages:new Map<string,any[]>(),data:new Map<string,any>(),resources:new Map<string,any[]>(),chat:vi.fn(),write:vi.fn(),request:vi.fn(),image:vi.fn(),platform:'desktop',agents:[] as any[],providers:{} as Record<string,any>}))
+const state=vi.hoisted(()=>({headers:new Map<string,any>(),messages:new Map<string,any[]>(),data:new Map<string,any>(),resources:new Map<string,any[]>(),chat:vi.fn(),write:vi.fn(),request:vi.fn(),image:vi.fn(),imageInit:vi.fn(),platform:'desktop',agents:[] as any[],providers:{} as Record<string,any>}))
 vi.mock('@/platform',()=>({default:{get type(){return state.platform}}}))
 vi.mock('./worker-context',()=>({createWorkerContext:async()=>({prepare:async(messages:unknown)=>messages})}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessionEvents:{subscribe:vi.fn()},sessions:{
@@ -29,7 +29,7 @@ vi.mock('@/packages/collaboration/bridge',()=>({assertSharedTurn:vi.fn(),routeSh
 vi.mock('@/components/agent/UserQuestion',()=>({requestUserAnswers:state.request}))
 vi.mock('./library',()=>({listDedicatedAgents:async()=>state.agents}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({providers:state.providers})}}))
-vi.mock('@/packages/chatgpt-subscription/image-tools',()=>({subscriptionChatImageTools:()=>({chatgpt_image:{execute:state.image}})}))
+vi.mock('@/packages/chatgpt-subscription/image-tools',()=>({subscriptionChatImageTools:(...args:any[])=>{state.imageInit(...args);return {chatgpt_image:{execute:state.image}}}}))
 vi.mock('./storage',()=>({readAgentData:async(key:string,fallback:any)=>state.data.get(key)||fallback,updateAgentData:async(key:string,fallback:any,update:any)=>{const next=update(state.data.get(key)||fallback);state.data.set(key,next);return next}}))
 import { buildExternalMultiAgentTools, buildMultiAgentTools, multiAgentRuntime, revokeExternalAgents } from './runtime'
 let grant:LocalMCPGrant,live:boolean
@@ -96,6 +96,13 @@ it.each(['desktop','mobile'])('executes an app worker with native image and HITL
   await call(prepared.tools,'agent_wait',{ids:[worker.id]})
   expect(await call(prepared.tools,'agent_result',{id:worker.id})).toMatchObject({text:'Worker tools verified'})
   expect(state.image).toHaveBeenCalledOnce();expect(state.chat).toHaveBeenCalledOnce();expect(state.request).toHaveBeenCalledOnce()
+  state.providers={}
+  await call(prepared.tools,'agent_message',{id:worker.id,text:'An explicit follow-up task'})
+  await call(prepared.tools,'agent_wait',{ids:[worker.id]})
+  expect(state.imageInit).toHaveBeenCalledTimes(2)
+  expect(state.imageInit.mock.calls[0][0]).toBe(state.imageInit.mock.calls[1][0])
+  expect(state.imageInit.mock.calls[0][2]).not.toBe(state.imageInit.mock.calls[1][2])
+  expect(state.image).toHaveBeenCalledTimes(2)
 })
 it('provides caller details to root and permitted nested workers while keeping unshared prompts private',async()=>{
   state.platform='mobile'

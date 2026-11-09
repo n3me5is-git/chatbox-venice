@@ -115,7 +115,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     if (!model.isSupportToolUse('agent')) throw Error('Choose a model that supports agent tools')
     const history = await agentTranscript(run.sessionId), user = createMessage('user', task), assistant = { ...createMessage('assistant', ''), generating: true }
     await rendererApplication.sessions.insertMessages(run.sessionId, [user, assistant])
-    const { tools, images } = await workerTools(run, caller, model)
+    const { tools, images } = await workerTools(run, caller, model, user.id)
     const system = workerInstruction(run) + '\n' + sessionWorkspaceInstructions + '\nYou are a Work child agent at depth ' + run.depth + '/3. Only the listed tools and this workspace are available. Use agent_catalog to inspect the descriptions and calling instructions of dedicated agents allowed to you. Return a concise result to your caller. Do not claim files exist unless a tool succeeded. When replacing a shared file, first list its current version and pass expectedVersion; a concurrent edit must not be overwritten.'
     const messages = await convertToModelMessages([createMessage('system', system), ...selectContextMessages([...history,user],{maxContextMessageCount:settings.maxContextMessageCount})], { modelSupportVision: model.isSupportVision() })
     let pending: Promise<unknown> = Promise.resolve(), last = 0
@@ -140,11 +140,11 @@ export const multiAgentRuntime = new MultiAgentRuntime({
   },
 })
 
-async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInterface) {
+async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInterface, turnId: string) {
   const images = model.isSupportVision() ? buildViewImageToolSet({ sessionId: run.sessionId, toolResultImages: supportsToolResultImages(model.apiStyle) }) : undefined
   const workspace = await buildSessionWorkspaceTools(run.workspaceId, images?.imageResults)
-  const venice = run.tools.some(name => name.startsWith('venice_'))&&veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, run.id, grants.get(run.rootId)?.requester || 'owner', run.rootId) : {}
-  const subscription: ToolSet = run.model.provider === ModelProviderEnum.OpenAISubscription && grants.get(run.rootId)?.settings.provider === ModelProviderEnum.OpenAISubscription && run.tools.includes('chatgpt_image') ? (await import('@/packages/chatgpt-subscription/image-tools')).subscriptionChatImageTools(run.sessionId, grants.get(run.rootId)?.requester || 'owner', run.id) : {}
+  const venice = run.tools.some(name => name.startsWith('venice_'))&&veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, turnId, grants.get(run.rootId)?.requester || 'owner', run.rootId) : {}
+  const subscription: ToolSet = run.model.provider === ModelProviderEnum.OpenAISubscription && grants.get(run.rootId)?.settings.provider === ModelProviderEnum.OpenAISubscription && run.tools.includes('chatgpt_image') ? (await import('@/packages/chatgpt-subscription/image-tools')).subscriptionChatImageTools(run.sessionId, grants.get(run.rootId)?.requester || 'owner', turnId) : {}
   const available: ToolSet = { ...workspace, ...venice, ...subscription, ...buildWebSearchTools(), parse_link: parseLinkTool, ...mcpController.getAvailableTools(), ask_user: createAskUserTool((input, signal) => routeSharedDecision(run.rootId, grants.get(run.rootId)?.requester || 'owner', { kind: 'questions', input }, signal => requestUserAnswers(input, signal), value => value, value => value && typeof value === 'object' && 'answers' in value ? value : null, signal)) }
   const tools: ToolSet = {}
   for (const name of run.tools) { const original = available[name]; if (!original) continue; tools[name] = { ...original, execute: original.execute ? async (input: any, options: any) => {
