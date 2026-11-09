@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.40.0
+
+See [release notes](docs/releases/v1.40.0.md). Full remote chat sessions, inline @ references, subscription chat image tools, native search history repair, per-chat Venice tool scope and a bounded mobile image picker with provider groups.
+
 ## 1.39.1
 
 See [release notes](docs/releases/v1.39.1.md). Keeps UI-selected thinking levels for custom subscription model IDs without requiring internal SDK flags. Includes the 1.39.0 login, model, search and context improvements.

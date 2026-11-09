@@ -4,6 +4,7 @@ import { createSubscriptionTransport } from './chatgpt-transport'
 import { CHATGPT_CODEX_CLIENT_VERSION } from './chatgpt-model-catalog'
 import { mergeExtraBody } from '../models/utils/extra-body'
 import { observeSubscriptionSources, type SubscriptionSearchSource } from './chatgpt-search-sources'
+import { normalizeSubscriptionSearchReplay } from './chatgpt-search-replay'
 
 export const CHATGPT_SUB_PROVIDER = 'openai-sub-unofficial'
 export const CHATGPT_CODEX_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
@@ -56,6 +57,7 @@ export function createSubscriptionFetch(dependencies: ModelDependencies, options
     if (options.webSearch === false && Array.isArray(body.tools)) body.tools = body.tools.filter((tool: any) => !['web_search', 'web_search_preview'].includes(tool.type))
     if (options.webSearch && !imageRequest && !(body.tools || []).some((tool: any) => tool.type === 'web_search')) body.tools = [...(body.tools || []), { type: 'web_search' }]
     body.store = false; body.stream = true
+    body.input=normalizeSubscriptionSearchReplay(body.input)
     body.instructions ||= 'You are a helpful assistant.'
     delete body.max_output_tokens; delete body.max_tokens; delete body.temperature; delete body.top_p
     const include = Array.isArray(body.include) ? body.include : []

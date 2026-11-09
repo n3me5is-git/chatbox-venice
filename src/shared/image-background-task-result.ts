@@ -47,7 +47,7 @@ export function hasAcceptedCallbackBackgroundTask(
   return steps.some((step) =>
     step.toolResults.some(
       (toolResult) =>
-        ['chatbox_cli', 'venice_image'].includes(toolResult.toolName) && getAcceptedImageBackgroundTaskResult(toolResult.output) !== null
+        ['chatbox_cli', 'venice_image','chatgpt_image'].includes(toolResult.toolName) && getAcceptedImageBackgroundTaskResult(toolResult.output) !== null
     )
   )
 }
@@ -58,7 +58,7 @@ export function hasAcceptedCallbackBackgroundTaskResult(
   return contentParts.some(
     (part) =>
       part.type === 'tool-call' &&
-      !!part.toolName && ['chatbox_cli', 'venice_image'].includes(part.toolName) &&
+      !!part.toolName && ['chatbox_cli', 'venice_image','chatgpt_image'].includes(part.toolName) &&
       getAcceptedImageBackgroundTaskResult(part.result) !== null
   )
 }

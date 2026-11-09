@@ -1,4 +1,5 @@
 import { VeniceSearchControl } from '@/components/venice/VeniceSearchControl'
+import { SessionVeniceTools } from '@/components/venice/SessionVeniceTools'
 import { setSearchPermission } from '@shared/providers/definitions/models/venice/search-permissions'
 import { forkT as ft } from '@/i18n/fork'
 import { Capacitor } from '@capacitor/core'
@@ -355,6 +356,7 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
           <IconChevronRight size={16} />
         </Group>
       </UnstyledButton>
+      <SessionVeniceTools sessionId={sessionId} providerId={providerId} disabled={!workActive}/>
       <UnstyledButton
         aria-label={t('Skills')}
         disabled={entry.value !== 'on'}

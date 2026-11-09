@@ -35,6 +35,9 @@ jobs:
       - name: Validate Windows packaging configuration
         run: node scripts/package-fork.cjs --check-config
       - run: pnpm check
+      - name: Remote chat controls, inline mentions and subscription image/search regressions
+        if: ${{ !cancelled() }}
+        run: pnpm exec vitest run src/renderer/packages/collaboration/controls.test.ts src/renderer/packages/collaboration/projection.test.ts src/renderer/packages/collaboration/hub.test.ts src/renderer/packages/prompt-mentions src/shared/prompt-mentions.test.ts src/shared/oauth/chatgpt-search-replay.test.ts src/shared/providers/definitions/openai-subscription-replay.test.ts src/shared/providers/definitions/models/venice/tool-policy.test.ts src/renderer/packages/chatgpt-subscription/image-tools.test.ts src/renderer/components/InputBox/MessageInputField.test.tsx src/renderer/components/collaboration/RemoteChat.test.tsx src/renderer/components/session/SessionList.test.tsx
       - name: Subscription login, catalog, native search and image endpoint routes
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/shared/oauth/chatgpt-model-catalog.test.ts src/shared/oauth/chatgpt-subscription.test.ts src/shared/oauth/chatgpt-search-sources.test.ts src/shared/providers/definitions/openai-subscription.test.ts src/renderer/packages/chatgpt-subscription src/renderer/utils/mobile-request.test.ts src/renderer/components/settings/provider/ChatGPTSubscription.test.tsx src/renderer/components/settings/provider/SubscriptionSessionSearch.test.tsx src/renderer/components/icons/ProviderBranding.test.tsx src/renderer/modals/ModelEdit.subscription.test.tsx

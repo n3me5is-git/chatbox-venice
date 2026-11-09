@@ -5,7 +5,6 @@ import { getCompactionBudget, FALLBACK_CONTEXT_WINDOW_TOKENS } from '@chatbox/co
 import { DEFAULT_SUBSCRIPTION_CONTEXT_WINDOW } from '@shared/oauth/chatgpt-model-catalog'
 import { getConfiguredContextWindow, getEffectiveMaxOutputTokens } from '@/packages/context-management/context-pressure'
 import { SpeechMicrophone } from '@/components/speech/SpeechControls'
-import { AgentMentionButton } from '@/components/multi-agent/AgentMentionButton'
 import { MAX_CHAT_IMAGE_ATTACHMENTS } from '@chatbox/core/application/attachments'
 import { listPendingPauseInteractions } from '@chatbox/core/message-approval'
 import { getSubmitAvailability } from '@chatbox/core/session/action-gates'
@@ -478,6 +477,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
 
     // Agent mode value for conditional toolbar rendering
     const agentModeEntry = useSessionAgentMode(currentSessionId || 'new')
+    const mentionSource=useCallback(async(query:string,signal:AbortSignal)=>{const {loadPromptMentions}=await import('@/packages/prompt-mentions/source');return loadPromptMentions(currentSessionId||'new',agentModeEntry.value==='on',query,signal)},[currentSessionId,agentModeEntry.value])
     const sessionMode = resolveSessionMode(agentModeEntry.value)
     // Chat mode has no message queue (mode policy): streaming keeps the Stop
     // control and submits are blocked with the standard generating notice.
@@ -1762,9 +1762,9 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
                 onUserInput={onUserInput}
                 onKeyDown={onKeyDown}
                 onPaste={onPaste}
+                mentionSource={mentionSource}
               />
 
-              {agentModeEntry.value==='on'&&<AgentMentionButton onSelect={name=>{messageInputFieldRef.current?.setValue(previous=>previous+(previous&&!/\s$/.test(previous)?' ':'')+'@'+name+' ');messageInputFieldRef.current?.getElement()?.focus()}}/>}
               <SpeechMicrophone context={{sessionId,selected:model}} disabled={submitAvailability.blockReason!==undefined&&!compactionQueable} onText={text=>{messageInputFieldRef.current?.setValue(previous=>previous+(previous&&!/\s$/.test(previous)?'\n':'')+text);messageInputFieldRef.current?.getElement()?.focus()}}/>
               <Tooltip
                 // `n` rather than `count`, so i18next does not engage plural resolution for a

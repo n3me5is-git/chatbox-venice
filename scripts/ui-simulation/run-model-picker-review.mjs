@@ -43,6 +43,18 @@ export async function runModelPickerReview({ click, evaluate, cdp, wait, byText,
   await click(`(${imageList}).querySelectorAll('button:not([aria-label])').item(window.__pickerFixture.imageIds.length-1)`)
   await wait(() => evaluate('window.__longImageSelection===window.__pickerFixture.imageIds.at(-1)'), 'The last image model could not be selected')
   report.lastImageSelected = true
+  await click(byText('Test all image providers'))
+  await wait(()=>evaluate(`!!${imageList} && (${imageList}).clientHeight>100`),'All-provider picker did not open')
+  const bounds=await evaluate(`(()=>{const e=${imageList},r=e.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:innerHeight,providers:e.querySelectorAll('[data-image-provider]').length}})()`)
+  assert.ok(bounds.top>=0&&bounds.bottom<=bounds.height+1,'Native image picker extends outside the mobile viewport');assert.equal(bounds.providers,4,'Image provider groups were lost')
+  await swipe(imageList);assert.ok(await evaluate(`(${imageList}).scrollTop`)>100,'All-provider image list did not scroll with touch')
+  await fill('Search image models','Custom image provider')
+  await wait(()=>evaluate(`(${imageList}).querySelectorAll('[data-image-provider]').length===1`),'Searching native images by provider did not filter groups')
+  await evaluate(`(${imageList}).scrollTop=(${imageList}).scrollHeight`)
+  await writeFile(path.join(output,'native-image-providers-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+  await click(`(${imageList}).querySelectorAll('button:not([aria-label])').item(84)`)
+  await wait(()=>evaluate('window.__nativeImageSelection?.provider==="fixture-2"&&window.__nativeImageSelection?.model==="provider-2-image-84"'),'Last custom-provider image model was not selectable')
+  report.nativeProviderGrouping=true;report.nativeViewportBounded=true;report.nativeProviderSearch=true;report.lastCustomProviderSelected=true
   await click(byText('Test long Studio model list'))
   await wait(() => evaluate(`document.body.textContent.includes('Long Studio catalog regression')`), 'Studio fixture did not open')
   await click(byLabel('Model'))

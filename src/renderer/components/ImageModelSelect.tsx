@@ -49,6 +49,7 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
     const [dropdownNode, setDropdownNode] = useState<HTMLDivElement | null>(null)
     const [mobileDetail, setMobileDetail] = useState<DetailModel | null>(null)
     const [detailResetKey, setDetailResetKey] = useState(0)
+    const [search,setSearch]=useState('')
     const openingDetailRef = useRef(false)
     const modalContent = isMobile ? targetNode?.closest<HTMLElement>('.mantine-Modal-content,.mantine-Drawer-content,[data-vaul-drawer]') : null
 
@@ -79,6 +80,7 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
         store={combobox}
         width={280}
         position="top"
+        middlewares={{flip:true,shift:true}}
         withinPortal={true}
         {...comboboxProps}
         portalProps={{ ...comboboxProps.portalProps, target: modalContent ?? comboboxProps.portalProps?.target }}
@@ -93,16 +95,17 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
         <Combobox.Dropdown
           ref={setDropdownNode}
           className="!rounded-lg !border-[var(--chatbox-border-primary)] !shadow-lg"
-          style={{ overflow: 'visible' }}
+          style={{ overflow: 'visible',maxWidth:'calc(100vw - 24px)',maxHeight:'min(480px, 70dvh)',display:'flex',flexDirection:'column' }}
         >
-          <Combobox.Options mah="min(400px, 55dvh)" style={{ overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y' }} data-vaul-no-drag className="p-1">
+          <Combobox.Search placeholder={t('Search')} aria-label={t('Search image models')} value={search} onChange={event=>setSearch(event.currentTarget.value)}/>
+          <Combobox.Options data-model-scroll="native-images" style={{ minHeight:0,maxHeight:'min(400px, calc(70dvh - 64px))',overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y',WebkitOverflowScrolling:'touch' }} data-vaul-no-drag className="p-1">
             {modelGroups.length === 0 ? (
               <Text size="sm" c="dimmed" px="sm" py="xs">
                 {t('No models available')}
               </Text>
             ) : (
-              modelGroups.map((group) => (
-                <div key={group.providerId}>
+              modelGroups.map(group=>({...group,models:group.models.filter(model=>(group.label+' '+model.displayName+' '+model.modelId).toLowerCase().includes(search.toLowerCase()))})).filter(group=>group.models.length>0).map((group) => (
+                <div key={group.providerId} data-image-provider={group.providerId}>
                   <ProviderGroupLabel providerId={group.providerId} name={group.label} isCustom={group.isCustom} />
                   {group.models.map((model) => {
                     const detail = getImageModelDetail(group, model)

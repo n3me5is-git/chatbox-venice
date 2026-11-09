@@ -52,6 +52,7 @@ import { JK_EVENTS, JK_PAGE_NAMES } from '@/analytics/jk-events'
 import { rendererApplication } from '@/app/renderer-application'
 import Markdown from '@/components/Markdown'
 import { SpeechReadAloud } from '@/components/speech/SpeechControls'
+import { MessageAuthor } from '@/components/collaboration/MessageAuthor'
 import StreamingTextFade from '@/components/StreamingTextFade'
 import { AppTooltip as Tooltip1 } from '@/components/ui/tooltip'
 import { useMessageGenerationStop } from '@/hooks/useGenerationStop'
@@ -839,7 +840,7 @@ const _Message: FC<Props> = (props) => {
 
   const messageContent = (
     <>
-      {msg.collaborationAuthor&&<Text size="xs" c="dimmed" title={msg.collaborationAuthor.id}>{msg.collaborationAuthor.name} · {msg.collaborationAuthor.id.slice(0,8)}</Text>}
+      {msg.collaborationAuthor&&<MessageAuthor author={msg.collaborationAuthor}/>}
       <div
         data-testid={TestId.message.content}
         className={cn(

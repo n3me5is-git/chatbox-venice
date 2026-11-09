@@ -3,6 +3,7 @@ import { SharedHitlQueue,SharePermissionsSchema,HitlPolicySchema,SnapshotSchema,
 import { b64,un64,encodeInvitation,makeInvitation,parseInvitation,keyPair,type Invitation } from './crypto'
 import { connectRoom,deviceIdentity,type Transport,type Link } from './transport'
 import { collaborationError } from './errors'
+import { SharedControlPatchSchema,type SharedControlPatch } from '@shared/collaboration'
 import type { ConnectionOptions } from './network'
 
 export interface CollaborationAdapter {
@@ -10,6 +11,7 @@ export interface CollaborationAdapter {
   submit(sessionId:string,text:string,interact:boolean,author:SharedAuthor,authorization:{assert:()=>void;signal:AbortSignal}):Promise<void>
   file(sessionId:string,id:string):AsyncIterable<Uint8Array>
   clone(snapshot:SharedSnapshot,read:(id:string)=>AsyncIterable<Uint8Array>,signal:AbortSignal):Promise<string>
+  configure?(sessionId:string,revision:string,patch:SharedControlPatch,assert:()=>void):Promise<void>
 }
 type Peer={author:SharedAuthor;approved:boolean;permissions:SharePermissions;link:Link;lastRequest:number;operation?:AbortController}
 export interface HostShare {id:string;sessionId:string;title:string;code:string;permissions:SharePermissions;policy:HitlPolicy;peers:Map<string,Peer>;hitl:SharedHitlQueue;transport:Transport;error?:string;busy:boolean;transferring:Set<string>}
@@ -17,11 +19,13 @@ export interface GuestShare {id:string;code:string;name:string;status:'connectin
 const Message=z.discriminatedUnion('type',[
  z.object({type:z.literal('join'),name:z.string().trim().min(1).max(60)}).strict(),
  z.object({type:z.literal('post'),id:z.string().uuid(),text:z.string().trim().min(1).max(100000),interact:z.boolean()}).strict(),
+ z.object({type:z.literal('configure'),id:z.string().uuid(),revision:z.string().max(100),patch:SharedControlPatchSchema}).strict(),
  z.object({type:z.literal('answer'),id:z.string().uuid(),answer:z.unknown()}).strict(),
  z.object({type:z.literal('file'),id:z.string().uuid(),file:z.string().max(400),clone:z.boolean()}).strict(),
  z.object({type:z.literal('cancel-file'),id:z.string().uuid()}).strict(),
  z.object({type:z.literal('file-ack'),id:z.string().uuid()}).strict(),
 ])
+export interface GuestShare { draft?:string }
 const Response=z.discriminatedUnion('type',[
  z.object({type:z.literal('waiting')}).strict(),
  z.object({type:z.literal('state'),snapshot:SnapshotSchema,permissions:SharePermissionsSchema,hitls:z.array(HitlRequestSchema).max(20),busy:z.boolean()}).strict(),
@@ -86,10 +90,18 @@ export class CollaborationHub{
         room.transferring.add(key)
         void this.sendFile(room,peer,input.id,input.file,key,input.clone).catch(error=>link.send({type:'error',id:input.id,message:messageError(error).slice(0,1000)})).catch(()=>{}).finally(()=>room.transferring.delete(key));return
       }
+      if(input.type==='configure'){
+        const assert=()=>{if(!this.hosts.has(room.id)||room.peers.get(link.id)!==peer||!peer.approved||!peer.permissions.write||!peer.permissions.interact)throw Error('The owner has not allowed this action')}
+        assert();if(room.busy)throw Error('Another request is running. Wait for it to finish.')
+        if(!this.adapter.configure)throw Error('Update the owner’s app to use remote chat controls')
+        room.busy=true;this.changed()
+        try{await this.adapter.configure(room.sessionId,input.revision,input.patch,assert);await this.refresh(room.sessionId);await link.send({type:'ack',id:input.id})}finally{room.busy=false;void this.refresh(room.sessionId);this.changed()}
+        return
+      }
       if(!peer.permissions.write||input.interact&&!peer.permissions.interact)throw Error('The owner has not allowed this action')
       if(room.busy)throw Error('Another request is running. Wait for it to finish.')
       if(Date.now()-peer.lastRequest<1000)throw Error('Wait before sending another request')
-      peer.lastRequest=Date.now();room.busy=true;peer.operation=new AbortController();this.changed()
+      peer.lastRequest=Date.now();room.busy=true;peer.operation=new AbortController();this.changed();void this.refresh(room.sessionId)
       const authorization={signal:peer.operation.signal,assert:()=>{if(!this.hosts.has(room.id)||room.peers.get(link.id)!==peer||!peer.approved||!peer.permissions.write||input.interact&&!peer.permissions.interact)throw Error('Shared chat access was revoked')}}
       void this.adapter.submit(room.sessionId,input.text,input.interact,peer.author,authorization).then(()=>link.send({type:'ack',id:input.id})).catch(error=>link.send({type:'error',id:input.id,message:messageError(error).slice(0,1000)})).catch(()=>{}).finally(()=>{peer.operation=undefined;room.busy=false;void this.refresh(room.sessionId);this.changed()})
     }catch(error){await link.send({type:'error',...('id'in input?{id:input.id}:{}),message:messageError(error).slice(0,1000)})}
@@ -109,7 +121,7 @@ export class CollaborationHub{
   private receiveGuest(guest:GuestShare,raw:unknown){
     const input=Response.parse(raw)
     if(input.type==='waiting'){guest.status='waiting';guest.error=undefined}
-    if(input.type==='state'){guest.snapshot=input.snapshot;guest.permissions=input.permissions;guest.hitls=input.hitls;guest.busy=input.busy;guest.status='connected';guest.error=undefined}
+    if(input.type==='state'){guest.snapshot=input.snapshot;guest.permissions=input.permissions;guest.hitls=input.hitls;guest.busy=input.busy||!!input.snapshot.busy;guest.status='connected';guest.error=undefined}
     if(input.type==='hitls')guest.hitls=input.hitls
     if(input.type==='closed'){this.stop(guest.id);return}
     if(input.type==='ack'||input.type==='error'){
@@ -135,6 +147,11 @@ export class CollaborationHub{
     this.refreshes.set(sessionId,work);return work
   }
   async post(id:string,text:string,interact:boolean){const guest=this.guests.get(id);if(!guest?.link||guest.status!=='connected'||!guest.permissions.write||interact&&!guest.permissions.interact)throw Error('This action is not allowed');const request=crypto.randomUUID();return new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{guest.pending.delete(request);reject(Error('The owner has not completed this request. Check the conversation before retrying.'))},10*60*1000);guest.pending.set(request,{resolve,reject,timer});void guest.link!.send({type:'post',id:request,text,interact}).catch(error=>{clearTimeout(timer);guest.pending.delete(request);reject(error)})})}
+  async configure(id:string,patch:SharedControlPatch){
+    const guest=this.guests.get(id);if(!guest?.link||guest.status!=='connected'||!guest.permissions.write||!guest.permissions.interact||!guest.snapshot?.controls)throw Error('This action is not allowed')
+    const request=crypto.randomUUID(),revision=guest.snapshot.controls.revision;SharedControlPatchSchema.parse(patch)
+    return new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{guest.pending.delete(request);reject(Error('The owner did not confirm these settings. Check the current settings before retrying.'))},30000);guest.pending.set(request,{resolve,reject,timer});void guest.link!.send({type:'configure',id:request,revision,patch}).catch(error=>{clearTimeout(timer);guest.pending.delete(request);reject(error)})})
+  }
   async answer(id:string,request:string,answer:HitlAnswer){const guest=this.guests.get(id);if(!guest?.link||!guest.hitls.some(item=>item.id===request))throw Error('This question is no longer available');if(guest.pending.has(request))throw Error('A response is already pending');return new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{guest.pending.delete(request);reject(Error('The owner did not confirm this response'))},30000);guest.pending.set(request,{resolve,reject,timer});void guest.link!.send({type:'answer',id:request,answer}).catch(error=>{clearTimeout(timer);guest.pending.delete(request);reject(error)})})}
   async *readFile(id:string,fileId:string,clone=false,signal?:AbortSignal):AsyncGenerator<Uint8Array>{
     const guest=this.guests.get(id);if(!guest?.link||guest.status!=='connected'||clone&&!guest.permissions.clone)throw Error('This action is not allowed');if(guest.file)throw Error('A file transfer is already active')
@@ -150,7 +167,7 @@ export class CollaborationHub{
       }
     }finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);guest.file=undefined;for(const chunk of file.queue)chunk?.fill(0);void guest.link.send({type:'cancel-file',id:request}).catch(()=>{})}
   }
-  async clone(id:string,signal:AbortSignal){const guest=this.guests.get(id);if(!guest?.snapshot||!guest.permissions.clone)throw Error('Cloning is not allowed');if(guest.snapshot.truncated)throw Error('The full chat is not ready. Ask the owner to wait for generation to finish.');return this.adapter.clone(guest.snapshot,file=>this.readFile(id,file,true,signal),signal)}
+  async clone(id:string,signal:AbortSignal){const guest=this.guests.get(id);if(!guest?.snapshot||!guest.permissions.clone)throw Error('Cloning is not allowed');if(guest.busy||guest.snapshot.busy||guest.snapshot.truncated)throw Error('The full chat is not ready. Ask the owner to wait for generation to finish.');return this.adapter.clone(guest.snapshot,file=>this.readFile(id,file,true,signal),signal)}
   async decision<T>(sessionId:string,requester:string,input:HitlInput,local:(signal:AbortSignal)=>Promise<T>,encode:(value:T)=>HitlAnswer,decode:(answer:HitlAnswer)=>T,signal?:AbortSignal):Promise<T>{
     const room=this.shared(sessionId);if(!room)return requester==='owner'?local(signal||new AbortController().signal):decode(null)
     const controller=new AbortController();const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel()

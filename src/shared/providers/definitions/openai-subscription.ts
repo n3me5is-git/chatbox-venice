@@ -8,21 +8,26 @@ import type { ChatStreamOptions, ModelStreamPart } from '../../models/types'
 import type { ModelMessage, ToolSet } from 'ai'
 import { subscriptionSourcesFooter, type SubscriptionSearchSource } from '../../oauth/chatgpt-search-sources'
 import type { StreamTextResult } from '../../types'
+import { createOpenAI } from '@ai-sdk/openai'
 
 export class ChatGPTSubscriptionModel extends OpenAIResponses {
   public name = 'OpenAI Sub Unofficial'
   public imageDriverModel = DEFAULT_SUBSCRIPTION_IMAGE_DRIVER
+  public nativeWebSearch=false
+  private withNativeSearch<T extends CallChatCompletionOptions>(options:T):T{
+    return this.nativeWebSearch?{...options,tools:{...options.tools,chatgpt_native_search:createOpenAI().tools.webSearch({})}}:options
+  }
   public readonly searchSources = new Map<string, SubscriptionSearchSource>()
   public get usesNativeWebSearch() { return false } // Native search and Chatbox search remain independent.
   public override async chat(messages: ModelMessage[], options: CallChatCompletionOptions): Promise<StreamTextResult> {
     this.searchSources.clear()
-    const result = await super.chat(messages, options)
+    const result = await super.chat(messages, this.withNativeSearch(options))
     const text = subscriptionSourcesFooter(this.searchSources.values())
     return text ? { ...result, contentParts: [...result.contentParts, { type: 'text', text }] } : result
   }
   public override async *chatStream<T extends ToolSet>(messages: ModelMessage[], options: ChatStreamOptions): AsyncGenerator<ModelStreamPart<T>> {
     this.searchSources.clear(); let finish: ModelStreamPart<T> | undefined; let failed = false
-    for await (const part of super.chatStream<T>(messages, options)) {
+    for await (const part of super.chatStream<T>(messages, this.withNativeSearch(options))) {
       if (part.type === 'finish') finish = part
       else { if (part.type === 'error') failed = true; yield part }
     }
@@ -68,6 +73,7 @@ export const openaiSubscriptionProvider = defineProvider({
   createModel: config => {
     const model: ChatGPTSubscriptionModel = new ChatGPTSubscriptionModel({ apiKey: 'vault-stored', apiHost: 'https://api.openai.com/v1', apiPath: '/responses', model: config.model, stream: true, customFetch: createSubscriptionFetch(config.dependencies, { webSearch: config.settings.subscriptionWebSearch ?? config.providerSetting.subscriptionWebSearch ?? false, extraBody: config.model.extraBody, onSource: source => { if (model.searchSources.size < 50) model.searchSources.set(source.url, source) } }), skipRemoteModelList: true, listModelsFallback: mergeSubscriptionModels(config.providerSetting.models || [], subscriptionDefaultModels()) }, config.dependencies)
     model.imageDriverModel = config.providerSetting.subscriptionImageDriver || DEFAULT_SUBSCRIPTION_IMAGE_DRIVER
+    model.nativeWebSearch=config.settings.subscriptionWebSearch??config.providerSetting.subscriptionWebSearch??false
     return model
   },
 })

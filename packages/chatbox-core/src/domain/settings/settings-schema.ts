@@ -90,6 +90,7 @@ export const VeniceSettingsSchema = VeniceProfileSchema.extend(VeniceChatSecurit
   videoEnabled: z.boolean().optional(),
   musicEnabled: z.boolean().optional(),
   chatToolsEnabled: z.boolean().optional(),
+  chatToolsVeniceOnly: z.boolean().optional(),
   confirmMediaTools: z.boolean().optional(),
   profiles: z.array(z.object({ id: z.string(), name: z.string(), options: VeniceProfileSchema })).optional(),
 })
@@ -140,6 +141,7 @@ export const ProviderSettingsSchema = z.object({
   useProxy: z.boolean().optional().catch(undefined),
   venice: VeniceSettingsSchema.optional().catch(undefined),
   subscriptionImageDriver: z.string().max(200).optional().catch(undefined),
+  subscriptionChatImages: z.boolean().optional().catch(undefined),
   subscriptionWebSearch: z.boolean().optional().catch(undefined),
 
   // oauth
@@ -265,6 +267,7 @@ export const GlobalSessionSettingsSchema = z.object({
 })
 
 export const SessionSettingsSchema = GlobalSessionSettingsSchema.extend({
+  veniceToolsEnabled: z.boolean().optional().catch(undefined),
   contextTokenLimit: z.number().finite().int().min(1024).max(10_000_000).optional().catch(undefined),
   subscriptionWebSearch: z.boolean().optional().catch(undefined),
   multiAgent: MultiAgentPolicySchema.optional().catch(undefined),
