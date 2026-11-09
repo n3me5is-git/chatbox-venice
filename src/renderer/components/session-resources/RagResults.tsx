@@ -1,0 +1,5 @@
+import { Button, Stack, Text } from '@mantine/core'
+import { useTranslation } from 'react-i18next'
+import { forkT as ft } from '@/i18n/fork'
+import { openSessionFilePreview } from './FilePreview'
+export function RagResults({result,sessionId}:{result:unknown;sessionId?:string}){useTranslation();let value:any=result;try{if(typeof value==='string')value=JSON.parse(value)}catch{return null}const rows=value?.matches||value?.passages;if(!Array.isArray(rows))return null;return <Stack gap={4}>{rows.slice(0,20).filter(row=>typeof row?.path==='string').map((row,n)=><Button key={n} variant="light" size="xs" disabled={!sessionId} style={{height:'auto',whiteSpace:'normal',textAlign:'left'}} onClick={()=>sessionId&&openSessionFilePreview(sessionId,row.path)}><Stack gap={2} py={4}><Text size="xs" fw={600}>{row.path} · {row.page?ft('Page')+' '+row.page:ft('Lines')+' '+row.line+'–'+row.endLine}</Text><Text size="xs">{String(row.snippet||row.content||row.modality||'').slice(0,400)}</Text></Stack></Button>)}</Stack>}

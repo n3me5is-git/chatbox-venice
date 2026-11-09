@@ -1268,6 +1268,7 @@ export type ToolCallActionContext = {
   messageId?: string
 }
 
+const SessionRagResults=lazy(()=>import('../session-resources/RagResults').then(module=>({default:module.RagResults})))
 export const ToolCallPartUI: FC<{ part: MessageToolCallPart } & ToolCallActionContext> = ({
   part,
   sessionId,
@@ -1280,6 +1281,7 @@ export const ToolCallPartUI: FC<{ part: MessageToolCallPart } & ToolCallActionCo
       </Box>
     )
   }
+  if(['session_rag_search','session_rag_read'].includes(part.toolName)&&part.result)return <Suspense fallback={null}><SessionRagResults result={part.result} sessionId={sessionId}/></Suspense>
   if (isSearchTool(part.toolName)) {
     return <WebSearchGroupUI parts={[part]} />
   }

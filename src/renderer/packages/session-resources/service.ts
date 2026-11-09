@@ -68,8 +68,9 @@ export async function listSessionResources(id:string,signal?:AbortSignal){
   await assertSession(id)
   const index=await sessionFiles.index(id),items:SessionResource[]=[...index.files]
   let truncated=false
-  if(platform.type==='mobile')items.push(...await workspace.listEntries(id))
-  else if(platform.sessionDiskFiles){const disk=await platform.sessionDiskFiles({sessionId:id,action:'list'});if(!disk.success)throw new Error(disk.error);items.push(...disk.files);truncated=!!disk.truncated}
+  const mounted=await (await import('./linked-folder')).linkedFolderOperation({sessionId:id,action:'status'})
+  if(!mounted.linked&&platform.type==='mobile')items.push(...await workspace.listEntries(id))
+  else if(!mounted.linked&&platform.sessionDiskFiles){const disk=await platform.sessionDiskFiles({sessionId:id,action:'list'});if(!disk.success)throw new Error(disk.error);items.push(...disk.files);truncated=!!disk.truncated}
   const messages=await scanMessages(id,signal);items.push(...messages.found);truncated ||= messages.truncated
   const images=platform.getImageGenerationStorage();await images.initialize();let cursor:number|null=0
   do{

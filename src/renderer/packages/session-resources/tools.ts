@@ -13,8 +13,11 @@ import { readRasterImageBounds } from '@shared/image-dimensions'
 
 export const sessionWorkspaceInstructions='Use session_file for the encrypted files shown in the session explorer. list discovers generated images and attachments; read opens text by its listed path, preview opens a listed image as real visual input, and import copies a resource by its id into a working file for editing. These paths are separate from legacy OS/Work paths. Never regenerate a paid image to recover it: list the saved resources and preview/import the existing result. Use session_js for local isolated JavaScript with explicitly selected input paths. Deliver only final user-facing outputs using session_file action deliver. Working scripts stay out of the library. Never claim a file was created unless the tool succeeded.'
 export async function buildSessionWorkspaceTools(id:string,imageResults?:ImageToolResults):Promise<ToolSet>{
-  if((await sessionFiles.index(id)).toolsEnabled===false)return {}
+  const resourceIndex=await sessionFiles.index(id)
+  if(resourceIndex.toolsEnabled===false)return {}
+  const rag=resourceIndex.ragEnabled?await (await import('@/packages/session-rag/tools')).buildSessionRagTools(id):{}
   return {
+    ...rag,
     ...await (await import('./python-tools')).sessionPythonTool(id),
     session_file:tool({
       description:'Manage this chat’s encrypted file workspace. list includes chat attachments and generated media without reading bytes. preview returns a listed image as real visual input for a vision model; read/search return bounded UTF-8 text. import copies an existing resource into a working file for editing. write creates/updates UTF-8 text. delete removes one managed file permanently. deliver explicitly includes a final file in the library; intermediate files stay in the explorer. Paths are relative to this session; no OS paths or network.',
@@ -24,6 +27,7 @@ export async function buildSessionWorkspaceTools(id:string,imageResults?:ImageTo
         if((await sessionFiles.index(id)).toolsEnabled===false)throw new Error('Session workspace tools are disabled')
         if(input.action==='list'){const result=await listSessionResources(id,options.abortSignal);return {files:result.items.map(({id,path,mime,bytes,origin,deliverable,key})=>({id,path,mime,bytes,origin,deliverable,version:origin==='file'?key:undefined})),truncated:result.truncated}}
         if(!input.path)throw new Error('A relative session file path is required')
+        if(input.path?.startsWith('.chatbox/rag/')&&['write','delete','import','deliver'].includes(input.action))throw Error('RAG index files are managed by the app')
         if(input.action==='write'){if(input.content===undefined)throw new Error('File content is required');if(!isTextResource({name:input.path,mime:resourceMime(input.path)}))throw new Error('Use import to copy existing images or media. write accepts UTF-8 text only; do not save base64 as an image.');return sessionFiles.write(id,input.path,new TextEncoder().encode(input.content),{expectedVersion:input.expectedVersion})}
         if(input.action==='import'){
           const resource=(await listSessionResources(id,options.abortSignal)).items.find(item=>item.id===input.resourceId)

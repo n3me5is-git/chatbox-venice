@@ -66,6 +66,7 @@ export const SandboxFileLink: FC<{
       if (mountedRef.current) setState(next)
     }
     try {
+      if(sessionId&&await (await import('@/components/session-resources/FilePreview')).tryOpenSessionFile(sessionId,target.sandboxPathCandidates)){safeSetState('idle');return}
       const platform = (await import('@/platform')).default
       if (sessionId && platform.sandboxPersistArtifact && platform.sandboxExportFile) {
         for (const candidate of target.sandboxPathCandidates) {

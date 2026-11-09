@@ -1,11 +1,11 @@
 import { beforeEach,expect,it,vi } from 'vitest'
-const state=vi.hoisted(()=>({provider:{} as any,store:new Map<string,unknown>(),records:new Map<string,any>(),start:vi.fn(),approve:vi.fn(),completed:vi.fn(),assert:vi.fn(async()=>{})}))
+const state=vi.hoisted(()=>({provider:{} as any,store:new Map<string,unknown>(),records:new Map<string,any>(),start:vi.fn(),approve:vi.fn(),completed:vi.fn(),assert:vi.fn(async()=>{}),route:vi.fn(),shared:vi.fn()}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({providers:{'openai-sub-unofficial':state.provider}})}}))
 vi.mock('@/stores/imageGenerationActions',()=>({getImageGenerationService:()=>({getRecord:async(id:string)=>state.records.get(id)||null}),startImageGeneration:(...args:any[])=>state.start(...args)}))
 vi.mock('@ebay/nice-modal-react',()=>({default:{create:(value:unknown)=>value,show:(...args:any[])=>state.approve(...args)}}))
 vi.mock('@/components/collaboration/ChatImageApproval',()=>({ChatImageApproval:'image-confirmation'}))
 vi.mock('@/packages/chatbox-cli/image-task-follow-up',()=>({queueImageTaskCompletion:(...args:any[])=>state.completed(...args),queueImageTaskCompletionError:vi.fn()}))
-vi.mock('@/packages/collaboration/bridge',()=>({assertSharedTurn:vi.fn(),routeSharedDecision:async(_id:string,_actor:string,_input:unknown,local:any)=>local(new AbortController().signal)}))
+vi.mock('@/packages/collaboration/bridge',()=>({assertSharedTurn:(...args:any[])=>state.shared(...args),routeSharedDecision:async(id:string,actor:string,input:unknown,local:any)=>{state.route(id,actor,input);return local(new AbortController().signal)}}))
 vi.mock('@/packages/vault/runtime',()=>({installedVaultFor:()=>({projects:{assertSession:state.assert,sessionScope:async()=> 'private-project'}})}))
 vi.mock('@/packages/session-resources/service',()=>({listSessionResources:async()=>({items:[]}),readSessionResource:vi.fn()}))
 vi.mock('@/platform',()=>({default:{getStoreValue:async(key:string)=>state.store.get(key),setStoreValue:async(key:string,value:unknown)=>state.store.set(key,value)}}))
@@ -45,4 +45,12 @@ it('keeps the native virtual image model available with an empty or text-only sa
   }
   state.provider.excludedModels=['chatgpt-image-auto']
   expect(subscriptionImageToolAvailable(state.provider)).toBe(false)
+})
+
+it('routes a collaborator child image approval through the root share while keeping the artifact in the child session',async()=>{
+ const tool=subscriptionChatImageTools('child','guest-peer','turn','shared-root').chatgpt_image!
+ await tool.execute!({action:'generate',prompt:'Draw'},context)
+ expect(state.route).toHaveBeenCalledWith('shared-root','guest-peer',expect.anything())
+ expect(state.shared.mock.calls.every(args=>args[0]==='shared-root')).toBe(true)
+ expect(state.start).toHaveBeenCalledWith(expect.objectContaining({source:expect.objectContaining({sessionId:'child'})}),expect.anything())
 })

@@ -25,6 +25,6 @@ export async function executeSessionCode(store:SessionFileStore,executor:Session
   if(result.error)return {stdout:result.stdout,error:result.error,files:[],exitCode:1}
   validateWorkspaceFiles(result.files)
   const changes=Object.fromEntries(Object.entries(result.files).map(([path,file])=>[path,decode(file.base64)]))
-  try{await store.commit(id,changes,baseline,signal)}finally{for(const bytes of Object.values(changes))bytes.fill(0)}
+  try{if(Object.keys(changes).some(path=>path.startsWith('.chatbox/rag/')))throw Error('RAG index files are managed by the app');await store.commit(id,changes,baseline,signal)}finally{for(const bytes of Object.values(changes))bytes.fill(0)}
   return {stdout:result.stdout,files:Object.keys(changes),exitCode:0}
 }

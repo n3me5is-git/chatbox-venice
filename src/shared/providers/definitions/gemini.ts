@@ -29,6 +29,8 @@ export const geminiProvider = defineProvider({
     apiHost: 'https://generativelanguage.googleapis.com',
     // https://ai.google.dev/models/gemini
     models: [
+      {modelId:'gemini-embedding-2',type:'embedding',contextWindow:8192,vendorMetadata:{embeddingModalities:['text','image','audio']}},
+      {modelId:'gemini-embedding-001',type:'embedding',contextWindow:2048},
       {
         modelId: 'gemini-3.7-flash',
         capabilities: ['vision', 'reasoning', 'tool_use'],
