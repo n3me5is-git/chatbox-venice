@@ -31,7 +31,7 @@ export class SessionRagEngine {
             if(vectors.length!==batch.length)throw Error('Incomplete embedding response')
             for(const vector of vectors){const current=normalizedVector(vector).length;if(dimensions!==undefined&&dimensions!==current)throw Object.assign(Error('Embedding dimensions changed; rebuild the index'),{fatal:true});dimensions=current}
             const chunks:RagChunk[]=batch.map((part,n)=>({...part,path:source.path,sourceHash:hash,id:crypto.randomUUID(),vector:normalizedVector(vectors[n]),modality:extracted.media?source.mime:undefined}))
-            const shard=RAG_ROOT+'data/'+crypto.randomUUID()+'.json';await this.port.check();signal.throwIfAborted();await this.port.put(shard,chunks);created.push(shard);entry.shards.push(shard)
+            const shard=RAG_ROOT+'data/'+crypto.randomUUID()+'.json';await this.port.check();signal.throwIfAborted();await this.port.put(shard,chunks).catch(error=>{throw Object.assign(error instanceof Error?error:Error(String(error)),{fatal:true})});created.push(shard);entry.shards.push(shard)
           }
           files.push(entry)
         }catch(error){if(signal.aborted||(error as {fatal?:boolean})?.fatal)throw error;errors.push({path:source.path,error:String((error as Error).message).slice(0,500)})}finally{bytes?.fill(0)}

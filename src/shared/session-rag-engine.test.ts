@@ -50,3 +50,7 @@ it('does not destroy a committed index when deleting an obsolete shard fails',as
  const f=fixture();await f.engine.index(f.settings,f.signal.signal);f.sources.set('docs/cats.md','Cats changed');f.port.remove=async()=>{throw Error('Cleanup unavailable')}
  await f.engine.index(f.settings,f.signal.signal);expect((await f.engine.search('cat',f.settings,f.signal.signal)).matches[0].snippet).toContain('changed')
 })
+
+it('stops at the first storage failure instead of paying to embed the remaining files',async()=>{
+ const f=fixture();f.port.put=async()=>{throw Error('Storage full')};await expect(f.engine.index(f.settings,f.signal.signal)).rejects.toThrow('Storage full');expect(f.embed).toHaveBeenCalledOnce();expect(f.db.size).toBe(0)
+})

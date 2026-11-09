@@ -65,7 +65,7 @@ export class SessionFileStore {
       if (!file) throw new Error('Session file not found')
       if(file.key.startsWith('linked:')&&deliverable){
         if(index.files.length>=2048||index.files.reduce((n,f)=>n+(f.bytes||0),0)+(file.bytes||0)>512*1024*1024)throw Error('Session file storage limit reached')
-        const bytes=Uint8Array.from(await this.storage.read(file.key)),copyId=crypto.randomUUID(),copy:SessionFile={...file,id:copyId,path:'.chatbox/deliverables/'+copyId+'/'+file.name,key:'session-file:'+encodeURIComponent(id)+':'+copyId,deliverable:true,updatedAt:Date.now()}
+        const bytes=Uint8Array.from(await this.storage.read(file.key)),copyId=crypto.randomUUID(),copy:SessionFile={...file,id:copyId,path:'.chatbox/deliverables/'+copyId+'/'+file.name.slice(-120),key:'session-file:'+encodeURIComponent(id)+':'+copyId,deliverable:true,updatedAt:Date.now()}
         try{await this.storage.assertAccess(id);await this.storage.put(id,copy.key,bytes,copy,{expectedVersion:null});await this.storage.saveIndex(id,{...index,files:[...index.files,copy]});return copy}catch(error){await (this.storage.discard?.(copy.key)??this.storage.remove(copy.key)).catch(()=>{});throw error}finally{bytes.fill(0)}
       }
       const next = {...file,deliverable}
