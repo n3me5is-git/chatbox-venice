@@ -119,7 +119,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     let pending: Promise<unknown> = Promise.resolve(), last = 0
     try {
       const { createWorkerContext } = await import('./worker-context')
-      const context = await createWorkerContext(settings,tools,signal,()=>multiAgentRuntime.check(caller))
+      const context = await createWorkerContext(settings,tools,signal,async()=>{await multiAgentRuntime.check(caller)})
       await multiAgentRuntime.check(caller); signal.throwIfAborted()
       const output = await model.chat(messages, { sessionId: run.sessionId, agentMode: true, tools, signal, maxSteps: 30,
         prepareStep: async step => {

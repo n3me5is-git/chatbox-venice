@@ -863,7 +863,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
       // Fallback: provider-agnostic lookup (same as compaction detector)
       if (model?.modelId) return getModelContextWindowSync(model.modelId)
       return null
-    }, [modelInfo?.contextWindow, model?.modelId, model?.provider, modelRegistryVersion])
+    }, [modelInfo?.contextWindow, modelInfo?.vendorMetadata?.codexReportedContextWindow, model?.modelId, model?.provider, modelRegistryVersion])
     const globalContextTokenLimit = useSettingsStore(state => state.contextTokenLimit)
     const compactionThreshold = useSettingsStore(state => state.compactionThreshold)
     const sessionContextTokenLimit = currentSessionMergedSettings?.contextTokenLimit
