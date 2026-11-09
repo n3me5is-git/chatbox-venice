@@ -1,4 +1,4 @@
-import { tool } from 'ai'
+import { tool, type ToolSet } from 'ai'
 import { z } from 'zod'
 import NiceModal from '@ebay/nice-modal-react'
 import { ModelProviderEnum,type ProviderSettings } from '@shared/types'
@@ -23,7 +23,7 @@ export function subscriptionImageModels(settings?:ProviderSettings){
   return [...models.values()].filter(model=>!settings?.excludedModels?.includes(model.modelId))
 }
 export function subscriptionImageToolAvailable(settings?:ProviderSettings){return !!settings?.oauth&&settings.subscriptionChatImages!==false&&subscriptionImageModels(settings).length>0}
-export function subscriptionChatImageTools(sessionId:string,requester='owner',turnId='external'){
+export function subscriptionChatImageTools(sessionId:string,requester='owner',turnId='external'):ToolSet{
   const provider=()=>settingsStore.getState().providers?.[ModelProviderEnum.OpenAISubscription]
   if(!subscriptionImageToolAvailable(provider()))return {}
   const input=z.object({action:z.enum(['models','generate','status']),prompt:z.string().trim().min(1).max(20000).optional(),modelId:z.string().max(200).optional(),count:z.number().int().min(1).max(4).optional(),aspectRatio:z.enum(['auto','1:1','3:2','2:3']).optional(),referencePaths:z.array(z.string().max(240)).max(4).optional(),recordId:z.string().max(200).optional()}).strict()
