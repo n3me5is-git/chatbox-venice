@@ -6,7 +6,7 @@ import { aesKey } from '@/packages/vault/crypto'
 const state=vi.hoisted(()=>({vault:undefined as any,store:undefined as any,exported:undefined as Blob|undefined}))
 vi.mock('@/platform',()=>({default:{exporter:{exportStreamingFile:async(_name:string,source:()=>AsyncIterable<Uint8Array>)=>{const chunks:Uint8Array<ArrayBuffer>[]=[];for await(const bytes of source())chunks.push(Uint8Array.from(bytes));state.exported=new Blob(chunks);return {boundedMemory:true}}}}}))
 vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>state.vault}))
-vi.mock('./files',()=>({sessionFiles:{list:(id:string)=>state.store.list(id),adopt:(id:string,files:any)=>state.store.adopt(id,files)},resourcesChanged:vi.fn()}))
+vi.mock('./files',()=>({sessionFiles:{list:(id:string)=>state.store.list(id),read:(id:string,path:string)=>state.store.read(id,path),adopt:(id:string,files:any)=>state.store.adopt(id,files)},resourcesChanged:vi.fn()}))
 import { exportSessionWorkspace,restoreSessionWorkspace } from './backup'
 async function fixture(){
   const bytes=new Map<string,string>(),headers=new Map<string,AssetHeader>(),indices=new Map<string,SessionResourceIndex>(),key=await aesKey(crypto.getRandomValues(new Uint8Array(32)))
@@ -34,4 +34,10 @@ it('publishes no files or aliases after a wrong passphrase or cancelled import',
   const target=await fixture();await expect(restoreSessionWorkspace('target',archive,'incorrect workspace passphrase',new AbortController().signal)).rejects.toThrow()
   const controller=new AbortController();controller.abort();await expect(restoreSessionWorkspace('target',archive,'a long workspace passphrase',controller.signal)).rejects.toThrow()
   expect(await target.store.list('target')).toEqual([]);expect(target.headers.size).toBe(0);expect(target.bytes.size).toBe(0)
+})
+
+it('exports a linked file through a temporary encrypted snapshot and removes staging bytes',async()=>{
+ const source=await fixture();state.store={list:async()=>[{path:'linked.md',key:'linked:one:linked.md:binding~hash',name:'linked.md',mime:'text/markdown',bytes:6}],read:async()=>({bytes:new TextEncoder().encode('Secret')})}
+ await exportSessionWorkspace('one','a long workspace passphrase',new AbortController().signal);expect(source.headers.size).toBe(0);expect(source.bytes.size).toBe(0);expect(await state.exported!.text()).not.toContain('Secret')
+ const archive=state.exported!,target=await fixture();await restoreSessionWorkspace('target',archive,'a long workspace passphrase',new AbortController().signal);expect(new TextDecoder().decode((await target.store.read('target','linked.md')).bytes)).toBe('Secret')
 })

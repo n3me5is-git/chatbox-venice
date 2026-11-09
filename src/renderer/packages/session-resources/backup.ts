@@ -7,11 +7,19 @@ import { resourcesChanged, sessionFiles } from './files'
 /** Workspace archives include intermediate files too, unlike the media-library view. */
 export async function exportSessionWorkspace(id:string,password:string,signal:AbortSignal){
   const files=await sessionFiles.list(id),keys=new Set(files.map(file=>file.key)),vault=vaultRuntimeFor(platform)
-  const scopes=new Set<string>()
-  for(const file of files){const header=await vault.assets.header(file.key);if(!header)throw new Error('Session file not found');await vault.keys.key(header.scope);scopes.add(header.scope)}
-  await platform.exporter.exportStreamingFile('Session-files-'+new Date().toISOString().slice(0,10)+'.chatboxvault',()=>exportVault(vault.assets,password,scopes,signal,async header=>{await vault.projects.assertSession(id);return keys.has(header.alias||'')}),'application/octet-stream',signal,{requiresStreaming:true})
+  const scopes=new Set<string>(),temporary:string[]=[]
+  try{
+    for(const file of files){
+      signal.throwIfAborted();await vault.projects.assertSession(id)
+      if(file.key.startsWith('linked:')){const {bytes}=await sessionFiles.read(id,file.path),alias='workspace-export:'+crypto.randomUUID();try{const scope=await vault.projects.sessionScope(id)||'public';const saved=await vault.assets.put((async function*(){yield bytes.length?bytes:new Uint8Array([0])})(),{kind:'document',name:file.name,mime:file.mime,sessionId:id,resourcePath:file.path,deliverable:!!file.deliverable,logicalBytes:file.bytes},scope,alias,signal);temporary.push(saved);keys.add(alias)}finally{bytes.fill(0)}}
+      else{const header=await vault.assets.header(file.key);if(!header)throw new Error('Session file not found');await vault.keys.key(header.scope);scopes.add(header.scope)}
+    }
+    for(const ref of temporary){const header=await vault.assets.header(ref);if(header){await vault.keys.key(header.scope);scopes.add(header.scope)}}
+    await platform.exporter.exportStreamingFile('Session-files-'+new Date().toISOString().slice(0,10)+'.chatboxvault',()=>exportVault(vault.assets,password,scopes,signal,async header=>{await vault.projects.assertSession(id);return keys.has(header.alias||'')}),'application/octet-stream',signal,{requiresStreaming:true})
+  }finally{for(const ref of temporary)await vault.assets.remove(ref).catch(()=>{})}
 }
 export async function restoreSessionWorkspace(id:string,file:Blob,password:string,signal:AbortSignal){
+  if((await (await import('./linked-folder')).linkedFolderOperation({sessionId:id,action:'status'})).linked)throw Error('Use app storage before restoring a backup into a linked workspace')
   const vault=vaultRuntimeFor(platform),existing=await sessionFiles.list(id),scope=(await vault.assets.header(existing[0]?.key||''))?.scope||await vault.projects.sessionScope(id)||'public'
   const created:string[]=[],temporary:string[]=[],incoming:SessionFile[]=[],prefix='restored-'+crypto.randomUUID().slice(0,8)+'/'
   try{

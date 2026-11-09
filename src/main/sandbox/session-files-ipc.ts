@@ -6,7 +6,8 @@ import { sessionDiskFiles, type SessionFilesRequest } from './session-files'
 
 /** File explorer only: no command strings, shell, process creation or arbitrary host paths.
  * The legacy command handlers are unchanged. Only app-managed session files may
- * be mutated; external working directories are read-only in this new interface. */
+ * be mutated by the legacy explorer endpoint. A separately granted folder broker
+ * supports native folder changes without arbitrary OS paths. */
 export function registerSessionFileIPC(){
   const bindings=(store.get('sessionFolderBindings' as any) || {}) as Record<string,any>
   const folders=new LinkedFolderBroker(bindings,()=>{store.set('sessionFolderBindings' as any,bindings)},async()=>{const result=await dialog.showOpenDialog({properties:['openDirectory','createDirectory']});return result.canceled?undefined:result.filePaths[0]})

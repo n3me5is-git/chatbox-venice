@@ -63,7 +63,7 @@ export default function Header(props: { session: SessionHeader }) {
           </SessionMenu>
         }
         right={
-          <Flex align="center" gap={2} wrap="nowrap" style={{maxWidth:'60vw',overflowX:'auto',minWidth:0}}>{!currentSession.settings?.multiAgentRun&&<SessionRagButton sessionId={currentSession.id}/>} {currentSession.settings?.agentMode?.value === 'on' && !currentSession.settings?.multiAgentRun && <MultiAgentButton sessionId={currentSession.id}/>}<CollaborationButton sessionId={currentSession.id}/><SessionResourcesButton sessionId={currentSession.id}/><IconButton
+          <Flex align="center" gap={2} wrap="nowrap" className="[&>*]:shrink-0" style={{maxWidth:'60vw',overflowX:'auto',minWidth:0}}>{!currentSession.settings?.multiAgentRun&&<SessionRagButton sessionId={currentSession.id}/>} {currentSession.settings?.agentMode?.value === 'on' && !currentSession.settings?.multiAgentRun && <MultiAgentButton sessionId={currentSession.id}/>}<CollaborationButton sessionId={currentSession.id}/><SessionResourcesButton sessionId={currentSession.id}/><IconButton
             icon={IconPlus}
             size="lg"
             iconSize={ICON_SIZE.touch}

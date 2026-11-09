@@ -19,6 +19,7 @@ export function SessionRagPanel({sessionId,service=ragService,resourceAPI}:{sess
   const running=!!service.ragJob(sessionId)
   const load=async()=>{const result=await service.ragStatus(sessionId);setSettings(result.settings);setIndex(result.index);setAuthorized(result.authorized);if(result.error)setError(result.error);const status=await linkedFolderOperation({sessionId,action:'status'});setFolder(status.linked?await linkedFolderOperation({sessionId,action:'list',bindingId:status.bindingId}):status)}
   useEffect(()=>{void load().catch(e=>setError(e.message))},[sessionId])
+  useEffect(()=>service.subscribeRagPrivacy?.(sessionId,()=>{setHits(undefined);setPreview(undefined);setIndex(null);setAuthorized(false);setSettings(undefined);setError('Unlock this chat to use RAG')}),[sessionId,service])
   const update=(change:Partial<RagSettings>)=>{setSettings(value=>value?{...value,...change}:value);setAck(false);setAuthorized(false)}
   const run=async(work:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await work()}catch(e){setError(String((e as Error).message))}finally{setBusy(false)}}
   if(!settings)return error?<Alert color="red">{ft(error)}</Alert>:<Loader size="sm"/>

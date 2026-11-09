@@ -58,7 +58,7 @@ export async function buildSessionWorkspaceTools(id:string,imageResults?:ImageTo
           }finally{bytes.fill(0)}
         }
         if(input.action==='delete'){await sessionFiles.remove(id,file.id);return {deleted:file.path}}
-        if(input.action==='deliver'){await sessionFiles.deliver(id,file.path);return {path:file.path,deliverable:true,message:'Available in the session explorer and local library.'}}
+        if(input.action==='deliver'){const delivered=await sessionFiles.deliver(id,file.path);return {path:delivered.path,deliverable:true,message:'Available in the session explorer and local library.'}}
         if(!isTextResource(file))throw new Error('This operation requires a text file')
         const {bytes}=await readSessionResource(id,file)
         try{

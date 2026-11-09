@@ -3,7 +3,8 @@ import { createHash, randomUUID } from 'node:crypto'
 import { lstat, readdir, realpath, readFile, writeFile, mkdir, unlink } from 'node:fs/promises'
 import { folderIdentity, linkedPath, type FolderRequest, type FolderReply } from '../../shared/linked-folder'
 type Binding={root:string;token:string;parent?:string;parentToken?:string}
-const digest=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex')
+const view=(bytes:{buffer:ArrayBufferLike;byteOffset:number;byteLength:number})=>new Uint8Array(bytes.buffer,bytes.byteOffset,bytes.byteLength)
+const digest=(bytes:{buffer:ArrayBufferLike;byteOffset:number;byteLength:number})=>createHash('sha256').update(view(bytes)).digest('hex')
 /** Only the native picker grants roots. Generated code never receives this API. */
 export class LinkedFolderBroker {
   constructor(private bindings:Record<string,Binding>,private save:()=>void,private pick:()=>Promise<string|undefined>){}
@@ -26,7 +27,7 @@ export class LinkedFolderBroker {
       if(input.action==='read'){if(!previous)throw Error('Session file not found');return {...status,base64:previous.toString('base64'),version:version!}}
       if(input.action==='remove'){if(!previous)throw Error('Session file not found');await unlink(target);return status}
       if(input.action!=='write'||typeof input.base64!=='string'||input.base64.length>14*1024*1024)throw Error('Invalid workspace operation')
-      const bytes=Buffer.from(input.base64,'base64');try{if(bytes.length>10*1024*1024)throw Error('Session files must not exceed 10 MB');await writeFile(target,bytes,{flag:stat?'r+':'wx'});if(stat){const {truncate}=await import('node:fs/promises');await truncate(target,bytes.length)}return {...status,version:digest(bytes)}}finally{bytes.fill(0)}
+      const bytes=Buffer.from(input.base64,'base64');try{if(bytes.length>10*1024*1024)throw Error('Session files must not exceed 10 MB');await writeFile(target,view(bytes),{flag:stat?'r+':'wx'});if(stat){const {truncate}=await import('node:fs/promises');await truncate(target,bytes.length)}return {...status,version:digest(bytes)}}finally{bytes.fill(0)}
     }finally{previous?.fill(0)}
   }
 }
