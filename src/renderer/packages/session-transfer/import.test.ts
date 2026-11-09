@@ -43,6 +43,7 @@ import { analyzeTransfer, importTransfer } from './import'
 import { startImportJournal, releaseImportJournal, recoverSessionTransfers } from './journal'
 
 async function device() {
+  if (typeof window === 'undefined') vi.stubGlobal('window', new EventTarget())
   const database = openNodeSessionRowDatabase(), rows = new SqlSessionRowStore(database)
   state.closed.push(() => database.close()); await rows.initialize()
   const metas = new Map<string, any>(), images = new Map<string, ImageGeneration>(), values = new Map<string, unknown>(), blobs = new Map<string, string>(), envelopes = new Map<string, string>()
@@ -66,7 +67,7 @@ async function wire(prepared: PreparedTransfer) {
   for (const item of prepared.manifest.objects) { const chunks: Uint8Array[] = []; for await (const chunk of prepared.read(item.id)) chunks.push(chunk.slice()); data.set(item.id, chunks) }
   return async function* (id: string) { for (const chunk of data.get(id) || []) yield chunk.slice() }
 }
-afterEach(() => { for (const close of state.closed.splice(0)) close(); vi.restoreAllMocks() })
+afterEach(() => { for (const close of state.closed.splice(0)) close(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('direct transfer real SQLite rows and encrypted receiver storage', () => {
   it('copies an agent tree, directories, empty files, images and playable media with canonical links', async () => {
