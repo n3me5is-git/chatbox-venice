@@ -85,7 +85,7 @@ it.each(['desktop','mobile'])('executes an app worker with native image and HITL
   state.chat.mockImplementation(async(_messages,options)=>{
     expect(options.tools.chatgpt_image).toBeDefined()
     expect(await options.tools.chatgpt_image.execute({action:'models'},{context:{}})).toMatchObject({recordId:'saved-image'})
-    state.request.mockResolvedValue({answers:[{text:'Use the original'}]})
+    state.request.mockResolvedValue({answers:[{selected:[],text:'Use the original'}]})
     await options.tools.ask_user.execute({questions:[{question:'Which version?'}]},{context:{}})
     state.providers['openai-sub-unofficial']={subscriptionChatImages:false}
     await expect(options.tools.chatgpt_image.execute({action:'generate'},{context:{}})).rejects.toThrow('disabled')
