@@ -2,6 +2,7 @@ import type { Message } from '@shared/types'
 import { SessionRowConflictError } from '@chatbox/core/ports'
 import { getWorkArtifacts } from '@shared/work-artifacts'
 import { MAX_RESOURCE_PREVIEW_BYTES, isTextResource, resourceMime, resourceName, type SessionResource } from '@shared/session-resources'
+import {isRagInternal} from '@shared/session-rag-policy'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import { veniceMediaService } from '@/packages/venice/service'
 import { CapacitorWorkspace } from '@/packages/mobile-work-mode/CapacitorWorkspace'
@@ -90,6 +91,7 @@ export async function readSessionResource(id:string,item:SessionResource){
   await assertSession(id)
   const removed=(await sessionFiles.index(id)).removed
   if(removed.includes(item.id)||item.key&&removed.includes('key:'+item.key))throw new Error('This session resource was deleted')
+  if(isRagInternal(item.path))await (await import('@/packages/session-rag/service')).assertRagIndexSources(id)
   if(item.origin==='file')return sessionFiles.read(id,item.path)
   if(isTextResource(item)&&item.bytes!==undefined&&item.bytes>MAX_RESOURCE_PREVIEW_BYTES)throw new Error('File is too large for text preview')
   if(item.origin==='workspace'||item.id.startsWith('disk:')){

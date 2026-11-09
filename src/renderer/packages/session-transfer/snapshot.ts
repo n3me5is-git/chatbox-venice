@@ -4,6 +4,7 @@ import { toBackupSession, toBackupThread, toBackupMessage } from '@chatbox/core/
 import type { BackupBusinessRecord } from '@chatbox/core/backup-v3'
 import type { AgentRun } from '@shared/multi-agent'
 import { TransferManifestSchema, TRANSFER_OBJECT_LIMIT, type TransferManifest, type TransferObject, type TransferCatalog, TransferCatalogSchema } from '@shared/session-transfer'
+import {isRagInternal} from '@shared/session-rag-policy'
 import { sessionFilePath, type SessionResource } from '@shared/session-resources'
 import { rendererApplication } from '@/app/renderer-application'
 import { listSessionResources, readSessionResource } from '@/packages/session-resources/service'
@@ -132,7 +133,7 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
       progress?.(manifest.objects.length, total)
     } finally { hasher.destroy() }
   }
-  const currentSignature = (items: SessionResource[], directories: string[]) => digest(JSON.stringify([directories, items.map(item => [item.id, item.key, item.path, item.bytes, item.updatedAt])]))
+  const currentSignature = (items: SessionResource[], directories: string[]) => digest(JSON.stringify([directories.filter(path=>!isRagInternal(path)), items.filter(item=>!isRagInternal(item.path)).map(item => [item.id, item.key, item.path, item.bytes, item.updatedAt])]))
   const dispose = async () => { if (disposed) return; disposed = true; await Promise.allSettled([...stages.values()].map(ref => vault().assets.remove(ref))); stages.clear(); activeTransferSnapshots.delete(job); forgetTransferLease(job) }
   const mediaSignature = (items: typeof media) => digest(JSON.stringify(items.map(item => [item.id, item.sessionId, item.status, item.protection, item.protectedRecord, item.blobKey, item.prompt, item.text]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))))
   const originalMedia = mediaSignature(media)
@@ -155,12 +156,13 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
       const protectedSession = !!await vault().projects.sessionScope(id)
       sessionScopes.set(id, await vault().projects.sessionScope(id) || null)
       if (protectedSession && !includeProtected) throw Error('This tree contains protected content. Unlock it and explicitly include protected content to send it.')
-      manifest.sessions.push({ id: canonical(id), parentId, workspaceId: canonical(run?.workspaceId || id), name: commit.record.name.slice(0, 240), revision: commit.revision, directories: resources.directories, protected: protectedSession })
+      manifest.sessions.push({ id: canonical(id), parentId, workspaceId: canonical(run?.workspaceId || id), name: commit.record.name.slice(0, 240), revision: commit.revision, directories: resources.directories?.filter(path=>!isRagInternal(path)), protected: protectedSession })
       const paths = new Set<string>()
       const removed = (await (await import('@/packages/session-resources/files')).sessionFiles.index(id)).removed
       const resourceKeys = new Set([...resources.items.filter(item => item.key).map(item => item.key!), ...removed.filter(key => key.startsWith('key:')).map(key => key.slice(4))])
       const managedKeys = new Set(resources.items.filter(item => item.origin === 'file' && item.key).map(item => item.key!))
       for (const item of resources.items) {
+        if(isRagInternal(item.path))continue
         if (item.origin !== 'file' && item.key && managedKeys.has(item.key)) continue
         let path: string
         try { path = sessionFilePath(item.path) } catch { throw Error('A resource has an unsupported path; rename it before transferring') }

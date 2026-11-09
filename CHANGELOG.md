@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.41.1
+
+See [release notes](docs/releases/v1.41.1.md). Keeps derived RAG caches local to the session owner, rejects cross-scope protected sources, and blocks raw index access from general file/execution/agent transfer tools.
+
 ## 1.41.0
 
 See [release notes](docs/releases/v1.41.0.md). Adds opt-in session RAG with encrypted local vector shards, semantic search and source citations, and optional device-folder workspaces on desktop and Android. Routes child-agent image approvals through their root collaboration session.

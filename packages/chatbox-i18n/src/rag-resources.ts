@@ -1,4 +1,5 @@
 export const ragItalian = {
+  'This protected source belongs to another privacy scope and is excluded from RAG': 'Questa sorgente protetta appartiene a un altro ambito di privacy ed è esclusa dal RAG',
   'Invalid linked file version': 'Versione del file collegato non valida',
   'Unlock this chat to use RAG': 'Sblocca questa chat per usare RAG',
   'Linked folder exceeds the file tree limit': 'La cartella collegata supera il limite dell’albero dei file',
