@@ -23,6 +23,16 @@ it('accounts for fixed tools and blocks requests that cannot fit, without tool e
   const summarize=vi.fn(), context=new WorkerContextController({budget,automatic:false,signal:new AbortController().signal,toolTokens:2900,countMessage:count,summarize})
   await expect(context.prepare([{role:'user',content:'a'.repeat(200)}])).rejects.toThrow('exceeds the context budget');expect(summarize).not.toHaveBeenCalled()
 })
+it('can compact a later tool round after an earlier summary did not reduce the request',async()=>{
+  const summarize=vi.fn().mockResolvedValueOnce('Short summary').mockResolvedValueOnce('x'.repeat(2600)).mockResolvedValue('Short summary')
+  const context=new WorkerContextController({budget,automatic:true,signal:new AbortController().signal,toolTokens:100,countMessage:count,summarize})
+  const initial:ModelMessage[]=[{role:'system',content:'Policy'},{role:'user',content:'old '.repeat(200)},call('old'),result('old',1800),{role:'user',content:'Continue working'}]
+  await context.prepare(initial)
+  const first=[...initial,call('one'),result('one',2100)]
+  await expect(context.prepare(first)).resolves.toBeDefined()
+  const final=await context.prepare([...first,call('two'),result('two',1800)])
+  expect(summarize).toHaveBeenCalledTimes(3);expect(JSON.stringify(final)).not.toContain('"one"');expect(JSON.stringify(final)).toContain('"two"')
+})
 it('uses bounded summary requests on the same model and refuses indivisible oversized tool results',async()=>{
   const chat=vi.fn(async()=>({contentParts:[{type:'text',text:'A short summary'}]})), assert=vi.fn(async()=>{})
   const model={chat} as unknown as ModelInterface

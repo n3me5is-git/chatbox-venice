@@ -1,4 +1,6 @@
 export const agentsItalian = {
+  'Apply': 'Applica',
+  'Use default': 'Usa l’impostazione predefinita',
   'Local context budget for this model. A lower account-reported limit still applies.': 'Budget di contesto locale per questo modello. Rimane valido un eventuale limite inferiore dichiarato dall’account.',
   'Reported model context': 'Contesto dichiarato dal modello',
   'Agent context changed during compaction. Start a new task.': 'Il contesto dell’agente è cambiato durante la compattazione. Avvia un nuovo task.',

@@ -47,8 +47,13 @@ export class WorkerContextController {
             if (!summary) throw Error('Agent context compaction returned an empty summary')
             const candidate = rewriteModelMessagesWithSummary(source,summary,originalStart)
             const next = measure(candidate)
-            if (next >= tokens) throw Error('Agent context compaction did not reduce the request')
-            this.rewrite={anchor,summary}; this.compactedTokens=next; effective=candidate; tokens=next
+            if (next < tokens) {
+              this.rewrite={anchor,summary}; this.compactedTokens=next; effective=candidate; tokens=next
+            } else {
+              // A mandatory recent tool round can dominate this step. Wait for
+              // growth, then try again when an older round becomes removable.
+              this.compactedTokens=tokens
+            }
           }
         } catch(error) { signal.throwIfAborted(); this.failed=true; if(tokens>budget.usableTokens) throw error }
       }
