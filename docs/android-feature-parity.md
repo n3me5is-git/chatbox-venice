@@ -29,8 +29,19 @@ The shared session extension is used by the desktop builder and by a single Capa
 | Studio, model information, pricing, privacy filters and media viewers | Shared UI and catalog logic; narrow-viewport browser and unit tests cover filtering, scrolling and selected capabilities. Real provider capability availability still depends on its API/catalog. |
 | Remote chat, transfer, author labels and collaboration HITL | Shared WebRTC/application protocol and remote UI; transport tests use real browser peers, including TURN fixtures. Android background sharing uses the native foreground service; Android may still terminate it. |
 | Thinking, context ceilings and worker context | Shared model/provider settings, generation compaction and worker context manager; context and worker suites cover inheritance/overrides. |
+| Venice encrypted chat | Text encryption, receipt verification and encrypted-tool orchestration use the shared model transport; no desktop-only adapter is required. Secure-chat/receipt/tool suites cover the protocol. Storage key availability still depends on the native device protector. |
+| Knowledge bases and attachment RAG | **Missing on Android.** mobile_platform.ts still throws in getKnowledgeBaseController and getSessionAttachmentRagController. Venice embedding models are cataloged, but this does not supply a mobile vector database, ingestion or retrieval backend. This remains pending. |
 | Remote MCP | Same controller and shared permission wrappers. Local stdio MCP and the app-as-MCP-server listener were requested for desktop and remain desktop capabilities. |
 | JavaScript and optional Python | Shared session tools use the isolated mobile worker. Python remains explicitly optional and subject to its existing enable/download flow. |
+
+## Remaining mobile gaps and deliberate boundaries
+
+- **Pending feature: local knowledge bases and attachment RAG.** The desktop controller delegates to Electron IPC. Android needs a local ingestion/index/retrieval implementation before those features, including Venice embeddings, can be considered mobile-ready. Reading a session file with session_file is available and is distinct from semantic retrieval over an indexed collection.
+- Inline PDF viewing in the explorer is currently desktop-only. Android can export the original file; Markdown has its own shared rendered viewer and Android print-to-PDF export. No Office viewer was requested or added.
+- Local stdio MCP, the app-as-MCP-server listener and desktop OS execution remain desktop features. Remote MCP and isolated JavaScript/optional Python have mobile paths.
+- The desktop auto-updater is not the Android installation path. Personal Android distribution uses the signed APK from this fork's releases; installation/update is a device operation.
+
+An audited shared path is not a guarantee that every device/provider combination works. In particular, simulated tests cannot establish hardware biometric enrollment, microphone firmware/permissions or Android background lifetime.
 
 ## Caller-facing agent information
 
