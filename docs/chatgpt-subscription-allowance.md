@@ -4,7 +4,9 @@ The device-local unofficial subscription provider reads `GET https://chatgpt.com
 
 Remaining percentages are displayed in provider settings, the chat composer when this provider is selected, and image creation when its image provider is selected. Refresh is manual and automatic while the app is visible. Results are memory-only and cleared on disconnect/unmount/privacy lock. They are account-wide, not counters for the current chat. Empty or failed responses are unavailable, never an invented 0% or 100%.
 
-The API's `primary_window` and `secondary_window` are classified by `limit_window_seconds`, not position. Monthly windows (28–31 days), weekly windows, shorter windows and additional model-specific limits retain their actual period and reset timestamp. The monthly row is always present, with “Not reported by this account” when the backend provides no monthly window. A missing weekly window is omitted. `used_percent` is converted to `100 - used_percent`, clamped to 0–100. An account spending cap is shown separately because its public schema does not declare a billing period.
+The API's `primary_window` and `secondary_window` are classified by `limit_window_seconds`, not position. Five-hour and weekly windows, and additional model-specific limits, retain their actual period. A missing window is omitted. No monthly placeholder is displayed. `used_percent` is converted to `100 - used_percent`, clamped to 0–100. An account spending cap is shown separately because its public schema does not declare a billing period.
+
+Tap the allowance indicator to open the details, including the plan and the date/time at which each window resets. Dates use the device's time zone. If a window has no reset timestamp, the dialog states that the date was not reported. The dialog participates in the mobile Back stack and closes on privacy lock.
 
 This does not claim that every subscription exposes the same windows. Subscription billing periods and usage-limit periods are separate concepts; a client cannot calculate an authoritative monthly balance from token counts or the renewal date.
 

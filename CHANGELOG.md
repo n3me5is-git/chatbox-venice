@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.38.0
+
+See [release notes](docs/releases/v1.38.0.md). Adds encrypted direct device transfers with complete child-agent/file/media trees, SHA-256 reuse and recoverable imports. Shows account-reported ChatGPT subscription allowances with tappable reset-date details.
+
 ## 1.37.0
 
 See [release notes](docs/releases/v1.37.0.md). Adds guarded Work agents with shared or isolated sandboxes, an optional desktop MCP multi-agent tool group, device-local ChatGPT subscription providers and optional background collaboration controls.

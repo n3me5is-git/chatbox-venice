@@ -13,7 +13,7 @@ import { veniceMediaService } from '@/packages/venice/service'
 import { deviceIdentity } from '@/packages/collaboration/transport'
 import { fingerprint } from '@/packages/collaboration/crypto'
 import platform from '@/platform'
-import { activeTransferSnapshots } from './lifecycle'
+import { activeTransferSnapshots, holdTransferLease, forgetTransferLease } from './lifecycle'
 
 export interface TransferReceipt {
   version: 1
@@ -133,10 +133,10 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
     } finally { hasher.destroy() }
   }
   const currentSignature = (items: SessionResource[], directories: string[]) => digest(JSON.stringify([directories, items.map(item => [item.id, item.key, item.path, item.bytes, item.updatedAt])]))
-  const dispose = async () => { if (disposed) return; disposed = true; await Promise.allSettled([...stages.values()].map(ref => vault().assets.remove(ref))); stages.clear(); activeTransferSnapshots.delete(job) }
+  const dispose = async () => { if (disposed) return; disposed = true; await Promise.allSettled([...stages.values()].map(ref => vault().assets.remove(ref))); stages.clear(); activeTransferSnapshots.delete(job); forgetTransferLease(job) }
   const mediaSignature = (items: typeof media) => digest(JSON.stringify(items.map(item => [item.id, item.sessionId, item.status, item.protection, item.protectedRecord, item.blobKey, item.prompt, item.text]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))))
   const originalMedia = mediaSignature(media)
-  activeTransferSnapshots.add(job)
+  await holdTransferLease(job); activeTransferSnapshots.add(job)
   try {
     for (const id of allIds) {
       signal?.throwIfAborted(); await vault().projects.assertSession(id)
@@ -164,7 +164,7 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
         if (item.origin !== 'file' && item.key && managedKeys.has(item.key)) continue
         let path: string
         try { path = sessionFilePath(item.path) } catch { throw Error('A resource has an unsupported path; rename it before transferring') }
-        const header = item.key && await vault().assets.header(item.key), protectedAsset = !!header && header.scope !== 'public'
+        const header = item.key ? await vault().assets.header(item.key) : null, protectedAsset = !!header && header.scope !== 'public'
         if (protectedAsset && !includeProtected) throw Error('This tree contains protected content. Unlock it and explicitly include protected content to send it.')
         if (paths.has(path)) path = sessionFilePath('copies/' + digest(item.id).slice(0, 12) + '/' + path)
         paths.add(path)

@@ -66,6 +66,10 @@ Venice settings offer **Privacy Only**, optional TEE verification/text E2EE and 
 
 Studio separates music and sound effects, supports compatible voice cloning/conversion, and accepts recordings or existing local media. Clone-handle removal is local; server-side samples follow Venice's retention period. Image Creator/Studio remix and edit offer compatible models, batch controls, percent comment points and a local painted-area mask. Venice receives a context crop; masking is applied on-device.
 
+Use **Send to another device** in a chat's menu to continue its complete session and child-agent tree elsewhere. The sharing panel has separate **Collaboration** and **Receive / transfer** tabs. Direct transfers require sender admission and verify file hashes before publishing a receiver-encrypted copy; related local chats can be replaced explicitly with unchanged file bytes reused. See [device transfer](docs/device-transfer.md).
+
+The optional community ChatGPT subscription provider displays account-reported five-hour/weekly allowances in settings, chat and image creation. Tap the allowance for reset dates in your device's time zone. See [usage display](docs/chatgpt-subscription-allowance.md).
+
 ## Extra request JSON for each custom model
 
 Open a custom provider, create or edit a model, and use **Extra request JSON**. This object merges into the outgoing body after SDK serialization. Nested objects merge; arrays replace. `false`, `0` and `null` retain their meaning. Streaming remains controlled by Chatbox settings.

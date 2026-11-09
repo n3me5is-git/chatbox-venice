@@ -32,7 +32,9 @@ async function read(alias: string): Promise<any> {
   finally { bytes.fill(0) }
 }
 export async function subscriptionCredential(): Promise<OAuthCredentials> {
+  const version = epoch
   const current = await read(key) as OAuthCredentials
+  if (epoch !== version) throw Error('ChatGPT connection was closed')
   if (typeof current.accessToken !== 'string' || !current.accessToken) throw Error('Invalid stored ChatGPT connection')
   if (!current.expiresAt || current.expiresAt > Date.now() + 60000) return current
   if (!renewal) {
@@ -70,10 +72,12 @@ export async function disconnectSubscription() {
   settingsStore.getState().setSettings({ providers: { ...settingsStore.getState().providers, [CHATGPT_SUB_PROVIDER]: { ...settingsStore.getState().providers?.[CHATGPT_SUB_PROVIDER], oauth: undefined, activeAuthMode: undefined } } })
 }
 export async function subscriptionModels(signal?: AbortSignal): Promise<ProviderModelInfo[]> {
-  const credential = await subscriptionCredential(), request = await fetcher()
+  const version = epoch, credential = await subscriptionCredential(), request = await fetcher()
+  signal?.throwIfAborted(); if (epoch !== version) throw Error('ChatGPT connection was closed')
   const response = await request('https://chatgpt.com/backend-api/codex/models?client_version=0.111.0', { headers: subscriptionHeaders(credential), signal })
   if (!response.ok) throw Error('ChatGPT model catalog is unavailable (HTTP ' + response.status + '). Configured models are kept.')
   const payload = await response.json()
+  signal?.throwIfAborted(); if (epoch !== version) throw Error('ChatGPT connection was closed')
   if (!Array.isArray(payload.models)) throw Error('ChatGPT returned an invalid model catalog')
   const models = payload.models.filter((model: any) => typeof model.slug === 'string' && model.visibility !== 'hide').map((model: any): ProviderModelInfo => ({ modelId: model.slug, nickname: typeof model.display_name === 'string' ? model.display_name : model.slug, capabilities: ['tool_use', 'vision', ...(model.supports_reasoning_summaries ? ['reasoning' as const] : [])] }))
   return [...models, ...['gpt-image-2', 'gpt-image-1.5'].map(modelId => ({ modelId, type: 'image' as const }))]
@@ -81,6 +85,7 @@ export async function subscriptionModels(signal?: AbortSignal): Promise<Provider
 
 export async function subscriptionAllowance(signal?: AbortSignal) {
   const version = epoch, credential = await subscriptionCredential(), request = await fetcher()
+  signal?.throwIfAborted(); if (epoch !== version) throw Error('ChatGPT connection was closed')
   const response = await request('https://chatgpt.com/backend-api/wham/usage', { method: 'GET', redirect: 'error', cache: 'no-store', headers: { ...subscriptionHeaders(credential), Accept: 'application/json' }, signal })
   if (!response.ok) throw Error('ChatGPT allowance is unavailable (HTTP ' + response.status + ')')
   const result = parseChatGPTAllowance(await response.json())

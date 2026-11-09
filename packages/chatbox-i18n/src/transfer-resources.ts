@@ -1,4 +1,6 @@
 export const transferItalian = {
+  'This transfer is already active': 'Questo trasferimento è già attivo',
+  'Transfer storage is busy. Try again.': 'L’archivio dei trasferimenti è occupato. Riprova.',
   'Content protection changed during the transfer. Prepare it again.': 'La protezione dei contenuti è cambiata durante il trasferimento. Preparalo nuovamente.',
   'Sharing and device transfer': 'Condivisione e trasferimento dispositivi',
   'Collaboration': 'Collaborazione', 'Receive / transfer': 'Ricevi / trasferisci',
@@ -35,6 +37,10 @@ export const transferItalian = {
   'The received copy is ready. The previous chat changed or could not be archived, so both copies were kept.': 'La copia ricevuta è pronta. La chat precedente è cambiata o non è stato possibile archiviarla: entrambe le copie sono state conservate.',
   'This paused generation was copied without its remote queue. Start a new generation explicitly to continue.': 'Questa generazione in pausa è stata copiata senza la coda remota. Per proseguire, avvia esplicitamente una nuova generazione.',
   'Monthly allowance': 'Quota mensile', 'Weekly allowance': 'Quota settimanale', 'Account spending allowance': 'Quota di spesa dell’account',
+  'View ChatGPT allowance details': 'Mostra dettagli della quota ChatGPT',
+  'ChatGPT allowance details': 'Dettagli della quota ChatGPT',
+  'Reset date not reported': 'Data di ripristino non comunicata',
+  'Reset dates use this device’s time zone. Allowances are shared across your account.': 'Le date di ripristino usano il fuso orario di questo dispositivo. Le quote sono condivise da tutto l’account.',
   '{{count}}-hour allowance': 'Quota di {{count}} ore', '{{count}}-day allowance': 'Quota di {{count}} giorni',
   'ChatGPT allowance': 'Quota ChatGPT', 'Not reported by this account': 'Non comunicata per questo account',
   'Resets {{date}}': 'Si ripristina il {{date}}', '{{percent}}% remaining': '{{percent}}% rimanente',

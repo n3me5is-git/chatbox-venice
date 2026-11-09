@@ -44,6 +44,7 @@ import { startImportJournal, releaseImportJournal, recoverSessionTransfers } fro
 
 async function device() {
   if (typeof window === 'undefined') vi.stubGlobal('window', new EventTarget())
+  vi.stubGlobal('navigator', undefined)
   const database = openNodeSessionRowDatabase(), rows = new SqlSessionRowStore(database)
   state.closed.push(() => database.close()); await rows.initialize()
   const metas = new Map<string, any>(), images = new Map<string, ImageGeneration>(), values = new Map<string, unknown>(), blobs = new Map<string, string>(), envelopes = new Map<string, string>()
