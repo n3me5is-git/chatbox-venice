@@ -2,6 +2,7 @@
 
 import { MantineProvider } from '@mantine/core'
 import { type SessionHeader } from '@shared/types'
+import { MultiAgentPolicySchema } from '@shared/multi-agent'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { type ReactNode, useState } from 'react'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
@@ -50,6 +51,11 @@ vi.mock('@/hooks/useProviders', () => ({
   useProviders: () => ({ providers: [{ id: 'openai', models: [{ modelId: 'gpt-4o', nickname: 'GPT-4o' }] }] }),
 }))
 vi.mock('@/modals/settings-navigation', () => ({ navigateToSettings: vi.fn() }))
+// Provider panels have their own integration suites; keep this fixture focused on session controls.
+vi.mock('@/components/venice/VeniceSessionApprovalButton', () => ({ VeniceSessionApprovalButton: () => null }))
+vi.mock('@/components/venice/VeniceSessionPrivacySettings', () => ({ VeniceSessionPrivacySettings: () => null }))
+vi.mock('@/components/settings/provider/SubscriptionSessionSearch', () => ({ SubscriptionSessionSearch: () => null }))
+vi.mock('@/platform', () => ({ default: { type: 'mobile', isDesktopLike: false } }))
 vi.mock('@/packages/multi-agent/library', () => ({ listDedicatedAgents: async () => [] }))
 vi.mock('@/stores/toastActions', () => ({ add: vi.fn() }))
 vi.mock('@/components/common/Avatar', () => ({ AssistantAvatar: () => <div /> }))
@@ -291,7 +297,7 @@ test('global context count accepts custom counts and zero, restores invalid draf
 })
 
 test('shows editable multi-agent settings in Work chats and excludes plain chats, images and child sessions', async () => {
- const onEdit=renderContent(makeSession({agentMode:{value:'on'},multiAgent:{enabled:false}}),'work')
+ const onEdit=renderContent(makeSession({multiAgent:MultiAgentPolicySchema.parse({enabled:false})}),'work')
  fireEvent.click(await screen.findByLabelText('Enable multi-agent work'))
  expect(onEdit).toHaveBeenCalledWith({settings:{multiAgent:expect.objectContaining({enabled:true})}})
  onEdit.view.unmount()
