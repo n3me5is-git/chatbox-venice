@@ -147,7 +147,7 @@ function integer(value: string, max = 10_000_000) {
   return Number(value)
 }
 
-export function buildMobileProductInfoTool(host: MobileProductInfoHost, signal: AbortSignal, sessionId?: string) {
+export function buildMobileProductInfoTool(host: MobileProductInfoHost, signal: AbortSignal, sessionId?: string, availableTools?: () => string[]) {
   return tool({
     description:
       'Read Chatbox account/quota, allowlisted settings and local conversation history. Controlled virtual CLI, not a shell. Use argv ["capabilities"] for commands. Use capabilities to discover available operations. Image generation requires user confirmation when supported. Settings writes are unsupported.',
@@ -158,8 +158,10 @@ export function buildMobileProductInfoTool(host: MobileProductInfoHost, signal: 
       const { argv } = inputSchema.parse(input)
       const [domain, action, ...args] = argv
       try {
-        if (domain === 'capabilities' || domain === 'help')
+        if (domain === 'capabilities' || domain === 'help') {
+          const imageTools = (availableTools?.() || []).filter(name => name === 'chatgpt_image' || name === 'venice_image')
           return {
+            scope: 'chatbox_cli',
             commands: host.imageCommands
               ? [
                   ...commands,
@@ -169,8 +171,12 @@ export function buildMobileProductInfoTool(host: MobileProductInfoHost, signal: 
                 ]
               : commands,
             readOnly: !host.imageCommands,
-            imageGeneration: Boolean(host.imageCommands),
+            imageGeneration: Boolean(host.imageCommands) || imageTools.length > 0,
+            imageCommands: Boolean(host.imageCommands),
+            imageTools,
+            note: 'readOnly and commands describe this CLI only. Native chat tools are independent. Use an imageTools entry directly for image generation; each tool enforces its approval policy.',
           }
+        }
         if (domain === 'image' && host.imageCommands && sessionId) {
           return await host.imageCommands.execute([action, ...args], {
             sessionId,

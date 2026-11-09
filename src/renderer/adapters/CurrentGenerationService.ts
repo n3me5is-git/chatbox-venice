@@ -24,7 +24,6 @@ import * as appleAppStore from '@/packages/apple_app_store'
 import { wakeBackgroundTaskFollowUps } from '@/packages/chatbox-cli/background-follow-up'
 import { resolveCompactionBudget } from '@/packages/context-management/compaction-detector'
 import { getConfiguredContextWindow, getEffectiveMaxOutputTokens } from '@/packages/context-management/context-pressure'
-import { prepareMobileMCPTools } from '@/packages/mcp/mobile-tools'
 import { buildPausedAgentMemoryTools } from '@/packages/model-calls/toolsets/agent-memory'
 import platform from '@/platform'
 import { createSandboxProvider } from '@/sandbox'
@@ -120,36 +119,10 @@ async function buildToolsForPausedToolCall(
   const effectiveAgentMode = agentModeSupported && agentModeValue === 'on' ? 'on' : 'off'
 
   if (platform.type === 'mobile' && storedAgentModeValue === 'on' && model.isSupportToolUse('agent')) {
-    const { capacitorWorkMode, buildMobileWebTools, capacitorImageTools } = await import(
-      '@/packages/mobile-work-mode/runtime'
-    )
-    const mcp = await prepareMobileMCPTools({ enabled: true, model, settings: settingsService.getSettings(), signal })
-    const web = buildMobileWebTools(model, getSessionWebBrowsing(session.id, settings.provider))
-    const veniceOptions = settingsService.getSettings().providers?.venice?.venice
-    const veniceTools = model.name === 'Venice' && veniceOptions?.chatToolsEnabled !== false && veniceOptions?.enabled !== false ? (await import('@/packages/venice/tools')).veniceChatTools(session.id) : {}
-    return (
-      await capacitorWorkMode.createTools(
-        {
-          sessionId: session.id,
-          capabilities: settings.localWorkCapabilities,
-          skillPreferences: settingsService.getSettings().mobileSkillPreferences,
-          ...workModelDisclosure(settings, settingsService.getSettings()),
-          signal,
-        },
-        {
-          ...web.tools,
-          ...capacitorImageTools(model, session.id, signal)?.tools,
-          ...mcp.tools,
-          ...veniceTools,
-          ...await (await import('@/packages/session-resources/tools')).buildSessionWorkspaceTools(session.id),
-          ...buildPausedAgentMemoryTools({
-            targetMessage,
-            languageName: languageNameMap[settingsService.getSettings().language],
-          }).tools,
-        },
-        true
-      )
-    ).tools
+    const { prepareCapacitorSessionTools } = await import('@/packages/mobile-work-mode/runtime')
+    const memory=buildPausedAgentMemoryTools({targetMessage,languageName:languageNameMap[settingsService.getSettings().language]})
+    const common=await prepareCapacitorSessionTools({sessionId:session.id,settings,globalSettings:settingsService.getSettings(),model,messages:messagesBeforeTarget,signal,webBrowsing:getSessionWebBrowsing(session.id,settings.provider)},memory.tools,true)
+    return common.tools
   }
 
   const sandboxProvider = effectiveAgentMode !== 'off' ? createSandboxProvider() : null

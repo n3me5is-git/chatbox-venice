@@ -14,6 +14,7 @@ import { prepareCapacitorMemoryContext } from './memory-context'
 import { capacitorWorkMode, prepareCapacitorWorkMode } from './runtime'
 
 const state = vi.hoisted(() => ({ memory: undefined as MemoryService | undefined, seed: vi.fn() }))
+vi.mock('@/components/agent/UserQuestion',()=>({requestUserAnswers:vi.fn()}))
 vi.mock('@/packages/session-resources/tools',()=>({buildSessionWorkspaceTools:async()=>({}),sessionWorkspaceInstructions:''}))
 
 function memory() {
@@ -38,6 +39,7 @@ vi.mock('@/adapters/CurrentBlobStorage', () => ({ currentBlobStorage: { get: vi.
 vi.mock('@/packages/model-calls/toolsets/web-search', () => ({
   parseLinkTool: {},
   webSearchTool: {},
+  buildWebSearchTools:()=>({web_search:{}}),
 }))
 vi.mock('@/packages/web-search', () => ({ PROVIDERS_WITH_PARSE_LINK: new Set() }))
 vi.mock('@/stores/settingActions', () => ({ getExtensionSettings: () => ({ webSearch: { provider: 'test' } }) }))

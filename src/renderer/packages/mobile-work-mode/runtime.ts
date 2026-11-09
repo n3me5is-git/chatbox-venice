@@ -15,7 +15,7 @@ import type { ToolSet } from 'ai'
 import { currentBlobStorage } from '@/adapters/CurrentBlobStorage'
 import { rendererApplication } from '@/app/renderer-application'
 import { prepareMobileMCPTools } from '@/packages/mcp/mobile-tools'
-import { parseLinkTool, webSearchTool } from '@/packages/model-calls/toolsets/web-search'
+import { parseLinkTool, buildWebSearchTools } from '@/packages/model-calls/toolsets/web-search'
 import { PROVIDERS_WITH_PARSE_LINK } from '@/packages/web-search'
 import platform from '@/platform'
 import * as settingActions from '@/stores/settingActions'
@@ -59,7 +59,7 @@ export function buildMobileWebTools(model: ModelInterface, enabled: boolean) {
   const tools: ToolSet = {}
   if (model.usesNativeWebSearch || !enabled || !model.isSupportToolUse('web-browsing')) return { tools }
   const includeParseLink = PROVIDERS_WITH_PARSE_LINK.has(settingActions.getExtensionSettings().webSearch.provider)
-  tools.web_search = webSearchTool
+  Object.assign(tools, buildWebSearchTools())
   if (includeParseLink) tools.parse_link = parseLinkTool
   return { tools }
 }
@@ -77,6 +77,45 @@ export function capacitorImageTools(model: ModelInterface, sessionId: string, si
     : undefined
 }
 
+type CapacitorToolRequest = Pick<GenerationPreparationRequest<ModelDependencies>, 'settings'|'globalSettings'|'model'|'signal'|'webBrowsing'> & {sessionId:string;messages:import('@shared/types').Message[]}
+
+export async function prepareCapacitorSessionTools(request:CapacitorToolRequest,memoryTools:ToolSet={},restoreActive=false){
+  throwIfWorkAborted(request.signal)
+  const mcp = await prepareMobileMCPTools({
+    enabled: true,
+    model: request.model,
+    settings: request.globalSettings,
+    signal: request.signal,
+  })
+  const web = buildMobileWebTools(request.model, request.webBrowsing)
+  const images = capacitorImageTools(request.model, request.sessionId, request.signal)
+  const local = await capacitorWorkMode.createTools(
+    {
+      sessionId: request.sessionId,
+      capabilities: request.settings.localWorkCapabilities,
+      skillPreferences: request.globalSettings.mobileSkillPreferences,
+      ...workModelDisclosure(request.settings, request.globalSettings),
+      signal: request.signal,
+    },
+    { ...web.tools, ...images?.tools, ...memoryTools, ...mcp.tools },
+    restoreActive
+  )
+  const sessionImages = request.model.isSupportVision()
+    ? (await import('@/packages/model-calls/toolsets/view-image')).buildViewImageToolSet({sessionId:request.sessionId,toolResultImages:supportsToolResultImages(request.model.apiStyle)})
+    : undefined
+  const { extendSessionWorkTools, guardSharedSessionTools } = await import('@/packages/model-calls/session-work-tools')
+  const common = await extendSessionWorkTools({sessionId:request.sessionId,settings:request.settings,messages:request.messages,globalSettings:request.globalSettings,baseTools:Object.fromEntries(Object.entries(local.tools).filter(([name])=>local.active.has(name))),imageResults:sessionImages?.imageResults})
+  for(const name of Object.keys(common.tools))local.active.add(name)
+  Object.assign(local.tools,common.tools)
+  const tools=guardSharedSessionTools(request.sessionId,request.messages,local.tools)
+  const active=local.active
+  return {tools,active,instructions:common.instructions,unavailable:mcp.unavailable,prepareStepMessages:async(messages:import('ai').ModelMessage[])=>{
+    let prepared=images?await images.prepareStepMessages(messages):messages
+    if(sessionImages?.injectImagesIntoStepMessages)prepared=await sessionImages.injectImagesIntoStepMessages(prepared)
+    return prepared
+  }}
+}
+
 export async function prepareCapacitorWorkMode(
   request: GenerationPreparationRequest<ModelDependencies>,
   memory: BasicGenerationToolPreparation
@@ -88,34 +127,14 @@ export async function prepareCapacitorWorkMode(
     currentBlobStorage
   )
   throwIfWorkAborted(request.signal)
-  const mcp = await prepareMobileMCPTools({
-    enabled: true,
-    model: request.model,
-    settings: request.globalSettings,
-    signal: request.signal,
-  })
-  const web = buildMobileWebTools(request.model, request.webBrowsing)
-  const images = capacitorImageTools(request.model, request.session.id, request.signal)
-  const veniceTools = request.model.name === 'Venice' && request.globalSettings.providers?.venice?.venice?.chatToolsEnabled !== false && request.globalSettings.providers?.venice?.venice?.enabled !== false
-    ? (await import('@/packages/venice/tools')).veniceChatTools(request.session.id) : {}
-  const {buildSessionWorkspaceTools,sessionWorkspaceInstructions}=await import('@/packages/session-resources/tools')
-  const workspaceTools=await buildSessionWorkspaceTools(request.session.id)
-  const { tools, active } = await capacitorWorkMode.createTools(
-    {
-      sessionId: request.session.id,
-      capabilities: request.settings.localWorkCapabilities,
-      skillPreferences: request.globalSettings.mobileSkillPreferences,
-      ...workModelDisclosure(request.settings, request.globalSettings),
-      signal: request.signal,
-    },
-    { ...web.tools, ...images?.tools, ...memory.tools, ...mcp.tools, ...veniceTools, ...workspaceTools }
-  )
+  const common=await prepareCapacitorSessionTools({...request,sessionId:request.session.id,messages:request.messages.slice(0,request.targetMessageIndex)},memory.tools)
+  const {tools,active}=common
   const prepared = await new BasicGenerationPreparation<ModelDependencies>({
     attachmentPolicy: { workspacePath: workspaceInputPath },
     prepareTools: async () => ({
       ...memory,
       tools,
-      instructions: `${memory.instructions ?? ''}${WORK_INSTRUCTIONS}${Object.keys(workspaceTools).length?'\n'+sessionWorkspaceInstructions:''}${Object.keys(veniceTools).length ? '\nUse venice_image for Venice image creation/editing; resolve the exact requested model from its catalog, then follow the human-selected chat approval policy enforced by the tool. Use venice_media for other Venice media. Only the human can change ask/similar/automatic approval in the app. Required model/reference choices still open a dialog.' : ''}${mcp.unavailable.length ? '\nSome enabled MCP services are unavailable. Do not claim to have used their tools.' : ''}`,
+      instructions: `${memory.instructions ?? ''}${WORK_INSTRUCTIONS}${common.instructions}${common.unavailable.length ? '\nSome enabled MCP services are unavailable. Do not claim to have used their tools.' : ''}`,
     }),
   }).prepare(request)
   return {
@@ -123,10 +142,9 @@ export async function prepareCapacitorWorkMode(
     chatOptions: {
       ...prepared.chatOptions,
       agentMode: true,
-      prepareStep: async ({ messages }: { messages: import('ai').ModelMessage[] }) => ({
-        activeTools: [...active],
-        ...(images ? { messages: await images.prepareStepMessages(messages) } : {}),
-      }),
+      prepareStep: async ({ messages }: { messages: import('ai').ModelMessage[] }) => {
+        return {activeTools:[...active],messages:await common.prepareStepMessages(messages)}
+      },
     },
   }
 }

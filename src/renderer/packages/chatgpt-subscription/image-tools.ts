@@ -1,4 +1,4 @@
-import { tool } from 'ai'
+import { tool, type ToolSet } from 'ai'
 import { z } from 'zod'
 import NiceModal from '@ebay/nice-modal-react'
 import { ModelProviderEnum,type ProviderSettings } from '@shared/types'
@@ -17,9 +17,13 @@ import { canShareAsset } from '@shared/collaboration'
 const activeCalls=new Map<string,Promise<unknown>>()
 async function onceImageCall<T>(key:string,generate:boolean,run:()=>Promise<T>):Promise<T>{if(!generate)return run();const active=activeCalls.get(key);if(active)return active as Promise<T>;const work=run();activeCalls.set(key,work);try{return await work}finally{activeCalls.delete(key)}}
 
-export function subscriptionImageModels(settings?:ProviderSettings){return (settings?.models||subscriptionDefaultModels()).filter(model=>model.type==='image'&&!settings?.excludedModels?.includes(model.modelId))}
+export function subscriptionImageModels(settings?:ProviderSettings){
+  const models = new Map(subscriptionDefaultModels().filter(model=>model.type==='image').map(model=>[model.modelId,model]))
+  for(const model of settings?.models||[])if(model.type==='image')models.set(model.modelId,model)
+  return [...models.values()].filter(model=>!settings?.excludedModels?.includes(model.modelId))
+}
 export function subscriptionImageToolAvailable(settings?:ProviderSettings){return !!settings?.oauth&&settings.subscriptionChatImages!==false&&subscriptionImageModels(settings).length>0}
-export function subscriptionChatImageTools(sessionId:string,requester='owner',turnId='external'){
+export function subscriptionChatImageTools(sessionId:string,requester='owner',turnId='external'):ToolSet{
   const provider=()=>settingsStore.getState().providers?.[ModelProviderEnum.OpenAISubscription]
   if(!subscriptionImageToolAvailable(provider()))return {}
   const input=z.object({action:z.enum(['models','generate','status']),prompt:z.string().trim().min(1).max(20000).optional(),modelId:z.string().max(200).optional(),count:z.number().int().min(1).max(4).optional(),aspectRatio:z.enum(['auto','1:1','3:2','2:3']).optional(),referencePaths:z.array(z.string().max(240)).max(4).optional(),recordId:z.string().max(200).optional()}).strict()

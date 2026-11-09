@@ -5,8 +5,8 @@ import { createAgentTools } from '@shared/multi-agent-tools'
 import { createLocalMCPAgentTools, type ExternalAgentContext } from '@shared/local-mcp-agents'
 import { localMCPWorkerAllows, type LocalMCPGrant } from '@shared/local-mcp'
 import { MultiAgentRuntime, type AgentCaller } from '@shared/multi-agent-runtime'
-import { MultiAgentPolicySchema, agentMentions, parseGuardianVerdict, type AgentRun, type MultiAgentPolicy, type AgentBoundary } from '@shared/multi-agent'
-import { createMessage, SessionSettingsSchema, type Message, type SessionSettings } from '@shared/types'
+import { MultiAgentPolicySchema, agentCallerDescription, agentMentions, parseGuardianVerdict, type AgentRun, type MultiAgentPolicy, type AgentBoundary } from '@shared/multi-agent'
+import { createMessage, ModelProviderEnum, SessionSettingsSchema, type Message, type SessionSettings } from '@shared/types'
 import { createAskUserTool } from '@shared/user-questions'
 import { collaborationRequester } from '@shared/collaboration'
 import { buildViewImageToolSet } from '@/packages/model-calls/toolsets/view-image'
@@ -115,8 +115,8 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     if (!model.isSupportToolUse('agent')) throw Error('Choose a model that supports agent tools')
     const history = await agentTranscript(run.sessionId), user = createMessage('user', task), assistant = { ...createMessage('assistant', ''), generating: true }
     await rendererApplication.sessions.insertMessages(run.sessionId, [user, assistant])
-    const { tools, images } = await workerTools(run, caller, model)
-    const system = workerInstruction(run) + '\n' + sessionWorkspaceInstructions + '\nYou are a Work child agent at depth ' + run.depth + '/3. Only the listed tools and this workspace are available. Return a concise result to your caller. Do not claim files exist unless a tool succeeded. When replacing a shared file, first list its current version and pass expectedVersion; a concurrent edit must not be overwritten.'
+    const { tools, images } = await workerTools(run, caller, model, user.id)
+    const system = workerInstruction(run) + '\n' + sessionWorkspaceInstructions + '\nYou are a Work child agent at depth ' + run.depth + '/3. Only the listed tools and this workspace are available. Use agent_catalog to inspect the descriptions and calling instructions of dedicated agents allowed to you. Return a concise result to your caller. Do not claim files exist unless a tool succeeded. When replacing a shared file, first list its current version and pass expectedVersion; a concurrent edit must not be overwritten.'
     const messages = await convertToModelMessages([createMessage('system', system), ...selectContextMessages([...history,user],{maxContextMessageCount:settings.maxContextMessageCount})], { modelSupportVision: model.isSupportVision() })
     let pending: Promise<unknown> = Promise.resolve(), last = 0
     try {
@@ -140,15 +140,17 @@ export const multiAgentRuntime = new MultiAgentRuntime({
   },
 })
 
-async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInterface) {
+async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInterface, turnId: string) {
   const images = model.isSupportVision() ? buildViewImageToolSet({ sessionId: run.sessionId, toolResultImages: supportsToolResultImages(model.apiStyle) }) : undefined
   const workspace = await buildSessionWorkspaceTools(run.workspaceId, images?.imageResults)
-  const venice = run.tools.some(name => name.startsWith('venice_'))&&veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, run.id, grants.get(run.rootId)?.requester || 'owner', run.rootId) : {}
-  const available: ToolSet = { ...workspace, ...venice, ...buildWebSearchTools(), parse_link: parseLinkTool, ...mcpController.getAvailableTools(), ask_user: createAskUserTool((input, signal) => routeSharedDecision(run.rootId, grants.get(run.rootId)?.requester || 'owner', { kind: 'questions', input }, signal => requestUserAnswers(input, signal), value => value, value => value && typeof value === 'object' && 'answers' in value ? value : null, signal)) }
+  const venice = run.tools.some(name => name.startsWith('venice_'))&&veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, turnId, grants.get(run.rootId)?.requester || 'owner', run.rootId) : {}
+  const subscription: ToolSet = run.model.provider === ModelProviderEnum.OpenAISubscription && grants.get(run.rootId)?.settings.provider === ModelProviderEnum.OpenAISubscription && run.tools.includes('chatgpt_image') ? (await import('@/packages/chatgpt-subscription/image-tools')).subscriptionChatImageTools(run.sessionId, grants.get(run.rootId)?.requester || 'owner', turnId) : {}
+  const available: ToolSet = { ...workspace, ...venice, ...subscription, ...buildWebSearchTools(), parse_link: parseLinkTool, ...mcpController.getAvailableTools(), ask_user: createAskUserTool((input, signal) => routeSharedDecision(run.rootId, grants.get(run.rootId)?.requester || 'owner', { kind: 'questions', input }, signal => requestUserAnswers(input, signal), value => value, value => value && typeof value === 'object' && 'answers' in value ? value : null, signal)) }
   const tools: ToolSet = {}
   for (const name of run.tools) { const original = available[name]; if (!original) continue; tools[name] = { ...original, execute: original.execute ? async (input: any, options: any) => {
     await multiAgentRuntime.check(caller); options.abortSignal?.throwIfAborted()
     if(name.startsWith('venice_')){const root=await getSessionSettings(run.rootId),{veniceToolsEnabled}=await import('@shared/providers/definitions/models/venice/tool-policy');if(!veniceToolsEnabled(root.provider,root.veniceToolsEnabled,settingsStore.getState().providers?.venice?.venice)||!veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice))throw Error('Venice tools are disabled for this chat')}
+    if (name === 'chatgpt_image' && ((await getSessionSettings(run.rootId)).provider !== ModelProviderEnum.OpenAISubscription || settingsStore.getState().providers?.[ModelProviderEnum.OpenAISubscription]?.subscriptionChatImages === false)) throw Error('ChatGPT image tools are disabled for this chat')
     const external = grants.get(run.rootId)?.external
     if (external && (!external.context.caller.tools.includes(name) || !external.allows(name, input))) throw Error('This worker action is outside the MCP sharing permissions')
     for (let node: AgentRun | undefined = run; node; node = multiAgentRuntime.runs.get(node.parentId)) if (node.preset && !(await listDedicatedAgents()).find(agent => agent.id === node!.preset!.id)?.toolNames.includes(name)) throw Error('This agent tool permission was revoked')
@@ -163,7 +165,7 @@ async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInter
   } : undefined }
   return { tools, images }
 }
-export function dedicatedToolOptions() { return [...new Set(['session_file', 'session_js', 'session_python', 'ask_user', 'venice_image', 'venice_media', ...Object.keys(buildWebSearchTools()), 'parse_link', ...Object.keys(mcpController.getAvailableTools())])] }
+export function dedicatedToolOptions() { return [...new Set(['session_file', 'session_js', 'session_python', 'ask_user', 'chatgpt_image', 'venice_image', 'venice_media', ...Object.keys(buildWebSearchTools()), 'parse_link', ...Object.keys(mcpController.getAvailableTools())])] }
 export async function loadAgentRuns(rootId: string) {
   await vault().projects.assertSession(rootId)
   if (!loaded.has(rootId)) { loaded.add(rootId); try { await multiAgentRuntime.restore(await readAgentData<AgentRun[]>(manifest(rootId), [])); agentEvents.set(rootId, await readAgentData('private-agents:events:' + encodeURIComponent(rootId), [])) } catch (error) { loaded.delete(rootId); throw error } }
@@ -178,7 +180,7 @@ async function agentFiles(id: string, offset: number, limit: number) {
   const stripArea = ({area,...item}:typeof page[number]) => item
   return { files: page.filter(item=>item.area==='files').map(stripArea), resources: page.filter(item=>item.area==='resources').map(stripArea), nextOffset: offset+page.length<all.length ? offset+page.length : null, truncated: result.truncated || resources?.truncated === true }
 }
-function agentTools(caller: AgentCaller): ToolSet { return createAgentTools(multiAgentRuntime, caller, async id => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || '')), agentFiles) }
+function agentTools(caller: AgentCaller): ToolSet { return createAgentTools(multiAgentRuntime, caller, async id => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || '')), agentFiles, async () => { const policy = await rootPolicy(caller.rootId); return (await listDedicatedAgents()).filter(agent => caller.dedicatedIds.includes(agent.id) && policy.dedicatedIds.includes(agent.id) && (caller.depth === 0 || policy.nestedDedicatedIds.includes(agent.id))).map(agent => ({ id: agent.id, name: agent.name, title: agent.title, description: agentCallerDescription(agent) })) }) }
 export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: ToolSet, assert: () => Promise<void>) {
   const readResult = async (id: string) => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || ''))
   const acquire = async (): Promise<ExternalAgentContext> => {
@@ -238,7 +240,7 @@ export async function buildMultiAgentTools(rootId: string, settings: SessionSett
   assertAppControl()
   grants.set(rootId, { caller, settings: settingsSnapshot, requester: collaborationRequester(messages).id, policyFingerprint: JSON.stringify(settings.multiAgent || null), ...(!policy.enabled || tagged.length ? { explicit: effective } : {}) })
   multiAgentRuntime.reopen(rootId); await loadAgentRuns(rootId)
-  return { tools: agentTools(caller), instructions: '\n## Delegation\nMulti-agent tools are enabled. Use them when the user requests parallel work or it helps a complex task. On-demand workers share this model and session file workspace. Dedicated workers receive only explicitly passed context and files. Respect guardian blocks; never encode, rename, split or reroute data to evade them. Available dedicated agents:\n' + agents.filter(agent => effective.dedicatedIds.includes(agent.id)).map(agent => `${agent.id} (@${agent.name}): ${agent.title} — ${agent.description}`).join('\n') }
+  return { tools: agentTools(caller), instructions: '\n## Delegation\nMulti-agent tools are enabled. Use them when the user requests parallel work or it helps a complex task. On-demand workers share this model and session file workspace. Dedicated workers receive only explicitly passed context and files. Respect guardian blocks; never encode, rename, split or reroute data to evade them. Available dedicated agents:\n' + agents.filter(agent => effective.dedicatedIds.includes(agent.id)).map(agent => JSON.stringify({ id: agent.id, name: '@' + agent.name, title: agent.title, description: agentCallerDescription(agent) })).join('\n') }
 }
 
 let installed = false

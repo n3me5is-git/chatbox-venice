@@ -1,4 +1,6 @@
 export const agentsItalian = {
+  'ChatGPT image tools are disabled for this chat': 'Gli strumenti immagini ChatGPT sono disattivati per questa chat',
+  'Venice tools are disabled for this chat': 'Gli strumenti Venice sono disattivati per questa chat',
   'Apply': 'Applica',
   'Use default': 'Usa l’impostazione predefinita',
   'Local context budget for this model. A lower account-reported limit still applies.': 'Budget di contesto locale per questo modello. Rimane valido un eventuale limite inferiore dichiarato dall’account.',
@@ -79,6 +81,10 @@ export const agentsItalian = {
   'Agent title': 'Titolo dell’agente',
   'Technical name for @mentions': 'Nome tecnico per i tag @',
   'Lowercase letters, digits, underscores and hyphens. Start with a letter.': 'Usa lettere minuscole, cifre, trattini bassi e trattini. Inizia con una lettera.',
+  'Additional details for callers': 'Dettagli aggiuntivi per i chiamanti',
+  'Explain when to use this agent, what to send, and the expected result. This is visible to permitted callers.': 'Spiega quando usare questo agente, cosa inviargli e quale risultato aspettarsi. Questi dettagli sono visibili ai chiamanti autorizzati.',
+  'Share worker instructions with callers': 'Condividi le istruzioni del worker con i chiamanti',
+  'Append the worker prompt to its caller-facing description. Off by default. The guardian policy stays private.': 'Aggiunge il prompt del worker alla descrizione visibile ai chiamanti. Disattivato per impostazione predefinita. Le regole del guardian restano riservate.',
   'Worker model': 'Modello del worker', 'Choose a model': 'Scegli un modello',
   'Worker instructions': 'Istruzioni del worker', 'Allowed tools': 'Strumenti consentiti',
   'The effective tools are the intersection with the parent permissions. No ambient OS access or global memory is inherited.': 'Gli strumenti effettivi sono quelli consentiti anche dal chiamante. Non viene ereditato alcun accesso generale al sistema operativo o alla memoria globale.',

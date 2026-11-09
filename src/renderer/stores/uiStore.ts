@@ -121,6 +121,7 @@ export const uiStore = createStore(
         modelSelectorTab: 'all' as 'all' | 'favorite',
         showCopilotsInNewSession: false,
         sidebarWidth: null as number | null, // Custom sidebar width, null means use default
+        sidebarToolsCollapsed: false,
         collapsedSessionFolderIds: [] as string[],
         agentModeSmartSwitchingDefault: true,
         // Last mode the user explicitly picked in the mode panel; new chats start in this
@@ -385,6 +386,10 @@ export const uiStore = createStore(
           set({ sidebarWidth })
         },
 
+        setSidebarToolsCollapsed: (sidebarToolsCollapsed: boolean) => {
+          set({ sidebarToolsCollapsed })
+        },
+
         setSessionFolderCollapsed: (folderId: string, collapsed: boolean) => {
           set((state) => {
             const others = state.collapsedSessionFolderIds.filter((id) => id !== folderId)
@@ -427,6 +432,7 @@ export const uiStore = createStore(
         modelSelectorTab: state.modelSelectorTab,
         showCopilotsInNewSession: state.showCopilotsInNewSession,
         sidebarWidth: state.sidebarWidth,
+        sidebarToolsCollapsed: state.sidebarToolsCollapsed,
         collapsedSessionFolderIds: state.collapsedSessionFolderIds,
         agentModeSmartSwitchingDefault: state.agentModeSmartSwitchingDefault,
         agentModeLastSelected: state.agentModeLastSelected,

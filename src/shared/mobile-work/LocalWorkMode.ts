@@ -103,7 +103,7 @@ export class LocalWorkMode<W extends LocalWorkspacePort> {
     }
     const baseTools: ToolSet = {
       ...(this.productInfoHost && isMobileSkillEnabled('chatbox-product-info', context.skillPreferences)
-        ? { chatbox_cli: buildMobileProductInfoTool(this.productInfoHost(), context.signal, context.sessionId) }
+        ? { chatbox_cli: buildMobileProductInfoTool(this.productInfoHost(), context.signal, context.sessionId, () => Object.keys(tools)) }
         : {}),
       load_skill: tool({
         description: `Load a built-in skill by name for its full instructions and any related tool definitions in the next step. Loading does not grant OS permissions or read data. Available skills: ${availableSkills.map((skill) => `${skill.name}: ${skill.description}`).join('; ')}`,

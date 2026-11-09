@@ -10,6 +10,7 @@ import { listDedicatedAgents, saveDedicatedAgent, removeDedicatedAgent, draftDed
 import { dedicatedToolOptions } from '@/packages/multi-agent/runtime'
 import { useProviders } from '@/hooks/useProviders'
 import { AgentParameters } from './AgentParameters'
+import { AgentCallingDetails } from './AgentCallingDetails'
 
 export function AgentModelPicker({ value, onChange, label }: { value: AgentModel; onChange: (value: AgentModel) => void; label: string }) {
   const { providers } = useProviders(), provider = providers.find(provider => provider.id === value.provider), model = provider?.models?.find(model => model.modelId === value.modelId)
@@ -30,12 +31,12 @@ export const AgentLibrary = NiceModal.create(() => {
       <Textarea label={ft('Describe an agent to draft')} value={design} onChange={event => setDesign(event.currentTarget.value)} minRows={3}/>
       <Text size="xs" c="dimmed">{ft('Drafting sends this description to your default text model. Review and save the result; drafting does not enable tools or execute the agent.')}</Text>
       <Button variant="light" disabled={!design.trim()} loading={busy} onClick={() => void run(async () => setDraft(await draftDedicatedAgent(design, new AbortController().signal)))}>{ft('Draft with AI')}</Button>
-      {agents.map(agent => <Group key={agent.id} justify="space-between" wrap="wrap" p="xs" style={{ border: '1px solid var(--chatbox-border-primary)', borderRadius: 8 }}><Stack gap={2} style={{ minWidth: 0, flex: 1 }}><Text fw={600}>{agent.title} <Badge variant="light">@{agent.name}</Badge></Text><Text size="xs" c="dimmed">{agent.model.modelId}{agent.guardian?.enabled ? ' · ' + ft('Guardian enabled') : ''}</Text><Text size="sm">{agent.description}</Text></Stack><Button size="xs" variant="default" onClick={() => setDraft(structuredClone(agent))}>{ft('Edit')}</Button><Button color="red" size="xs" variant="subtle" onClick={() => { if (window.confirm(ft('Delete this agent definition? Existing run files are kept.'))) void run(() => removeDedicatedAgent(agent.id)) }}>{ft('Delete')}</Button></Group>)}
+      {agents.map(agent => <Group key={agent.id} justify="space-between" wrap="wrap" p="xs" style={{ border: '1px solid var(--chatbox-border-primary)', borderRadius: 8 }}><Stack gap={2} style={{ minWidth: 0, flex: 1 }}><Text fw={600}>{agent.title} <Badge variant="light">@{agent.name}</Badge></Text><Text size="xs" c="dimmed">{agent.model.modelId}{agent.guardian?.enabled ? ' · ' + ft('Guardian enabled') : ''}</Text><Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{agent.description}</Text></Stack><Button size="xs" variant="default" onClick={() => setDraft(structuredClone(agent))}>{ft('Edit')}</Button><Button color="red" size="xs" variant="subtle" onClick={() => { if (window.confirm(ft('Delete this agent definition? Existing run files are kept.'))) void run(() => removeDedicatedAgent(agent.id)) }}>{ft('Delete')}</Button></Group>)}
     </> : <>
       <Button variant="subtle" onClick={() => setDraft(undefined)}>{ft('Back to agent library')}</Button>
       <TextInput label={ft('Agent title')} value={draft.title} onChange={event => setDraft({ ...draft, title: event.currentTarget.value })}/>
       <TextInput label={ft('Technical name for @mentions')} description={ft('Lowercase letters, digits, underscores and hyphens. Start with a letter.')} value={draft.name} onChange={event => setDraft({ ...draft, name: event.currentTarget.value })}/>
-      <TextInput label={ft('Description')} value={draft.description} onChange={event => setDraft({ ...draft, description: event.currentTarget.value })}/>
+      <AgentCallingDetails value={draft} onChange={change => setDraft({ ...draft, ...change })}/>
       <AgentModelPicker label={ft('Worker model')} value={draft.model} onChange={model => setDraft({ ...draft, model })}/>
       <Textarea label={ft('Worker instructions')} value={draft.prompt} onChange={event => setDraft({ ...draft, prompt: event.currentTarget.value })} minRows={6} autosize maxRows={16}/>
       <MultiSelect label={ft('Allowed tools')} description={ft('The effective tools are the intersection with the parent permissions. No ambient OS access or global memory is inherited.')} data={dedicatedToolOptions()} value={draft.toolNames} onChange={toolNames => setDraft({ ...draft, toolNames })} searchable comboboxProps={{ withinPortal: false }}/>

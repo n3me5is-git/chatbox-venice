@@ -3,8 +3,8 @@ import { asSchema, tool } from 'ai'
 import { z } from 'zod'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { defaultLocalMCPPermissions, type LocalMCPGrant } from '@shared/local-mcp'
-const state=vi.hoisted(()=>({headers:new Map<string,any>(),messages:new Map<string,any[]>(),data:new Map<string,any>(),resources:new Map<string,any[]>(),chat:vi.fn(),write:vi.fn(),request:vi.fn()}))
-vi.mock('@/platform',()=>({default:{type:'desktop'}}))
+const state=vi.hoisted(()=>({headers:new Map<string,any>(),messages:new Map<string,any[]>(),data:new Map<string,any>(),resources:new Map<string,any[]>(),chat:vi.fn(),write:vi.fn(),request:vi.fn(),image:vi.fn(),imageInit:vi.fn(),platform:'desktop',agents:[] as any[],providers:{} as Record<string,any>}))
+vi.mock('@/platform',()=>({default:{get type(){return state.platform}}}))
 vi.mock('./worker-context',()=>({createWorkerContext:async()=>({prepare:async(messages:unknown)=>messages})}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessionEvents:{subscribe:vi.fn()},sessions:{
   getSessionHeader:async(id:string)=>state.headers.has(id)?{header:state.headers.get(id)}:null,
@@ -25,14 +25,16 @@ vi.mock('@/packages/mcp/controller',()=>({mcpController:{getAvailableTools:()=>(
 vi.mock('@/packages/session-resources/tools',()=>({sessionWorkspaceInstructions:'Workspace',buildSessionWorkspaceTools:async()=>({session_file:tool({inputSchema:z.object({action:z.string(),path:z.string().optional(),content:z.string().optional()}),execute:state.write})})}))
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{list:async()=>[]}}))
 vi.mock('@/packages/session-resources/service',()=>({listSessionResources:async(id:string)=>({items:state.resources.get(id)||[],truncated:false}),readSessionResource:vi.fn()}))
-vi.mock('@/packages/collaboration/bridge',()=>({assertSharedTurn:vi.fn(),routeSharedDecision:vi.fn()}))
+vi.mock('@/packages/collaboration/bridge',()=>({assertSharedTurn:vi.fn(),routeSharedDecision:async(_id:unknown,_requester:unknown,_input:unknown,local:any)=>local(new AbortController().signal)}))
 vi.mock('@/components/agent/UserQuestion',()=>({requestUserAnswers:state.request}))
-vi.mock('./library',()=>({listDedicatedAgents:async()=>[]}))
+vi.mock('./library',()=>({listDedicatedAgents:async()=>state.agents}))
+vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({providers:state.providers})}}))
+vi.mock('@/packages/chatgpt-subscription/image-tools',()=>({subscriptionChatImageTools:(...args:any[])=>{state.imageInit(...args);return {chatgpt_image:{execute:state.image}}}}))
 vi.mock('./storage',()=>({readAgentData:async(key:string,fallback:any)=>state.data.get(key)||fallback,updateAgentData:async(key:string,fallback:any,update:any)=>{const next=update(state.data.get(key)||fallback);state.data.set(key,next);return next}}))
-import { buildExternalMultiAgentTools, multiAgentRuntime, revokeExternalAgents } from './runtime'
+import { buildExternalMultiAgentTools, buildMultiAgentTools, multiAgentRuntime, revokeExternalAgents } from './runtime'
 let grant:LocalMCPGrant,live:boolean
 beforeEach(()=>{
-  vi.clearAllMocks();state.headers.clear();state.messages.clear();state.data.clear();state.resources.clear();multiAgentRuntime.runs.clear();live=true
+  vi.clearAllMocks();state.headers.clear();state.messages.clear();state.data.clear();state.resources.clear();multiAgentRuntime.runs.clear();live=true;state.platform='desktop';state.agents=[];state.providers={};state.image.mockResolvedValue({recordId:'saved-image'})
   grant={running:true,sessionId:crypto.randomUUID(),url:'http://127.0.0.1:31337/mcp',token:crypto.randomUUID(),startedAt:1,permissions:{...defaultLocalMCPPermissions,multiAgent:true}}
   state.headers.set(grant.sessionId,{id:grant.sessionId,settings:{provider:'venice',modelId:'test',agentMode:{value:'on'},multiAgent:{enabled:true}}})
 })
@@ -74,4 +76,49 @@ it('requires Work and explicit multi-agent policy, then cancels a running render
   live=false;await revokeExternalAgents(grant.token)
   expect(signal!.aborted).toBe(true)
   expect(await call(tools,'agent_message',{id:worker.id,text:'Resume'})).toMatchObject({blocked:true,error:expect.stringContaining('Revoked')})
+})
+
+it.each(['desktop','mobile'])('executes an app worker with native image and HITL tools on %s',async platform=>{
+  state.platform=platform
+  const settings={provider:'openai-sub-unofficial',modelId:'test',agentMode:{value:'on'},multiAgent:{enabled:true}}
+  state.headers.get(grant.sessionId).settings=settings
+  state.chat.mockImplementation(async(_messages,options)=>{
+    expect(options.tools.chatgpt_image).toBeDefined()
+    expect(await options.tools.chatgpt_image.execute({action:'models'},{context:{}})).toMatchObject({recordId:'saved-image'})
+    state.request.mockResolvedValue({answers:[{selected:[],text:'Use the original'}]})
+    await options.tools.ask_user.execute({questions:[{question:'Which version?'}]},{context:{}})
+    state.providers['openai-sub-unofficial']={subscriptionChatImages:false}
+    await expect(options.tools.chatgpt_image.execute({action:'generate'},{context:{}})).rejects.toThrow('disabled')
+    return {contentParts:[{type:'text',text:'Worker tools verified'}]}
+  })
+  const prepared=await buildMultiAgentTools(grant.sessionId,settings as any,{session_file:{} as any,chatgpt_image:{} as any,ask_user:{} as any},[])
+  const worker=await call(prepared.tools,'agent_spawn',{title:'Image task',task:'Inspect the available image tool and ask a question'})
+  await call(prepared.tools,'agent_wait',{ids:[worker.id]})
+  expect(await call(prepared.tools,'agent_result',{id:worker.id})).toMatchObject({text:'Worker tools verified'})
+  expect(state.image).toHaveBeenCalledOnce();expect(state.chat).toHaveBeenCalledOnce();expect(state.request).toHaveBeenCalledOnce()
+  state.providers={}
+  await call(prepared.tools,'agent_message',{id:worker.id,text:'An explicit follow-up task'})
+  await call(prepared.tools,'agent_wait',{ids:[worker.id]})
+  expect(state.imageInit).toHaveBeenCalledTimes(2)
+  expect(state.imageInit.mock.calls[0][0]).toBe(state.imageInit.mock.calls[1][0])
+  expect(state.imageInit.mock.calls[0][2]).not.toBe(state.imageInit.mock.calls[1][2])
+  expect(state.image).toHaveBeenCalledTimes(2)
+})
+it('provides caller details to root and permitted nested workers while keeping unshared prompts private',async()=>{
+  state.platform='mobile'
+  state.agents=[{id:'writer',name:'writer',title:'Writer',description:'Write reports\nUse a clear structure',additionalDetails:'Send a topic and desired length',prompt:'SHARED_WORKER_PROMPT',sharePromptWithCaller:true,model:{provider:'venice',modelId:'test'},toolNames:[],allowOnDemand:false,dedicatedIds:[],guardian:{enabled:true,prompt:'GUARDIAN_SECRET'}},{id:'hidden',name:'hidden',title:'Hidden',description:'Hidden',prompt:'HIDDEN_PROMPT'}]
+  const settings={provider:'venice',modelId:'test',agentMode:{value:'on'},multiAgent:{enabled:true,dedicatedIds:['writer'],nestedDedicatedIds:['writer']}}
+  state.headers.get(grant.sessionId).settings=settings
+  const prepared=await buildMultiAgentTools(grant.sessionId,settings as any,{},[])
+  expect(prepared.instructions).toContain('SHARED_WORKER_PROMPT');expect(prepared.instructions).not.toContain('GUARDIAN_SECRET');expect(prepared.instructions).not.toContain('HIDDEN_PROMPT')
+  state.chat.mockImplementation(async(_messages,options)=>{
+    const catalog=await call(options.tools,'agent_catalog')
+    expect(catalog).toHaveLength(1);expect(catalog[0].description).toContain('Send a topic');expect(catalog[0].description).toContain('SHARED_WORKER_PROMPT')
+    state.agents[0].sharePromptWithCaller=false
+    expect(JSON.stringify(await call(options.tools,'agent_catalog'))).not.toContain('SHARED_WORKER_PROMPT')
+    return {contentParts:[{type:'text',text:'Caller details verified'}]}
+  })
+  const worker=await call(prepared.tools,'agent_spawn',{title:'Inspect agents',task:'Read the allowed agent catalog'})
+  await call(prepared.tools,'agent_wait',{ids:[worker.id]})
+  expect(await call(prepared.tools,'agent_result',{id:worker.id})).toMatchObject({text:'Caller details verified'})
 })
