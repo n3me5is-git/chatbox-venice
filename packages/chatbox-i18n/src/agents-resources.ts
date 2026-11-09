@@ -1,4 +1,6 @@
 export const agentsItalian = {
+  'ChatGPT image tools are disabled for this chat': 'Gli strumenti immagini ChatGPT sono disattivati per questa chat',
+  'Venice tools are disabled for this chat': 'Gli strumenti Venice sono disattivati per questa chat',
   'Apply': 'Applica',
   'Use default': 'Usa l’impostazione predefinita',
   'Local context budget for this model. A lower account-reported limit still applies.': 'Budget di contesto locale per questo modello. Rimane valido un eventuale limite inferiore dichiarato dall’account.',
