@@ -26,6 +26,8 @@ it('preserves manual endpoints, context budgets and thinking overrides after acc
   const result = mergeSubscriptionModels(saved,subscriptionDefaultModels())
   expect(result.find(m=>m.modelId==='gpt-6-astra')).toMatchObject(saved[0])
   expect(result.find(m=>m.modelId==='my-image-model')).toEqual(saved[1])
+  const updated=mergeSubscriptionModels([{...saved[0],vendorMetadata:{...saved[0].vendorMetadata,codexReportedContextWindow:128000}}],parseSubscriptionModels({models:[{slug:'gpt-6-astra',context_window:1000000,supported_reasoning_levels:[{effort:'high'}]}]}))
+  expect(updated.find(m=>m.modelId==='gpt-6-astra')).toMatchObject({contextWindow:180000,vendorMetadata:{codexReportedContextWindow:1000000,codexReasoningEfforts:['low','max']}})
 })
 it('keeps model-specific reasoning levels including max without exposing harness-only ultra', () => {
   const model = subscriptionDefaultModels().find(m => m.modelId === 'gpt-6-astra')!

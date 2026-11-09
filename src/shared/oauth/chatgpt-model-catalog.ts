@@ -47,6 +47,7 @@ export function mergeSubscriptionModels(saved: ProviderModelInfo[], current: Pro
     const manual = model.vendorMetadata?.catalogSource === 'manual'
     return { ...next, ...model, type: next.type, apiStyle: next.apiStyle,
       capabilities: manual ? model.capabilities : next.capabilities,
-      vendorMetadata: { ...next.vendorMetadata, ...(manual ? model.vendorMetadata : {}) } }
+      vendorMetadata: { ...next.vendorMetadata, ...(manual ? model.vendorMetadata : {}),
+        codexReportedContextWindow: next.vendorMetadata?.codexReportedContextWindow ?? model.vendorMetadata?.codexReportedContextWindow } }
   }), ...remote.values()]
 }
