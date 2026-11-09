@@ -5,11 +5,14 @@ import { forkT as ft } from '@/i18n/fork'
 
 const native = registerPlugin<{ start(options: { title: string; text: string }): Promise<{ active: boolean }>; stop(): Promise<void>; status(): Promise<{ active: boolean }> }>('SharingBackground')
 const listeners = new Set<() => void>()
-let count = () => 0, close = () => {}, snapshot = { count: 0, foreground: false, error: '' }, chain = Promise.resolve()
+const sources = new Map<string, { count: () => number; close: () => void }>()
+const count = () => [...sources.values()].reduce((sum, source) => sum + source.count(), 0)
+const close = () => { for (const source of sources.values()) source.close() }
+let snapshot = { count: 0, foreground: false, error: '' }, chain = Promise.resolve()
 export const sharingBackgroundSnapshot = () => snapshot
 export const subscribeSharingBackground = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
 function publish(patch: Partial<typeof snapshot>) { snapshot = { ...snapshot, ...patch }; for (const listener of listeners) listener() }
-export function installSharingBackground(getCount: () => number, stopAll: () => void) { count = getCount; close = stopAll; syncSharingBackground() }
+export function installSharingBackground(getCount: () => number, stopAll: () => void, id = 'collaboration') { sources.set(id, { count: getCount, close: stopAll }); void syncSharingBackground() }
 export function syncSharingBackground() {
   publish({ count: count() })
   chain = chain.catch(() => {}).then(async () => {

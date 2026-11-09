@@ -1,5 +1,6 @@
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
+import { ChatGPTAllowance } from '@/components/settings/provider/ChatGPTAllowance'
 import { SpeechMicrophone } from '@/components/speech/SpeechControls'
 import { AgentMentionButton } from '@/components/multi-agent/AgentMentionButton'
 import { MAX_CHAT_IMAGE_ATTACHMENTS } from '@chatbox/core/application/attachments'
@@ -1694,6 +1695,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
               )}
 
             {(model?.provider === 'venice' || (webBrowsingMode && globalSearchProvider === 'venice')) && <VeniceBalance />}
+            {model?.provider === 'openai-sub-unofficial' && <ChatGPTAllowance compact />}
             {/* Work Mode status row: approval policy + working directories, always visible
                 above the input with their own in-place menus (mirrors the mode panel). */}
             {platform.isDesktopLike && agentModeUIState.isActive && (

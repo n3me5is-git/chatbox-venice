@@ -32,6 +32,9 @@ jobs:
       - name: Validate Windows packaging configuration
         run: node scripts/package-fork.cjs --check-config
       - run: pnpm check
+      - name: Direct transfer integrity, admission and subscription allowance
+        if: ${{ !cancelled() }}
+        run: pnpm exec vitest run src/shared/session-transfer.test.ts src/renderer/packages/session-transfer src/shared/oauth/chatgpt-allowance.test.ts
       - name: Protection history persistence and background lock timeout
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run packages/chatbox-react/src/image-generation-hooks.test.ts src/renderer/storage/__tests__/SQLiteImageGenerationStorage.test.ts src/renderer/packages/vault/background-lock.test.ts src/renderer/packages/vault/image-records.test.ts src/renderer/packages/vault/media-records.test.ts

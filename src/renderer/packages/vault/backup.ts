@@ -9,9 +9,10 @@ export async function* exportVault(assets:EncryptedChunkStore,password:string,sc
   passwordCheck(password);const salt=crypto.getRandomValues(new Uint8Array(16));const key=await pinKey(password,salt);const header={format:'chatbox-vault-backup',version:1,salt:encode64(salt)};const prefix=JSON.stringify(header);yield encoder.encode(prefix+'\n');let sequence=0,count=0
   const record=async(value:BackupRecord)=>encoder.encode(JSON.stringify(await seal(key,encoder.encode(JSON.stringify(value)),`${prefix}:${sequence++}`))+'\n')
   for await(const item of assets.index.all()){
-    if(item.alias?.startsWith('private-auth:'))continue
+    if(item.alias?.startsWith('private-auth:')||item.alias?.startsWith('private-transfer-stage:'))continue
     signal?.throwIfAborted();if(item.status!=='ready'||!scopes.has(item.scope)||visible&&!await visible(item))continue
-    yield await record({type:'asset',info:await assets.info(item),protected:item.scope!=='public'});let bytes=0,chunks=0
+    const info=await assets.info(item);if(info.hidden&&info.resourcePath)continue
+    yield await record({type:'asset',info,protected:item.scope!=='public'});let bytes=0,chunks=0
     for await(const chunk of assets.read(`vault-asset-${item.id}`)){signal?.throwIfAborted();try{if(visible&&!await visible(item))throw new Error('A protected project was locked during backup');yield await record({type:'chunk',data:encode64(chunk)});bytes+=chunk.length;chunks++}finally{chunk.fill(0)}}
     yield await record({type:'asset-end',bytes,chunks});count++
   }

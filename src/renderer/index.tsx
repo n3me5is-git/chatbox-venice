@@ -113,6 +113,9 @@ void runRendererStartup({
     sessionStartupRecovery.promotePreviousAttempt()
     // 等待settings和onboarding初始化完成，避免闪屏
     await bootstrapRenderer(rendererApplication)
+    // Recover unpublished device transfers before their media or hidden rows can be browsed.
+    await (await import('./packages/session-transfer/journal')).recoverSessionTransfers()
+    ;(await import('./packages/session-transfer/runtime')).initializeSessionTransfers()
     // Cleanup is intentionally not captured — listeners persist for the app lifetime
 
     // 初始化完成，可以开始渲染

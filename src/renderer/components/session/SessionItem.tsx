@@ -201,6 +201,7 @@ function SessionItem(props: Props) {
   }
 
   const menuItems: ActionMenuItemProps[] = [
+    { text: ft('Send to another device'), icon: IconFolderShare, onClick: () => { void import('@/components/collaboration/CollaborationPanel').then(module => module.openDirectTransferPanel(session.id)) } },
     {
       text: pinActionLabel || '',
       icon: session.starred ? IconPinnedFilled : IconPinned,

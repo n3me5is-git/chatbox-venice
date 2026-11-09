@@ -5,6 +5,7 @@ import { createFetchWithProxy } from '@shared/models/utils/fetch-proxy'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import platform from '@/platform'
 import { settingsStore } from '@/stores/settingsStore'
+import { parseChatGPTAllowance } from '@shared/oauth/chatgpt-allowance'
 
 const key = 'private-auth:chatgpt-subscription:v1'
 const pendingKey = 'private-auth:chatgpt-subscription-pending:v1'
@@ -75,4 +76,14 @@ export async function subscriptionModels(signal?: AbortSignal): Promise<Provider
   if (!Array.isArray(payload.models)) throw Error('ChatGPT returned an invalid model catalog')
   const models = payload.models.filter((model: any) => typeof model.slug === 'string' && model.visibility !== 'hide').map((model: any): ProviderModelInfo => ({ modelId: model.slug, nickname: typeof model.display_name === 'string' ? model.display_name : model.slug, capabilities: ['tool_use', 'vision', ...(model.supports_reasoning_summaries ? ['reasoning' as const] : [])] }))
   return [...models, ...['gpt-image-2', 'gpt-image-1.5'].map(modelId => ({ modelId, type: 'image' as const }))]
+}
+
+export async function subscriptionAllowance(signal?: AbortSignal) {
+  const version = epoch, credential = await subscriptionCredential(), request = await fetcher()
+  const response = await request('https://chatgpt.com/backend-api/wham/usage', { method: 'GET', redirect: 'error', cache: 'no-store', headers: { ...subscriptionHeaders(credential), Accept: 'application/json' }, signal })
+  if (!response.ok) throw Error('ChatGPT allowance is unavailable (HTTP ' + response.status + ')')
+  const result = parseChatGPTAllowance(await response.json())
+  signal?.throwIfAborted()
+  if (epoch !== version) throw Error('ChatGPT connection was closed')
+  return result
 }
