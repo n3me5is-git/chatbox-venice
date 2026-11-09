@@ -290,6 +290,7 @@ function Index() {
             ...options?.settingsPatch,
             ...(newSessionState.veniceProfile ? {veniceProfile:newSessionState.veniceProfile} : {}),
             ...(newSessionState.veniceSecurity ? {veniceSecurity:newSessionState.veniceSecurity} : {}),
+            ...(newSessionState.veniceToolsEnabled!==undefined?{veniceToolsEnabled:newSessionState.veniceToolsEnabled}:{}),
             // Bake the exact mode shown while the chat was "new" into the created session, so
             // remembered defaults and transient selections follow the same resolution path.
             agentMode: getSessionAgentModeEntry('new', undefined, sessionAgentModeMap),
@@ -331,6 +332,7 @@ function Index() {
       if (
         newSessionState.veniceProfile !== undefined ||
         newSessionState.veniceSecurity !== undefined ||
+        newSessionState.veniceToolsEnabled !== undefined ||
         newSessionState.localWorkCapabilities !== undefined ||
         newSessionState.knowledgeBase ||
         newSessionState.workingDirectories !== undefined ||
@@ -365,6 +367,7 @@ function Index() {
       addSessionKnowledgeBase,
       newSessionState.veniceProfile,
       newSessionState.veniceSecurity,
+      newSessionState.veniceToolsEnabled,
       newSessionState.localWorkCapabilities,
       newSessionState.knowledgeBase,
       newSessionState.workingDirectories,

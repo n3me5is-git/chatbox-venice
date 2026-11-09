@@ -64,3 +64,9 @@ The 1.39 changes were checked directly against the following primary source file
 | [openai-api-server-via-codex](https://github.com/hotchpotch/openai-api-server-via-codex) — `internal/app/backend.go`, `compat.go`, `config.go`, `server.go` | Image-generations translation into a version-free Responses image tool. This app uses its own device-local login rather than that project's proxy or local CLI credential file. |
 
 Official [API models](https://developers.openai.com/api/docs/models) and [image generation](https://developers.openai.com/api/docs/guides/image-generation) documents describe API capabilities; they are not used as proof of subscription access. Backend changes and account restrictions can invalidate community routes independently of app updates.
+
+## Images and native search in Work chats
+
+Work chats with this provider expose `chatgpt_image` when the provider has a connection and configured image models. The provider setting **Image generation in Work chats** can disable it. The tool lists exact configured image IDs/endpoints, asks for confirmation, can reference images already in this session, and stores jobs in the ordinary encrypted image generation service. Session artifacts and the library refer to the same saved output. The subscription image tool is preferred for this provider; enabled Venice tools can still be requested explicitly. A failed job requires a new user request before another generation; there is no automatic billing/provider fallback.
+
+Native search is a separate SDK provider tool (`chatgpt_native_search`), independent of Chatbox’s client `web_search` and MCP tools. Subsequent stateless requests reconstruct native search history. Legacy orphan `ws_…` outputs are repaired without discarding valid client function-call pairs. This also applies when a later turn disables native search.

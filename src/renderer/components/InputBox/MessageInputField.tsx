@@ -1,7 +1,10 @@
 import { Textarea } from '@mantine/core'
 import { TestId } from '@shared/automation/testids'
 import type React from 'react'
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState,useId } from 'react'
+import { promptMentionQuery,insertPromptMention,type PromptMention } from '@shared/prompt-mentions'
+import { PromptMentionMenu,type PromptMentionSource } from './PromptMentionMenu'
+import { forkT as ft } from '@/i18n/fork'
 import { useMessageInput } from '@/hooks/useMessageInput'
 import * as dom from '../../hooks/dom'
 
@@ -29,6 +32,7 @@ type MessageInputFieldProps = {
   onUserInput?: () => void
   onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
+  mentionSource?:PromptMentionSource
 }
 
 export const MessageInputField = memo(
@@ -45,6 +49,7 @@ export const MessageInputField = memo(
         onUserInput,
         onKeyDown,
         onPaste,
+        mentionSource,
       },
       ref
     ) => {
@@ -58,6 +63,21 @@ export const MessageInputField = memo(
       const isComposingRef = useRef(false)
       const compositionRangeRef = useRef<{ start: number; end: number } | null>(null)
       const skipCompositionEndCommitRef = useRef(false)
+      const mentionId=useId(),[mention,setMention]=useState<ReturnType<typeof promptMentionQuery>>(null),[mentionItems,setMentionItems]=useState<PromptMention[]>([]),[mentionSelected,setMentionSelected]=useState(0),[mentionLoading,setMentionLoading]=useState(false),[mentionError,setMentionError]=useState('')
+      const updateMention=(element:HTMLTextAreaElement)=>{if(mentionSource&&!isReadOnly&&!isComposingRef.current)setMention(promptMentionQuery(element.value,element.selectionStart))}
+      useEffect(()=>{
+        setMentionItems([]);setMentionSelected(0);setMentionError('');setMentionLoading(false)
+        if(!mention||!mentionSource||isReadOnly)return
+        const controller=new AbortController();setMentionLoading(true)
+        const timer=setTimeout(()=>void mentionSource(mention.query,controller.signal).then(items=>{if(!controller.signal.aborted)setMentionItems(items)},()=>{if(!controller.signal.aborted)setMentionError(ft('Unable to load references'))}).finally(()=>{if(!controller.signal.aborted)setMentionLoading(false)}),150)
+        return()=>{clearTimeout(timer);controller.abort()}
+      },[mention?.query,mention?.start,mentionSource,isReadOnly])
+      const pickMention=(item:PromptMention)=>{
+        if(!mention)return
+        const next=insertPromptMention(editValueRef.current,mention,item.insert)
+        setEditValue(next.value);setMessageInput(next.value);onUserInput?.();setMention(null)
+        requestAnimationFrame(()=>{inputRef.current?.focus();inputRef.current?.setSelectionRange(next.cursor,next.cursor)})
+      }
 
       useEffect(() => {
         setEditValue(messageInput)
@@ -99,12 +119,14 @@ export const MessageInputField = memo(
           // Keep the controlled display in sync during IME so React does not restore the pre-composition value.
           setEditValue(next)
           if (composing) {
+            setMention(null)
             return
           }
           setMessageInput(next)
           onUserInput?.()
+          updateMention(event.currentTarget)
         },
-        [setMessageInput, onUserInput]
+        [setMessageInput, onUserInput,mentionSource,isReadOnly]
       )
 
       const onCompositionStart = useCallback((event: React.CompositionEvent<HTMLTextAreaElement>) => {
@@ -136,9 +158,14 @@ export const MessageInputField = memo(
             event.stopPropagation()
             return
           }
+          if(mention){
+            if(event.key==='Escape'){event.preventDefault();event.stopPropagation();setMention(null);return}
+            if(mentionItems.length&&(event.key==='ArrowDown'||event.key==='ArrowUp')){event.preventDefault();setMentionSelected(index=>(index+(event.key==='ArrowDown'?1:mentionItems.length-1))%mentionItems.length);return}
+            if(mentionItems.length&&(event.key==='Enter'||event.key==='Tab')){event.preventDefault();event.stopPropagation();pickMention(mentionItems[mentionSelected]);return}
+          }
           onKeyDown(event)
         },
-        [onKeyDown]
+        [onKeyDown,mention,mentionItems,mentionSelected]
       )
 
       const handlePaste = useCallback(
@@ -168,6 +195,8 @@ export const MessageInputField = memo(
       )
 
       return (
+        <div style={{position:'relative',flex:1,minWidth:0}}>
+        {mention&&mentionSource&&!isReadOnly&&<PromptMentionMenu id={mentionId} items={mentionItems} selected={mentionSelected} loading={mentionLoading} error={mentionError} pick={pickMention}/>}
         <Textarea
           unstyled={true}
           styles={{ input: { fontSize: 14 } }}
@@ -195,8 +224,14 @@ export const MessageInputField = memo(
           onCompositionEnd={onCompositionEnd}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          onSelect={event=>updateMention(event.currentTarget)}
+          onBlur={()=>setMention(null)}
+          aria-autocomplete={mentionSource?'list':undefined}
+          aria-controls={mention?mentionId:undefined}
+          aria-activedescendant={mention&&mentionItems.length?mentionId+'-'+mentionSelected:undefined}
           data-testid={TestId.chat.messageInput}
         />
+        </div>
       )
     }
   )

@@ -1,6 +1,14 @@
 # Collaborative chats
 
-Open **Share and collaborate** (the people icon) in a saved chat header. Select **Share this chat**, then open **Pairing code and QR**. Another person opens **Collaborative chats** in the sidebar, enters a display name and pastes the code, or selects **Scan a QR image**. On supported phones the image picker can also open the camera. Direct in-app camera capture is not required.
+Open **Share and collaborate** (the people icon) in a saved chat header. Select **Share this chat**, then open **Pairing code and QR**. Another person opens **Collaborative chats** in the sidebar, enters a display name and pastes the code, scans with the live camera, or uploads a QR image. Use 1.40.0 or later on both devices for the full remote interface and controls.
+
+Joining opens a full remote chat page, also listed under **Remote chats** beside the local conversation list. The cloud icon identifies a temporary remote session. Its context/overflow menu manages the connection or leaves the session. Local chats keep their existing storage and generation behavior; joining does not create a persistent local chat. Clone explicitly when permitted to keep a copy.
+
+The remote view shows authors, the host model, live response text, visible thinking, tool activity/errors, HITL questions and the current active conversation thread. Files and media open from message links or the shared file explorer. No file bytes are prefetched by the transcript. One preview is retained at a time (64 MB media/file limit, 2 MB text limit, bounded raster dimensions); closing it releases the object URL. Markdown includes tables, LaTeX, Mermaid and the existing exports. Larger or unsupported files can be imported by cloning when allowed.
+
+The settings button exposes supported thinking levels and the separate Chatbox search, Venice search engine/mode/citation controls, or ChatGPT native search switch. Changes require both write and AI interaction permission, are checked against the current host controls, and apply to the shared conversation for everyone. The model, MCP server selection, credentials, system prompt, approval policy and device/security settings remain host-controlled. Conflicting settings changes and changes during generation are rejected with a visible explanation. The guest never executes its own providers or tools for a remote request. Enter creates a new line; the send button or Ctrl/Cmd+Enter submits.
+
+Names and participant IDs are displayed on remote messages and persisted on the host's user messages. Their IDs come from the authenticated peer, rather than a user-supplied author field. Remote @ suggestions contain shared files and exposed host agents/tools; they never enumerate other host conversations.
 
 Each installation has a local participant key and ID. The owner sees the name and ID of a joining participant and must admit them before any transcript or files are sent. A name is a display label, not proof of a person's identity: check the participant ID when admitting someone.
 

@@ -1,3 +1,4 @@
+import { isSharedChat } from '@/packages/collaboration/bridge'
 import { finishAbortedGeneration } from '@chatbox/core/generation'
 import { SessionActionBlockedError } from '@chatbox/core/session/action-gates'
 import { t } from 'i18next'
@@ -357,6 +358,7 @@ export async function submitNewUserMessageUnlocked(
 
   let { newUserMsg } = params
   params.authorize?.()
+  if(isSharedChat(sessionId)&&!newUserMsg.collaborationAuthor)newUserMsg={...newUserMsg,collaborationAuthor:{id:'owner',name:'Owner'}}
   const collaborationRequester=newUserMsg.collaborationRequester||newUserMsg.collaborationAuthor||{id:'owner',name:'Owner'}
   const { needGenerating } = params
   const webBrowsing = getSessionWebBrowsing(sessionId, settings.provider)

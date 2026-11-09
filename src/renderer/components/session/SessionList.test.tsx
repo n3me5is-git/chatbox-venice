@@ -42,6 +42,11 @@ const {
   useSortableMock: vi.fn(),
 }))
 
+const remoteState=vi.hoisted(()=>({guests:new Map<string,any>(),open:vi.fn(),leave:vi.fn(),manage:vi.fn()}))
+vi.mock('@/packages/collaboration/remote-sessions',()=>({remoteSessions:{get guests(){return remoteState.guests},subscribe:()=>()=>{},getVersion:()=>0,open:remoteState.open,leave:remoteState.leave}}))
+vi.mock('@/components/collaboration/CollaborationButton',()=>({openCollaboration:remoteState.manage}))
+beforeEach(()=>remoteState.guests.clear())
+
 vi.mock('@ebay/nice-modal-react', () => ({
   default: { show: showModalMock },
 }))
@@ -159,7 +164,7 @@ vi.mock('@/stores/session/folders', () => ({
 }))
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
-  useRouterState: () => ({ location: { pathname: '/session/session-1' } }),
+  useRouterState: (options?:{select?:(state:any)=>unknown}) => {const state={location:{pathname:'/session/session-1'}};return options?.select?options.select(state):state},
 }))
 vi.mock('./SessionItem', async () => {
   const React = await import('react')
@@ -255,6 +260,18 @@ describe('SessionList mobile reorder mode', () => {
       transform: null,
       transition: undefined,
     }))
+  })
+
+  test('shows remote chats even without local chats, opens them and provides management and leave actions',async()=>{
+    sessionListState.sessions=[];sessionListState.folders=[]
+    remoteState.guests.set('remote-room',{id:'remote-room',status:'connected',snapshot:{title:'A remote project'}})
+    renderList()
+    expect(screen.getByText('Remote chats')).toBeTruthy();expect(screen.getByLabelText('Remote session')).toBeTruthy()
+    const row=document.querySelector<HTMLElement>('[data-remote-session="remote-room"]')!
+    fireEvent.click(row);expect(remoteState.open).toHaveBeenCalledWith('remote-room')
+    expect(useSortableMock).not.toHaveBeenCalled()
+    fireEvent.contextMenu(row);fireEvent.click(await screen.findByRole('menuitem',{name:'Manage connection'}));expect(remoteState.manage).toHaveBeenCalledWith(undefined,'remote-room')
+    fireEvent.click(screen.getByRole('button',{name:'Remote chat actions'}));fireEvent.click(await screen.findByRole('menuitem',{name:'Leave shared chat'}));expect(remoteState.leave).toHaveBeenCalledWith('remote-room')
   })
 
   test('uses the whole row as the accessible drag activator only after entering reorder mode', () => {

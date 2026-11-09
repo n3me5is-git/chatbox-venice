@@ -97,6 +97,7 @@ export function VeniceModuleSettings() {
     <Text size="xs" c="dimmed">{ft("Enabled modules are available in Venice Studio in the sidebar.")}</Text>
     <VeniceMediaModelSelection options={options} update={update} />
     <Switch label={ft("Internal Venice MCP: tools in Work mode chats")} disabled={options.enabled === false} checked={options.chatToolsEnabled !== false} onChange={e => update({ chatToolsEnabled: e.currentTarget.checked })} />
+    <Switch label={ft('Limit Venice tools to Venice models')} description={ft('When off, other providers can enable Venice tools separately in each Work chat. They start disabled there.')} checked={options.chatToolsVeniceOnly===true} onChange={event=>update({chatToolsVeniceOnly:event.currentTarget.checked})}/>
     <Text size="xs" c="dimmed">{ft("Generation approval is managed in the conversation settings panel.")}</Text>
     <VeniceProfiles />
   </Stack>

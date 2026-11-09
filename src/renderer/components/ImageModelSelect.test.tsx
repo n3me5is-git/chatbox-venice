@@ -254,6 +254,9 @@ describe('image model details', () => {
     await user.keyboard('{ArrowDown}')
     await user.tab()
 
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search image models' }))
+    await user.tab()
+
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Model details' }))
     await user.keyboard('{Enter}')
 
@@ -270,6 +273,8 @@ describe('image model details', () => {
     const trigger = screen.getByRole('button', { name: 'Choose image model' })
     await waitFor(() => expect(document.activeElement).toBe(trigger))
     await user.keyboard('{ArrowDown}')
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search image models' }))
     await user.tab()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Model details' }))
 
@@ -295,6 +300,8 @@ describe('image model details', () => {
     if (inModal) await waitFor(() => expect(document.activeElement).toBe(trigger))
     else await user.tab()
     await user.keyboard('{ArrowDown}')
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search image models' }))
     await user.tab()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Model details' }))
     await user.keyboard('{Enter}')

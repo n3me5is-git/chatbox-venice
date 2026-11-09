@@ -1,3 +1,5 @@
+import { veniceToolsVisible } from '@shared/providers/definitions/models/venice/tool-policy'
+import { settingsStore } from '@/stores/settingsStore'
 import { type ToolSet } from 'ai'
 import { createAgentTools } from '@shared/multi-agent-tools'
 import { createLocalMCPAgentTools, type ExternalAgentContext } from '@shared/local-mcp-agents'
@@ -141,11 +143,12 @@ export const multiAgentRuntime = new MultiAgentRuntime({
 async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInterface) {
   const images = model.isSupportVision() ? buildViewImageToolSet({ sessionId: run.sessionId, toolResultImages: supportsToolResultImages(model.apiStyle) }) : undefined
   const workspace = await buildSessionWorkspaceTools(run.workspaceId, images?.imageResults)
-  const venice = run.tools.some(name => name.startsWith('venice_')) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, run.id, grants.get(run.rootId)?.requester || 'owner', run.rootId) : {}
+  const venice = run.tools.some(name => name.startsWith('venice_'))&&veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, run.id, grants.get(run.rootId)?.requester || 'owner', run.rootId) : {}
   const available: ToolSet = { ...workspace, ...venice, ...buildWebSearchTools(), parse_link: parseLinkTool, ...mcpController.getAvailableTools(), ask_user: createAskUserTool((input, signal) => routeSharedDecision(run.rootId, grants.get(run.rootId)?.requester || 'owner', { kind: 'questions', input }, signal => requestUserAnswers(input, signal), value => value, value => value && typeof value === 'object' && 'answers' in value ? value : null, signal)) }
   const tools: ToolSet = {}
   for (const name of run.tools) { const original = available[name]; if (!original) continue; tools[name] = { ...original, execute: original.execute ? async (input: any, options: any) => {
     await multiAgentRuntime.check(caller); options.abortSignal?.throwIfAborted()
+    if(name.startsWith('venice_')){const root=await getSessionSettings(run.rootId),{veniceToolsEnabled}=await import('@shared/providers/definitions/models/venice/tool-policy');if(!veniceToolsEnabled(root.provider,root.veniceToolsEnabled,settingsStore.getState().providers?.venice?.venice)||!veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice))throw Error('Venice tools are disabled for this chat')}
     const external = grants.get(run.rootId)?.external
     if (external && (!external.context.caller.tools.includes(name) || !external.allows(name, input))) throw Error('This worker action is outside the MCP sharing permissions')
     for (let node: AgentRun | undefined = run; node; node = multiAgentRuntime.runs.get(node.parentId)) if (node.preset && !(await listDedicatedAgents()).find(agent => agent.id === node!.preset!.id)?.toolNames.includes(name)) throw Error('This agent tool permission was revoked')
@@ -224,7 +227,9 @@ export async function buildMultiAgentTools(rootId: string, settings: SessionSett
   const text = user?.contentParts.filter(part => part.type === 'text').map(part => part.text).join('\n') || ''
   const requested = /\b(?:multi[- ]?agent[ei]?|multiple agents|parallel agents|più agenti|piu agenti)\b/i.test(text)
   if (!policy.enabled && !requested && !/(?:^|\s)@[a-z]/.test(text)) return { tools: {}, instructions: '' }
-  const agents = await listDedicatedAgents(), tagged = agentMentions(text, agents)
+  const requester=collaborationRequester(messages).id
+  if(requester!=='owner'&&!policy.enabled)return {tools:{},instructions:''}
+  const agents = await listDedicatedAgents(), tagged = agentMentions(text, agents).filter(agent=>requester==='owner'||policy.dedicatedIds.includes(agent.id))
   const explicit = tagged.length > 0 || requested
   if (!policy.enabled && !explicit) return { tools: {}, instructions: '' }
   const effective = { ...policy, enabled: true, dedicatedIds: [...new Set([...policy.dedicatedIds, ...tagged.map(agent => agent.id)])], ...(!policy.enabled ? { nestedDedicatedIds: [] } : {}) }

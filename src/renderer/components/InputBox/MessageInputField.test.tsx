@@ -61,6 +61,18 @@ function textareaValue(input: HTMLElement): string {
 }
 
 describe('MessageInputField', () => {
+  test('opens inline @ suggestions at the caret and selects an agent without submitting the prompt',async()=>{
+    const source=vi.fn(async()=>[{id:'agent',kind:'agent' as const,name:'analyst',description:'Document analyst',insert:'@analyst'}]),submitted=vi.fn()
+    renderField({mentionSource:source,onKeyDown:submitted})
+    const input=screen.getByRole('textbox');fireEvent.change(input,{target:{value:'Use @an and continue',selectionStart:7}})
+    expect(await screen.findByRole('option',{name:/analyst/})).toBeTruthy()
+    fireEvent.keyDown(input,{key:'Enter'});await waitFor(()=>expect(textareaValue(input)).toBe('Use @analyst  and continue'));expect(submitted).not.toHaveBeenCalled()
+  })
+  test('filters email addresses and closes suggestions on Escape without sending',async()=>{
+    const source=vi.fn(async()=>[]),submitted=vi.fn();renderField({mentionSource:source,onKeyDown:submitted})
+    const input=screen.getByRole('textbox');fireEvent.change(input,{target:{value:'user@example.com'}});await new Promise(resolve=>setTimeout(resolve,180));expect(source).not.toHaveBeenCalled()
+    fireEvent.change(input,{target:{value:'Use @'}});expect(await screen.findByRole('listbox')).toBeTruthy();fireEvent.keyDown(input,{key:'Escape'});expect(screen.queryByRole('listbox')).toBeNull();expect(submitted).not.toHaveBeenCalled()
+  })
   test('exposes a localized accessible name independently from its placeholder', () => {
     renderField({ isReadOnly: true })
 

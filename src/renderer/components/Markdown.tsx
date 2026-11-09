@@ -207,6 +207,8 @@ function Markdown(props: {
               // Models sometimes hand-write sandbox "download links" (sandbox:/mnt/data/...)
               // instead of calling create_download. Those hrefs are dead — render a file
               // chip that rescues the file from the session sandbox instead.
+              const chatReference=/^chatbox:chat\/([a-zA-Z0-9_-]{1,100})$/.exec(href||'')
+              if(chatReference)return <a href="#" onClick={event=>{event.preventDefault();event.stopPropagation();void import('@/router').then(({router})=>router.navigate({to:'/session/$sessionId',params:{sessionId:chatReference[1]}}))}}>{linkChildren}</a>
               const sandboxTarget = parseSandboxLinkHref(href)
               if (sandboxTarget) {
                 return (

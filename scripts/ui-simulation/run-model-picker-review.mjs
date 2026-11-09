@@ -43,6 +43,24 @@ export async function runModelPickerReview({ click, evaluate, cdp, wait, byText,
   await click(`(${imageList}).querySelectorAll('button:not([aria-label])').item(window.__pickerFixture.imageIds.length-1)`)
   await wait(() => evaluate('window.__longImageSelection===window.__pickerFixture.imageIds.at(-1)'), 'The last image model could not be selected')
   report.lastImageSelected = true
+  await wait(()=>evaluate(`!${imageList}`),'Previous image picker did not finish closing')
+  await click(byText('Test all image providers'))
+  await wait(()=>evaluate(`!!${imageList} && (${imageList}).clientHeight>100`),'All-provider picker did not open')
+  // Measure only after the opening transition settles; the list moves up from below the viewport.
+  let previousBounds
+  await wait(async()=>{const next=await evaluate(`(()=>{const r=(${imageList}).getBoundingClientRect();return {top:r.top,bottom:r.bottom}})()`);const stable=previousBounds&&Math.abs(next.top-previousBounds.top)<0.5&&Math.abs(next.bottom-previousBounds.bottom)<0.5;previousBounds=next;return stable},'All-provider picker did not finish its opening transition')
+  const bounds=await evaluate(`(()=>{const e=${imageList},r=e.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:innerHeight,providers:e.querySelectorAll('[data-image-provider]').length}})()`)
+  await writeFile(path.join(output,'native-image-picker-bounds.json'),JSON.stringify(bounds,null,2))
+  assert.ok(bounds.top>=0&&bounds.bottom<=bounds.height+1,'Native image picker extends outside the mobile viewport: '+JSON.stringify(bounds));assert.equal(bounds.providers,4,'Image provider groups were lost')
+  await swipe(imageList);assert.ok(await evaluate(`(${imageList}).scrollTop`)>100,'All-provider image list did not scroll with touch')
+  await evaluate(`(${imageList}).parentElement.querySelector('input[aria-label="Search image models"]').focus()`)
+  await cdp('Input.insertText',{text:'Custom image provider'})
+  await wait(()=>evaluate(`(${imageList}).querySelectorAll('[data-image-provider]').length===1`),'Searching native images by provider did not filter groups')
+  await evaluate(`(${imageList}).scrollTop=(${imageList}).scrollHeight`)
+  await writeFile(path.join(output,'native-image-providers-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+  await click(`(${imageList}).querySelectorAll('button:not([aria-label])').item(84)`)
+  await wait(()=>evaluate('window.__nativeImageSelection?.provider==="fixture-2"&&window.__nativeImageSelection?.model==="provider-2-image-84"'),'Last custom-provider image model was not selectable')
+  report.nativeProviderGrouping=true;report.nativeViewportBounded=true;report.nativeProviderSearch=true;report.lastCustomProviderSelected=true
   await click(byText('Test long Studio model list'))
   await wait(() => evaluate(`document.body.textContent.includes('Long Studio catalog regression')`), 'Studio fixture did not open')
   await click(byLabel('Model'))

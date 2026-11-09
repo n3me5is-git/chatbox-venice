@@ -12,7 +12,7 @@ export function resolveVeniceSettings(base: VeniceOptions = {}, model?: VenicePr
   // permissions. Model/search profiles and extra request JSON cannot grant them.
   return { ...merged, enabled: base.enabled, audioEnabled: base.audioEnabled, videoEnabled: base.videoEnabled,
     musicEnabled: base.musicEnabled, chatToolsEnabled: base.chatToolsEnabled,
-    confirmMediaTools: base.confirmMediaTools, privacyFilter: base.privacyFilter, textPrivacy: security?.textPrivacy ?? base.textPrivacy,
+    confirmMediaTools: base.confirmMediaTools,chatToolsVeniceOnly:base.chatToolsVeniceOnly, privacyFilter: base.privacyFilter, textPrivacy: security?.textPrivacy ?? base.textPrivacy,
     showOtherModels: base.showOtherModels, mediaModelIds: base.mediaModelIds,
     e2eeToolsEnabled: security?.e2eeToolsEnabled ?? base.e2eeToolsEnabled, e2eeToolMode: security?.e2eeToolMode ?? base.e2eeToolMode,
     secureReceiptCompatibility: security?.secureReceiptCompatibility ?? base.secureReceiptCompatibility } as VeniceOptions

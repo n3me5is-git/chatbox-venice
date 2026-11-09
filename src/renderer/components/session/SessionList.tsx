@@ -48,7 +48,11 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from 'react'
+import { remoteSessions as collaboration } from '@/packages/collaboration/remote-sessions'
+import type { GuestShare } from '@/packages/collaboration/hub'
+import { RemoteSessionItem } from '@/components/collaboration/RemoteSessionItem'
 import { useTranslation } from 'react-i18next'
 import { GroupedVirtuoso } from 'react-virtuoso'
 import { rendererApplication } from '@/app/renderer-application'
@@ -85,6 +89,7 @@ type SessionListItem =
   | { type: 'section'; id: string; label: string; droppable?: boolean }
   | { type: 'folder'; id: string; folder: SessionFolder; collapsed: boolean; empty: boolean }
   | { type: 'session'; id: string; session: SessionMetaRecord; nested: boolean }
+  | { type: 'remote'; id: string; room: GuestShare }
 
 /**
  * Builds the rendered rows from the loaded sessions, which arrive in display
@@ -242,6 +247,7 @@ function CreateProjectButton() {
 
 export default function SessionList(props: Props) {
   const { t } = useTranslation()
+  const remoteVersion=useSyncExternalStore(collaboration.subscribe,collaboration.getVersion)
   const {
     sessionMetaList: sortedSessions,
     fetchNextPage,
@@ -307,15 +313,14 @@ export default function SessionList(props: Props) {
     setActiveDragId(null)
   }
   const displayItems = useMemo<SessionListItem[]>(() => {
-    if (!sortedSessions) {
-      return []
-    }
-    return buildDisplayItems(sortedSessions, folders ?? [], collapsedFolderIds, Boolean(hasNextPage), {
+    const remote:SessionListItem[]=collaboration.guests.size?[{type:'section',id:'section:remote',label:ft('Remote chats')},...[...collaboration.guests.values()].map(room=>({type:'remote' as const,id:'remote:'+room.id,room}))]:[]
+    if (!sortedSessions) return remote
+    return [...remote,...buildDisplayItems(sortedSessions, folders ?? [], collapsedFolderIds, Boolean(hasNextPage), {
       pinned: t('Pinned'),
       projects: t('Projects'),
       chats: t('Chats'),
-    })
-  }, [sortedSessions, folders, collapsedFolderIds, hasNextPage, t])
+    })]
+  }, [sortedSessions, folders, collapsedFolderIds, hasNextPage, t,remoteVersion])
   const groupedItems = useMemo(() => {
     const groups: { header: Extract<SessionListItem, { type: 'section' }>; count: number }[] = []
     const items: Exclude<SessionListItem, { type: 'section' }>[] = []
@@ -400,7 +405,7 @@ export default function SessionList(props: Props) {
       onDragCancel={onDragCancel}
     >
       {!sortedSessions && isLoading && <SessionListLoadingFooter />}
-      {sortedSessions && (
+      {(sortedSessions||collaboration.guests.size>0) && (
         <SortableContext items={sortableSessionIds} strategy={verticalListSortingStrategy}>
           {touchLayout && isReordering && (
             <Flex
@@ -438,7 +443,7 @@ export default function SessionList(props: Props) {
                 : {}),
             }}
             groupCounts={groupedItems.counts}
-            computeItemKey={(index) => displayItems[index]?.id ?? index}
+            computeItemKey={(index) => groupedItems.items[index]?.id ?? index}
             scrollerRef={(ref) => {
               if (ref instanceof HTMLDivElement) {
                 props.sessionListViewportRef.current = ref
@@ -465,6 +470,7 @@ export default function SessionList(props: Props) {
             itemContent={(index) => {
               const item = groupedItems.items[index]
               if (!item) return null
+              if (item.type === 'remote') return <RemoteSessionItem room={item.room}/>
               if (item.type === 'folder') {
                 return (
                   <FolderHeader
