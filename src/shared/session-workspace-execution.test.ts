@@ -29,3 +29,7 @@ it('does not commit errored or malformed runtime output',async()=>{
   await expect(executeSessionCode(store,{execute:async()=>({stdout:'',files:{'../bad':{base64:btoa('bad')}}})},'one','code',[],signal())).rejects.toThrow()
   expect(await store.list('one')).toEqual([])
 })
+
+it('does not pass derived RAG cache bytes into the JavaScript or Python runtime',async()=>{
+ const {store}=fixture(),execute=vi.fn();await expect(executeSessionCode(store,{execute},'one','code',['.chatbox/rag/data/index.json'],signal())).rejects.toThrow('managed by the app');expect(execute).not.toHaveBeenCalled()
+})

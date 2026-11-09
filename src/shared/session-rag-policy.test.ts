@@ -1,0 +1,4 @@
+import {expect,it} from 'vitest'
+import {assertRagSourcePath,canIndexRagScope,isRagInternal} from './session-rag-policy'
+it('keeps derived index artifacts out of shares and caller file operations',()=>{for(const path of ['.chatbox/rag','.chatbox/rag/data/file.json','.CHATBOX/RAG/index.json']){expect(isRagInternal(path)).toBe(true);expect(()=>assertRagSourcePath(path)).toThrow('managed by the app')}expect(isRagInternal('docs/rag.md')).toBe(false);expect(()=>assertRagSourcePath('.chatbox/deliverables/result.md')).not.toThrow()})
+it('rejects private and other-project media even if its key is unlocked',()=>{expect(canIndexRagScope(undefined,'private')).toBe(false);expect(canIndexRagScope('project:a','project:b')).toBe(false);expect(canIndexRagScope('project:a','project:a')).toBe(true);expect(canIndexRagScope('project:a','public')).toBe(true)})

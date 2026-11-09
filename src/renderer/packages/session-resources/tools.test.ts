@@ -27,3 +27,8 @@ it('refuses image transmission to a non-vision model and still permits listing l
   await expect(tools.session_file.execute!({action:'preview',path:'images/one/1.png'},context)).rejects.toThrow('vision-capable')
   expect(state.read).not.toHaveBeenCalled()
 })
+
+it('hides internal RAG artifacts and blocks reading or importing their derived content',async()=>{
+ const internal={id:'rag',path:'.chatbox/rag/data/index.json',origin:'file',mime:'application/json'};state.list.mockResolvedValue({items:[internal],truncated:false});const tools=await buildSessionWorkspaceTools('chat')
+ expect(await tools.session_file.execute!({action:'list'},context)).toMatchObject({files:[]});await expect(tools.session_file.execute!({action:'read',path:internal.path},context)).rejects.toThrow('managed by the app');await expect(tools.session_file.execute!({action:'import',path:'copy.json',resourceId:'rag'},context)).rejects.toThrow('managed by the app');expect(state.read).not.toHaveBeenCalled()
+})

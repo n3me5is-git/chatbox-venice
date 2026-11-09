@@ -1,3 +1,4 @@
+import {canIndexRagScope} from '@shared/session-rag-policy'
 import { RAG_ROOT, RagSettingsSchema, RagIndexSchema, type RagSettings, type RagIndex } from '@shared/session-rag'
 import { SessionRagEngine, type RagEnginePort } from '@shared/session-rag-engine'
 import { sessionFiles, resourcesChanged } from '@/packages/session-resources/files'
@@ -30,6 +31,11 @@ export async function configureRag(id:string,input:RagSettings){
   const auto=await vault().db.getSetting<string[]>('rag:auto-sessions')||[];await vault().db.setSetting('rag:auto-sessions',[...auto.filter(value=>value!==id),...(settings.enabled&&settings.auto?[id]:[])])
   startRagMonitoring();notify();return settings
 }
+export async function assertRagIndexSources(id:string){
+  await vault().projects.assertSession(id);const raw=await get(id,RAG_ROOT+'index.json');if(!raw)return
+  const index=RagIndexSchema.parse(raw),current=await listSessionResources(id),scope=await vault().projects.sessionScope(id)||undefined
+  for(const file of index.files){const source=current.items.find(item=>item.path===file.path);if(!source)throw Error('RAG source changed; rebuild the index');const header=source.key&&!source.key.startsWith('linked:')?await vault().assets.header(source.key):null;if(!canIndexRagScope(scope,header?.scope))throw Error('This protected source belongs to another privacy scope and is excluded from RAG')}
+}
 export async function ragStatus(id:string){const settings=await loadRagSettings(id),parsed=RagIndexSchema.nullable().safeParse(await get(id,RAG_ROOT+'index.json'));return {settings,authorized:await ragAuthorized(id,settings),index:parsed.success?parsed.data:null,running:jobs.has(id),error:parsed.success?failures.get(id)?.error:'Invalid RAG index'}}
 async function engine(id:string,settings:RagSettings){
   const saved=ragProvider(settings),authority=JSON.stringify([saved.host,saved.saved.apiKey,settings.ocr?settingsStore.getState().getSettings().providers?.[settings.ocrProvider]:null])
@@ -38,7 +44,7 @@ async function engine(id:string,settings:RagSettings){
   const port:RagEnginePort={
     check,
     list:async()=>{const result=await listSessionResources(id);snapshot=result.items;if(result.truncated)throw Error('File listing is incomplete; reduce the session tree before indexing');return result.items},
-    read:async path=>{await check();const file=(snapshot||(await listSessionResources(id)).items).find(file=>file.path===path);if(!file)throw Error('Session file not found');if(file.key?.startsWith('linked:'))return (await (await import('@/packages/session-resources/linked-folder')).readMounted(file.key))!;return (await readSessionResource(id,file)).bytes},
+    read:async path=>{await check();const file=(snapshot||(await listSessionResources(id)).items).find(file=>file.path===path);if(!file)throw Error('Session file not found');const header=file.key&&!file.key.startsWith('linked:')?await vault().assets.header(file.key):null;if(!canIndexRagScope(await vault().projects.sessionScope(id)||undefined,header?.scope))throw Error('This protected source belongs to another privacy scope and is excluded from RAG');if(file.key?.startsWith('linked:'))return (await (await import('@/packages/session-resources/linked-folder')).readMounted(file.key))!;return (await readSessionResource(id,file)).bytes},
     get:path=>get(id,path),put:(path,value)=>put(id,path,value),
     remove:async path=>{const file=(await sessionFiles.list(id,true)).find(file=>file.path===path);if(file)await sessionFiles.remove(id,file.id,[],true)},
     extract:extractRagSource,

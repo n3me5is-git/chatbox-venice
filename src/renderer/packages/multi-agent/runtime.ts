@@ -17,6 +17,7 @@ import { createModel } from '@/adapters'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import { sessionFiles } from '@/packages/session-resources/files'
 import { buildSessionWorkspaceTools, sessionWorkspaceInstructions } from '@/packages/session-resources/tools'
+import {assertRagSourcePath,isRagInternal} from '@shared/session-rag-policy'
 import { listSessionResources, readSessionResource } from '@/packages/session-resources/service'
 import { convertToModelMessages } from '@/packages/model-calls/message-utils'
 import { buildWebSearchTools, parseLinkTool } from '@/packages/model-calls/toolsets/web-search'
@@ -106,8 +107,8 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     return parseGuardianVerdict(modelText([{ ...createMessage('assistant', ''), contentParts: result.contentParts }]))
   },
   async append(run, text) { await rendererApplication.sessions.insertMessage(run.sessionId, createMessage('user', text)) },
-  async readFile(id, path) { const item = (await listSessionResources(id)).items.find(item => item.path === path); if (!item) throw Error('Session file not found'); if (item.bytes !== undefined && item.bytes > 10 * 1024 * 1024) throw Error('Agent transfers are limited to 10 MB per file'); const { bytes } = await readSessionResource(id, item); return { bytes, mime: item.mime } },
-  async writeFile(id, path, bytes, mime) { await sessionFiles.write(id, path, bytes, { mime, expectedVersion: null }) },
+  async readFile(id, path) { assertRagSourcePath(path); const item = (await listSessionResources(id)).items.find(item => item.path === path); if (!item) throw Error('Session file not found'); if (item.bytes !== undefined && item.bytes > 10 * 1024 * 1024) throw Error('Agent transfers are limited to 10 MB per file'); const { bytes } = await readSessionResource(id, item); return { bytes, mime: item.mime } },
+  async writeFile(id, path, bytes, mime) { assertRagSourcePath(path); await sessionFiles.write(id, path, bytes, { mime, expectedVersion: null }) },
   async execute(run, task, signal) {
     const caller = multiAgentRuntime.caller(run), grant = grants.get(run.rootId)
     if (!grant) throw Error('The parent Work request is unavailable')
@@ -176,7 +177,7 @@ async function agentFiles(id: string, offset: number, limit: number) {
   if (!run) throw Error('Agent sandbox is unavailable')
   const result = await listSessionResources(run.workspaceId)
   const resources = run.workspaceId !== run.sessionId ? await listSessionResources(run.sessionId) : undefined
-  const metadata = (items: typeof result.items, area: 'files'|'resources') => items.map(({path,mime,bytes,deliverable}) => ({area,path,mime,bytes,deliverable}))
+  const metadata = (items: typeof result.items, area: 'files'|'resources') => items.filter(item=>!isRagInternal(item.path)).map(({path,mime,bytes,deliverable}) => ({area,path,mime,bytes,deliverable}))
   const all = [...metadata(result.items,'files'), ...metadata(resources?.items || [],'resources')], page = all.slice(offset,offset+limit)
   const stripArea = ({area,...item}:typeof page[number]) => item
   return { files: page.filter(item=>item.area==='files').map(stripArea), resources: page.filter(item=>item.area==='resources').map(stripArea), nextOffset: offset+page.length<all.length ? offset+page.length : null, truncated: result.truncated || resources?.truncated === true }

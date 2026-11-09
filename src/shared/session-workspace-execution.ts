@@ -1,3 +1,4 @@
+import {assertRagSourcePath} from './session-rag-policy'
 import type { SessionFileStore } from './session-file-store'
 import { validateWorkspaceFiles, type WorkspaceFiles } from './mobile-work/workspace-path'
 import type { ExecutionResult } from './mobile-work/MobileExecutionService'
@@ -8,6 +9,7 @@ function decode(value:string){return Uint8Array.from(atob(value),c=>c.charCodeAt
 
 /** Only explicitly selected session files enter the isolated runtime, never app stores/keys. */
 export async function executeSessionCode(store:SessionFileStore,executor:SessionExecutor,id:string,code:string,paths:string[],signal:AbortSignal){
+  for(const path of paths)assertRagSourcePath(path)
   if(code.length>100000||paths.length>128)throw new Error('Execution input exceeds the size limit')
   const index=await store.index(id)
   if(index.toolsEnabled===false)throw new Error('Session workspace tools are disabled')

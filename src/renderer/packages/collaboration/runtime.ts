@@ -2,6 +2,7 @@ import { openSessionChatExport } from '@chatbox/core/utils/chat-export'
 import { createMessage,type Message } from '@shared/types'
 import { sessionFilePath,type SessionFile,type SessionResource } from '@shared/session-resources'
 import type { SharedSnapshot,SharedFile,SharedAuthor,HitlInput,HitlAnswer } from '@shared/collaboration'
+import {isRagInternal} from '@shared/session-rag-policy'
 import {canShareAsset} from '@shared/collaboration'
 import { rendererApplication } from '@/app/renderer-application'
 import { listSessionResources,readSessionResource,subscribeSessionResources } from '@/packages/session-resources/service'
@@ -31,7 +32,7 @@ import { uiStore } from '@/stores/uiStore'
 import { setSearchPermission } from '@shared/providers/definitions/models/venice/search-permissions'
 
 const vault=()=>vaultRuntimeFor(platform)
-async function shareable(id:string,item:SessionResource){return canShareAsset(await vault().projects.sessionScope(id)||undefined,item.key?(await vault().assets.header(item.key))?.scope:undefined)}
+async function shareable(id:string,item:SessionResource){if(isRagInternal(item.path))return false;return canShareAsset(await vault().projects.sessionScope(id)||undefined,item.key?(await vault().assets.header(item.key))?.scope:undefined)}
 async function publicId(item:SessionResource){return b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([item.id,item.key,item.updatedAt,item.bytes])))))}
 function safePath(item:SessionResource){try{return sessionFilePath(item.path)}catch{return 'files/'+item.id.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,60)+'/'+item.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,80)}}
 function text(message:Message){return message.contentParts.map(part=>part.type==='text'?part.text:'').join('\n')}

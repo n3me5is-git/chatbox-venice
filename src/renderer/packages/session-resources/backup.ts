@@ -7,6 +7,7 @@ import { resourcesChanged, sessionFiles } from './files'
 /** Workspace archives include intermediate files too, unlike the media-library view. */
 export async function exportSessionWorkspace(id:string,password:string,signal:AbortSignal){
   const files=await sessionFiles.list(id),keys=new Set(files.map(file=>file.key)),vault=vaultRuntimeFor(platform)
+  if(files.some(file=>file.path.startsWith('.chatbox/rag/')))await (await import('@/packages/session-rag/service')).assertRagIndexSources(id)
   const scopes=new Set<string>(),temporary:string[]=[]
   try{
     for(const file of files){

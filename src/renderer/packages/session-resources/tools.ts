@@ -1,3 +1,4 @@
+import {assertRagSourcePath,isRagInternal} from '@shared/session-rag-policy'
 import { tool, type ToolSet } from 'ai'
 import { z } from 'zod'
 import { isTextResource,resourceMime } from '@shared/session-resources'
@@ -25,13 +26,13 @@ export async function buildSessionWorkspaceTools(id:string,imageResults?:ImageTo
       execute:async(input,options)=>{
         options.abortSignal?.throwIfAborted()
         if((await sessionFiles.index(id)).toolsEnabled===false)throw new Error('Session workspace tools are disabled')
-        if(input.action==='list'){const result=await listSessionResources(id,options.abortSignal);return {files:result.items.map(({id,path,mime,bytes,origin,deliverable,key})=>({id,path,mime,bytes,origin,deliverable,version:origin==='file'?key:undefined})),truncated:result.truncated}}
+        if(input.action==='list'){const result=await listSessionResources(id,options.abortSignal);return {files:result.items.filter(file=>!isRagInternal(file.path)).map(({id,path,mime,bytes,origin,deliverable,key})=>({id,path,mime,bytes,origin,deliverable,version:origin==='file'?key:undefined})),truncated:result.truncated}}
         if(!input.path)throw new Error('A relative session file path is required')
-        if(input.path?.startsWith('.chatbox/rag/')&&['write','delete','import','deliver'].includes(input.action))throw Error('RAG index files are managed by the app')
+        assertRagSourcePath(input.path)
         if(input.action==='write'){if(input.content===undefined)throw new Error('File content is required');if(!isTextResource({name:input.path,mime:resourceMime(input.path)}))throw new Error('Use import to copy existing images or media. write accepts UTF-8 text only; do not save base64 as an image.');return sessionFiles.write(id,input.path,new TextEncoder().encode(input.content),{expectedVersion:input.expectedVersion})}
         if(input.action==='import'){
           const resource=(await listSessionResources(id,options.abortSignal)).items.find(item=>item.id===input.resourceId)
-          if(!resource)throw new Error('Session file not found')
+          if(!resource)throw new Error('Session file not found');assertRagSourcePath(resource.path)
           const {bytes}=await readSessionResource(id,resource)
           try{options.abortSignal?.throwIfAborted();return await sessionFiles.write(id,input.path,bytes,{mime:resource.mime})}finally{bytes.fill(0)}
         }

@@ -156,3 +156,8 @@ describe('direct transfer real SQLite rows and encrypted receiver storage', () =
     expect([...receiver.metas.keys()]).toEqual([existing]); expect(await receiver.rows.listSessionIds()).toEqual([existing])
   })
 })
+
+it('omits derived RAG caches from a direct device transfer and ignores cache-only changes',async()=>{
+ const sender=await device(),root=await sender.conversation();await sessionFiles.write(root,'notes.md',new TextEncoder().encode('Source'));await sessionFiles.write(root,'.chatbox/rag/data/cached.json',new TextEncoder().encode('Derived sensitive passage'));await sessionFiles.mkdir(root,'.chatbox/rag/data')
+ const prepared=await prepareTransfer(root,false);try{expect(prepared.manifest.objects.some(item=>item.path?.startsWith('.chatbox/rag/'))).toBe(false);expect(prepared.manifest.sessions[0].directories).not.toContain('.chatbox/rag/data');await sessionFiles.write(root,'.chatbox/rag/data/cached.json',new TextEncoder().encode('Updated cache'));await expect(prepared.assertCurrent()).resolves.toBeUndefined()}finally{await prepared.dispose()}
+})
