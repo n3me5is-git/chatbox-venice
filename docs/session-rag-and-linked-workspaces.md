@@ -30,7 +30,7 @@ External files are **not encrypted by Chatbox**. Use device/full-disk encryption
 
 ## Bounds and portability
 
-- At most 2,000 entries and 16 directory levels per linked-tree scan, excluding `.git`, `node_modules`, `.venv` and reserved `.chatbox` folders. An incomplete scan blocks indexing.
+- At most 2,000 encountered entries (including skipped names) and 16 directory levels per linked-tree scan, excluding `.git`, `node_modules`, `.venv` and reserved `.chatbox` folders. An incomplete scan blocks indexing.
 - Existing session-store limits apply: 10 MiB per file. Large linked files are reported as skipped. Text extraction is bounded (500,000 characters; existing Office parser may return a shorter excerpt). OCR renders at most 50 PDF pages. Warnings identify truncation.
 - At most 20,000 chunks per index, 32 chunks per shard, 8 passages per retrieval. Large corpora need smaller scoped workspaces; this implementation deliberately uses exact local search.
 - Direct embedding media is capped at 8 MiB, audio at 60 seconds. Google API and account limits may be lower. Embedding dimensions must match across all chunks.

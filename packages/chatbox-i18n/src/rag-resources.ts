@@ -1,4 +1,5 @@
 export const ragItalian = {
+  'Invalid linked file version': 'Versione del file collegato non valida',
   'Unlock this chat to use RAG': 'Sblocca questa chat per usare RAG',
   'Linked folder exceeds the file tree limit': 'La cartella collegata supera il limite dell’albero dei file',
   'Choose a folder stored on this device': 'Scegli una cartella salvata su questo dispositivo',

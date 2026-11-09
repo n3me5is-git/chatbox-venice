@@ -1,5 +1,5 @@
 import { afterEach,expect,it } from 'vitest'
-import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, truncate } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { LinkedFolderBroker } from './linked-folder'
@@ -25,4 +25,8 @@ it('rejects symlink escapes and stale binding identities',async()=>{
  const {root,broker}=await fixture();const status=await broker.operation({sessionId:'root',action:'status'});const outside=await mkdtemp(path.join(tmpdir(),'chatbox-linked-'));roots.push(outside);await writeFile(path.join(outside,'secret.txt'),'Private');await symlink(outside,path.join(root,'escape'),'junction')
  await expect(broker.operation({sessionId:'root',action:'read',path:'escape/secret.txt'})).rejects.toThrow('Symbolic')
  await broker.operation({sessionId:'root',action:'pick'});await expect(broker.operation({sessionId:'root',action:'read',path:'input.md',bindingId:status.bindingId})).rejects.toThrow('changed')
+})
+
+it('reports oversize files without reading them into memory',async()=>{
+ const {root,broker}=await fixture();await writeFile(path.join(root,'large.pdf'),'');await truncate(path.join(root,'large.pdf'),11*1024*1024);const listing=await broker.operation({sessionId:'root',action:'list'});expect(listing.skipped).toEqual(['large.pdf']);expect(listing.files!.map(file=>file.path)).toEqual(['input.md'])
 })

@@ -23,3 +23,7 @@ it('uses binding and SHA capabilities for overwrite/read/delete and keeps index 
  expect(await putMounted('capability',new Uint8Array(),{path:'.chatbox/rag/data/file.json'} as any)).toBeNull()
  state.access.mockRejectedValueOnce(Error('Locked'));await expect(readMounted(key)).rejects.toThrow('Locked')
 })
+
+it('rejects malformed native capabilities instead of reading without a hash check',async()=>{
+ await expect(readMounted('linked:capability:notes.md:binding')).rejects.toThrow('Invalid linked file version');expect(state.invoke).not.toHaveBeenCalled()
+})
