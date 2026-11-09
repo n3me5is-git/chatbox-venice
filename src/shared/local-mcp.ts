@@ -10,6 +10,7 @@ export type LocalMCPRequest={id:string;operation:'list_tools'|'call_tool'|'list_
 export type LocalMCPTool={name:string;description?:string;inputSchema:{type:'object';[key:string]:unknown}}
 export function localMCPAllows(permissions:LocalMCPPermissions,name:string,args:Record<string,unknown>={}){
   if(['agent_catalog','agent_tree','agent_spawn','agent_status','agent_message','agent_wait','agent_result','agent_files','agent_file','agent_stop'].includes(name))return permissions.multiAgent&&(name!=='agent_files'||permissions.readFiles)&&(name!=='agent_file'||permissions.readFiles&&permissions.writeFiles)
+  if(['session_rag_search','session_rag_read'].includes(name))return permissions.readFiles&&permissions.search
   if(name==='session_file')return ['list','read','search','preview'].includes(String(args.action))?permissions.readFiles:permissions.writeFiles&&(['write','delete','deliver'].includes(String(args.action))||args.action==='import'&&permissions.readFiles)
   if(name==='session_js'||name==='session_python')return permissions.execute&&permissions.readFiles&&permissions.writeFiles
   if(name==='app_models'||name==='app_model')return permissions.models

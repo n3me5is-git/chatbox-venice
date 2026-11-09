@@ -15,6 +15,7 @@ import { PageHeader } from './Page'
 import Toolbar, { SessionMenu } from './Toolbar'
 import { SessionResourcesButton } from '@/components/session-resources/SessionResourcesButton'
 import { CollaborationButton } from '@/components/collaboration/CollaborationButton'
+import { SessionRagButton } from '@/components/session-resources/SessionRagButton'
 import { MultiAgentButton } from '@/components/multi-agent/MultiAgentButton'
 
 export default function Header(props: { session: SessionHeader }) {
@@ -62,7 +63,7 @@ export default function Header(props: { session: SessionHeader }) {
           </SessionMenu>
         }
         right={
-          <Flex align="center" gap={2}>{currentSession.settings?.agentMode?.value === 'on' && !currentSession.settings?.multiAgentRun && <MultiAgentButton sessionId={currentSession.id}/>}<CollaborationButton sessionId={currentSession.id}/><SessionResourcesButton sessionId={currentSession.id}/><IconButton
+          <Flex align="center" gap={2} wrap="nowrap" className="[&>*]:shrink-0" style={{maxWidth:'60vw',overflowX:'auto',minWidth:0}}>{!currentSession.settings?.multiAgentRun&&<SessionRagButton sessionId={currentSession.id}/>} {currentSession.settings?.agentMode?.value === 'on' && !currentSession.settings?.multiAgentRun && <MultiAgentButton sessionId={currentSession.id}/>}<CollaborationButton sessionId={currentSession.id}/><SessionResourcesButton sessionId={currentSession.id}/><IconButton
             icon={IconPlus}
             size="lg"
             iconSize={ICON_SIZE.touch}
@@ -97,7 +98,7 @@ export default function Header(props: { session: SessionHeader }) {
           </Tooltip>
         </Flex>
       }
-      right={<Flex align="center" gap="xs">{currentSession.settings?.agentMode?.value === 'on' && !currentSession.settings?.multiAgentRun && <MultiAgentButton sessionId={currentSession.id}/>}<CollaborationButton sessionId={currentSession.id}/><SessionResourcesButton sessionId={currentSession.id}/><Toolbar session={currentSession} /></Flex>}
+      right={<Flex align="center" gap="xs">{!currentSession.settings?.multiAgentRun&&<SessionRagButton sessionId={currentSession.id}/>} {currentSession.settings?.agentMode?.value === 'on' && !currentSession.settings?.multiAgentRun && <MultiAgentButton sessionId={currentSession.id}/>}<CollaborationButton sessionId={currentSession.id}/><SessionResourcesButton sessionId={currentSession.id}/><Toolbar session={currentSession} /></Flex>}
     />
   )
 }

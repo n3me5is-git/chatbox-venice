@@ -16,7 +16,7 @@ import { LocalMCPSettings } from './LocalMCPSettings'
 import { LocalMediaViewer } from './LocalMediaViewer'
 
 type API=typeof sessionResourceAPI
-export function SessionResources({sessionId,api=sessionResourceAPI,restricted=false}:{sessionId:string;api?:API;restricted?:boolean}){
+export function SessionResources({sessionId,api=sessionResourceAPI,restricted=false,initialPath}:{sessionId:string;api?:API;restricted?:boolean;initialPath?:string}){
   useTranslation()
   const [items,setItems]=useState<SessionResource[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[truncated,setTruncated]=useState(false)
   const [selected,setSelected]=useState<SessionResource>(),[text,setText]=useState(''),[url,setUrl]=useState(''),[opening,setOpening]=useState(false),[editing,setEditing]=useState(false),[draft,setDraft]=useState('')
@@ -49,6 +49,8 @@ export function SessionResources({sessionId,api=sessionResourceAPI,restricted=fa
     const back=registerBackSurface('session-resource:'+sessionId,clear)
     return()=>{active=false;if(owned)URL.revokeObjectURL(owned);back()}
   },[api,sessionId,selected,clear])
+  const initialOpened=useRef<string>()
+  useEffect(()=>{if(initialPath&&!loading&&initialOpened.current!==sessionId+initialPath){initialOpened.current=sessionId+initialPath;setSelected(items.find(item=>item.path===initialPath))}},[initialPath,loading,sessionId,items])
   const run=async(work:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await work();load()}catch(reason){setError(String((reason as Error)?.message||reason))}finally{setBusy(false)}}
   const resolveImage=useCallback(async(path:string)=>{
     const item=items.find(item=>item.path===path)

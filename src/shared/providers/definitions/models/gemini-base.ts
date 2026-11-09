@@ -157,12 +157,12 @@ export abstract class GeminiModel<TOptions extends GeminiModelOptions> extends A
       throw new ApiError(JSON.stringify(json))
     }
     return json.models
-      .filter((m) => m.supportedGenerationMethods.some((method) => method.includes('generate')))
+      .filter((m) => m.supportedGenerationMethods.some((method) => method.includes('generate')||method==='embedContent'))
       .filter((m) => m.name.includes('gemini'))
       .map((m) => ({
         modelId: m.name.replace('models/', ''),
         nickname: m.displayName,
-        type: 'chat' as const,
+        type: (m.supportedGenerationMethods.includes('embedContent')?'embedding':'chat') as 'embedding'|'chat',
         contextWindow: m.inputTokenLimit,
         maxOutput: m.outputTokenLimit,
       }))

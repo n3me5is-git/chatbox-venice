@@ -267,6 +267,7 @@ export const GlobalSessionSettingsSchema = z.object({
 })
 
 export const SessionSettingsSchema = GlobalSessionSettingsSchema.extend({
+  sessionRagEnabled: z.boolean().optional().catch(undefined),
   veniceToolsEnabled: z.boolean().optional().catch(undefined),
   contextTokenLimit: z.number().finite().int().min(1024).max(10_000_000).optional().catch(undefined),
   subscriptionWebSearch: z.boolean().optional().catch(undefined),

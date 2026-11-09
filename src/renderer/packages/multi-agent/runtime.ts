@@ -85,6 +85,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     const inherited = isolated ? SessionSettingsSchema.parse(run.preset?.parameters || {}) : await getSessionSettings(sourceId)
     const parameters = workerSessionParameters(inherited)
     const session = await rendererApplication.sessions.createSession({ type: 'chat', hidden: true, name: run.title, folderId: parent?.folderId, messages: [], settings: { ...parameters, ...run.model, agentMode: { value: 'off', locked: true, lockReason: 'message_sent' }, multiAgentRun: { rootId: run.rootId, runId: run.id, parentId: run.parentId, workspaceId: isolated ? '' : workspaceId, depth: run.depth } } })
+    if(isolated)await (await import('@/packages/session-resources/linked-folder')).linkedFolderOperation({sessionId:session.id,action:'inherit',parentId:workspaceId})
     const target = isolated ? session.id : workspaceId
     await rendererApplication.sessions.updateSessionHeader(session.id, header => { if (!header) throw Error('Child chat is unavailable'); return { ...header, settings: { ...header.settings, multiAgentRun: { ...header.settings!.multiAgentRun!, workspaceId: target } } } })
     return { sessionId: session.id, workspaceId: target }
@@ -144,7 +145,7 @@ async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInter
   const images = model.isSupportVision() ? buildViewImageToolSet({ sessionId: run.sessionId, toolResultImages: supportsToolResultImages(model.apiStyle) }) : undefined
   const workspace = await buildSessionWorkspaceTools(run.workspaceId, images?.imageResults)
   const venice = run.tools.some(name => name.startsWith('venice_'))&&veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, turnId, grants.get(run.rootId)?.requester || 'owner', run.rootId) : {}
-  const subscription: ToolSet = run.model.provider === ModelProviderEnum.OpenAISubscription && grants.get(run.rootId)?.settings.provider === ModelProviderEnum.OpenAISubscription && run.tools.includes('chatgpt_image') ? (await import('@/packages/chatgpt-subscription/image-tools')).subscriptionChatImageTools(run.sessionId, grants.get(run.rootId)?.requester || 'owner', turnId) : {}
+  const subscription: ToolSet = run.model.provider === ModelProviderEnum.OpenAISubscription && grants.get(run.rootId)?.settings.provider === ModelProviderEnum.OpenAISubscription && run.tools.includes('chatgpt_image') ? (await import('@/packages/chatgpt-subscription/image-tools')).subscriptionChatImageTools(run.sessionId, grants.get(run.rootId)?.requester || 'owner', turnId, run.rootId) : {}
   const available: ToolSet = { ...workspace, ...venice, ...subscription, ...buildWebSearchTools(), parse_link: parseLinkTool, ...mcpController.getAvailableTools(), ask_user: createAskUserTool((input, signal) => routeSharedDecision(run.rootId, grants.get(run.rootId)?.requester || 'owner', { kind: 'questions', input }, signal => requestUserAnswers(input, signal), value => value, value => value && typeof value === 'object' && 'answers' in value ? value : null, signal)) }
   const tools: ToolSet = {}
   for (const name of run.tools) { const original = available[name]; if (!original) continue; tools[name] = { ...original, execute: original.execute ? async (input: any, options: any) => {
@@ -165,7 +166,7 @@ async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInter
   } : undefined }
   return { tools, images }
 }
-export function dedicatedToolOptions() { return [...new Set(['session_file', 'session_js', 'session_python', 'ask_user', 'chatgpt_image', 'venice_image', 'venice_media', ...Object.keys(buildWebSearchTools()), 'parse_link', ...Object.keys(mcpController.getAvailableTools())])] }
+export function dedicatedToolOptions() { return [...new Set(['session_file', 'session_js', 'session_python', 'session_rag_search', 'session_rag_read', 'ask_user', 'chatgpt_image', 'venice_image', 'venice_media', ...Object.keys(buildWebSearchTools()), 'parse_link', ...Object.keys(mcpController.getAvailableTools())])] }
 export async function loadAgentRuns(rootId: string) {
   await vault().projects.assertSession(rootId)
   if (!loaded.has(rootId)) { loaded.add(rootId); try { await multiAgentRuntime.restore(await readAgentData<AgentRun[]>(manifest(rootId), [])); agentEvents.set(rootId, await readAgentData('private-agents:events:' + encodeURIComponent(rootId), [])) } catch (error) { loaded.delete(rootId); throw error } }

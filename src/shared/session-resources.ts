@@ -26,6 +26,7 @@ export interface SessionResourceIndex {
   removed: string[]
   directories?: string[]
   pythonEnabled?: boolean
+  ragEnabled?: boolean
   toolsEnabled?: boolean
 }
 export const emptyResourceIndex = (): SessionResourceIndex => ({ version: 1, files: [], removed: [] })
@@ -44,7 +45,7 @@ export function resourceMime(path: string) {
 }
 export function resourceName(path: string) { return path.split(/[\\/]/).pop() || path }
 export function isTextResource(item: Pick<SessionResource, 'mime' | 'name'>) {
-  return item.mime.startsWith('text/') || /\.(?:md|markdown|json|csv|tsv|js|mjs|ts|tsx|jsx|py|css|html?|xml|ya?ml|txt|log|toml|ini)$/i.test(item.name)
+  return item.mime.startsWith('text/') || /\.(?:md|markdown|json|csv|tsv|js|mjs|cjs|ts|tsx|jsx|py|go|rs|java|kt|swift|c|cpp|cc|h|hpp|rb|php|sh|bash|ps1|bat|sql|r|lua|vue|svelte|graphql|proto|css|html?|xml|ya?ml|txt|log|toml|ini)$/i.test(item.name)
 }
 /** Resolve Markdown links relative to their document, without escaping this session. */
 export function relativeResourcePath(document: string, href: string): string | undefined {

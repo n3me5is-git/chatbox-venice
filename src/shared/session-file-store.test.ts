@@ -32,3 +32,9 @@ describe('persistent session files',()=>{
     await f.store.python('one',true);expect((await f.store.index('one')).pythonEnabled).toBe(true);expect((await f.store.index('two')).pythonEnabled).toBeUndefined()
   })
 })
+
+it('copies linked deliverables into encrypted managed storage without moving the source file',async()=>{
+ const f=fixture();const source={id:'linked-source',origin:'file',path:'result.md',name:'result.md',key:'linked:one:result.md:binding~hash',mime:'text/markdown',bytes:4,updatedAt:1} as const
+ f.indices.set('one',{version:1,files:[source],removed:[]});f.bytes.set(source.key,new Uint8Array([1,2,3,4]))
+ const delivered=await f.store.deliver('one','result.md');expect(delivered.path).toMatch(/^\.chatbox\/deliverables\//);expect(delivered.deliverable).toBe(true);expect(delivered.path.length).toBeLessThanOrEqual(240);expect(f.bytes.get(source.key)).toEqual(new Uint8Array([1,2,3,4]));expect(f.bytes.get(delivered.key)).toEqual(new Uint8Array([1,2,3,4]));expect(await f.store.list('one')).toHaveLength(2)
+})
