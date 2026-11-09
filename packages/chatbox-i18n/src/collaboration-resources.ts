@@ -1,4 +1,7 @@
 export const collaborationItalian = {
+  'Tools':'Strumenti',
+  'Expand tools':'Espandi strumenti',
+  'Collapse tools':'Comprimi strumenti',
   'Remote chat':'Chat remota',
   'Close remote chat settings':'Chiudi impostazioni della chat remota',
   'Close shared files':'Chiudi file condivisi',

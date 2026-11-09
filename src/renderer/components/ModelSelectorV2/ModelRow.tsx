@@ -3,7 +3,7 @@ import { VeniceModelCost } from '@/components/venice/VeniceModelCost'
 import { ActionIcon, Flex, Text } from '@mantine/core'
 import { AutomationAdjacentAttr, TestId } from '@shared/automation/testids'
 import type { ProviderModelInfo } from '@shared/types'
-import { IconBulb, IconEye, IconInfoCircle, IconLock, IconStar, IconStarFilled } from '@tabler/icons-react'
+import { IconBulb, IconEye, IconInfoCircle, IconLock, IconStar, IconStarFilled, IconTool } from '@tabler/icons-react'
 import clsx from 'clsx'
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -60,6 +60,7 @@ export function ModelRow({
     onSelect()
   }
   const handleRowKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     handleRowAction()
@@ -78,10 +79,10 @@ export function ModelRow({
       aria-current={selected ? 'true' : undefined}
       aria-disabled={isDisabled}
       className={clsx(
-        'w-full flex items-center border-0 bg-transparent text-left cursor-pointer text-chatbox-tint-primary focus:outline-none focus-visible:outline-none',
+        'w-full flex flex-col items-stretch gap-1 py-2 border-0 bg-transparent text-left cursor-pointer text-chatbox-tint-primary focus:outline-none focus-visible:outline-none',
         mobile
-          ? clsx('min-h-11 pr-3 gap-2.5', brandedInset ? 'pl-4' : 'pl-3')
-          : clsx(detail.providerId==='venice'?'min-h-11 py-1':'h-9','pr-2.5 gap-1.5', brandedInset ? 'pl-4' : 'pl-2.5'),
+          ? clsx('min-h-11 pr-3', brandedInset ? 'pl-4' : 'pl-3')
+          : clsx('min-h-11 pr-2.5', brandedInset ? 'pl-4' : 'pl-2.5'),
         selected ? SELECTED_CLASS : HOVER_CLASS,
         isDisabled && 'opacity-50 cursor-not-allowed'
       )}
@@ -91,74 +92,85 @@ export function ModelRow({
       onMouseEnter={mobile ? undefined : handleMouseEnter}
       onMouseLeave={mobile ? undefined : onDesktopDetailClose}
     >
-      <ModelIcon
-        providerId={detail.providerId}
-        modelId={detail.modelId}
-        size={mobile ? 20 : 18}
-        className="flex-shrink-0"
-      />
-      <div className="min-w-0 flex-1 flex flex-col gap-1 py-1"><Text
+      <Text
         data-testid={TestId.model.optionName}
         span
         size="sm"
         fw={500}
-        lh={1.15}
-        className="min-w-0 flex-shrink truncate"
+        lh={1.35}
+        className="w-full min-w-0"
+        style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}
       >
         {detail.name}
-      </Text>{detail.providerId==='venice'&&<VeniceModelCost metadata={providerModel.vendorMetadata} type="text"/>}</div>
-      <Flex align="center" gap={mobile ? 6 : 4} className="min-w-0 flex-shrink-0">
-        <VeniceModelBadges metadata={providerModel.vendorMetadata} compact />
-        {providerModel.capabilities?.includes('vision') && (
-          <ScalableIcon
-            icon={IconEye}
-            size={mobile ? 16 : 14}
-            aria-label={t('Vision') as string}
-            className={CAPABILITY_ICON_COLOR_CLASSES.vision}
+      </Text>
+      <Flex data-model-icons align="center" justify="space-between" gap="xs" w="100%" miw={0}>
+        <Flex align="center" wrap="wrap" gap={mobile ? 6 : 4} className="min-w-0 flex-1">
+          <ModelIcon
+            providerId={detail.providerId}
+            modelId={detail.modelId}
+            size={mobile ? 20 : 18}
+            className="flex-shrink-0"
           />
-        )}
-        {providerModel.capabilities?.includes('reasoning') && (
-          <ScalableIcon
-            icon={IconBulb}
-            size={mobile ? 16 : 14}
-            aria-label={t('Reasoning') as string}
-            className={CAPABILITY_ICON_COLOR_CLASSES.reasoning}
-          />
-        )}
-        {mobile && (
-          <ActionIcon
-            aria-label={t('Model details') as string}
-            variant="transparent"
-            size="sm"
-            className="text-chatbox-tint-tertiary hover:text-chatbox-tint-secondary"
-            onClick={(event) => {
-              event.stopPropagation()
-              onShowDetail?.()
-            }}
-          >
-            <ScalableIcon icon={IconInfoCircle} size={15} />
-          </ActionIcon>
-        )}
+          <VeniceModelBadges metadata={providerModel.vendorMetadata} compact />
+          {providerModel.capabilities?.includes('vision') && (
+            <ScalableIcon
+              icon={IconEye}
+              size={mobile ? 16 : 14}
+              aria-label={t('Vision') as string}
+              className={CAPABILITY_ICON_COLOR_CLASSES.vision}
+            />
+          )}
+          {providerModel.capabilities?.includes('reasoning') && (
+            <ScalableIcon
+              icon={IconBulb}
+              size={mobile ? 16 : 14}
+              aria-label={t('Reasoning') as string}
+              className={CAPABILITY_ICON_COLOR_CLASSES.reasoning}
+            />
+          )}
+          {providerModel.capabilities?.includes('tool_use') && (
+            <ScalableIcon icon={IconTool} size={mobile ? 16 : 14} aria-label={t('Tool Use') as string} className={CAPABILITY_ICON_COLOR_CLASSES.tool_use} />
+          )}
+          {mobile && (
+            <ActionIcon
+              aria-label={t('Model details') as string}
+              variant="transparent"
+              size="sm"
+              className="text-chatbox-tint-tertiary hover:text-chatbox-tint-secondary"
+              onClick={(event) => {
+                event.stopPropagation()
+                onShowDetail?.()
+              }}
+            >
+              <ScalableIcon icon={IconInfoCircle} size={15} />
+            </ActionIcon>
+          )}
+        </Flex>
+        <Flex align="center" gap={4} ml="auto" className="flex-shrink-0">
+          {locked && <ScalableIcon icon={IconLock} size={mobile ? 16 : 15} className="text-chatbox-tint-tertiary" />}
+          {!hideFavorite && (
+            <ActionIcon
+              aria-label={favorited ? t('Remove from favorites') : t('Add to favorites')}
+              variant="transparent"
+              size="sm"
+              className={
+                favorited ? 'text-chatbox-tint-brand' : 'text-chatbox-tint-tertiary hover:text-chatbox-tint-brand'
+              }
+              onClick={(event) => {
+                event.stopPropagation()
+                onFavorite()
+              }}
+            >
+              <ScalableIcon icon={favorited ? IconStarFilled : IconStar} size={mobile ? 19 : 17} />
+            </ActionIcon>
+          )}
+        </Flex>
       </Flex>
-      <Flex align="center" gap={4} ml="auto" className="flex-shrink-0">
-        {locked && <ScalableIcon icon={IconLock} size={mobile ? 16 : 15} className="text-chatbox-tint-tertiary" />}
-        {!hideFavorite && (
-          <ActionIcon
-            aria-label={favorited ? t('Remove from favorites') : t('Add to favorites')}
-            variant="transparent"
-            size="sm"
-            className={
-              favorited ? 'text-chatbox-tint-brand' : 'text-chatbox-tint-tertiary hover:text-chatbox-tint-brand'
-            }
-            onClick={(event) => {
-              event.stopPropagation()
-              onFavorite()
-            }}
-          >
-            <ScalableIcon icon={favorited ? IconStarFilled : IconStar} size={mobile ? 19 : 17} />
-          </ActionIcon>
-        )}
-      </Flex>
+      {detail.providerId === 'venice' && (
+        <div data-model-cost className="w-full min-w-0">
+          <VeniceModelCost metadata={providerModel.vendorMetadata} type="text" />
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.40.1
+
+See [release notes](docs/releases/v1.40.1.md). Full-width chat model names, separate capability and price rows, and a collapsible sidebar tools group with a saved preference.
+
 ## 1.40.0
 
 See [release notes](docs/releases/v1.40.0.md). Full remote chat sessions, inline @ references, subscription chat image tools, native search history repair, per-chat Venice tool scope and a bounded mobile image picker with provider groups.

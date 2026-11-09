@@ -32,6 +32,7 @@ import ThemeSwitchButton from './components/dev/ThemeSwitchButton'
 import { useAppTitleBarHeight } from './components/layout/AppTitleBar'
 import { SidebarDesktopDownloadCard, useWebAppDownloadPromptVisible } from './components/layout/DesktopDownloadReminder'
 import { SidebarLowQuotaReminder } from './components/layout/LowQuotaReminder'
+import { SidebarTools } from './components/layout/SidebarTools'
 import { overlayStackAtom } from './components/layout/Overlay'
 import { formatShortcut } from './components/Shortcut'
 import SessionList from './components/session/SessionList'
@@ -263,6 +264,7 @@ export default function Sidebar() {
             shortcut={isSmallScreen ? undefined : ['mod', 'K']}
             onClick={handleOpenSearch}
           />
+          <SidebarTools>
           <SidebarNavRow
             testId={TestId.sidebar.newImage}
             label={t('Create Image')}
@@ -281,6 +283,7 @@ export default function Sidebar() {
               closeOnSmallScreen()
             }}
           />
+          </SidebarTools>
           <Box
             data-testid={TestId.sidebar.scrollDivider}
             aria-hidden="true"

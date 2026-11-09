@@ -5,12 +5,41 @@ import path from 'node:path'
 export async function runModelPickerReview({ click, evaluate, cdp, wait, byText, byLabel, fill, delay, output }) {
   const report = { imageModels: await evaluate('window.__pickerFixture.imageIds.length'), videoModels: await evaluate('window.__pickerFixture.videoIds.length') }
   assert.ok(report.imageModels >= 70 && report.videoModels >= 140)
-  const priceLayout=await evaluate(`(()=>{const row=document.querySelector('[data-chat-price-review]'),name=[...row.querySelectorAll('span')].find(e=>e.textContent==='Long chat model name for pricing review'),price=[...row.querySelectorAll('span')].find(e=>e.textContent.includes('1M tokens'));return {nameBottom:name.getBoundingClientRect().bottom,priceTop:price.getBoundingClientRect().top,rowWidth:row.clientWidth,scrollWidth:row.scrollWidth}})()`)
-  assert.ok(priceLayout.priceTop>=priceLayout.nameBottom,'Chat model price did not start on its own line')
-  assert.ok(priceLayout.scrollWidth<=priceLayout.rowWidth,'Chat model price row overflowed horizontally')
-  report.chatPriceOnSeparateLine=true
+  const layouts=await evaluate(`[...document.querySelectorAll('[data-chat-price-review]')].map(row=>{const name=row.querySelector('[data-testid="model-option-name"]'),icons=row.querySelector('[data-model-icons]'),price=row.querySelector('[data-model-cost]');const n=name.getBoundingClientRect(),i=icons.getBoundingClientRect(),p=price.getBoundingClientRect();return {kind:row.dataset.rowKind,nameBottom:n.bottom,iconsTop:i.top,iconsBottom:i.bottom,priceTop:p.top,nameWidth:n.width,rowWidth:row.clientWidth,scrollWidth:row.scrollWidth,nameScroll:name.scrollWidth,nameClient:name.clientWidth,nameOverflow:getComputedStyle(name).textOverflow,nameWhitespace:getComputedStyle(name).whiteSpace}})`)
+  assert.equal(layouts.length,2)
+  for(const layout of layouts){
+    assert.ok(layout.iconsTop>=layout.nameBottom,'Model icons overlap the complete name: '+layout.kind)
+    assert.ok(layout.priceTop>=layout.iconsBottom,'Model price is not below its icons: '+layout.kind)
+    assert.ok(layout.nameWidth>=layout.rowWidth-32,'Model name did not receive the full row width')
+    assert.ok(layout.nameScroll<=layout.nameClient&&layout.scrollWidth<=layout.rowWidth,'Model row overflows horizontally')
+    assert.notEqual(layout.nameOverflow,'ellipsis');assert.notEqual(layout.nameWhitespace,'nowrap')
+  }
+  report.chatPriceOnSeparateLine=true;report.fullWidthNames=true;report.separateCapabilityRow=true;report.narrowAndDesktopRows=true
   await evaluate(`document.querySelector('[data-chat-price-review]').scrollIntoView({block:'start'})`)
   await writeFile(path.join(output,'chat-model-price-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+  const modelRow=`document.querySelector('[data-chat-price-review]')`
+  await click(`(${modelRow}).querySelector('button[aria-label="Add to favorites"]')`)
+  assert.equal(await evaluate('window.__textModelFavorited'),true);assert.equal(await evaluate('window.__textModelSelected'),undefined)
+  await evaluate(`(${modelRow}).querySelector('button[aria-label="Add to favorites"]').focus()`)
+  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+  assert.equal(await evaluate('window.__textModelSelected'),undefined,'Keyboard favorite activation selected a model')
+  await click(`(${modelRow}).querySelector('button[aria-label="Model details"]')`)
+  assert.equal(await evaluate('window.__textModelDetails'),true);assert.equal(await evaluate('window.__textModelSelected'),undefined)
+  report.modelActionsPreserved=true
+  const chatSpace=()=>evaluate(`document.querySelector('[data-sidebar-chat-space]').clientHeight`),expandedSpace=await chatSpace()
+  await click(`document.querySelector('button[aria-label="Collapse tools"]')`)
+  await wait(()=>evaluate(`document.querySelector('button[aria-label="Expand tools"]').getAttribute('aria-expanded')==='false'`),'Sidebar tools did not collapse')
+  assert.ok(await chatSpace()>expandedSpace+150,'Collapsing tools did not recover space for conversations')
+  assert.equal(await evaluate(`JSON.parse(localStorage.getItem('ui-store')).state.sidebarToolsCollapsed`),true,'Sidebar preference was not persisted')
+  await click(byText('Remount tools group'))
+  assert.equal(await evaluate(`document.querySelector('button[aria-label="Expand tools"]').getAttribute('aria-expanded')`),'false','Reopening sidebar forgot the preference')
+  await evaluate(`document.querySelector('[data-sidebar-tools-review]').scrollIntoView({block:'start'})`)
+  await writeFile(path.join(output,'sidebar-tools-collapsed-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+  await click(`document.querySelector('button[aria-label="Expand tools"]')`)
+  await wait(()=>evaluate(`document.querySelector('button[aria-label="Collapse tools"]').getAttribute('aria-expanded')==='true'`),'Sidebar tools could not be reopened')
+  assert.equal(await evaluate(`JSON.parse(localStorage.getItem('ui-store')).state.sidebarToolsCollapsed`),false)
+  await writeFile(path.join(output,'sidebar-tools-expanded-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+  report.sidebarToolsCollapse=true;report.sidebarSpaceRecovered=true;report.sidebarPreferencePersisted=true;report.sidebarToolsReopened=true
   async function swipe(selector) {
     let previous
     const p = await wait(async () => {
