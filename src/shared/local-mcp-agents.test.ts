@@ -30,7 +30,7 @@ function fixture() {
     if (!validated.success) throw Error('Invalid tool arguments')
     return await member.execute!(validated.value,{toolCallId:'test',messages:[],context:{}}) as any
   }
-  return {host,runtime,caller,owned,access,grant,tools,call,files,revoke:async()=>{revoked=true;await runtime.stopRoot('root')}}
+  return {host,runtime,caller,owned,access,grant,tools,call,files,preset,revoke:async()=>{revoked=true;await runtime.stopRoot('root')}}
 }
 it('is absent by default and lists schemas without acquiring a runtime grant or starting models', () => {
   const f=fixture()
@@ -83,4 +83,12 @@ it('rejects forged caller/settings fields and revokes existing worker access on 
   const worker=await f.call('agent_spawn',{title:'Task',task:'Task'})
   await f.revoke()
   expect(await f.call('agent_message',{id:worker.id,text:'Another task'})).toMatchObject({blocked:true,error:expect.stringContaining('revoked')})
+})
+
+it('includes additional details and worker instructions in MCP catalog only on explicit opt-in',async()=>{
+ const f=fixture();f.preset.additionalDetails='Provide a pseudonymized document';f.preset.sharePromptWithCaller=true
+ const catalog=await f.call('agent_catalog')
+ expect(catalog[0].description).toContain('Provide a pseudonymized document');expect(catalog[0].description).toContain('SECRET_SYSTEM_PROMPT')
+ expect(JSON.stringify(catalog)).not.toContain('SECRET_GUARD_PROMPT');expect(catalog).toHaveLength(1)
+ f.preset.sharePromptWithCaller=false;expect(JSON.stringify(await f.call('agent_catalog'))).not.toContain('SECRET_SYSTEM_PROMPT')
 })

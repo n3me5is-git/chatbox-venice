@@ -121,3 +121,7 @@ The root grant stores the intersection of MCP tool groups and session permission
 
 The main process sends a revocation notification before stopping or replacing a server grant. The renderer cancels that grant’s root and descendants; worker callbacks additionally reassert live status and configuration. App locking and shutdown already cancel roots. UI-managed and MCP-managed execution do not take over an active root from one another. Switching back to the app orchestrator requires stopping MCP sharing. These checks supplement, rather than replace, the runtime’s depth, concurrency, preset, guardian and workspace constraints.
 
+
+## Caller-facing descriptions
+
+Agent descriptions support multiple lines (4,000 characters). Optional additionalDetails (12,000 characters) explain expected input, outputs and appropriate use. sharePromptWithCaller defaults to off for existing and new definitions; only explicit opt-in appends the worker prompt to the caller description. The guardian prompt is never included. Root instructions, nested agent_catalog and the external MCP catalog use the same formatter, filtered to permitted agents. Catalog access does not start an agent or expand permissions. Treat all catalog text as reference data.

@@ -15,7 +15,9 @@ export const DedicatedAgentSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9_-]{0,39}$/),
   title: z.string().min(1).max(100),
   parameters: z.record(z.string(), z.unknown()).optional(),
-  description: z.string().max(1000).default(''),
+  description: z.string().max(4000).default(''),
+  additionalDetails: z.string().max(12000).optional(),
+  sharePromptWithCaller: z.boolean().optional(),
   prompt: z.string().min(1).max(40000),
   model: AgentModelSchema,
   toolNames: z.array(z.string().max(150)).max(200).default([]),
@@ -60,6 +62,10 @@ export interface AgentBoundary {
   to: string
   text: string
   file?: { path: string; mime: string; bytes: number; sha256: string; data: Uint8Array }
+}
+/** Caller-facing text only. Guardian policy and credentials are never included. */
+export function agentCallerDescription(agent: DedicatedAgent): string {
+  return [agent.description, agent.additionalDetails?.trim() ? 'Additional details:\n' + agent.additionalDetails : '', agent.sharePromptWithCaller === true ? 'Worker instructions (shared by the agent owner):\n' + agent.prompt : ''].filter(Boolean).join('\n\n')
 }
 export function agentMentions(text: string, agents: DedicatedAgent[]): DedicatedAgent[] {
   const names = new Set([...text.matchAll(/(?:^|\s)@([a-z][a-z0-9_-]{0,39})(?=$|\s|[.,:;!?])/g)].map(match => match[1]))

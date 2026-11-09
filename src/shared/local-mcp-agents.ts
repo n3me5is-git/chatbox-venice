@@ -1,7 +1,7 @@
 import { tool, type ToolSet } from 'ai'
 import { z } from 'zod'
 import type { AgentCaller, MultiAgentRuntime } from './multi-agent-runtime'
-import type { DedicatedAgent } from './multi-agent'
+import { agentCallerDescription, type DedicatedAgent } from './multi-agent'
 import type { LocalMCPGrant } from './local-mcp'
 import { localMCPAllows } from './local-mcp'
 import { createAgentTools } from './multi-agent-tools'
@@ -35,11 +35,11 @@ export function createLocalMCPAgentTools(grant: LocalMCPGrant, runtime: MultiAge
       return result
     }) }
   }
-  tools.agent_catalog = tool({ description: 'List dedicated agents permitted by this Work chat, their models, tool names and guardian presence. Does not expose prompts, credentials or disabled agents. Does not start a worker or enable permissions.', inputSchema: z.object({}).strict(), execute: () => safe(async () => {
+  tools.agent_catalog = tool({ description: 'List dedicated agents permitted by this Work chat, their models, tool names and guardian presence. Includes the worker prompt only when its owner enables sharing. Never exposes guardian policies, credentials or disabled agents. Does not start a worker or enable permissions.', inputSchema: z.object({}).strict(), execute: () => safe(async () => {
     const { caller } = await access.acquire()
     const agents = (await access.catalog()).filter(agent => caller.dedicatedIds.includes(agent.id))
     await access.assert()
-    return agents.map(agent => ({ id: agent.id, name: agent.name, title: agent.title, description: agent.description, model: agent.model, tools: agent.toolNames.filter(name => caller.tools.includes(name)), guardian: agent.guardian?.enabled === true, allowOnDemand: caller.allowOnDemand && agent.allowOnDemand }))
+    return agents.map(agent => ({ id: agent.id, name: agent.name, title: agent.title, description: agentCallerDescription(agent), model: agent.model, tools: agent.toolNames.filter(name => caller.tools.includes(name)), guardian: agent.guardian?.enabled === true, allowOnDemand: caller.allowOnDemand && agent.allowOnDemand }))
   }) })
   tools.agent_tree = tool({ description: 'Show execution metadata for this Work chat’s complete agent tree, including nested workers and their sandbox IDs. No transcripts, system prompts or file contents. Controllable marks direct workers created by this MCP grant; descendants remain managed by their own caller.', inputSchema: z.object({}).strict(), execute: () => safe(async () => {
     const context = await access.acquire(); await runtime.check(context.caller)
