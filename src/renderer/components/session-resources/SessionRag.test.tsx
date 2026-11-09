@@ -21,7 +21,7 @@ it('requires explicit provider consent, persists separate modalities, indexes an
  expect((screen.getByRole('button',{name:'Save RAG settings'}) as HTMLButtonElement).disabled).toBe(true)
  fireEvent.click(screen.getByRole('button',{name:'Select multimodal embedding'}));fireEvent.click(screen.getByRole('checkbox',{name:'Embed photos directly'}))
  expect((screen.getByRole('checkbox',{name:'Embed audio directly'}) as HTMLInputElement).checked).toBe(false)
- fireEvent.click(screen.getByRole('switch',{name:'Automatically update changed files'}));fireEvent.click(screen.getByRole('checkbox',{name:/I allow the selected/}));fireEvent.click(screen.getByRole('button',{name:'Save RAG settings'}))
+ fireEvent.click(screen.getByRole('switch',{name:/^Automatically update changed files/}));fireEvent.click(screen.getByRole('checkbox',{name:/I allow the selected/}));fireEvent.click(screen.getByRole('button',{name:'Save RAG settings'}))
  await waitFor(()=>expect(api.configureRag).toHaveBeenCalledWith('chat',expect.objectContaining({enabled:true,auto:true,images:true,audio:false,ocr:false,provider:'gemini'})))
  await waitFor(()=>expect((screen.getByRole('button',{name:'Index now'}) as HTMLButtonElement).disabled).toBe(false));fireEvent.click(screen.getByRole('button',{name:'Index now'}));await waitFor(()=>expect(api.indexSessionRag).toHaveBeenCalledWith('chat'))
  fireEvent.change(screen.getByRole('textbox',{name:'Try semantic search'}),{target:{value:'find a note'}});await waitFor(()=>expect((screen.getByRole('button',{name:'Search indexed files'}) as HTMLButtonElement).disabled).toBe(false));fireEvent.click(screen.getByRole('button',{name:'Search indexed files'}))

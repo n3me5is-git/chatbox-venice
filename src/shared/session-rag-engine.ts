@@ -14,6 +14,7 @@ export class SessionRagEngine {
   async index(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void=()=>{}){
     const stored=await this.port.get(RAG_ROOT+'index.json'),previous=stored?RagIndexSchema.parse(stored):null,fingerprint=ragFingerprint(settings),files:RagFile[]=[],errors:RagIndex['errors']=[],created:string[]=[]
     try{
+      let dimensions:number|undefined;if(previous?.fingerprint===fingerprint&&previous.files[0]?.shards[0])dimensions=(await this.shard(previous.files[0].shards[0]))[0]?.vector.length
       const sources=await this.port.list();if(sources.length>2000)throw Error('Session file count limit reached')
       for(const source of sources){if(ragExcluded(source.path,settings))continue;signal.throwIfAborted();await this.port.check();progress(source.path)
         let bytes:Uint8Array|undefined
@@ -28,6 +29,7 @@ export class SessionRagEngine {
           const entry:RagFile={path:source.path,hash,shards:[],chunks:parts.length,warning:extracted.warning}
           for(let start=0;start<parts.length;start+=32){signal.throwIfAborted();await this.port.check();const batch=parts.slice(start,start+32),vectors=await this.port.embed(batch.map(part=>extracted.media?{data:bytes,mime:source.mime}:{text:part.text}),false,settings,signal)
             if(vectors.length!==batch.length)throw Error('Incomplete embedding response')
+            for(const vector of vectors){const current=normalizedVector(vector).length;if(dimensions!==undefined&&dimensions!==current)throw Object.assign(Error('Embedding dimensions changed; rebuild the index'),{fatal:true});dimensions=current}
             const chunks:RagChunk[]=batch.map((part,n)=>({...part,path:source.path,sourceHash:hash,id:crypto.randomUUID(),vector:normalizedVector(vectors[n]),modality:extracted.media?source.mime:undefined}))
             const shard=RAG_ROOT+'data/'+crypto.randomUUID()+'.json';await this.port.check();signal.throwIfAborted();await this.port.put(shard,chunks);created.push(shard);entry.shards.push(shard)
           }
@@ -35,7 +37,7 @@ export class SessionRagEngine {
         }catch(error){if(signal.aborted||(error as {fatal?:boolean})?.fatal)throw error;errors.push({path:source.path,error:String((error as Error).message).slice(0,500)})}finally{bytes?.fill(0)}
       }
       signal.throwIfAborted();await this.port.check();const index:RagIndex={version:1,fingerprint,updated:Date.now(),files,errors};await this.port.put(RAG_ROOT+'index.json',index)
-      const retained=new Set(files.flatMap(file=>file.shards));for(const shard of [...(previous?.files||[]).flatMap(file=>file.shards),...created])if(!retained.has(shard)&&shard.startsWith(RAG_ROOT+'data/'))await this.port.remove(shard)
+      const retained=new Set(files.flatMap(file=>file.shards));for(const shard of [...(previous?.files||[]).flatMap(file=>file.shards),...created])if(!retained.has(shard)&&shard.startsWith(RAG_ROOT+'data/'))await this.port.remove(shard).catch(()=>{})
       return index
     }catch(error){for(const shard of created)await this.port.remove(shard).catch(()=>{});throw error}
   }

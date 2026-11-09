@@ -1,4 +1,9 @@
 export const ragItalian = {
+  'Session RAG and workspace': 'RAG e spazio di lavoro della sessione',
+  'Invalid embedding vector': 'Vettore di embedding non valido',
+  'Embedding dimensions changed; rebuild the index': 'Le dimensioni degli embedding sono cambiate; ricostruisci l’indice',
+  'Document text exceeds the indexing limit': 'Il testo del documento supera il limite di indicizzazione',
+  'RAG index files are managed by the app': 'I file dell’indice RAG sono gestiti dall’app',
   'Files larger than 10 MB were skipped': 'I file più grandi di 10 MB sono stati saltati',
   'Choose a vision model for OCR': 'Scegli un modello con visione per l’OCR',
   'No document text found; enable OCR for scanned PDFs': 'Nessun testo trovato; abilita l’OCR per i PDF scansionati',

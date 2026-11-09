@@ -33,10 +33,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Session RAG, linked folders and extraction boundaries
-        run: pnpm exec vitest run src/shared/session-rag-engine.test.ts src/main/sandbox/linked-folder.test.ts src/renderer/packages/session-rag src/renderer/components/session-resources/SessionRag.test.tsx
+        run: pnpm exec vitest run src/renderer/packages/session-resources/linked-folder.test.ts src/shared/session-rag-engine.test.ts src/main/sandbox/linked-folder.test.ts src/renderer/packages/session-rag src/renderer/components/session-resources/SessionRag.test.tsx
       - name: Validate Windows packaging configuration
         run: node scripts/package-fork.cjs --check-config
       - run: pnpm check
+        if: ${{ !cancelled() }}
       - name: Remote chat controls, inline mentions and subscription image/search regressions
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/renderer/packages/collaboration/controls.test.ts src/renderer/packages/collaboration/projection.test.ts src/renderer/packages/collaboration/hub.test.ts src/renderer/packages/prompt-mentions src/shared/prompt-mentions.test.ts src/shared/oauth/chatgpt-search-replay.test.ts src/shared/providers/definitions/openai-subscription-replay.test.ts src/shared/providers/definitions/models/venice/tool-policy.test.ts src/renderer/packages/chatgpt-subscription/image-tools.test.ts src/renderer/components/InputBox/MessageInputField.test.tsx src/renderer/components/collaboration/RemoteChat.test.tsx src/renderer/components/session/SessionList.test.tsx src/renderer/components/venice/SessionVeniceTools.test.tsx

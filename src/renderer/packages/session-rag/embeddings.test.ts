@@ -1,10 +1,12 @@
 import { beforeEach,expect,it,vi } from 'vitest'
+import {defineProvider} from '@shared/providers/registry'
+import {ModelProviderType} from '@shared/types'
 import { RagSettingsSchema } from '@shared/session-rag'
 const state=vi.hoisted(()=>({post:vi.fn(),settings:{providers:{venice:{apiKey:'test-only',apiHost:'https://api.venice.ai/api/v1'},gemini:{apiKey:'test-google',apiHost:'https://generativelanguage.googleapis.com'}}} as any}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>state.settings})}}))
 vi.mock('@/utils/request',()=>({apiRequest:{post:state.post}}))
 import { requestRagEmbeddings,multimodalEmbedding } from './embeddings'
-beforeEach(()=>vi.clearAllMocks())
+beforeEach(()=>{vi.clearAllMocks();defineProvider({id:'venice',name:'Venice',type:ModelProviderType.OpenAI} as any);defineProvider({id:'gemini',name:'Gemini',type:ModelProviderType.Gemini} as any)})
 it('uses the configured Venice embedding endpoint, batch order and cancellation without a fallback',async()=>{
  state.post.mockResolvedValue({json:async()=>({data:[{index:1,embedding:[0,1]},{index:0,embedding:[1,0]}]})})
  const signal=new AbortController().signal,result=await requestRagEmbeddings([{text:'First'},{text:'Second'}],false,RagSettingsSchema.parse({provider:'venice',model:'embed'}),signal)

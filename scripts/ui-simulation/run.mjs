@@ -1,3 +1,4 @@
+import {runSessionRag} from './run-session-rag.mjs'
 import {runImageReview} from './run-image-review.mjs'
 import {runPrivacyReview} from './run-privacy-review.mjs'
 import {runSearchReview} from './run-search-review.mjs'
@@ -148,6 +149,7 @@ try {
   await runPrivacyReview({click,evaluate,cdp,wait,byText,byLabel,output})
   await runImageReview({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSessionWorkspace({click,evaluate,wait,byText,byLabel,fill,cdp,output})
+  await runSessionRag({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSpeechReview({click,evaluate,wait,byText,byLabel,fill,cdp,delay,output})
   await runMediaArtifactsReview({click,evaluate,wait,byText,cdp,output})
   assert.deepEqual(exceptions, [], 'Browser exceptions')

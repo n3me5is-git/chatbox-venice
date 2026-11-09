@@ -669,6 +669,7 @@ export const forkEnglish = {
   "This model does not declare native function calling. Choose encrypted text tools or another model.": "This model does not declare native function calling. Choose encrypted text tools or another model.",
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+  ...ragItalian,
   ...agentsItalian,
   ...transferItalian,
   ...collaborationItalian,

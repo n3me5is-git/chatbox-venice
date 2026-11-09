@@ -45,3 +45,8 @@ it('indexes optional multimodal media without retaining raw media bytes in its v
   const f=fixture();f.port.list=async()=>[{path:'photo.png',mime:'image/png',bytes:3}];f.port.read=async()=>new Uint8Array([1,2,3]);f.port.extract=async()=>({media:true});await f.engine.index({...f.settings,images:true},f.signal.signal)
   expect(f.embed.mock.calls[0][0][0].data).toBeInstanceOf(Uint8Array);const rows=[...f.db.values()].filter(Array.isArray).flat();expect(rows[0]).toMatchObject({path:'photo.png',modality:'image/png',text:''});expect(rows[0].data).toBeUndefined()
 })
+
+it('does not destroy a committed index when deleting an obsolete shard fails',async()=>{
+ const f=fixture();await f.engine.index(f.settings,f.signal.signal);f.sources.set('docs/cats.md','Cats changed');f.port.remove=async()=>{throw Error('Cleanup unavailable')}
+ await f.engine.index(f.settings,f.signal.signal);expect((await f.engine.search('cat',f.settings,f.signal.signal)).matches[0].snippet).toContain('changed')
+})
