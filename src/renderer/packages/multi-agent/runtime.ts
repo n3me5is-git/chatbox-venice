@@ -143,7 +143,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
 async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInterface) {
   const images = model.isSupportVision() ? buildViewImageToolSet({ sessionId: run.sessionId, toolResultImages: supportsToolResultImages(model.apiStyle) }) : undefined
   const workspace = await buildSessionWorkspaceTools(run.workspaceId, images?.imageResults)
-  const venice = veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice)&&run.tools.some(name => name.startsWith('venice_')) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, run.id, grants.get(run.rootId)?.requester || 'owner', run.rootId) : {}
+  const venice = run.tools.some(name => name.startsWith('venice_'))&&veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, run.id, grants.get(run.rootId)?.requester || 'owner', run.rootId) : {}
   const available: ToolSet = { ...workspace, ...venice, ...buildWebSearchTools(), parse_link: parseLinkTool, ...mcpController.getAvailableTools(), ask_user: createAskUserTool((input, signal) => routeSharedDecision(run.rootId, grants.get(run.rootId)?.requester || 'owner', { kind: 'questions', input }, signal => requestUserAnswers(input, signal), value => value, value => value && typeof value === 'object' && 'answers' in value ? value : null, signal)) }
   const tools: ToolSet = {}
   for (const name of run.tools) { const original = available[name]; if (!original) continue; tools[name] = { ...original, execute: original.execute ? async (input: any, options: any) => {

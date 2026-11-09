@@ -1,4 +1,4 @@
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown,{defaultUrlTransform} from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
@@ -14,7 +14,7 @@ import '@/components/session-resources/markdown-file.css'
 /** Remote Markdown never resolves through the local session sandbox or loads tracking images. */
 export function SharedMarkdown({text,files=[],openFile}:{text:string;files?:SharedFile[];openFile?:(file:SharedFile)=>void}){
   const resource=(href?:string)=>{const path=relativeResourcePath('message.md',(href||'').replace(/^sandbox:\/mnt\/data\//,''));return files.find(file=>file.path===path)}
-  return <div className="session-markdown-file" style={{minWidth:0,overflowWrap:'anywhere'}}><ReactMarkdown remarkPlugins={[remarkGfm,remarkMath]} rehypePlugins={[[rehypeKatex,{throwOnError:false,trust:false}]]} skipHtml components={{
+  return <div className="session-markdown-file" style={{minWidth:0,overflowWrap:'anywhere'}}><ReactMarkdown remarkPlugins={[remarkGfm,remarkMath]} rehypePlugins={[[rehypeKatex,{throwOnError:false,trust:false}]]} skipHtml urlTransform={url=>/^sandbox:\/mnt\/data\//.test(url)?url:defaultUrlTransform(url)} components={{
     a:({href,children})=>{const file=resource(href);return file&&openFile?<Button variant="light" size="compact-sm" onClick={()=>openFile(file)}>{children}</Button>:<a href={/^https?:\/\//i.test(href||'')?href:undefined} rel="noreferrer" onClick={event=>{event.preventDefault();if(/^https?:\/\//i.test(href||''))void platform.openLink(href!)}}>{children}</a>},
     img:({src,alt})=>{const file=resource(src);return file&&openFile?<Button variant="light" size="compact-sm" onClick={()=>openFile(file)}>{alt||file.name}</Button>:<Text component="span" size="xs" c="dimmed">{alt||ft('External image blocked')}</Text>},
     code:({className,children})=>className==='language-mermaid'?<LocalMermaid source={String(children).trim()}/>:<code className={className}>{children}</code>,

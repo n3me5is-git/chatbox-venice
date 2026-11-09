@@ -25,9 +25,10 @@ export async function remotePreview(roomId:string,file:SharedFile,signal:AbortSi
 }
 export function RemoteFiles({room,opened,initial,onClose}:{room:GuestShare;opened:boolean;initial?:SharedFile;onClose:()=>void}){
   const [selected,setSelected]=useState<SharedFile>(),[search,setSearch]=useState(''),[kind,setKind]=useState('all'),[preview,setPreview]=useState<{url?:string;text?:string}>(),[error,setError]=useState(''),[loading,setLoading]=useState(false)
-  const active=useRef<AbortController>(),reads=useRef<Promise<unknown>>(Promise.resolve()),files=room.snapshot?.files||[]
+  const active=useRef<AbortController>(),reads=useRef<Promise<unknown>>(Promise.resolve()),files=room.snapshot?.files||[],filesRef=useRef(files);filesRef.current=files
+  const fileIds=files.map(file=>file.id).join('|')
   const read=useCallback((file:SharedFile,signal:AbortSignal)=>{const work=reads.current.catch(()=>{}).then(()=>{signal.throwIfAborted();return remotePreview(room.id,file,signal)});reads.current=work;return work},[room.id])
-  const resolveImage=useCallback(async(path:string)=>{const file=files.find(file=>file.path===path),controller=active.current;if(!file?.mime.startsWith('image/')||!controller)return;const blob=await read(file,controller.signal);controller.signal.throwIfAborted();return URL.createObjectURL(blob)},[files,read])
+  const resolveImage=useCallback(async(path:string)=>{const file=filesRef.current.find(file=>file.path===path),controller=active.current;if(!file?.mime.startsWith('image/')||!controller)return;const blob=await read(file,controller.signal);controller.signal.throwIfAborted();return URL.createObjectURL(blob)},[fileIds,read])
   useEffect(()=>{if(opened)setSelected(initial)},[initial,opened])
   const current=files.find(file=>file.id===selected?.id)
   useEffect(()=>{

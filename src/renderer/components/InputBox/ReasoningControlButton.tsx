@@ -227,8 +227,8 @@ function getLevelLabel(level: ReasoningControlLevel, t: (key: string) => string)
       return t('Medium')
     case 'high':
       return t('High')
-    case 'minimal': return 'Minimo'
-    case 'xhigh': return 'Molto alto'
-    case 'max': return 'Massimo'
+    case 'minimal': return t('Minimal')
+    case 'xhigh': return t('Extra high')
+    case 'max': return t('Maximum')
   }
 }

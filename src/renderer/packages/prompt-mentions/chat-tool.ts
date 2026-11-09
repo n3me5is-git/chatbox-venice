@@ -21,6 +21,6 @@ export function buildMentionedChatTools(currentId:string,text:string){
   const vault=vaultRuntimeFor(platform)
   return mentionedChatTool(text,{
     async assertAccess(id){await vault.projects.assertSession(currentId);await vault.projects.assertSession(id);const [target,source]=await Promise.all([vault.projects.sessionScope(currentId),vault.projects.sessionScope(id)]);if(source&&source!==target)throw Error('This conversation belongs to another protected project')},
-    async read(id,limit){const result=await rendererApplication.sessions.readSessionTranscriptWindow({sessionId:id,origin:'tail',limit});if(!result)throw Error('This chat is no longer available');return {name:result.header.name,messages:result.messages.map(row=>row.message)}}
+    async read(id,limit){const result=await rendererApplication.sessions.readSessionTranscriptWindow({sessionId:id,origin:'tail',limit});if(!result)throw Error('This chat is no longer available');return {name:result.record.name,messages:result.messages.map(row=>row.message)}}
   })
 }

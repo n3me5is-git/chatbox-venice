@@ -28,7 +28,7 @@ describe('host-authoritative collaboration',()=>{
    await guest.link!.send({type:'configure',id:crypto.randomUUID(),revision:'r1',patch:{thinking:'high'}});expect(configure).not.toHaveBeenCalled();expect(guest.error).toContain('not allowed')
    owner.setPermissions(host.id,actor,{write:true,interact:true,clone:false});await owner.refresh('chat');await visitor.configure(guest.id,{thinking:'high',webBrowsing:true})
    expect(configure).toHaveBeenCalledOnce();expect(guest.snapshot?.controls).toMatchObject({revision:'r2',thinking:'high',webBrowsing:true})
-   await guest.link!.send({type:'configure',id:crypto.randomUUID(),revision:'r1',patch:{thinking:'default'}});expect(guest.error).toContain('settings changed')
+   guest.snapshot!.controls!.revision='r1';await expect(visitor.configure(guest.id,{thinking:'default'})).rejects.toThrow('settings changed')
    owner.setPermissions(host.id,actor,{write:true,interact:false,clone:false});await owner.refresh('chat');await expect(visitor.configure(guest.id,{webBrowsing:false})).rejects.toThrow('not allowed')
  })
  it('shows structured join errors and replaces a failed connection when retrying',async()=>{

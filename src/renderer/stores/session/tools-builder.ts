@@ -657,7 +657,11 @@ When you create a Git commit that includes code changes, append this exact trail
 
   if (includeAgentTools && options.sessionId && settingsStore.getState().providers?.venice?.apiKey && veniceToolsEnabled(options.sessionSettings?.provider||(model.name==='Venice'?'venice':undefined),options.sessionSettings?.veniceToolsEnabled,settingsStore.getState().providers?.venice?.venice)) {
     const { veniceChatTools } = await import('@/packages/venice/tools')
-    tools = { ...tools, ...veniceChatTools(options.sessionId,messages.filter(message=>message.role==='user').at(-1)?.id||'empty',collaborationRequester(messages).id) }
+    const veniceTools=veniceChatTools(options.sessionId,messages.filter(message=>message.role==='user').at(-1)?.id||'empty',collaborationRequester(messages).id)
+    for(const [name,tool]of Object.entries(veniceTools)){
+      const execute=tool.execute
+      tools[name]={...tool,execute:execute?async(...args:Parameters<NonNullable<typeof execute>>)=>{const {getSessionSettings}=await import('./session-settings');const current=await getSessionSettings(options.sessionId!);if(!veniceToolsEnabled(current.provider,current.veniceToolsEnabled,settingsStore.getState().providers?.venice?.venice))throw Error('Venice tools are disabled for this chat');return execute(...args)}:undefined}
+    }
     instructions += '\nUse venice_image for Venice image generation/editing. Resolve an explicitly requested model name with its live catalog; do not substitute another model. The tool enforces the human-selected chat approval policy: ask by default, remember similar requests, or explicitly automatic. A dialog resolves model ambiguity, required references and per-call options. Only the human can change that policy in the app. Use venice_media for other Venice media. Do not install an external server or use chatbox_cli to bypass these native tools.\n'
   }
 
