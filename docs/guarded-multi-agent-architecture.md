@@ -54,6 +54,14 @@ Workspace tools operate on relative paths only. On-demand workers share the call
 
 Model/provider settings identify an existing locally configured provider. Credentials stay behind the normal provider adapter. Agent configuration and transcripts do not contain a second copy of a provider API key or subscription token.
 
+### Context budgets
+
+Dedicated presets accept `parameters.contextTokenLimit` and `parameters.autoCompaction`, alongside their model settings. The worker session receives these values; an on-demand descendant copies its immediate caller's parameters. An unset token value follows the global budget. Global Auto leaves Chatbox's existing model-window/fallback/reservation policy in place. Explicit agent/session budgets replace global, then clamp to the configured and declared model limits.
+
+`WorkerContextController` measures model-facing messages plus tool definitions before each request. It uses the shared budget, threshold, growth and tool-round boundary helpers. Compaction uses the same worker provider/model, with no tools and with authority/cancellation checks before every summary request. Bounded chunks keep summary requests inside the window; an indivisible oversized message/tool result fails with a readable reason. No file/tool result is silently truncated. The SDK transcript is append-only for the call: a retained message identity anchors each rewrite, which is reused and can advance when further tool results grow the request. Full transcripts remain in local session storage; the rewrite is per model call rather than a durable replacement of worker history. A later follow-up may summarize again. Existing transcript size/message-count safety bounds still apply.
+
+Guardian reviews enforce the complete request budget with compaction disabled: summarized evidence must never replace the actual data being checked. A budget failure blocks the boundary and reports to the caller. It does not authorize another provider or a weaker guard.
+
 Tools include child spawn, status, wait, result, message, file transfer and stop. Status inspection returns metadata; result inspection returns the child assistant's reviewed response. Tool failures return a structured blocked/error result to the direct caller. They are not interpreted as permission to retry a paid operation or to reroute content through another worker.
 
 ## Guardian disclosure order

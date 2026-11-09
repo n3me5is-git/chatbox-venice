@@ -12,6 +12,13 @@ it('uses a 300K subscription ceiling before considering a lower user budget',()=
   expect(getCompactionBudget(300000,{contextTokenLimit:150000})?.thresholdTokens).toBe(88500)
   expect(getCompactionBudget(300000,{contextTokenLimit:900000})?.contextWindow).toBe(300000)
 })
+it('takes the smaller declared model ceiling, even when a model budget is larger',()=>{
+  const providers={'openai-sub-unofficial':{models:[{modelId:'small',contextWindow:300000,vendorMetadata:{codexReportedContextWindow:128000}},{modelId:'large',contextWindow:300000,vendorMetadata:{codexReportedContextWindow:1000000}}]}}
+  expect(getConfiguredContextWindow({providers},'openai-sub-unofficial','small')).toBe(128000)
+  expect(getConfiguredContextWindow({providers},'openai-sub-unofficial','large')).toBe(300000)
+  expect(getCompactionBudget(128000,{contextTokenLimit:500000})?.contextWindow).toBe(128000)
+  expect(getCompactionBudget(1000000,{})?.contextWindow).toBe(1000000)
+})
 it('applies token caps to overflow checks and summary targets consistently',()=>{
   const result=checkOverflow({modelId:'custom',contextWindow:300000,tokens:90000,settings:{contextTokenLimit:150000,compactionThreshold:0.75}})
   expect(result).toMatchObject({isOverflow:true,contextWindow:150000,thresholdTokens:88500})

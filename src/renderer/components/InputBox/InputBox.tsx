@@ -3,7 +3,7 @@ import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { ChatGPTAllowance } from '@/components/settings/provider/ChatGPTAllowance'
 import { getCompactionBudget, FALLBACK_CONTEXT_WINDOW_TOKENS } from '@chatbox/core/application/token-estimation/math'
 import { DEFAULT_SUBSCRIPTION_CONTEXT_WINDOW } from '@shared/oauth/chatgpt-model-catalog'
-import { getEffectiveMaxOutputTokens } from '@/packages/context-management/context-pressure'
+import { getConfiguredContextWindow, getEffectiveMaxOutputTokens } from '@/packages/context-management/context-pressure'
 import { SpeechMicrophone } from '@/components/speech/SpeechControls'
 import { AgentMentionButton } from '@/components/multi-agent/AgentMentionButton'
 import { MAX_CHAT_IMAGE_ATTACHMENTS } from '@chatbox/core/application/attachments'
@@ -852,6 +852,8 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
 
     // Use model setting contextWindow if available, otherwise fallback to models.dev data
     const modelContextWindow = useMemo(() => {
+      const configured = getConfiguredContextWindow(settingsStore.getState(), model?.provider, model?.modelId, modelInfo?.contextWindow)
+      if (configured) return configured
       if (modelInfo?.contextWindow) return modelInfo.contextWindow
       if (model?.provider === 'openai-sub-unofficial') return DEFAULT_SUBSCRIPTION_CONTEXT_WINDOW
       if (model?.provider && model?.modelId) {

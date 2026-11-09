@@ -40,7 +40,7 @@ export function RouteComponent() {
       description={t("Summarize long conversations so they stay within the model's context window.")}
     >
       <SettingsSection>
-        <div className="px-4 py-3"><ContextTokenBudgetField label={ft('Default context budget (tokens)')} value={settings.contextTokenLimit} placeholder={ft('Use model limit')} onApply={contextTokenLimit => setSettings({ contextTokenLimit })} /></div>
+        <div className="px-4 py-3"><ContextTokenBudgetField label={ft('Default context budget (tokens)')} value={settings.contextTokenLimit} placeholder={ft('Auto (Chatbox default)')} resetLabel="Auto" description="Auto uses the model context and Chatbox compaction rules. Enter a number to add a token ceiling." onApply={contextTokenLimit => setSettings({ contextTokenLimit })} /></div>
         <SettingSwitchRow
           id="auto-compaction"
           label={t('Auto Compaction')}

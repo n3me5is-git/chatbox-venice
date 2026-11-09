@@ -11,3 +11,7 @@ it('applies an explicit token budget, supports clearing and prevents Enter reach
   fireEvent.change(screen.getByLabelText('Budget'),{target:{value:'150000'}});fireEvent.keyDown(screen.getByLabelText('Budget'),{key:'Enter'});expect(save).toHaveBeenLastCalledWith(150000);expect(outer).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button',{name:'Use default'}));expect(save).toHaveBeenLastCalledWith(undefined)
 })
+it('restores native Auto by removing the optional global ceiling',()=>{
+  const save=vi.fn();render(<MantineProvider><ContextTokenBudgetField label="Global budget" value={300000} resetLabel="Auto" onApply={save}/></MantineProvider>)
+  fireEvent.click(screen.getByRole('button',{name:'Auto'}));expect(save).toHaveBeenCalledWith(undefined)
+})

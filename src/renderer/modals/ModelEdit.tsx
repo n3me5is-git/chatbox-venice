@@ -245,6 +245,7 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
               <Text size="sm">{t('Context Window')}</Text>
               <NumberInput
                 placeholder={String(t('e.g. 128000'))}
+                  description={isSubscription ? ft('Local context budget for this model. A lower account-reported limit still applies.') : undefined}
                 value={contextWindow}
                 onChange={(value) => setContextWindow(typeof value === 'number' ? value : undefined)}
                 min={1}
@@ -253,6 +254,7 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
                 thousandSeparator=","
                 clampBehavior="strict"
               />
+                {isSubscription && typeof props.model?.vendorMetadata?.codexReportedContextWindow === 'number' && <Text size="xs" c="dimmed">{ft('Reported model context')}: {props.model.vendorMetadata.codexReportedContextWindow.toLocaleString()}</Text>}
             </Stack>
             <Stack gap="xs" flex={1}>
               <Text size="sm">{t('Max Output Tokens')}</Text>
