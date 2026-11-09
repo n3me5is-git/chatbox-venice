@@ -70,6 +70,8 @@ Use **Send to another device** in a chat's menu to continue its complete session
 
 The optional community ChatGPT subscription provider displays account-reported five-hour/weekly allowances in settings, chat and image creation. Tap the allowance for reset dates in your device's time zone. See [usage display](docs/chatgpt-subscription-allowance.md).
 
+For external-browser sign-in, current Codex models, custom text/image endpoints, native search, thinking levels and per-model/global/session context budgets, see [ChatGPT subscription setup and source audit](docs/chatgpt-subscription.md).
+
 ## Extra request JSON for each custom model
 
 Open a custom provider, create or edit a model, and use **Extra request JSON**. This object merges into the outgoing body after SDK serialization. Nested objects merge; arrays replace. `false`, `0` and `null` retain their meaning. Streaming remains controlled by Chatbox settings.

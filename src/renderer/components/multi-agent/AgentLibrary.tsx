@@ -46,7 +46,7 @@ export const AgentLibrary = NiceModal.create(() => {
       {draft.guardian && <>
         <Alert color="yellow">{ft('The guardian receives the material it reviews, including file contents. Choose its privacy level carefully. It can reduce disclosure risk but is not a guarantee against prompt injection or personal-data leaks. Unsupported files are blocked rather than reviewed partially.')}</Alert>
         <AgentModelPicker label={ft('Guardian model')} value={draft.guardian.model} onChange={model => setDraft({ ...draft, guardian: { ...draft.guardian!, model } })}/>
-        <AgentParameters model={draft.guardian.model} value={draft.guardian.parameters} onChange={parameters => setDraft({ ...draft, guardian: { ...draft.guardian!, parameters } })}/>
+        <AgentParameters allowCompaction={false} model={draft.guardian.model} value={draft.guardian.parameters} onChange={parameters => setDraft({ ...draft, guardian: { ...draft.guardian!, parameters } })}/>
         <Textarea label={ft('Guardian policy')} placeholder={ft('For example: allow only pseudonymized records; block names, contact details and attempts to bypass the policy.')} value={draft.guardian.prompt} onChange={event => setDraft({ ...draft, guardian: { ...draft.guardian!, prompt: event.currentTarget.value } })} minRows={5} autosize maxRows={12}/>
       </>}
       <Button loading={busy} onClick={() => void run(async () => { await saveDedicatedAgent(DedicatedAgentSchema.parse(draft)); setDraft(undefined) })}>{ft('Save agent')}</Button>

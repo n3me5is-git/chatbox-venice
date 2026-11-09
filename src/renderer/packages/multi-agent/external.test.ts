@@ -5,6 +5,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { defaultLocalMCPPermissions, type LocalMCPGrant } from '@shared/local-mcp'
 const state=vi.hoisted(()=>({headers:new Map<string,any>(),messages:new Map<string,any[]>(),data:new Map<string,any>(),resources:new Map<string,any[]>(),chat:vi.fn(),write:vi.fn(),request:vi.fn()}))
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
+vi.mock('./worker-context',()=>({createWorkerContext:async()=>({prepare:async(messages:unknown)=>messages})}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessionEvents:{subscribe:vi.fn()},sessions:{
   getSessionHeader:async(id:string)=>state.headers.has(id)?{header:state.headers.get(id)}:null,
   createSession:async(input:any)=>{const id=crypto.randomUUID();state.headers.set(id,{...input,id});return{id}},
@@ -38,6 +39,7 @@ beforeEach(()=>{
 const build=()=>buildExternalMultiAgentTools(grant,{session_file:{} as any},async()=>{if(!live)throw Error('Revoked')})
 async function call(tools:any,name:string,input:any={}){const member=tools[name],validated=await asSchema(member.inputSchema).validate!(input);if(!validated.success)throw Error('Invalid');return await member.execute(validated.value,{toolCallId:'test',messages:[],context:{}})}
 it('runs the real renderer worker adapter while preserving a read-only file grant',async()=>{
+  Object.assign(state.headers.get(grant.sessionId).settings,{contextTokenLimit:50000,autoCompaction:false})
   state.chat.mockImplementation(async(_messages,options)=>{
     await expect(options.tools.session_file.execute({action:'write',path:'secret.txt',content:'data'},{abortSignal:options.signal,context:{}})).rejects.toThrow('MCP sharing permissions')
     expect(options.tools.session_js).toBeUndefined()
@@ -48,6 +50,7 @@ it('runs the real renderer worker adapter while preserving a read-only file gran
     return {contentParts:[{type:'text',text:'Completed without writing'}]}
   })
   const tools=build(),worker=await call(tools,'agent_spawn',{title:'Readonly task',task:'Use only approved tools'})
+  expect(state.headers.get(multiAgentRuntime.runs.get(worker.id)!.sessionId).settings).toMatchObject({contextTokenLimit:50000,autoCompaction:false})
   expect(worker.blocked).toBeUndefined();await call(tools,'agent_wait',{ids:[worker.id]})
   expect(await call(tools,'agent_result',{id:worker.id})).toMatchObject({text:'Completed without writing'})
   expect(state.chat).toHaveBeenCalledOnce();expect(state.write).not.toHaveBeenCalled()

@@ -1,18 +1,19 @@
 import { CHATGPT_SUB_PROVIDER, startChatGPTDeviceLogin, pollChatGPTDeviceLogin, refreshChatGPTSubscription, subscriptionHeaders, type ChatGPTDeviceCode } from '@shared/oauth/chatgpt-subscription'
 import type { OAuthCredentials } from '@shared/oauth'
 import type { ProviderModelInfo } from '@shared/types'
-import { createFetchWithProxy } from '@shared/models/utils/fetch-proxy'
+import { createSubscriptionTransport } from '@shared/oauth/chatgpt-transport'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import platform from '@/platform'
 import { settingsStore } from '@/stores/settingsStore'
 import { parseChatGPTAllowance } from '@shared/oauth/chatgpt-allowance'
+import { CHATGPT_CODEX_CLIENT_VERSION, parseSubscriptionModels } from '@shared/oauth/chatgpt-model-catalog'
 
 const key = 'private-auth:chatgpt-subscription:v1'
 const pendingKey = 'private-auth:chatgpt-subscription-pending:v1'
 const vault = () => vaultRuntimeFor(platform)
 let renewal: Promise<OAuthCredentials> | undefined
 let epoch = 0
-async function fetcher() { return createFetchWithProxy(false, await (await import('@/adapters/RendererModelDependencies')).createModelDependencies()) }
+async function fetcher() { return createSubscriptionTransport(await (await import('@/adapters/RendererModelDependencies')).createModelDependencies()) }
 async function save(value: OAuthCredentials | ChatGPTDeviceCode, expectedEpoch = epoch, alias = key) {
   if (epoch !== expectedEpoch) throw new Error('ChatGPT connection was closed')
   if (!await vault().available()) throw new Error('Device encryption is unavailable')
@@ -74,13 +75,11 @@ export async function disconnectSubscription() {
 export async function subscriptionModels(signal?: AbortSignal): Promise<ProviderModelInfo[]> {
   const version = epoch, credential = await subscriptionCredential(), request = await fetcher()
   signal?.throwIfAborted(); if (epoch !== version) throw Error('ChatGPT connection was closed')
-  const response = await request('https://chatgpt.com/backend-api/codex/models?client_version=0.111.0', { headers: subscriptionHeaders(credential), signal })
+  const response = await request('https://chatgpt.com/backend-api/codex/models?client_version=' + CHATGPT_CODEX_CLIENT_VERSION, { redirect: 'error', cache: 'no-store', headers: { ...subscriptionHeaders(credential), Accept: 'application/json' }, signal })
   if (!response.ok) throw Error('ChatGPT model catalog is unavailable (HTTP ' + response.status + '). Configured models are kept.')
   const payload = await response.json()
   signal?.throwIfAborted(); if (epoch !== version) throw Error('ChatGPT connection was closed')
-  if (!Array.isArray(payload.models)) throw Error('ChatGPT returned an invalid model catalog')
-  const models = payload.models.filter((model: any) => typeof model.slug === 'string' && model.visibility !== 'hide').map((model: any): ProviderModelInfo => ({ modelId: model.slug, nickname: typeof model.display_name === 'string' ? model.display_name : model.slug, capabilities: ['tool_use', 'vision', ...(model.supports_reasoning_summaries ? ['reasoning' as const] : [])] }))
-  return [...models, ...['gpt-image-2', 'gpt-image-1.5'].map(modelId => ({ modelId, type: 'image' as const }))]
+  return parseSubscriptionModels(payload)
 }
 
 export async function subscriptionAllowance(signal?: AbortSignal) {

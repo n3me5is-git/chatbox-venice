@@ -18,8 +18,9 @@ describe('getConfiguredContextWindow', () => {
     ).toBe(128_000)
   })
 
-  it('returns undefined when the model is missing', () => {
-    expect(getConfiguredContextWindow({}, 'openai', 'gpt-4o')).toBeUndefined()
+  it('uses native registry lookup without an override and leaves unknown models unresolved', () => {
+    expect(getConfiguredContextWindow({}, 'openai', 'gpt-4o')).toBe(128000)
+    expect(getConfiguredContextWindow({}, 'openai', 'unknown-no-registry-model')).toBeUndefined()
     expect(getConfiguredContextWindow({}, undefined, undefined)).toBeUndefined()
   })
 })

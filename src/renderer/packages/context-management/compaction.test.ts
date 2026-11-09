@@ -25,6 +25,7 @@ const {
   getSessionLockStateMock,
   enqueueCompactionRequestMock,
   hasQueuedWorkMock,
+  getGlobalSettingsMock,
 } = vi.hoisted(() => ({
   resolveTokenEstimationPolicyMock: vi.fn(),
   generateSummaryWithStreamMock: vi.fn(),
@@ -37,6 +38,7 @@ const {
   getSessionLockStateMock: vi.fn(),
   enqueueCompactionRequestMock: vi.fn(),
   hasQueuedWorkMock: vi.fn(),
+  getGlobalSettingsMock: vi.fn(),
 }))
 
 vi.mock('@/app/renderer-application', () => {
@@ -54,7 +56,7 @@ vi.mock('@/stores/session/session-settings', () => ({
   getSessionSettings: getSessionSettingsMock,
 }))
 vi.mock('@/settings-runtime', () => ({
-  settingsService: { getSettings: () => ({ defaultChatModel: { model: 'test-model' } }) },
+  settingsService: { getSettings: getGlobalSettingsMock },
 }))
 vi.mock('../token-estimation/row-history-service', () => ({
   rendererTokenEstimation: { estimate: estimateMock },
@@ -85,6 +87,7 @@ function testSession(): Session {
 
 beforeEach(async () => {
   vi.clearAllMocks()
+  getGlobalSettingsMock.mockReturnValue({ defaultChatModel: { model: 'test-model' } })
   resolveTokenEstimationPolicyMock.mockResolvedValue({ sandboxMode: false, modelSupportToolUseForFile: false })
   getDefaultStore().set(compactionUIStateMapAtom, {})
   repository = new InMemorySessionRepository()
@@ -122,6 +125,16 @@ afterEach(async () => {
 })
 
 describe('runCompactionWithUIState', () => {
+  it('uses the session budget before the global budget in actual automatic compaction', async () => {
+    getGlobalSettingsMock.mockReturnValue({defaultChatModel:{provider:'openai-sub-unofficial',model:'custom'},contextTokenLimit:100000})
+    getSessionSettingsMock.mockResolvedValue({contextTokenLimit:150000})
+    estimateMock.mockResolvedValue({totalTokens:70000})
+    await expect(runCompactionWithUIState('session-1',{kind:'automatic'})).resolves.toMatchObject({status:'skipped',reason:'not_needed'})
+    expect(generateSummaryWithStreamMock).not.toHaveBeenCalled()
+    getSessionSettingsMock.mockResolvedValue({})
+    await expect(runCompactionWithUIState('session-1',{kind:'automatic'})).resolves.toMatchObject({status:'compacted'})
+    expect(generateSummaryWithStreamMock).toHaveBeenCalledOnce()
+  })
   it('decides with one estimate, plans from a separate row context, then measures the compacted size', async () => {
     const estimate = estimateMock.mockResolvedValueOnce({ totalTokens: 1_000_000 })
     getSessionSettingsMock.mockResolvedValue({ maxContextMessageCount: 20 })

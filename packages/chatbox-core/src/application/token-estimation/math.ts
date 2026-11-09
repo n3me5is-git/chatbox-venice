@@ -117,6 +117,8 @@ export interface CompactionBudget {
 
 export interface CompactionBudgetOptions {
   compactionThreshold?: number | null
+  /** Optional user budget; cannot enlarge the model's own context ceiling. */
+  contextTokenLimit?: number | null
   /** The reply limit the request runs with: the session's max tokens, else the model's max output. */
   maxOutputTokens?: number | null
 }
@@ -131,6 +133,7 @@ export function getCompactionBudget(
   options: CompactionBudgetOptions = {}
 ): CompactionBudget | null {
   if (!(contextWindow > 0)) return null
+  if (Number.isFinite(options.contextTokenLimit) && options.contextTokenLimit! > 0) contextWindow = Math.min(contextWindow, options.contextTokenLimit!)
   const outputReserveTokens = getOutputReserveTokens(contextWindow, options.maxOutputTokens)
   const usableTokens = contextWindow - outputReserveTokens
   if (usableTokens <= 0) return null

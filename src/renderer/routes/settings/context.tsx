@@ -10,6 +10,8 @@ import { ScalableIcon } from '@/components/common/ScalableIcon'
 import { SettingRow, SettingSwitchRow, SettingsPage, SettingsSection } from '@/components/settings/SettingsLayout'
 import { languageNameMap } from '@/i18n/locales'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { ContextTokenBudgetField } from '@/components/common/ContextTokenBudgetField'
+import { forkT as ft } from '@/i18n/fork'
 
 export const Route = createFileRoute('/settings/context')({
   component: RouteComponent,
@@ -38,6 +40,7 @@ export function RouteComponent() {
       description={t("Summarize long conversations so they stay within the model's context window.")}
     >
       <SettingsSection>
+        <div className="px-4 py-3"><ContextTokenBudgetField label={ft('Default context budget (tokens)')} value={settings.contextTokenLimit} placeholder={ft('Auto (Chatbox default)')} resetLabel="Auto" description="Auto uses the model context and Chatbox compaction rules. Enter a number to add a token ceiling." onApply={contextTokenLimit => setSettings({ contextTokenLimit })} /></div>
         <SettingSwitchRow
           id="auto-compaction"
           label={t('Auto Compaction')}

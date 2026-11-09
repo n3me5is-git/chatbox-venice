@@ -205,12 +205,14 @@ export function resolveModelContextWindow(model: TokenEstimationModel | undefine
 
 export function getCompactionBudgetForModel(options: {
   model: TokenEstimationModel
+  contextTokenLimit?: number
   compactionThreshold?: Settings['compactionThreshold']
   maxOutputTokens?: number
 }): CompactionBudget | null {
   const contextWindow = resolveModelContextWindow(options.model) ?? FALLBACK_CONTEXT_WINDOW_TOKENS
   return getCompactionBudget(contextWindow, {
     compactionThreshold: options.compactionThreshold,
+    contextTokenLimit: options.contextTokenLimit,
     maxOutputTokens: options.maxOutputTokens,
   })
 }

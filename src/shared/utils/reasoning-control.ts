@@ -1,6 +1,7 @@
 import { pickPersistableProviderMetadata } from '../models/provider-part-metadata'
 import { isDeepSeekReasoningEffortModel, isDeepSeekReasoningModel } from '../models/utils/deepseek'
 import { usesBedrockConverseProtocol } from '../providers/api-style'
+import { subscriptionReasoningEfforts } from '../oauth/chatgpt-model-catalog'
 import type { MessageContentParts, ModelProvider, ProviderModelInfo, ProviderOptions } from '../types'
 import { ModelProviderEnum } from '../types'
 import {
@@ -600,6 +601,7 @@ export function getReasoningControlCapabilities(
     const caps = model?.vendorMetadata?.capabilities as Record<string, unknown> | undefined
     return { supported: caps?.supportsReasoningEffort === true || caps?.supportsReasoning === true || !!model?.capabilities?.includes('reasoning'), kind: caps?.supportsReasoningEffort === true ? 'venice-effort' : 'toggle' }
   }
+  if (provider === ModelProviderEnum.OpenAISubscription) return { supported: subscriptionReasoningEfforts(model).length > 0, kind: 'openai-effort' }
   const effectiveProvider = getEffectiveProvider(provider, model)
   const isChatboxDeepSeek = isChatboxAIDeepSeekWithOfficialApiStyle(provider, model)
   const disabledReason = getApiStyleDisabledReason(provider, effectiveProvider, model)
@@ -713,7 +715,7 @@ export function getReasoningControlLevel(
   providerOptions?: ProviderOptions
 ): ReasoningControlLevel {
   const level = deriveReasoningControlLevel(provider, model, providerOptions)
-  if (provider === ModelProviderEnum.Venice) return level
+  if (provider === ModelProviderEnum.Venice || provider === ModelProviderEnum.OpenAISubscription) return level
   if (level !== 'off') return level
   // Stale options (written by older versions or under another model) can read back as
   // 'off' on a model that no longer offers an off option; report them as 'default' so
@@ -730,6 +732,10 @@ function deriveReasoningControlLevel(
 ): ReasoningControlLevel {
   const capabilities = getReasoningControlCapabilities(provider, model)
   if (!capabilities.supported) return 'default'
+  if (provider === ModelProviderEnum.OpenAISubscription) {
+    const effort = providerOptions?.openai?.reasoningEffort
+    return effort && subscriptionReasoningEfforts(model).includes(effort) ? (effort === 'none' ? 'off' : effort) as ReasoningControlLevel : 'default'
+  }
   if (provider === ModelProviderEnum.Venice) {
     if (providerOptions?.openaiCompatible?.enable_thinking === false) return 'off'
     const effort = providerOptions?.openaiCompatible?.reasoningEffort
@@ -824,6 +830,7 @@ export function getReasoningControlOptions(
 ): ReasoningControlOption[] {
   const capabilities = getReasoningControlCapabilities(provider, model)
   if (!capabilities.supported) return []
+  if (provider === ModelProviderEnum.OpenAISubscription) return [{ level: 'default', label: 'default' }, ...subscriptionReasoningEfforts(model).map(value => ({ level: (value === 'none' ? 'off' : value) as ReasoningControlLevel, label: (value === 'none' ? 'off' : value) as ReasoningControlLevel }))]
   if (provider === ModelProviderEnum.Venice) {
     const caps = model?.vendorMetadata?.capabilities as Record<string, unknown> | undefined
     if (caps?.supportsReasoningEffort === true) {
@@ -862,6 +869,10 @@ export function getReasoningProviderOptions(
 ): ProviderOptions | undefined {
   const capabilities = getReasoningControlCapabilities(provider, model)
   if (!capabilities.supported) return previous
+  if (provider === ModelProviderEnum.OpenAISubscription) {
+    const effort = level === 'off' ? 'none' : level
+    return subscriptionReasoningEfforts(model).includes(effort) ? { ...stripReasoningProviderOptions(previous), openai: { reasoningEffort: effort as NonNullable<ProviderOptions['openai']>['reasoningEffort'] } } : stripReasoningProviderOptions(previous)
+  }
   if (provider === ModelProviderEnum.Venice) {
     if (!getReasoningControlOptions(provider, model).some(option => option.level === level) || level === 'default') return stripReasoningProviderOptions(previous)
     const effort = capabilities.kind === 'venice-effort'

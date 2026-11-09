@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { MantineProvider } from '@mantine/core'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import TokenCountMenu from './TokenCountMenu'
 
@@ -54,6 +54,18 @@ function getMenuRow(label: string): HTMLElement {
 }
 
 describe('TokenCountMenu', () => {
+  it('opens by click, applies the session budget without closing and offers manual compression', async () => {
+    const save = vi.fn(), compress = vi.fn()
+    renderMenu({contextWindow:150000, contextTokenLimit:150000, compactionTriggerTokens:88500, onContextTokenLimitChange:save, onCompressClick:compress})
+    fireEvent.click(screen.getByRole('button', {name:'Tokens'}))
+    const input = await screen.findByLabelText('Session context budget (tokens)')
+    fireEvent.change(input,{target:{value:'120000'}})
+    fireEvent.click(await screen.findByRole('button',{name:'Apply'}))
+    expect(save).toHaveBeenCalledWith(120000)
+    expect(screen.getByText('Automatic compaction above: 89K tokens')).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem',{name:'Compress Conversation'}))
+    expect(compress).toHaveBeenCalledOnce()
+  })
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()

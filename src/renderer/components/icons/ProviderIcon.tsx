@@ -7,9 +7,13 @@ import XiaomiMiMoMono from '@lobehub/icons/es/XiaomiMiMo/components/Mono'
 import ZhipuColor from '@lobehub/icons/es/Zhipu/components/Color'
 import { type ModelProvider, ModelProviderEnum } from '@shared/types'
 import BrandGithub from './BrandGithub'
+import { VeniceBrandIcon } from './VeniceBrandIcon'
 
 export default function ProviderIcon(props: { className?: string; size?: number; provider: ModelProvider | string }) {
-  const { className, size = 24, provider } = props
+  const { className, size = 24 } = props
+  const provider = props.provider === ModelProviderEnum.OpenAISubscription ? ModelProviderEnum.OpenAI : props.provider
+
+  if (provider === ModelProviderEnum.Venice) return <VeniceBrandIcon className={className} width={size} height={size} />
 
   if (provider === 'github-copilot') {
     return <BrandGithub className={className} style={{ width: size, height: size }} />
