@@ -83,11 +83,13 @@ describe('direct transfer real SQLite rows and encrypted receiver storage', () =
     expect(result.sessions).toBe(2); expect(receiver.metas.get(result.rootId).hidden).toBe(false)
     expect([...receiver.metas.values()].filter(meta => meta.hidden)).toHaveLength(1)
     expect((await receiver.rows.readSnapshot(result.rootId))?.record.settings?.multiAgent).toMatchObject({ enabled: false, dedicatedIds: [], nestedDedicatedIds: [] })
+    expect((await receiver.rows.readSnapshot(result.rootId))?.record.settings).toMatchObject({ agentFullAccess: false, commandApprovalMode: 'always_ask', workingDirectories: [], localWorkCapabilities: [] })
     expect(new TextDecoder().decode((await sessionFiles.read(result.rootId, 'report.md')).bytes)).toBe('# Private report')
     expect((await sessionFiles.read(result.rootId, 'empty.txt')).bytes.length).toBe(0); expect((await sessionFiles.index(result.rootId)).directories).toContain('notes')
     expect([...receiver.blobs.values()].join('')).not.toContain('Private report')
     const voice = state.media.find(item => item.prompt === 'Hello')!
     expect(voice).toMatchObject({ origin: '', credentialId: '', remoteCleaned: true }); expect(voice.queueId).toBeUndefined(); expect(voice.id).not.toBe('voice')
+    expect((await receiver.rows.readSnapshot(voice.sessionId!))?.record.settings?.multiAgentRun).toMatchObject({ rootId: result.rootId, workspaceId: result.rootId })
     const message = (await receiver.rows.readSnapshot(voice.sessionId!))?.rows.messages.find(item => item.messageId === 'assistant')?.message
     expect((message?.contentParts[0] as any).result.artifact.recordId).toBe(voice.id)
     expect([...receiver.images.values()][0].generatedImages[0]).toMatch(/^session-file:/)

@@ -25,7 +25,7 @@ describe('ChatGPT allowance UI', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh ChatGPT allowance' })); await waitFor(() => expect(state.request).toHaveBeenCalledTimes(2))
   })
   it('uses Italian translations and does not invent a weekly window', async () => {
-    await i18n.changeLanguage('it'); state.request.mockResolvedValue({ plan: 'pro', windows: [monthly] })
+    await i18n.changeLanguage('it-IT'); state.request.mockResolvedValue({ plan: 'pro', windows: [monthly] })
     render(<MantineProvider><ChatGPTAllowance /></MantineProvider>)
     await screen.findByText('Quota mensile: 75% rimanente'); expect(screen.queryByText(/Quota settimanale/)).toBeNull()
   })

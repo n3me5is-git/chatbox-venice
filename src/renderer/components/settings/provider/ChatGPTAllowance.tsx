@@ -24,8 +24,9 @@ export function ChatGPTAllowance({ compact = false }: { compact?: boolean }) {
     setData(undefined); setError(''); void refresh()
     const focus = () => void refresh(), lock = () => { controller.current?.abort(); setData(undefined); setError(''); setBusy(false) }
     const timer = setInterval(focus, 120000)
-    window.addEventListener('focus', focus); window.addEventListener('chatbox:privacy-lock', lock); document.addEventListener('visibilitychange', focus)
-    return () => { clearInterval(timer); controller.current?.abort(); window.removeEventListener('focus', focus); window.removeEventListener('chatbox:privacy-lock', lock); document.removeEventListener('visibilitychange', focus) }
+    const reconnected = () => { lock(); void refresh() }
+    window.addEventListener('focus', focus); window.addEventListener('chatbox:privacy-lock', lock); window.addEventListener('chatbox:subscription-connected', reconnected); document.addEventListener('visibilitychange', focus)
+    return () => { clearInterval(timer); controller.current?.abort(); window.removeEventListener('focus', focus); window.removeEventListener('chatbox:privacy-lock', lock); window.removeEventListener('chatbox:subscription-connected', reconnected); document.removeEventListener('visibilitychange', focus) }
   }, [refresh])
   if (!connected) return null
   const locale = i18n.resolvedLanguage || i18n.language || 'en'

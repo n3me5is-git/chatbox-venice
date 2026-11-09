@@ -42,16 +42,16 @@ const vault = () => vaultRuntimeFor(platform)
 const digest = (value: string) => bytesToHex(sha256(encoder.encode(value)))
 
 /** Rewrite explicit storage references, not arbitrary message text or model IDs. */
-export function portableReferences(value: unknown, resources: Map<string, string>): unknown {
-  if (Array.isArray(value)) return value.map(item => portableReferences(item, resources))
+export function portableReferences(value: unknown, resources: Map<string, string>, strict = false): unknown {
+  if (Array.isArray(value)) return value.map(item => portableReferences(item, resources, strict))
   if (!value || typeof value !== 'object') return value
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key,
     typeof item === 'string' && ['storageKey', 'rawStorageKey', 'blobKey', 'imageStorageKey'].includes(key)
-      ? resources.get(item) || item : portableReferences(item, resources)]))
+      ? resources.get(item) || (strict ? undefined : item) : portableReferences(item, resources, strict)]))
 }
 
-export function portableRecord(record: BackupBusinessRecord, sessionIds: Map<string, string>, resources: Map<string, string>, runIds = new Map<string, string>(), recordIds = new Map<string, string>()): BackupBusinessRecord {
-  const value = portableReferences(record, resources) as BackupBusinessRecord
+export function portableRecord(record: BackupBusinessRecord, sessionIds: Map<string, string>, resources: Map<string, string>, runIds = new Map<string, string>(), recordIds = new Map<string, string>(), strict = false): BackupBusinessRecord {
+  const value = portableReferences(record, resources, strict) as BackupBusinessRecord
   if (value.type === 'session') {
     value.session.id = sessionIds.get(value.session.id) || value.session.id
     const run = value.session.settings?.multiAgentRun
@@ -151,6 +151,8 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
       if (protectedSession && !includeProtected) throw Error('This tree contains protected content. Unlock it and explicitly include protected content to send it.')
       manifest.sessions.push({ id: canonical(id), parentId, workspaceId: canonical(run?.workspaceId || id), name: commit.record.name.slice(0, 240), revision: commit.revision, directories: resources.directories, protected: protectedSession })
       const paths = new Set<string>()
+      const removed = (await (await import('@/packages/session-resources/files')).sessionFiles.index(id)).removed
+      const resourceKeys = new Set([...resources.items.filter(item => item.key).map(item => item.key!), ...removed.filter(key => key.startsWith('key:')).map(key => key.slice(4))])
       const managedKeys = new Set(resources.items.filter(item => item.origin === 'file' && item.key).map(item => item.key!))
       for (const item of resources.items) {
         if (item.origin !== 'file' && item.key && managedKeys.has(item.key)) continue
@@ -177,6 +179,18 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
       async function* businessRows() {
         yield encoder.encode(JSON.stringify(portableRecord({ type: 'session', session: toBackupSession(commit!.record) }, inverseSessions, inverseResources, inverseRuns, inverseRecords)) + '\n')
         for await (const row of rows.iterateRows({ sessionId: id, expectedRevision: commit!.revision, consistency: 'revision', signal })) {
+          // Uploaded originals and their parsed text have distinct storage identities.
+          // Both must travel, otherwise continuing a chat can lose its document context.
+          if (row.kind === 'message') for (const file of row.message.message.files || []) {
+            for (const key of [file.storageKey, file.rawStorageKey]) {
+              if (!key || resourceKeys.has(key)) continue
+              const path = sessionFilePath('attachments/parsed/' + digest(key).slice(0, 20) + '.txt')
+              const header = await vault().assets.header(key), protectedAsset = !!header && header.scope !== 'public'
+              if (protectedAsset && !includeProtected) throw Error('This tree contains protected content. Unlock it and explicitly include protected content to send it.')
+              await stage({ id: digest(canonical(id) + '\0file\0' + path), sessionId: canonical(id), kind: 'file', path, name: (file.name + '.txt').slice(0, 240), mime: 'text/plain', protected: protectedAsset || protectedSession, deliverable: false, resourceKey: inverseResources.get(key) || key, messageId: row.message.messageId }, resourceBytes(id, { id: 'parsed:' + digest(key), origin: 'attachment', key, name: file.name + '.txt', path, mime: 'text/plain' }), protectedAsset ? header!.scope : await vault().projects.sessionScope(id) || 'public')
+              resourceKeys.add(key)
+            }
+          }
           const record: BackupBusinessRecord = row.kind === 'thread' ? { type: 'thread', thread: toBackupThread(row.thread) } : { type: 'message', message: toBackupMessage(row.message) }
           yield encoder.encode(JSON.stringify(portableRecord(record, inverseSessions, inverseResources, inverseRuns, inverseRecords)) + '\n')
         }

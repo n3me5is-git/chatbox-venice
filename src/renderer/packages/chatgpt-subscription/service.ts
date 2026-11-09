@@ -58,6 +58,7 @@ export async function completeSubscriptionLogin(code: ChatGPTDeviceCode, signal:
       await vault().assets.remove(pendingKey)
       // This is only a connection marker. Real credentials never enter settings/exports.
       settingsStore.getState().setSettings({ providers: { ...settingsStore.getState().providers, [CHATGPT_SUB_PROVIDER]: { ...settingsStore.getState().providers?.[CHATGPT_SUB_PROVIDER], activeAuthMode: 'oauth', oauth: { accessToken: 'vault-stored-on-this-device', extra: { transport: 'chatgpt-codex-vault' } } } } })
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('chatbox:subscription-connected'))
       return
     }
     await new Promise<void>((resolve, reject) => { const abort = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')) }; const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve() }, code.interval * 1000); signal.addEventListener('abort', abort, { once: true }); if (signal.aborted) abort() })

@@ -114,7 +114,7 @@ void runRendererStartup({
     // 等待settings和onboarding初始化完成，避免闪屏
     await bootstrapRenderer(rendererApplication)
     // Recover unpublished device transfers before their media or hidden rows can be browsed.
-    await (await import('./packages/session-transfer/journal')).recoverSessionTransfers()
+    await (await import('./packages/session-transfer/journal')).recoverSessionTransfers().catch(() => {})
     ;(await import('./packages/session-transfer/runtime')).initializeSessionTransfers()
     // Cleanup is intentionally not captured — listeners persist for the app lifetime
 

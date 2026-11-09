@@ -96,7 +96,9 @@ export async function importTransfer(analysis: TransferAnalysis, read: (id: stri
     // Everything is encrypted, hidden and verified before conversation rows become visible.
     for (const item of manifest.objects) {
       signal?.throwIfAborted(); await vault().projects.assertFolder(options.folderId)
-      const node = manifest.sessions.find(node => node.id === item.sessionId)!, workspaceId = sessionMap.get(node.workspaceId)!
+      // Session-owned attachments/media remain with that chat; run.workspaceId separately
+      // preserves the shared on-demand sandbox without duplicating child media in it.
+      const node = manifest.sessions.find(node => node.id === item.sessionId)!, workspaceId = sessionMap.get(node.id)!
       const alias = item.kind === 'file' ? 'session-file:' + encodeURIComponent(workspaceId) + ':' + crypto.randomUUID() : 'private-transfer-stage:' + job + ':' + item.id
       const reusedId = reuse.get(item.id), source = reusedId && local ? local.read(reusedId) : read(item.id)
       async function* bytes() { yield* verifiedTransferBytes(item, source, signal); if (!item.bytes) yield new Uint8Array([0]) }
@@ -139,11 +141,12 @@ export async function importTransfer(analysis: TransferAnalysis, read: (id: stri
       for await (const line of lines(readStaged(object), signal)) {
         const parsed = parseBackupRecord(JSON.parse(line))
         if (!['session', 'thread', 'message'].includes(parsed.type)) throw Error('A direct transfer may contain only conversation rows')
-        const entry = portableRecord(settleBackupRecord(parsed as BackupBusinessRecord), sessionMap, resourceMap, runMap, recordMap)
+        const entry = portableRecord(settleBackupRecord(parsed as BackupBusinessRecord), sessionMap, resourceMap, runMap, recordMap, true)
         if (entry.type === 'session') {
           if (writer || entry.session.id !== targetId) throw Error('Transferred conversation identity mismatch')
           record = { ...entry.session, id: targetId, name: node.id === manifest.rootId ? options.name.trim().slice(0, 240) : node.name, hidden: node.id !== manifest.rootId, folderId: options.folderId, archivedAt: undefined, storageFormat: 'rows', rowFormatVersion: 3, rowAuthority: 1 }
-          if (record.settings) record.settings = { ...record.settings, multiAgent: record.settings.multiAgent ? { ...record.settings.multiAgent, enabled: false, dedicatedIds: [], nestedDedicatedIds: [] } : undefined }
+          const run = importedRuns.find(run => run.sessionId === targetId)
+          record.settings = { ...record.settings, workingDirectories: [], agentFullAccess: false, commandApprovalMode: 'always_ask', localWorkCapabilities: [], multiAgent: record.settings?.multiAgent ? { ...record.settings.multiAgent, enabled: false, dedicatedIds: [], nestedDedicatedIds: [] } : undefined, multiAgentRun: run ? { rootId, runId: run.id, parentId: run.parentId, workspaceId: run.workspaceId, depth: run.depth } : undefined }
           if (!rows.stageImportRows) throw Error('Conversation import is unavailable')
           writer = await rows.stageImportRows(record, job); writers.push(writer)
         } else if (entry.type === 'thread') {
@@ -163,7 +166,7 @@ export async function importTransfer(analysis: TransferAnalysis, read: (id: stri
     for (const [id, files] of adopted) {
       await sessionFiles.adopt(id, files, { transferredMedia: true }); await sessionFiles.tools(id, false)
     }
-    for (const node of manifest.sessions) for (const directory of node.directories) await sessionFiles.mkdir(sessionMap.get(node.workspaceId)!, directory)
+    for (const node of manifest.sessions) for (const directory of node.directories) await sessionFiles.mkdir(sessionMap.get(node.id)!, directory)
     if (importedRuns.length) await updateAgentData<AgentRun[]>('private-agents:runs:' + encodeURIComponent(rootId), [], () => importedRuns, rootId)
     // The root publishes last. Replacement never mutates the old tree in place.
     stagedSessions.sort((a, b) => Number(a.id === rootId) - Number(b.id === rootId))
