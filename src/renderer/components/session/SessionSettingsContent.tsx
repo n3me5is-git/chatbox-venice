@@ -307,7 +307,7 @@ export function SessionSettingsContent({
           </Text>
         ))}
 
-      {!isChat && !session.settings?.multiAgentRun && <SettingsSection title={t('Multi-agent work')}><MultiAgentSettings value={settings?.multiAgent} onChange={multiAgent => setParam({ multiAgent })}/></SettingsSection>}
+      {isChat && mode === 'work' && !session.settings?.multiAgentRun && <SettingsSection title={t('Multi-agent work')}><MultiAgentSettings value={settings?.multiAgent} onChange={multiAgent => setParam({ multiAgent })}/></SettingsSection>}
       {isChat && (
         <SettingsSection
           title={t('Model parameters')}

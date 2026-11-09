@@ -7,7 +7,7 @@ This audit covers the Capacitor Android app produced by this fork's release work
 | Requested feature | Failure before this patch | Shared implementation and evidence |
 | --- | --- | --- |
 | ChatGPT images in subscription Work chats | Android did not register the tool; the independent image generator could still work. A saved text-only catalog could also hide it. | session-work-tools.ts and subscription image-tools tests; actual fresh Capacitor preparation and restored-call registration. |
-| On-demand and dedicated agents | The Android Work registry did not include delegation. | Shared registry plus runtime-parity.test.ts; real renderer worker execution with a mocked inference transport in external.test.ts on both platform identities. |
+| On-demand and dedicated agents | The Android Work registry did not include delegation. The shared session-settings section was incorrectly shown for image sessions instead of Work chats. | Shared registry plus runtime-parity.test.ts; real renderer worker execution with a mocked inference transport in external.test.ts on both platform identities. |
 | Questions with choices/custom answers | Android omitted ask_user. | Shared registry; Android schema/dispatch tests and real worker question dispatch. |
 | Separate Brave/Google/Exa tools | Mobile built a single search tool independently of the global separate-engine setting. | Mobile now uses buildWebSearchTools; registration and global search tool tests. |
 | Session image preview for the model | Mobile supplied workspace tools without their image-result injection hook. | Vision-aware workspace registration and composed prepareStep hooks, covered by runtime-parity.test.ts. |

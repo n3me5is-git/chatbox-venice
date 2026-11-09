@@ -50,6 +50,7 @@ vi.mock('@/hooks/useProviders', () => ({
   useProviders: () => ({ providers: [{ id: 'openai', models: [{ modelId: 'gpt-4o', nickname: 'GPT-4o' }] }] }),
 }))
 vi.mock('@/modals/settings-navigation', () => ({ navigateToSettings: vi.fn() }))
+vi.mock('@/packages/multi-agent/library', () => ({ listDedicatedAgents: async () => [] }))
 vi.mock('@/stores/toastActions', () => ({ add: vi.fn() }))
 vi.mock('@/components/common/Avatar', () => ({ AssistantAvatar: () => <div /> }))
 vi.mock('@/components/Image', () => ({ handleImageInputAndSave: vi.fn(), ImageInStorage: () => <div /> }))
@@ -287,4 +288,16 @@ test('global context count accepts custom counts and zero, restores invalid draf
   expect(input).toHaveProperty('value', '50')
   fireEvent.click(screen.getByRole('radio', { name: 'No Limit' }))
   expect(input).toHaveProperty('value', '')
+})
+
+test('shows editable multi-agent settings in Work chats and excludes plain chats, images and child sessions', async () => {
+ const onEdit=renderContent(makeSession({agentMode:{value:'on'},multiAgent:{enabled:false}}),'work')
+ fireEvent.click(await screen.findByLabelText('Enable multi-agent work'))
+ expect(onEdit).toHaveBeenCalledWith({settings:{multiAgent:expect.objectContaining({enabled:true})}})
+ onEdit.view.unmount()
+ for(const [session,mode] of [[makeSession({}),'chat'],[{...makeSession({}),type:'picture'},'work'],[makeSession({multiAgentRun:{rootId:'root',runId:'child',parentId:'root',workspaceId:'root',depth:1}}),'work']] as const){
+  const view=renderContent(session as SessionHeader,mode)
+  expect(screen.queryByLabelText('Enable multi-agent work')).toBeNull()
+  view.view.unmount()
+ }
 })
