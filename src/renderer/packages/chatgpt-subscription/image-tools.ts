@@ -17,7 +17,11 @@ import { canShareAsset } from '@shared/collaboration'
 const activeCalls=new Map<string,Promise<unknown>>()
 async function onceImageCall<T>(key:string,generate:boolean,run:()=>Promise<T>):Promise<T>{if(!generate)return run();const active=activeCalls.get(key);if(active)return active as Promise<T>;const work=run();activeCalls.set(key,work);try{return await work}finally{activeCalls.delete(key)}}
 
-export function subscriptionImageModels(settings?:ProviderSettings){return (settings?.models||subscriptionDefaultModels()).filter(model=>model.type==='image'&&!settings?.excludedModels?.includes(model.modelId))}
+export function subscriptionImageModels(settings?:ProviderSettings){
+  const models = new Map(subscriptionDefaultModels().filter(model=>model.type==='image').map(model=>[model.modelId,model]))
+  for(const model of settings?.models||[])if(model.type==='image')models.set(model.modelId,model)
+  return [...models.values()].filter(model=>!settings?.excludedModels?.includes(model.modelId))
+}
 export function subscriptionImageToolAvailable(settings?:ProviderSettings){return !!settings?.oauth&&settings.subscriptionChatImages!==false&&subscriptionImageModels(settings).length>0}
 export function subscriptionChatImageTools(sessionId:string,requester='owner',turnId='external'){
   const provider=()=>settingsStore.getState().providers?.[ModelProviderEnum.OpenAISubscription]

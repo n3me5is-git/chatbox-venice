@@ -2,7 +2,7 @@
 
 ## 1.40.1
 
-See [release notes](docs/releases/v1.40.1.md). Full-width chat model names, separate capability and price rows, and a collapsible sidebar tools group with a saved preference.
+See [release notes](docs/releases/v1.40.1.md). Full-width chat model names, separate capability and price rows, and a collapsible sidebar tools group with a saved preference. Restores Android registration of shared Work tools, subscription images and multi-agent delegation, including resumed calls.
 
 ## 1.40.0
 

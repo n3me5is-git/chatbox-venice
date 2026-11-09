@@ -37,3 +37,12 @@ it('honors disable/disconnect, rejects an unconfigured ID and keeps cancellation
   const tool=subscriptionChatImageTools('session').chatgpt_image!;await expect(tool.execute!({action:'generate',prompt:'Draw',modelId:'unconfigured'},context)).rejects.toThrow('not configured')
   state.approve.mockResolvedValue(null);expect(await tool.execute!({action:'generate',prompt:'Draw'},context)).toMatchObject({cancelled:true});expect(state.start).not.toHaveBeenCalled();expect(subscriptionImageModels(state.provider)).toHaveLength(2)
 })
+it('keeps the native virtual image model available with an empty or text-only saved model list',()=>{
+  for(const models of [[],[{modelId:'custom-text',type:'chat'}]]){
+    state.provider.models=models
+    expect(subscriptionImageToolAvailable(state.provider)).toBe(true)
+    expect(subscriptionImageModels(state.provider).map(model=>model.modelId)).toEqual(['chatgpt-image-auto'])
+  }
+  state.provider.excludedModels=['chatgpt-image-auto']
+  expect(subscriptionImageToolAvailable(state.provider)).toBe(false)
+})

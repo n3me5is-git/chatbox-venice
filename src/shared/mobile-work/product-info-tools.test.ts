@@ -143,3 +143,15 @@ it('dispatches supported image commands with execution identity and cancellation
     signal: controller.signal,
   })
 })
+
+it('reports native image tools separately from CLI image commands', async () => {
+  const { host, controller } = fixture()
+  const names = ['chatgpt_image', 'session_file']
+  const cli = buildMobileProductInfoTool(host, controller.signal, 'session', () => names)
+  const options = { toolCallId: 'test', messages: [], context: {} }
+  expect(await cli.execute?.({ argv: ['capabilities'] }, options)).toMatchObject({
+    scope: 'chatbox_cli', imageGeneration: true, imageCommands: false, imageTools: ['chatgpt_image'], readOnly: true,
+  })
+  names.splice(0, 1)
+  expect(await cli.execute?.({ argv: ['capabilities'] }, options)).toMatchObject({ imageGeneration: false, imageTools: [] })
+})
