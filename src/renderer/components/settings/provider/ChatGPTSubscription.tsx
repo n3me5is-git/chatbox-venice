@@ -6,6 +6,7 @@ import { beginSubscriptionLogin, completeSubscriptionLogin, disconnectSubscripti
 import { forkT as ft } from '@/i18n/fork'
 import platform from '@/platform'
 import { useProviderSettings } from '@/stores/settingsStore'
+import { ChatGPTAllowance } from './ChatGPTAllowance'
 
 export function ChatGPTSubscriptionSettings() {
   useTranslation()
@@ -30,6 +31,7 @@ export function ChatGPTSubscriptionSettings() {
     finally { if (abort.current === controller) { setBusy(false); setCode(undefined) } }
   }
   return <Stack gap="sm">
+    <ChatGPTAllowance />
     <Text size="sm">{ft('Use ChatGPT on this device without Codex or an API key. Tokens are encrypted in app storage and are excluded from provider settings exports.')}</Text>
     <Alert color="yellow">{ft('Community integration: text and image access depend on your account and may change. Subscription limits apply. No automatic switch to paid API billing.')}</Alert>
     {error && <Alert color="red" role="alert">{ft(error)}</Alert>}

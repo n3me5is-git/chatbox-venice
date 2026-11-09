@@ -6,6 +6,7 @@ import { CreationUnlock } from '@/components/security/CreationUnlock'
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceImageEditor } from '@/components/venice/VeniceImageEditor'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
+import { ChatGPTAllowance } from '@/components/settings/provider/ChatGPTAllowance'
 import { ScopeUnlock,useScopeStatus } from '@/components/security/ScopeUnlock'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import platform from '@/platform'
@@ -625,6 +626,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   </Flex>
 
                   {selectedProvider === ModelProviderEnum.Venice && <VeniceBalance />}
+                  {selectedProvider === ModelProviderEnum.OpenAISubscription && <ChatGPTAllowance compact />}
                   <Button size="xs" variant="subtle" onClick={()=>setImageSettingsOpen(true)}>{ft('Image settings')}</Button>
                   <AdaptiveModal opened={imageSettingsOpen} onClose={()=>setImageSettingsOpen(false)} title={ft('Image settings')} size="lg"><Stack>{selectedProvider===ModelProviderEnum.Venice&&<VeniceImageSettings/>}
 

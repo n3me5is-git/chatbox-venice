@@ -33,3 +33,5 @@ This is insufficient to assert that the reference feature is impossible, and ins
 The live public Venice Studio was inspected in guest mode with ElevenLabs Music v2.5 selected: the music interface exposed a prompt, duration, model selector and Force Instrumental setting, with no reference-upload control. A sign-in notice was visible. This is direct UI evidence for the public guest interface; account-specific controls after sign-in have not been verified.
 
 The app's custom JSON remains available for documented vendor options. Model cards should not label unverified music references as supported by this integration.
+
+Rechecked on 2026-11-09 against the live queue documentation, official CLI and [official Venice MCP server](https://github.com/veniceai/venice-mcp-server/blob/main/src/tools/index.ts). Its `venice_music_generate` schema exposes the same text/lyrics/duration/instrumental/loop/voice/language/speed options and no audio-reference input. The model page continues to advertise upstream reference generation. The discrepancy remains external to this integration; a working reference feature cannot be claimed from these contracts.

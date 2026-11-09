@@ -1,7 +1,7 @@
 import NiceModal,{useModal} from '@ebay/nice-modal-react'
-import { ActionIcon,Alert,Badge,Button,Card,Checkbox,Collapse,Divider,FileButton,Group,Image,PasswordInput,Radio,ScrollArea,Select,Stack,Text,Textarea,TextInput } from '@mantine/core'
+import { ActionIcon,Alert,Badge,Button,Card,Checkbox,Collapse,Divider,FileButton,Group,Image,PasswordInput,Radio,ScrollArea,Select,Stack,Tabs,Text,Textarea,TextInput } from '@mantine/core'
 import { IconCopy,IconQrcode,IconRefresh,IconTrash } from '@tabler/icons-react'
-import { useCallback,useEffect,useRef,useState,useSyncExternalStore } from 'react'
+import { lazy,Suspense,useCallback,useEffect,useRef,useState,useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -24,6 +24,7 @@ import { PairingScanner } from './PairingScanner'
 import { pairingFromImage } from '@/packages/collaboration/qr'
 import { collaborationError } from '@/packages/collaboration/errors'
 import type { ConnectionOptions } from '@/packages/collaboration/network'
+const DirectTransferContent=lazy(()=>import('./DirectTransfer').then(module=>({default:module.DirectTransferContent})))
 
 function SharedMarkdown({text}:{text:string}){return <ReactMarkdown remarkPlugins={[remarkGfm,remarkMath]} rehypePlugins={[rehypeKatex]} skipHtml components={{img:()=>null,a:({href,children})=><a href={href} onClick={event=>{event.preventDefault();if(href&&/^https?:\/\//.test(href))void platform.openLink(href)}}>{children}</a>}}>{text}</ReactMarkdown>}
 function Permissions({value,change}:{value:SharePermissions;change:(value:SharePermissions)=>void}){return <Group gap="sm"><Checkbox label={ft('Write messages')} checked={value.write} onChange={event=>change({...value,write:event.currentTarget.checked,interact:event.currentTarget.checked&&value.interact})}/><Checkbox label={ft('Use AI and tools')} checked={value.interact} disabled={!value.write} onChange={event=>change({...value,interact:event.currentTarget.checked})}/><Checkbox label={ft('Clone chat and files')} checked={value.clone} onChange={event=>change({...value,clone:event.currentTarget.checked})}/></Group>}
@@ -113,5 +114,6 @@ export function CollaborationContent({sessionId}:{sessionId?:string}){
     <Text size="xs" c="dimmed">{ft('Clone permission controls import in the app. Anyone who can read content can still copy it manually. Revoking access does not erase copies already made.')}</Text>
   </Stack>
 }
-const CollaborationModal=NiceModal.create(({sessionId}:{sessionId?:string})=>{const modal=useModal();usePrivacyDismiss(modal,null);return <AdaptiveModal opened={modal.visible} onClose={()=>{modal.resolve(null);modal.remove()}} title={ft('Collaborative chats')} size="xl"><CollaborationContent sessionId={sessionId}/></AdaptiveModal>})
+const CollaborationModal=NiceModal.create(({sessionId,transfer=false}:{sessionId?:string;transfer?:boolean})=>{const modal=useModal();usePrivacyDismiss(modal,null);return <AdaptiveModal opened={modal.visible} onClose={()=>{modal.resolve(null);modal.remove()}} title={ft('Sharing and device transfer')} size="xl"><Tabs defaultValue={transfer?'receive':'collaborate'} keepMounted={false}><Tabs.List mb="md"><Tabs.Tab value="collaborate">{ft('Collaboration')}</Tabs.Tab><Tabs.Tab value="receive">{ft('Receive / transfer')}</Tabs.Tab></Tabs.List><Tabs.Panel value="collaborate"><CollaborationContent sessionId={sessionId}/></Tabs.Panel><Tabs.Panel value="receive"><Suspense fallback={null}><DirectTransferContent sessionId={sessionId}/></Suspense></Tabs.Panel></Tabs></AdaptiveModal>})
 export async function openCollaborationPanel(sessionId?:string){initializeCollaboration();await NiceModal.show(CollaborationModal,{sessionId})}
+export async function openDirectTransferPanel(sessionId?:string){initializeCollaboration();await NiceModal.show(CollaborationModal,{sessionId,transfer:true})}

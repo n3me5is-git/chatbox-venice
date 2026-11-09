@@ -95,6 +95,7 @@ export const collaboration=new CollaborationHub({
 let initialized=false
 export function initializeCollaboration(){
   if(initialized)return;initialized=true
+  void import('@/packages/session-transfer/runtime').then(module=>module.initializeSessionTransfers())
   installSharingBackground(()=>collaboration.hosts.size+[...collaboration.guests.values()].filter(room=>room.status!=='disconnected').length,()=>collaboration.stopAll())
   installCollaborationBridge((...args)=>collaboration.decision(...args),id=>!!collaboration.shared(id),id=>{const room=collaboration.shared(id);return {active:!!room,participants:room?[...room.peers.values()].filter(peer=>peer.approved).length:0,pending:room?.hitl.requests('owner').length||0}},(id,actor)=>{const peer=collaboration.shared(id)?.peers.get(actor);return !!peer?.approved&&peer.permissions.write&&peer.permissions.interact})
   const timers=new Map<string,ReturnType<typeof setTimeout>>(),resources=new Map<string,()=>void>()

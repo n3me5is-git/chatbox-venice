@@ -65,6 +65,15 @@ export class VeniceMediaService {
   constructor(private store: MediaStore, private configuration: () => MediaConfiguration, private request: RequestAdapter['apiRequest'], private pollMs = 5000) {}
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener) } }
   list = async () => (await this.store.read()).filter(record => record && typeof record.id === 'string').sort((a, b) => b.createdAt - a.createdAt)
+  /** Restore local results only. Imported records never inherit a remote queue or credential. */
+  async importLocal(records: MediaRecord[]) {
+    if (records.some(record => record.queueId || record.origin || record.credentialId || !record.sessionId || !['ready', 'error'].includes(record.status))) throw Error('Invalid local media import')
+    await this.mutate(current => {
+      const ids = new Set(current.map(record => record.id))
+      for (const record of records) { if (ids.has(record.id)) throw Error('A media import identity already exists'); ids.add(record.id) }
+      return [...current, ...records]
+    })
+  }
   isActive = (id: string) => this.active.has(id)
   waitFor(id: string, timeoutMs = 30000, signal?: AbortSignal) {
     return waitForMediaRecord({ read: async () => (await this.list()).find(record => record.id === id) || null, subscribe: this.subscribe }, timeoutMs, signal)
