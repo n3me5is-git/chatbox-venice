@@ -13,7 +13,7 @@ const weekly = { id: 'codex:primary', group: 'ChatGPT', period: 'weekly', remain
 beforeEach(async () => {
   state.connected = true; state.request.mockReset()
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
-  Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) })
+  Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} }) })
   await i18n.use(initReactI18next).init({ lng: 'en', fallbackLng: 'en', resources: translationResources, interpolation: { escapeValue: false } })
 })
 afterEach(() => cleanup())
