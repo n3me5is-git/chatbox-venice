@@ -329,7 +329,7 @@ const dependencies: GenerationServiceDependencies<ModelDependencies> = {
       if (!modelId) return null
       return resolveCompactionBudget(
         modelId,
-        { compactionThreshold: globalSettings.compactionThreshold },
+        { compactionThreshold: globalSettings.compactionThreshold, contextTokenLimit: sessionSettings.contextTokenLimit ?? globalSettings.contextTokenLimit },
         getConfiguredContextWindow(globalSettings, providerId, modelId),
         getEffectiveMaxOutputTokens(globalSettings, providerId, modelId, sessionSettings.maxTokens)
       )

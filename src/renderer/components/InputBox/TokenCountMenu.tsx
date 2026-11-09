@@ -5,8 +5,9 @@ import { IconFileZip } from '@tabler/icons-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppTooltip as Tooltip } from '@/components/ui/tooltip'
-import { useIsSmallScreen } from '@/hooks/useScreenChange'
 import { ScalableIcon } from '../common/ScalableIcon'
+import { ContextTokenBudgetField } from '../common/ContextTokenBudgetField'
+import { forkT as ft } from '@/i18n/fork'
 
 type Props = {
   currentInputTokens: number
@@ -21,6 +22,10 @@ type Props = {
   pendingContextMessages?: number
   totalContextMessages?: number
   contextWindow?: number
+  contextTokenLimit?: number
+  inheritedContextTokenLimit?: number
+  compactionTriggerTokens?: number
+  onContextTokenLimitChange?: (value: number | undefined) => void
   currentMessageCount?: number
   maxContextMessageCount?: number
   children?: React.ReactNode
@@ -45,6 +50,10 @@ const TokenCountMenu: FC<Props> = ({
   pendingContextMessages,
   totalContextMessages,
   contextWindow,
+  contextTokenLimit,
+  inheritedContextTokenLimit,
+  compactionTriggerTokens,
+  onContextTokenLimitChange,
   currentMessageCount,
   maxContextMessageCount,
   children,
@@ -55,7 +64,6 @@ const TokenCountMenu: FC<Props> = ({
   onAutoCompactionChange,
 }) => {
   const { t } = useTranslation()
-  const isSmallScreen = useIsSmallScreen()
 
   const autoCompactionToggle = onAutoCompactionChange !== undefined && (
     <Menu.Item closeMenuOnClick={false} style={{ cursor: 'default' }}>
@@ -96,7 +104,7 @@ const TokenCountMenu: FC<Props> = ({
 
   return (
     <Menu
-      trigger={isSmallScreen ? 'click' : 'hover'}
+      trigger="click"
       openDelay={100}
       closeDelay={100}
       position="top"
@@ -108,7 +116,7 @@ const TokenCountMenu: FC<Props> = ({
       }}
     >
       <Menu.Target>{children}</Menu.Target>
-      <Menu.Dropdown className="min-w-56">
+      <Menu.Dropdown className="min-w-56" style={{ maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100dvh - 100px)', overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
         <Flex justify="space-between" align="center" px="xs" pt="xs" pb="4">
           <Text size="sm" fw={600}>
             {t('Estimated Token Usage')}
@@ -185,7 +193,7 @@ const TokenCountMenu: FC<Props> = ({
         {contextWindow && (
           <Menu.Item disabled style={{ cursor: 'default' }}>
             <Flex justify="space-between" align="center" gap="xs">
-              <Text size="sm">{t('Model limit')}:</Text>
+              <Text size="sm">{ft('Effective context budget')}:</Text>
               <Text size="sm" fw={500}>
                 {formatNumber(contextWindow)}
               </Text>
@@ -199,6 +207,8 @@ const TokenCountMenu: FC<Props> = ({
             {autoCompactionToggle}
           </>
         )}
+
+        {onContextTokenLimitChange && <><Menu.Divider /><div className="px-3 py-2"><ContextTokenBudgetField label={ft('Session context budget (tokens)')} value={contextTokenLimit} placeholder={inheritedContextTokenLimit?.toLocaleString() || ft('Use model limit')} onApply={onContextTokenLimitChange} disabled={isCompacting} />{compactionTriggerTokens !== undefined && <Text size="xs" c="dimmed" mt="xs">{ft('Automatic compaction above')}: {formatNumber(compactionTriggerTokens)} {ft('tokens')}</Text>}</div></>}
 
         {!isContextLoading && onCompressClick && contextTokens > 0 && (
           <>

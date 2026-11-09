@@ -3,7 +3,7 @@ import { Button, Checkbox, Flex, Loader, NumberInput, Stack, Text, TextInput, Te
 import { TestId } from '@shared/automation/testids'
 import type { ProviderModelInfo } from '@shared/types'
 import { CHATGPT_SUB_PROVIDER } from '@shared/oauth/chatgpt-subscription'
-import { subscriptionReasoningEfforts } from '@shared/oauth/chatgpt-model-catalog'
+import { subscriptionReasoningEfforts, DEFAULT_SUBSCRIPTION_CONTEXT_WINDOW } from '@shared/oauth/chatgpt-model-catalog'
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceProfileEditor } from '@/components/settings/provider/VeniceProfiles'
 import { useProviderSettings } from '@/stores/settingsStore'
@@ -37,7 +37,7 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
   const [nickname, setNickname] = useState(props.model?.nickname || '')
   const [capabilities, setCapabilities] = useState(props.model?.capabilities || [])
   const [type, setType] = useState<ProviderModelInfo['type']>(props.model?.type || 'chat')
-  const [contextWindow, setContextWindow] = useState<number | undefined>(props.model?.contextWindow)
+  const [contextWindow, setContextWindow] = useState<number | undefined>(props.model?.contextWindow ?? (isSubscription ? DEFAULT_SUBSCRIPTION_CONTEXT_WINDOW : undefined))
   const [maxOutput, setMaxOutput] = useState<number | undefined>(props.model?.maxOutput)
   const [testState, setTestState] = useState<ModelTestState>({
     testing: false,
@@ -56,7 +56,7 @@ const ModelEdit = NiceModal.create((props: { model?: ProviderModelInfo; provider
     setNickname(props.model?.nickname || '')
     setCapabilities(props.model?.capabilities || [])
     setType(props.model?.type || 'chat')
-    setContextWindow(props.model?.contextWindow)
+    setContextWindow(props.model?.contextWindow ?? (isSubscription ? DEFAULT_SUBSCRIPTION_CONTEXT_WINDOW : undefined))
     setMaxOutput(props.model?.maxOutput)
     setTestState({ testing: false })
     setExtraBodyText(props.model?.extraBody ? JSON.stringify(props.model.extraBody, null, 2) : '')

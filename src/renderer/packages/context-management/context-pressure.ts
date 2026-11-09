@@ -2,6 +2,7 @@ import { enrichModelFromRegistry } from '@shared/model-registry/enrich'
 import { mergeProviderModelCapabilities } from '@shared/providers/model-config'
 import { getProviderDefinition, getSystemProviders } from '@shared/providers/registry'
 import type { Settings } from '@shared/types'
+import { DEFAULT_SUBSCRIPTION_CONTEXT_WINDOW } from '@shared/oauth/chatgpt-model-catalog'
 
 /** Resolve a model's configured context window from provider settings, if any. */
 export function getConfiguredContextWindow(
@@ -10,7 +11,7 @@ export function getConfiguredContextWindow(
   modelId: string | undefined
 ): number | undefined {
   if (!providerId || !modelId) return undefined
-  return settings.providers?.[providerId]?.models?.find((model) => model.modelId === modelId)?.contextWindow
+  return settings.providers?.[providerId]?.models?.find((model) => model.modelId === modelId)?.contextWindow ?? (providerId === 'openai-sub-unofficial' ? DEFAULT_SUBSCRIPTION_CONTEXT_WINDOW : undefined)
 }
 
 /** The reply limit a request runs with: the session's max tokens, else the model's max output. */

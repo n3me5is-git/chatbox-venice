@@ -1,6 +1,9 @@
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { ChatGPTAllowance } from '@/components/settings/provider/ChatGPTAllowance'
+import { getCompactionBudget, FALLBACK_CONTEXT_WINDOW_TOKENS } from '@chatbox/core/application/token-estimation/math'
+import { DEFAULT_SUBSCRIPTION_CONTEXT_WINDOW } from '@shared/oauth/chatgpt-model-catalog'
+import { getEffectiveMaxOutputTokens } from '@/packages/context-management/context-pressure'
 import { SpeechMicrophone } from '@/components/speech/SpeechControls'
 import { AgentMentionButton } from '@/components/multi-agent/AgentMentionButton'
 import { MAX_CHAT_IMAGE_ATTACHMENTS } from '@chatbox/core/application/attachments'
@@ -840,6 +843,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
 
     const contextWindowKnown = useMemo(() => {
       if (!model?.modelId) return false
+      if (model.provider === 'openai-sub-unofficial') return true
       if (modelInfo?.contextWindow) return true
       if (model?.provider && getProviderModelContextWindowSync(model.provider, model.modelId) !== null) return true
       // Fallback: provider-agnostic lookup (same as compaction detector)
@@ -847,8 +851,9 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
     }, [model?.modelId, model?.provider, modelInfo?.contextWindow, modelRegistryVersion])
 
     // Use model setting contextWindow if available, otherwise fallback to models.dev data
-    const effectiveContextWindow = useMemo(() => {
+    const modelContextWindow = useMemo(() => {
       if (modelInfo?.contextWindow) return modelInfo.contextWindow
+      if (model?.provider === 'openai-sub-unofficial') return DEFAULT_SUBSCRIPTION_CONTEXT_WINDOW
       if (model?.provider && model?.modelId) {
         const providerWindow = getProviderModelContextWindowSync(model.provider, model.modelId)
         if (providerWindow !== null) return providerWindow
@@ -857,6 +862,18 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
       if (model?.modelId) return getModelContextWindowSync(model.modelId)
       return null
     }, [modelInfo?.contextWindow, model?.modelId, model?.provider, modelRegistryVersion])
+    const globalContextTokenLimit = useSettingsStore(state => state.contextTokenLimit)
+    const compactionThreshold = useSettingsStore(state => state.compactionThreshold)
+    const sessionContextTokenLimit = currentSessionMergedSettings?.contextTokenLimit
+    const contextBudget = getCompactionBudget(modelContextWindow || FALLBACK_CONTEXT_WINDOW_TOKENS, { contextTokenLimit: sessionContextTokenLimit ?? globalContextTokenLimit, compactionThreshold, maxOutputTokens: getEffectiveMaxOutputTokens(settingsStore.getState(), model?.provider, model?.modelId, currentSessionMergedSettings?.maxTokens) })
+    const effectiveContextWindow = contextBudget?.contextWindow ?? modelContextWindow
+    const handleContextTokenLimitChange = useCallback((contextTokenLimit: number | undefined) => {
+      if (!currentSessionId || isNewSession) return
+      void rendererApplication.sessions.updateSessionHeader(currentSessionId, session => {
+        if (!session) throw Error('Session not found')
+        return { ...session, settings: { ...session.settings, contextTokenLimit } }
+      }).catch(() => toastActions.add(t('Failed to save settings')))
+    }, [currentSessionId, isNewSession, t])
 
     // Calculate token usage percentage
     const tokenPercentage = useMemo(() => {
@@ -2131,6 +2148,10 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
                   pendingContextMessages={pendingContextMessages}
                   totalContextMessages={messageCount}
                   contextWindow={effectiveContextWindow ?? undefined}
+                  contextTokenLimit={sessionContextTokenLimit}
+                  inheritedContextTokenLimit={globalContextTokenLimit ?? modelContextWindow ?? undefined}
+                  compactionTriggerTokens={contextBudget?.thresholdTokens}
+                  onContextTokenLimitChange={sessionId && !isNewSession ? handleContextTokenLimitChange : undefined}
                   currentMessageCount={messageCount}
                   maxContextMessageCount={currentSessionMergedSettings?.maxContextMessageCount}
                   onCompressClick={

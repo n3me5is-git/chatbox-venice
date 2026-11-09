@@ -265,6 +265,7 @@ export const GlobalSessionSettingsSchema = z.object({
 })
 
 export const SessionSettingsSchema = GlobalSessionSettingsSchema.extend({
+  contextTokenLimit: z.number().finite().int().min(1024).max(10_000_000).optional().catch(undefined),
   subscriptionWebSearch: z.boolean().optional().catch(undefined),
   multiAgent: MultiAgentPolicySchema.optional().catch(undefined),
   multiAgentRun: z.object({ rootId: z.string(), runId: z.string(), parentId: z.string(), workspaceId: z.string(), depth: z.number().int().min(1).max(3) }).optional().catch(undefined),
@@ -674,6 +675,7 @@ export const SettingsSchema = GlobalSessionSettingsSchema.extend({
 
   autoCompaction: z.boolean().default(true),
   compactionThreshold: z.number().min(0.4).max(0.9).default(0.75),
+  contextTokenLimit: z.number().finite().int().min(1024).max(10_000_000).optional().catch(undefined),
   compactionPrompt: z.string().optional(),
 
   // Global default for the tool-call-limit confirmation. Individual sessions

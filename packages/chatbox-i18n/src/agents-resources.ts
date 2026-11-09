@@ -1,4 +1,11 @@
 export const agentsItalian = {
+  'Effective context budget': 'Budget di contesto effettivo',
+  'Default context budget (tokens)': 'Budget di contesto predefinito (token)',
+  'Session context budget (tokens)': 'Budget di contesto della sessione (token)',
+  'Use model limit': 'Usa il limite del modello',
+  'Empty uses the inherited budget. The model limit still applies.': 'Vuoto usa il budget ereditato. Rimane valido il limite del modello.',
+  'Automatic compaction above': 'Compattazione automatica oltre',
+  'Enter a token budget between 1,024 and 10,000,000.': 'Inserisci un budget tra 1.024 e 10.000.000 token.',
   'ChatGPT Images': 'Immagini ChatGPT',
   'ChatGPT Images lets the subscription backend choose the image model. Add a custom image model and select its endpoint to request a specific model ID.': 'Immagini ChatGPT lascia al servizio subscription la scelta del modello immagini. Aggiungi un modello immagini personalizzato e seleziona il relativo endpoint per richiedere un ID specifico.',
   'ChatGPT native web search': 'Ricerca web nativa ChatGPT',

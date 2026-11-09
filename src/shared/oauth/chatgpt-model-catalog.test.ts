@@ -21,6 +21,12 @@ it('retains user nicknames and custom request bodies while updating actual capab
 it('does not convert an invalid or empty account response into a confirmed catalog', () => {
   expect(() => parseSubscriptionModels({})).toThrow('invalid'); expect(() => parseSubscriptionModels({ models: [] })).toThrow('empty')
 })
+it('preserves manual endpoints, context budgets and thinking overrides after account refresh', () => {
+  const saved = [{modelId:'gpt-6-astra',type:'chat' as const,contextWindow:180000,subscriptionEndpoint:'responses' as const,capabilities:['reasoning' as const],vendorMetadata:{catalogSource:'manual',codexReasoningEfforts:['low','max']}},{modelId:'my-image-model',type:'image' as const,subscriptionEndpoint:'images' as const}]
+  const result = mergeSubscriptionModels(saved,subscriptionDefaultModels())
+  expect(result.find(m=>m.modelId==='gpt-6-astra')).toMatchObject(saved[0])
+  expect(result.find(m=>m.modelId==='my-image-model')).toEqual(saved[1])
+})
 it('keeps model-specific reasoning levels including max without exposing harness-only ultra', () => {
   const model = subscriptionDefaultModels().find(m => m.modelId === 'gpt-6-astra')!
   const options = getReasoningControlOptions(ModelProviderEnum.OpenAISubscription, model)

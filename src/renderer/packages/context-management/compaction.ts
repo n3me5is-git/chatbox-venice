@@ -58,7 +58,7 @@ const compactionService = new CompactionService({
         })
         const budget = resolveCompactionBudget(
           modelId,
-          { compactionThreshold: globalSettings.compactionThreshold },
+          { compactionThreshold: globalSettings.compactionThreshold, contextTokenLimit: sessionSettings.contextTokenLimit ?? globalSettings.contextTokenLimit },
           getConfiguredContextWindow(globalSettings, providerId, modelId),
           getEffectiveMaxOutputTokens(globalSettings, providerId, modelId, sessionSettings.maxTokens)
         )

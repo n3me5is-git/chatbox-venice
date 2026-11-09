@@ -23,8 +23,8 @@ export class ChatGPTSubscriptionModel extends OpenAIResponses {
     if (text) { const id = 'chatgpt-native-search-sources'; yield { type: 'text-start', id }; yield { type: 'text-delta', id, text }; yield { type: 'text-end', id } }
     if (finish) yield finish
   }
-  protected getProviderConfig(options: CallChatCompletionOptions) {
-    const config = super.getProviderConfig(options)
+  protected getCallSettings(options: CallChatCompletionOptions) {
+    const config = super.getCallSettings(options)
     // The subscription catalog supports max; the generic legacy OpenAI normalizer drops it.
     return { ...config, providerOptions: { ...config.providerOptions, openai: { ...options.providerOptions?.openai, store: false } } }
   }

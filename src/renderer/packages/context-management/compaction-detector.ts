@@ -12,7 +12,7 @@ import {
 export interface OverflowCheckOptions {
   tokens: number
   modelId: string
-  settings?: Partial<Pick<Settings, 'compactionThreshold'>>
+  settings?: Partial<Pick<Settings, 'compactionThreshold' | 'contextTokenLimit'>>
   /**
    * Override context window value. If provided, this takes precedence over
    * auto-detected value from the model registry (models.dev snapshot/cache).
@@ -45,6 +45,7 @@ export function checkOverflow(options: OverflowCheckOptions): OverflowCheckResul
   const contextWindow = providedContextWindow ?? getModelContextWindowSync(modelId) ?? FALLBACK_CONTEXT_WINDOW_TOKENS
   const budget = getCompactionBudget(contextWindow, {
     compactionThreshold: settings?.compactionThreshold,
+    contextTokenLimit: settings?.contextTokenLimit,
     maxOutputTokens: options.maxOutputTokens,
   })
 
@@ -56,7 +57,7 @@ export function checkOverflow(options: OverflowCheckOptions): OverflowCheckResul
 
   return {
     isOverflow: tokens > thresholdTokens,
-    contextWindow,
+    contextWindow: budget.contextWindow,
     thresholdTokens,
     currentTokens: tokens,
   }
@@ -68,17 +69,17 @@ export function isOverflow(options: OverflowCheckOptions): boolean {
 
 export function resolveCompactionBudget(
   modelId: string,
-  settings?: Partial<Pick<Settings, 'compactionThreshold'>>,
+  settings?: Partial<Pick<Settings, 'compactionThreshold' | 'contextTokenLimit'>>,
   providedContextWindow?: number,
   maxOutputTokens?: number
 ): CompactionBudget | null {
   const contextWindow = providedContextWindow ?? getModelContextWindowSync(modelId) ?? FALLBACK_CONTEXT_WINDOW_TOKENS
-  return getCompactionBudget(contextWindow, { compactionThreshold: settings?.compactionThreshold, maxOutputTokens })
+  return getCompactionBudget(contextWindow, { compactionThreshold: settings?.compactionThreshold, contextTokenLimit: settings?.contextTokenLimit, maxOutputTokens })
 }
 
 export function getCompactionThresholdTokens(
   modelId: string,
-  settings?: Partial<Pick<Settings, 'compactionThreshold'>>,
+  settings?: Partial<Pick<Settings, 'compactionThreshold' | 'contextTokenLimit'>>,
   providedContextWindow?: number,
   maxOutputTokens?: number
 ): number | null {

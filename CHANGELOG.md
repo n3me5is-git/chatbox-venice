@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.39.0
+
+See [release notes](docs/releases/v1.39.0.md). Repairs external-browser subscription login, refreshes Codex models, adds explicit custom endpoints and native web search, and makes thinking/context budgets configurable without changing other providers.
+
 ## 1.38.0
 
 See [release notes](docs/releases/v1.38.0.md). Adds encrypted direct device transfers with complete child-agent/file/media trees, SHA-256 reuse and recoverable imports. Shows account-reported ChatGPT subscription allowances with tappable reset-date details.

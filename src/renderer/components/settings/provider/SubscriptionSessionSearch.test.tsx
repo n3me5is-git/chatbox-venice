@@ -8,6 +8,6 @@ beforeEach(() => { Object.defineProperty(window, 'matchMedia', { configurable: t
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 it('stores native search independently, including an explicit off override and inheritance', () => {
   const save=vi.fn(); render(<MantineProvider><SubscriptionSessionSearch settings={{}} onChange={save}/></MantineProvider>)
-  fireEvent.click(screen.getByLabelText('ChatGPT native web search')); fireEvent.click(screen.getByRole('option',{name:'On'})); expect(save).toHaveBeenLastCalledWith(true)
-  fireEvent.click(screen.getByLabelText('ChatGPT native web search')); fireEvent.click(screen.getByRole('option',{name:'Off'})); expect(save).toHaveBeenLastCalledWith(false)
+  fireEvent.click(screen.getByLabelText('ChatGPT native web search',{selector:'input'})); fireEvent.click(screen.getByRole('option',{name:'On'})); expect(save).toHaveBeenLastCalledWith(true)
+  fireEvent.click(screen.getByLabelText('ChatGPT native web search',{selector:'input'})); fireEvent.click(screen.getByRole('option',{name:'Off'})); expect(save).toHaveBeenLastCalledWith(false)
 })

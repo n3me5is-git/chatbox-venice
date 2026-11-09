@@ -41,6 +41,9 @@ jobs:
       - name: Direct transfer integrity, admission and subscription allowance
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/shared/session-transfer.test.ts src/renderer/packages/session-transfer src/shared/oauth/chatgpt-allowance.test.ts src/renderer/packages/chatgpt-subscription/service.test.ts src/renderer/components/settings/provider/ChatGPTAllowance.test.tsx src/renderer/components/collaboration/DirectTransfer.test.tsx
+      - name: Context budgets, manual compression and generation boundaries
+        if: ${{ !cancelled() }}
+        run: pnpm exec vitest run src/renderer/components/common/ContextTokenBudgetField.test.tsx src/renderer/components/InputBox/TokenCountMenu.test.tsx src/renderer/packages/context-management/context-token-limit.test.ts src/renderer/packages/context-management/compaction-detector.test.ts src/renderer/packages/context-management/compaction.test.ts packages/chatbox-core/src/application/token-estimation/math.test.ts packages/chatbox-core/src/generation/mid-run-compaction.test.ts packages/chatbox-core/src/generation/mid-run-compaction-media.test.ts
       - name: Protection history persistence and background lock timeout
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run packages/chatbox-react/src/image-generation-hooks.test.ts src/renderer/storage/__tests__/SQLiteImageGenerationStorage.test.ts src/renderer/packages/vault/background-lock.test.ts src/renderer/packages/vault/image-records.test.ts src/renderer/packages/vault/media-records.test.ts
