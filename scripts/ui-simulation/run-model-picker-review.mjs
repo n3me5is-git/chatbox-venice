@@ -53,7 +53,7 @@ export async function runModelPickerReview({ click, evaluate, cdp, wait, byText,
   await writeFile(path.join(output,'native-image-picker-bounds.json'),JSON.stringify(bounds,null,2))
   assert.ok(bounds.top>=0&&bounds.bottom<=bounds.height+1,'Native image picker extends outside the mobile viewport: '+JSON.stringify(bounds));assert.equal(bounds.providers,4,'Image provider groups were lost')
   await swipe(imageList);assert.ok(await evaluate(`(${imageList}).scrollTop`)>100,'All-provider image list did not scroll with touch')
-  await evaluate(`document.querySelector('input[aria-label="Search image models"]').focus()`)
+  await evaluate(`(${imageList}).parentElement.querySelector('input[aria-label="Search image models"]').focus()`)
   await cdp('Input.insertText',{text:'Custom image provider'})
   await wait(()=>evaluate(`(${imageList}).querySelectorAll('[data-image-provider]').length===1`),'Searching native images by provider did not filter groups')
   await evaluate(`(${imageList}).scrollTop=(${imageList}).scrollHeight`)
