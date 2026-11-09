@@ -114,7 +114,7 @@ export class SessionTransferHub {
   }
   private async sendObject(room: TransferHost, peer: NonNullable<TransferHost['peer']>, request: string, id: string) {
     const check = () => { if (this.hosts.get(room.id) !== room || room.peer !== peer || !peer.admitted || peer.pull !== request) throw Error('Direct transfer cancelled') }
-    await room.source.assertCurrent(); let n = 0
+    let n = 0
     for await (const bytes of room.source.read(id)) {
       try { for (let at = 0; at < bytes.length; at += 32768) {
         check(); const part = bytes.subarray(at, at + 32768), key = room.id + ':' + request + ':' + n

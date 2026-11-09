@@ -13,6 +13,7 @@ import { veniceMediaService } from '@/packages/venice/service'
 import { deviceIdentity } from '@/packages/collaboration/transport'
 import { fingerprint } from '@/packages/collaboration/crypto'
 import platform from '@/platform'
+import { activeTransferSnapshots } from './lifecycle'
 
 export interface TransferReceipt {
   version: 1
@@ -108,6 +109,7 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
   const lineage = receipt?.lineage || digest(sourceDevice + '\0' + canonical(rootId))
   const manifest: TransferManifest = { version: 1, id: job, lineage, sourceDevice, rootId: canonical(rootId), createdAt: Date.now(), sessions: [], objects: [] }
   const stages = new Map<string, string>(), revisions = new Map<string, number>(), signatures = new Map<string, string>()
+  const sourceScopes = new Map<string, string | null>(), sourceRefs = new Map<string, string>(), sessionScopes = new Map<string, string | null>()
   let total = 0, disposed = false
   const scope = await vault().projects.sessionScope(rootId) || 'public'
   const requiredScopes = new Set<string>()
@@ -131,7 +133,10 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
     } finally { hasher.destroy() }
   }
   const currentSignature = (items: SessionResource[], directories: string[]) => digest(JSON.stringify([directories, items.map(item => [item.id, item.key, item.path, item.bytes, item.updatedAt])]))
-  const dispose = async () => { if (disposed) return; disposed = true; await Promise.allSettled([...stages.values()].map(ref => vault().assets.remove(ref))); stages.clear() }
+  const dispose = async () => { if (disposed) return; disposed = true; await Promise.allSettled([...stages.values()].map(ref => vault().assets.remove(ref))); stages.clear(); activeTransferSnapshots.delete(job) }
+  const mediaSignature = (items: typeof media) => digest(JSON.stringify(items.map(item => [item.id, item.sessionId, item.status, item.protection, item.protectedRecord, item.blobKey, item.prompt, item.text]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))))
+  const originalMedia = mediaSignature(media)
+  activeTransferSnapshots.add(job)
   try {
     for (const id of allIds) {
       signal?.throwIfAborted(); await vault().projects.assertSession(id)
@@ -148,6 +153,7 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
         else { const parent = runs.find(parent => parent.id === run.parentId); if (!parent) throw Error('The agent tree has a missing parent'); parentId = canonical(parent.sessionId) }
       }
       const protectedSession = !!await vault().projects.sessionScope(id)
+      sessionScopes.set(id, await vault().projects.sessionScope(id) || null)
       if (protectedSession && !includeProtected) throw Error('This tree contains protected content. Unlock it and explicitly include protected content to send it.')
       manifest.sessions.push({ id: canonical(id), parentId, workspaceId: canonical(run?.workspaceId || id), name: commit.record.name.slice(0, 240), revision: commit.revision, directories: resources.directories, protected: protectedSession })
       const paths = new Set<string>()
@@ -163,6 +169,7 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
         if (paths.has(path)) path = sessionFilePath('copies/' + digest(item.id).slice(0, 12) + '/' + path)
         paths.add(path)
         const objectId = digest(canonical(id) + '\0file\0' + path)
+        if (item.key) { sourceScopes.set(item.key, header?.scope || null); sourceRefs.set(objectId, item.key) }
         await stage({ id: objectId, sessionId: canonical(id), kind: 'file', path, name: item.name.slice(0, 240), mime: item.mime, deliverable: !!item.deliverable, protected: protectedAsset || protectedSession, ...(item.key ? { resourceKey: inverseResources.get(item.key) || item.key } : {}), ...(item.messageId ? { messageId: item.messageId } : {}) }, resourceBytes(id, item), protectedAsset ? header!.scope : await vault().projects.sessionScope(id) || 'public')
       }
       const imageIds = new Set(resources.items.filter(item => item.origin === 'image').map(item => item.recordId!))
@@ -187,7 +194,8 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
               const path = sessionFilePath('attachments/parsed/' + digest(key).slice(0, 20) + '.txt')
               const header = await vault().assets.header(key), protectedAsset = !!header && header.scope !== 'public'
               if (protectedAsset && !includeProtected) throw Error('This tree contains protected content. Unlock it and explicitly include protected content to send it.')
-              await stage({ id: digest(canonical(id) + '\0file\0' + path), sessionId: canonical(id), kind: 'file', path, name: (file.name + '.txt').slice(0, 240), mime: 'text/plain', protected: protectedAsset || protectedSession, deliverable: false, resourceKey: inverseResources.get(key) || key, messageId: row.message.messageId }, resourceBytes(id, { id: 'parsed:' + digest(key), origin: 'attachment', key, name: file.name + '.txt', path, mime: 'text/plain' }), protectedAsset ? header!.scope : await vault().projects.sessionScope(id) || 'public')
+              const objectId = digest(canonical(id) + '\0file\0' + path); sourceScopes.set(key, header?.scope || null); sourceRefs.set(objectId, key)
+              await stage({ id: objectId, sessionId: canonical(id), kind: 'file', path, name: (file.name + '.txt').slice(0, 240), mime: 'text/plain', protected: protectedAsset || protectedSession, deliverable: false, resourceKey: inverseResources.get(key) || key, messageId: row.message.messageId }, resourceBytes(id, { id: 'parsed:' + digest(key), origin: 'attachment', key, name: file.name + '.txt', path, mime: 'text/plain' }), protectedAsset ? header!.scope : await vault().projects.sessionScope(id) || 'public')
               resourceKeys.add(key)
             }
           }
@@ -208,8 +216,11 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
     TransferManifestSchema.parse(manifest)
     const assertCurrent = async () => {
       if (disposed) throw Error('This transfer is no longer available')
+      for (const [key, scope] of sourceScopes) if (((await vault().assets.header(key))?.scope || null) !== scope) throw Error('Content protection changed during the transfer. Prepare it again.')
+      if (mediaSignature((await veniceMediaService.list()).filter(item => item.sessionId && allIds.includes(item.sessionId))) !== originalMedia) throw Error('The source files changed while preparing the transfer. Prepare it again.')
       for (const [id, revision] of revisions) {
         await vault().projects.assertSession(id)
+        if ((await vault().projects.sessionScope(id) || null) !== sessionScopes.get(id)) throw Error('Content protection changed during the transfer. Prepare it again.')
         if (await rows.getRevision(id) !== revision) throw Error('The source chat changed while preparing the transfer. Prepare it again.')
         const current = await listSessionResources(id, signal)
         if (current.truncated || currentSignature(current.items, current.directories) !== signatures.get(id)) throw Error('The source files changed while preparing the transfer. Prepare it again.')
@@ -227,7 +238,12 @@ export async function prepareTransfer(rootId: string, includeProtected: boolean,
       if (!item || !ref) throw Error('This file is outside the offered transfer')
       await vault().projects.assertSession(rootId)
       for (const protectedScope of requiredScopes) await vault().keys.key(protectedScope)
-      if (item.bytes) for await (const chunk of vault().assets.read(ref)) { signal?.throwIfAborted(); await vault().projects.assertSession(rootId); yield chunk }
+      if (item.bytes) for await (const chunk of vault().assets.read(ref)) {
+        signal?.throwIfAborted(); await vault().projects.assertSession(rootId)
+        const original = sourceRefs.get(id)
+        if (original && ((await vault().assets.header(original))?.scope || null) !== sourceScopes.get(original)) { chunk.fill(0); throw Error('Content protection changed during the transfer. Prepare it again.') }
+        yield chunk
+      }
     } }
   } catch (error) { await dispose(); throw error }
 }

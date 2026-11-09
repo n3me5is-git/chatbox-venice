@@ -3,6 +3,7 @@ import { sessionImportCandidateId } from '@chatbox/core/ports'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import { deleteSession } from '@/stores/session/crud'
 import platform from '@/platform'
+import { activeTransferSnapshots } from './lifecycle'
 const key = 'direct-transfer-journal-v1'
 const Entry = z.object({ job: z.string().uuid(), rootId: z.string().uuid(), ids: z.array(z.string().uuid()).max(65), folderId: z.string().optional(), committed: z.boolean() })
 type Entry = z.infer<typeof Entry>
@@ -55,4 +56,12 @@ async function recover() {
       await finishImportJournal(entry.job)
     } catch { /* Locked scopes or unavailable storage stay journalled for the next unlock. */ }
   }
+  let removed = false
+  for await (const header of vault().db.all()) {
+    const job = /^private-transfer-stage:([a-f0-9-]{36}):/.exec(header.alias || '')?.[1]
+    if (job && !active.has(job) && !activeTransferSnapshots.has(job)) {
+      await vault().assets.remove('vault-asset-' + header.id); removed = true
+    }
+  }
+  if (removed) await vault().assets.cleanupOrphans()
 }

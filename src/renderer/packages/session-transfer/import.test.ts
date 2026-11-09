@@ -38,7 +38,7 @@ import { VaultRuntime } from '@/packages/vault/runtime'
 import { sessionFiles } from '@/packages/session-resources/files'
 import { keyPair } from '@/packages/collaboration/crypto'
 import { updateAgentData } from '@/packages/multi-agent/storage'
-import { prepareTransfer, type PreparedTransfer } from './snapshot'
+import { prepareTransfer, portableReferences, type PreparedTransfer } from './snapshot'
 import { analyzeTransfer, importTransfer } from './import'
 import { startImportJournal, releaseImportJournal, recoverSessionTransfers } from './journal'
 
@@ -131,5 +131,27 @@ describe('direct transfer real SQLite rows and encrypted receiver storage', () =
     const committed = await target.conversation(), next = crypto.randomUUID()
     await target.metadata.update(committed, { hidden: true }); await startImportJournal({ job: next, rootId: committed, ids: [committed], committed: true }); releaseImportJournal(next)
     await recoverSessionTransfers(); expect(target.metas.get(committed).hidden).toBe(false)
+  })
+  it('does not bind foreign receiver blobs, and stops reading if source protection changes', async () => {
+    expect(portableReferences({ storageKey: 'foreign-device-blob', nested: { rawStorageKey: 'offered' } }, new Map([['offered', 'local-copy']]), true)).toEqual({ storageKey: undefined, nested: { rawStorageKey: 'local-copy' } })
+    const sender = await device(), root = await sender.conversation(); await sessionFiles.write(root, 'report.md', new TextEncoder().encode('private'))
+    const prepared = await prepareTransfer(root, false), file = (await sessionFiles.list(root))[0]
+    await sender.vault.keys.configure('app', { pin: '123456', biometric: false }); await sender.vault.assets.rewrap(file.key, 'app')
+    await expect(prepared.assertCurrent()).rejects.toThrow('protection changed')
+    await expect(prepared.read(prepared.manifest.objects.find(item => item.kind === 'file')!.id).next()).rejects.toThrow('protection changed')
+    await prepared.dispose()
+  })
+  it('cleans orphaned outgoing snapshots after restart without needing protected plaintext', async () => {
+    const target = await device(), job = crypto.randomUUID(), alias = 'private-transfer-stage:' + job + ':orphan'
+    await target.vault.assets.put((async function* () { yield new Uint8Array([1, 2]) })(), { name: 'Temporary snapshot', mime: 'application/octet-stream', kind: 'chat', hidden: true }, 'public', alias)
+    await recoverSessionTransfers(); expect(await target.vault.assets.header(alias)).toBeNull()
+  })
+  it('rolls back already published child candidates when the root publication fails', async () => {
+    const sender = await device(), root = await sender.conversation(), child = await sender.conversation()
+    await updateAgentData('private-agents:runs:' + encodeURIComponent(root), [], () => [{ id: 'run', rootId: root, parentId: root, sessionId: child, workspaceId: child, kind: 'dedicated', depth: 1, title: 'Worker', model: { provider: 'venice', modelId: 'test' }, tools: [], allowOnDemand: false, dedicatedIds: [], status: 'completed', createdAt: 1, updatedAt: 2 }], root)
+    const prepared = await prepareTransfer(root, false), read = await wire(prepared), receiver = await device(), existing = await receiver.conversation(), stage = receiver.rows.stageImportRows.bind(receiver.rows)
+    vi.spyOn(receiver.rows, 'stageImportRows').mockImplementation(async (record, job) => { const writer = await stage(record, job); if (!record.hidden) writer.publish = async () => { throw Error('Simulated disk failure') }; return writer })
+    await expect(importTransfer(await analyzeTransfer(prepared.manifest), read, { name: 'Incomplete copy' })).rejects.toThrow('disk failure')
+    expect([...receiver.metas.keys()]).toEqual([existing]); expect(await receiver.rows.listSessionIds()).toEqual([existing])
   })
 })

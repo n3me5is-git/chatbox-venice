@@ -1,4 +1,5 @@
 export const transferItalian = {
+  'Content protection changed during the transfer. Prepare it again.': 'La protezione dei contenuti è cambiata durante il trasferimento. Preparalo nuovamente.',
   'Sharing and device transfer': 'Condivisione e trasferimento dispositivi',
   'Collaboration': 'Collaborazione', 'Receive / transfer': 'Ricevi / trasferisci',
   'Send to another device': 'Invia a un altro dispositivo',
