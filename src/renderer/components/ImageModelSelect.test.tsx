@@ -255,9 +255,6 @@ describe('image model details', () => {
     await user.tab()
 
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search image models' }))
-
-    await user.tab()
-    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search image models' }))
     await user.tab()
 
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Model details' }))

@@ -148,6 +148,7 @@ async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInter
   const tools: ToolSet = {}
   for (const name of run.tools) { const original = available[name]; if (!original) continue; tools[name] = { ...original, execute: original.execute ? async (input: any, options: any) => {
     await multiAgentRuntime.check(caller); options.abortSignal?.throwIfAborted()
+    if(name.startsWith('venice_')){const root=await getSessionSettings(run.rootId),{veniceToolsEnabled}=await import('@shared/providers/definitions/models/venice/tool-policy');if(!veniceToolsEnabled(root.provider,root.veniceToolsEnabled,settingsStore.getState().providers?.venice?.venice)||!veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice))throw Error('Venice tools are disabled for this chat')}
     const external = grants.get(run.rootId)?.external
     if (external && (!external.context.caller.tools.includes(name) || !external.allows(name, input))) throw Error('This worker action is outside the MCP sharing permissions')
     for (let node: AgentRun | undefined = run; node; node = multiAgentRuntime.runs.get(node.parentId)) if (node.preset && !(await listDedicatedAgents()).find(agent => agent.id === node!.preset!.id)?.toolNames.includes(name)) throw Error('This agent tool permission was revoked')

@@ -22,7 +22,7 @@ function setup(){
 }
 describe('host-authoritative collaboration',()=>{
  it('routes thinking/search changes to the host and rejects forged read-only settings, stale revisions and revocation',async()=>{
-   const {make,adapter,snapshot}=setup(),configure=vi.fn(async(_id:string,revision:string,_patch:unknown,assert:()=>void)=>{assert();if(revision!=='r1')throw Error('The host settings changed');Object.assign(snapshot,{controls:{revision:'r2',model:'Host only',thinking:'high',thinkingOptions:['default','high'],webBrowsing:true}})})
+   const {make,adapter,snapshot}=setup(),configure=vi.fn(async(_id:string,revision:string,_patch:unknown,assert:()=>void)=>{assert();if(revision!==(snapshot as any).controls.revision)throw Error('The host settings changed');Object.assign(snapshot,{controls:{revision:'r2',model:'Host only',thinking:'high',thinkingOptions:['default','high'],webBrowsing:true}})})
    adapter.configure=configure;Object.assign(snapshot,{controls:{revision:'r1',model:'Host only',thinking:'default',thinkingOptions:['default','high'],webBrowsing:false}})
    const owner=make(),visitor=make(),host=await owner.host('chat'),guest=await visitor.join(host.code,'Alice');await vi.waitFor(()=>expect(host.peers.size).toBe(1));const actor=[...host.peers.keys()][0];await owner.admit(host.id,actor,true)
    await guest.link!.send({type:'configure',id:crypto.randomUUID(),revision:'r1',patch:{thinking:'high'}});expect(configure).not.toHaveBeenCalled();expect(guest.error).toContain('not allowed')
