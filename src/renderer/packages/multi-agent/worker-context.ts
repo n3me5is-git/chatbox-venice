@@ -17,7 +17,7 @@ export async function createWorkerContext(settings:SessionSettings, tools:ToolSe
   for(const [name,member] of Object.entries(tools)) toolTokens+=countText(JSON.stringify({name,description:member.description,parameters:member.inputSchema?await asSchema(member.inputSchema).jsonSchema:undefined}))
   return new WorkerContextController({budget,automatic:isAutoCompactionEnabled(settings,global),signal,toolTokens,countMessage,summarize:async(messages,targetTokens)=>{
     signal.throwIfAborted();await assert()
-    const model=await createModel({...settings,maxTokens:Math.max(32,Math.min(4096,targetTokens))})
-    return summarizeWorkerMessages({messages,budget:budget!,targetTokens,signal,model,assert})
+    const model=await createModel({...settings,subscriptionWebSearch:false,maxTokens:Math.max(32,Math.min(4096,targetTokens))})
+    return summarizeWorkerMessages({messages,budget:budget!,targetTokens,signal,model,assert,countText})
   }})
 }

@@ -7,12 +7,19 @@ import type { CallChatCompletionOptions } from '../../models/types'
 import type { ChatStreamOptions, ModelStreamPart } from '../../models/types'
 import type { ModelMessage, ToolSet } from 'ai'
 import { subscriptionSourcesFooter, type SubscriptionSearchSource } from '../../oauth/chatgpt-search-sources'
+import type { StreamTextResult } from '../../types'
 
 export class ChatGPTSubscriptionModel extends OpenAIResponses {
   public name = 'OpenAI Sub Unofficial'
   public imageDriverModel = DEFAULT_SUBSCRIPTION_IMAGE_DRIVER
   public readonly searchSources = new Map<string, SubscriptionSearchSource>()
   public get usesNativeWebSearch() { return false } // Native search and Chatbox search remain independent.
+  public override async chat(messages: ModelMessage[], options: CallChatCompletionOptions): Promise<StreamTextResult> {
+    this.searchSources.clear()
+    const result = await super.chat(messages, options)
+    const text = subscriptionSourcesFooter(this.searchSources.values())
+    return text ? { ...result, contentParts: [...result.contentParts, { type: 'text', text }] } : result
+  }
   public override async *chatStream<T extends ToolSet>(messages: ModelMessage[], options: ChatStreamOptions): AsyncGenerator<ModelStreamPart<T>> {
     this.searchSources.clear(); let finish: ModelStreamPart<T> | undefined; let failed = false
     for await (const part of super.chatStream<T>(messages, options)) {

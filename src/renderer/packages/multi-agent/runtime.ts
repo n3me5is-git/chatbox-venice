@@ -94,7 +94,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     await updateAgentData('private-agents:events:' + encodeURIComponent(run.rootId), [], () => agentEvents.get(run.rootId), run.rootId)
   },
   async guard(guardian, boundary, signal) {
-    const settings = { ...SessionSettingsSchema.parse(guardian.parameters || {}), ...guardian.model }
+    const settings = { ...SessionSettingsSchema.parse(guardian.parameters || {}), ...guardian.model, subscriptionWebSearch: false }
     const model = await createModel(settings)
     const { createWorkerContext } = await import('./worker-context')
     // A guardian must inspect the complete payload. Never replace its evidence with a summary.

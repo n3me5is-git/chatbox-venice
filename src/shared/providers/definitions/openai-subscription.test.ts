@@ -69,4 +69,6 @@ it.each([['gpt-6-astra','max'],['gpt-6.1-sol','xhigh'],['custom-future-model','m
   expect(body.tools).toEqual(expect.arrayContaining([expect.objectContaining({type:'function',name:'mcp_lookup'}),{type:'web_search'}]))
   expect(parts.filter(part=>part.type==='text-delta').map(part=>part.text).join('')).toContain('[1. Search source](https://example.org/source)')
   expect(parts.at(-1)?.type).toBe('finish')
+  const complete = await model.chat([{role:'user',content:'Find the documentation'}],{providerOptions:{openai:{reasoningEffort:effort,forceReasoning:true}}})
+  expect(complete.contentParts.filter(part=>part.type==='text').map(part=>part.text).join('')).toContain('[1. Search source](https://example.org/source)')
 })

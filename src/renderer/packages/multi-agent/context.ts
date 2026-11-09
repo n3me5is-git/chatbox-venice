@@ -62,9 +62,10 @@ export class WorkerContextController {
 export async function summarizeWorkerMessages(options: {
   messages: ModelMessage[]; budget: CompactionBudget; targetTokens: number; signal: AbortSignal
   model: ModelInterface; assert: () => Promise<void>
+  countText?: (text: string) => number
 }): Promise<string> {
   const {budget,signal,model}=options
-  const countText=textTokenCounter('default'), count=createModelMessageTokenCounter(countText)
+  const countText=options.countText??textTokenCounter('default'), count=createModelMessageTokenCounter(countText)
   const groups: ModelMessage[][]=[]
   for(const message of options.messages) {
     if(message.role==='tool' && groups.length) groups.at(-1)!.push(message)
