@@ -33,7 +33,9 @@ export class ChatGPTSubscriptionModel extends OpenAIResponses {
   protected getCallSettings(options: CallChatCompletionOptions) {
     const config = super.getCallSettings(options)
     // The subscription catalog supports max; the generic legacy OpenAI normalizer drops it.
-    return { ...config, providerOptions: { ...config.providerOptions, openai: { ...options.providerOptions?.openai, store: false } } }
+    const openai = options.providerOptions?.openai
+    // Custom account IDs may be unknown to the SDK's built-in model-name parser.
+    return { ...config, providerOptions: { ...config.providerOptions, openai: { ...openai, ...(openai?.reasoningEffort ? { forceReasoning: true } : {}), store: false } } }
   }
   async paint(params: { prompt: string; images?: { imageUrl: string }[]; num: number; aspectRatio?: string }, signal?: AbortSignal, callback?: (image: string) => void | Promise<void>): Promise<string[]> {
     if (this.options.model.type !== 'image' && !this.options.model.modelId.startsWith('gpt-image-') && this.options.model.modelId !== 'chatgpt-image-auto') throw new Error('Select an image model from OpenAI Sub Unofficial')
