@@ -1,7 +1,7 @@
 import { CHATGPT_SUB_PROVIDER, startChatGPTDeviceLogin, pollChatGPTDeviceLogin, refreshChatGPTSubscription, subscriptionHeaders, type ChatGPTDeviceCode } from '@shared/oauth/chatgpt-subscription'
 import type { OAuthCredentials } from '@shared/oauth'
 import type { ProviderModelInfo } from '@shared/types'
-import { createFetchWithProxy } from '@shared/models/utils/fetch-proxy'
+import { createSubscriptionTransport } from '@shared/oauth/chatgpt-transport'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import platform from '@/platform'
 import { settingsStore } from '@/stores/settingsStore'
@@ -13,7 +13,7 @@ const pendingKey = 'private-auth:chatgpt-subscription-pending:v1'
 const vault = () => vaultRuntimeFor(platform)
 let renewal: Promise<OAuthCredentials> | undefined
 let epoch = 0
-async function fetcher() { return createFetchWithProxy(false, await (await import('@/adapters/RendererModelDependencies')).createModelDependencies()) }
+async function fetcher() { return createSubscriptionTransport(await (await import('@/adapters/RendererModelDependencies')).createModelDependencies()) }
 async function save(value: OAuthCredentials | ChatGPTDeviceCode, expectedEpoch = epoch, alias = key) {
   if (epoch !== expectedEpoch) throw new Error('ChatGPT connection was closed')
   if (!await vault().available()) throw new Error('Device encryption is unavailable')

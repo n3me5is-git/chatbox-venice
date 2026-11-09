@@ -23,5 +23,8 @@ it('persists custom thinking options rather than losing the selection on close',
   render(<MantineProvider><NiceModal.Provider/></MantineProvider>);let saved!:Promise<unknown>
   act(()=>{saved=NiceModal.show(ModelEdit,{providerId:'openai-sub-unofficial',model:{modelId:'future-text',type:'chat',capabilities:['reasoning'],vendorMetadata:{codexReasoningEfforts:['low','high','max']}}})})
   fireEvent.click(await screen.findByLabelText('Supported thinking levels',{selector:'input'}));fireEvent.click(screen.getByRole('option',{name:'xhigh'}))
-  fireEvent.click(screen.getByRole('button',{name:'Save'}));const model=ProviderModelInfoSchema.parse(await saved);expect(model.vendorMetadata?.codexReasoningEfforts).toEqual(['low','high','max','xhigh']);expect(model.subscriptionEndpoint).toBe('responses')
+  const contextInput = screen.getByPlaceholderText('e.g. 128000')
+  expect((contextInput as HTMLInputElement).value).toBe('300,000')
+  fireEvent.change(contextInput,{target:{value:'180000'}})
+  fireEvent.click(screen.getByRole('button',{name:'Save'}));const model=ProviderModelInfoSchema.parse(await saved);expect(model.vendorMetadata?.codexReasoningEfforts).toEqual(['low','high','max','xhigh']);expect(model.subscriptionEndpoint).toBe('responses');expect(model.contextWindow).toBe(180000)
 })

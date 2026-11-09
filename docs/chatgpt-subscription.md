@@ -6,7 +6,7 @@ This community integration uses the ChatGPT Codex backend on desktop and Android
 
 Open **Settings → Model providers → OpenAI Sub Unofficial**, start sign-in and copy the pairing code. Choose **Open external browser**, approve the code on `auth.openai.com/codex/device`, then return to the app. The code remains selectable and copyable while polling. A temporary network or browser-opening failure leaves it available for **Continue sign-in**. Cancel removes the pending login; disconnect removes the saved connection.
 
-The device flow follows the official Codex device authorization exchange. Android uses the system browser through Capacitor AppLauncher. Credentials and the pending device code are stored in the local encrypted asset vault, outside provider settings and their exports. A real account sign-in and physical-device round trip still require account/device validation; synthetic UI tests do not establish account entitlement.
+The device flow follows the official Codex device authorization exchange. Android uses the system browser through Capacitor AppLauncher. App requests use the native mobile/desktop transport to avoid embedded-browser CORS restrictions. The adapter preserves the OAuth form content type and returns pending 403/404 statuses to the polling loop. Credentials and the pending device code are stored in the local encrypted asset vault, outside provider settings and their exports. A real account sign-in and physical-device round trip still require account/device validation; synthetic UI tests do not establish account entitlement.
 
 ## Models, thinking and endpoints
 

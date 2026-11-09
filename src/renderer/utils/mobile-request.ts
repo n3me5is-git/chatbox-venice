@@ -39,7 +39,10 @@ async function handleDefaultMobileRequest(
   headers.forEach((value, key) => {
     headerObj[key] = value
   })
-  const isStreaming = body && typeof body === 'string' && JSON.parse(body).stream === true
+  let isStreaming = false
+  if (typeof body === 'string') {
+    try { isStreaming = JSON.parse(body)?.stream === true } catch { /* OAuth form bodies are not JSON. */ }
+  }
 
   if (isStreaming) {
     const response = await createNativeResponse(

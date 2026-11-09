@@ -60,7 +60,7 @@ describe('TokenCountMenu', () => {
     fireEvent.click(screen.getByRole('button', {name:'Tokens'}))
     const input = await screen.findByLabelText('Session context budget (tokens)')
     fireEvent.change(input,{target:{value:'120000'}})
-    fireEvent.click(screen.getByRole('button',{name:'Apply'}))
+    fireEvent.click(await screen.findByRole('button',{name:'Apply'}))
     expect(save).toHaveBeenCalledWith(120000)
     expect(screen.getByText('Automatic compaction above: 89K tokens')).toBeTruthy()
     fireEvent.click(screen.getByRole('menuitem',{name:'Compress Conversation'}))

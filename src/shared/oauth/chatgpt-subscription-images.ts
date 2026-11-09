@@ -1,5 +1,5 @@
 import type { ModelDependencies } from '../types/adapters'
-import { createFetchWithProxy } from '../models/utils/fetch-proxy'
+import { createSubscriptionTransport } from './chatgpt-transport'
 import { mergeExtraBody } from '../models/utils/extra-body'
 import { subscriptionHeaders } from './chatgpt-subscription'
 import { responseFailureReason } from '../providers/definitions/models/venice/failure-reason'
@@ -10,7 +10,7 @@ export async function requestSubscriptionImages(dependencies: ModelDependencies,
   const credential = await dependencies.subscription.getCredential()
   const body = mergeExtraBody({ model: input.model, prompt: input.prompt, size: input.size, n: 1, ...(input.images.length ? { images: input.images.map(image_url => ({ image_url })) } : {}) }, input.extraBody || {})
   const path = input.images.length ? 'images/edits' : 'images/generations'
-  const response = await createFetchWithProxy(false, dependencies)('https://chatgpt.com/backend-api/codex/' + path, { method: 'POST', redirect: 'error', signal, headers: { ...subscriptionHeaders(credential), Accept: 'application/json' }, body: JSON.stringify(body) })
+  const response = await createSubscriptionTransport(dependencies)('https://chatgpt.com/backend-api/codex/' + path, { method: 'POST', redirect: 'error', signal, headers: { ...subscriptionHeaders(credential), Accept: 'application/json' }, body: JSON.stringify(body) })
   if (!response.ok) throw Error('ChatGPT image generation failed (HTTP ' + response.status + '): ' + await responseFailureReason(response))
   const payload = await response.json()
   if (!Array.isArray(payload.data) || !payload.data.length) throw Error('ChatGPT completed without an image. The model or account may not support image generation.')

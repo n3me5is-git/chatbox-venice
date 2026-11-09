@@ -4,7 +4,7 @@ import { ProviderModelInfoSchema, SessionSettingsSchema, SettingsSchema } from '
 import { subscriptionDefaultModels } from '@shared/oauth/chatgpt-model-catalog'
 import { checkOverflow } from './compaction-detector'
 import { getConfiguredContextWindow } from './context-pressure'
-import { createDefaultSettings } from '@chatbox/core/domain/settings/settings-defaults'
+import { createDefaultSettings } from '@chatbox/core/domain/settings'
 it('uses a 300K subscription ceiling before considering a lower user budget',()=>{
   expect(subscriptionDefaultModels().filter(m=>m.type==='chat').every(m=>m.contextWindow===300000)).toBe(true)
   expect(getConfiguredContextWindow({providers:{}},'openai-sub-unofficial','custom-gpt')).toBe(300000)

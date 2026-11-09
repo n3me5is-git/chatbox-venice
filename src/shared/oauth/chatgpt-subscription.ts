@@ -1,6 +1,6 @@
 import type { OAuthCredentials } from './types'
 import type { ModelDependencies } from '../types/adapters'
-import { createFetchWithProxy } from '../models/utils/fetch-proxy'
+import { createSubscriptionTransport } from './chatgpt-transport'
 import { CHATGPT_CODEX_CLIENT_VERSION } from './chatgpt-model-catalog'
 import { mergeExtraBody } from '../models/utils/extra-body'
 import { observeSubscriptionSources, type SubscriptionSearchSource } from './chatgpt-search-sources'
@@ -61,7 +61,7 @@ export function createSubscriptionFetch(dependencies: ModelDependencies, options
     const include = Array.isArray(body.include) ? body.include : []
     body.include = [...new Set([...include, 'reasoning.encrypted_content'])]
     if (Array.isArray(body.tools)) body.tools = body.tools.map((tool: Record<string, unknown>) => tool.type === 'function' ? { ...tool, strict: false } : tool)
-    const response = await createFetchWithProxy(false, dependencies)(CHATGPT_CODEX_ENDPOINT, { ...init, method: 'POST', redirect: 'error', headers: subscriptionHeaders(credential), body: JSON.stringify(body) })
+    const response = await createSubscriptionTransport(dependencies)(CHATGPT_CODEX_ENDPOINT, { ...init, method: 'POST', redirect: 'error', headers: subscriptionHeaders(credential), body: JSON.stringify(body) })
     return options.onSource && !imageRequest ? observeSubscriptionSources(response, options.onSource) : response
   }
 }

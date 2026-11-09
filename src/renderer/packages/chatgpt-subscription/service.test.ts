@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({ request: vi.fn(), remove: vi.fn(), settings: vi.fn(), available: true }))
-vi.mock('@shared/models/utils/fetch-proxy', () => ({ createFetchWithProxy: () => (...args: any[]) => state.request(...args) }))
+vi.mock('@shared/oauth/chatgpt-transport', () => ({ createSubscriptionTransport: () => (...args: any[]) => state.request(...args) }))
 vi.mock('@/adapters/RendererModelDependencies', () => ({ createModelDependencies: async () => ({}) }))
 vi.mock('@/platform', () => ({ default: {} }))
 vi.mock('@/stores/settingsStore', () => ({ settingsStore: { getState: () => ({ providers: {}, setSettings: state.settings }) } }))

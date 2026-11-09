@@ -4,7 +4,7 @@ import { ChatGPTSubscriptionModel, openaiSubscriptionProvider } from './openai-s
 import { createSubscriptionFetch } from '../../oauth/chatgpt-subscription'
 import { jsonSchema } from 'ai'
 import { ModelProviderEnum, type Config } from '../../types'
-import { createDefaultSettings } from '@chatbox/core/domain/settings/settings-defaults'
+import { createDefaultSettings } from '@chatbox/core/domain/settings'
 import { subscriptionDefaultModels } from '../../oauth/chatgpt-model-catalog'
 const item = { type: 'image_generation_call', status: 'completed', result: 'iVBORw0KGgo=' }
 const stream = () => new Response('data: ' + JSON.stringify({ type: 'response.completed', response: { output: [item] } }) + '\n\n', { headers: { 'Content-Type': 'text/event-stream' } })
