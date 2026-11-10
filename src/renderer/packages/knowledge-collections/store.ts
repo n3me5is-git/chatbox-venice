@@ -8,7 +8,7 @@ export type CollectionEntry={id:number;scope:string;createdAt:number;pendingScop
 export type CollectionFile={id:number;path:string;name:string;mime:string;bytes:number;alias:string;createdAt:number}
 export type CollectionData={version:1;name:string;settings:RagSettings;files:CollectionFile[];consented?:boolean;rerankProvider?:string;rerankModel?:string}
 export type CollectionSummary=CollectionEntry&{name:string;locked:boolean;settings?:RagSettings}
-export interface CollectionAdapters {extract:RagEnginePort['extract'];embed:RagEnginePort['embed'];validate(settings:RagSettings):void;unlock(scope:string):Promise<boolean>;rerank?(query:string,documents:string[],provider:string,model:string,signal:AbortSignal):Promise<{index:number;score:number}[]>}
+export interface CollectionAdapters {extract:RagEnginePort['extract'];embed:RagEnginePort['embed'];validate(settings:RagSettings):void;unlock(scope:string):Promise<boolean>;authority?(settings:RagSettings):string;rerank?(query:string,documents:string[],provider:string,model:string,signal:AbortSignal):Promise<{index:number;score:number}[]>}
 const REGISTRY='knowledge-collections:v1',prefix=(id:number)=>'knowledge-collection:'+id+':'
 export const isPortableCollection=(id:number)=>Number.isSafeInteger(id)&&id<0
 const identity=()=>Math.floor(Date.now()*1000+Math.random()*1000)
@@ -70,9 +70,12 @@ export class KnowledgeCollections {
   async lock(id:number){const entry=await this.entry(id);if(entry.scope!=='public')this.vault.keys.lock(entry.scope);this.jobs.get(id)?.abort()}
   running(id:number){return this.jobs.has(id)}
   cancel(id:number){this.jobs.get(id)?.abort()}
-  private async engine(id:number,settings:RagSettings,signal:AbortSignal){const expected=JSON.stringify(settings);const check=async()=>{signal.throwIfAborted();await this.assert(id);if(JSON.stringify((await this.data(id)).settings)!==expected)throw Error('RAG settings changed; start the operation again')};const port:RagEnginePort={
+  private async engine(id:number,settings:RagSettings,signal:AbortSignal){const expected=JSON.stringify(settings),authority=this.adapters.authority?.(settings);const check=async()=>{signal.throwIfAborted();await this.assert(id);if(JSON.stringify((await this.data(id)).settings)!==expected||this.adapters.authority?.(settings)!==authority)throw Error('RAG settings changed; start the operation again')};const port:RagEnginePort={
     check,list:async()=>(await this.data(id)).files.map(file=>({path:file.path,mime:file.mime,bytes:file.bytes})),read:path=>this.source(id,path),
-    get:async path=>{await check();return this.json.get(prefix(id)+path)},put:async(path,value)=>{await check();const entry=await this.assert(id);await this.json.set(prefix(id)+path,value,entry.scope);await check()},remove:async path=>{await check();await this.json.remove(prefix(id)+path)},
+    get:async path=>{await check();return this.json.get(prefix(id)+path)},put:async(path,value)=>{await check();const entry=await this.assert(id);await this.json.set(prefix(id)+path,value,entry.scope)},
+    // Only cache shards owned by this authorized job reach this callback. Cleanup must
+    // survive cancellation/locking; it neither decrypts nor deletes source documents.
+    remove:async path=>{if(!/^\.chatbox\/rag\/data\/[a-f0-9-]+\.json$/.test(path))throw Error('Invalid RAG index');await this.json.remove(prefix(id)+path)},
     extract:this.adapters.extract,embed:async(inputs,query,cfg,sig)=>{await check();const result=await this.adapters.embed(inputs,query,cfg,sig);await check();return result},
   };return new SessionRagEngine(port)}
   async index(id:number,progress:(path:string)=>void=()=>{}){

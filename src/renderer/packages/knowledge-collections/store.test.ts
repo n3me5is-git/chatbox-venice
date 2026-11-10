@@ -52,3 +52,11 @@ it('restores encrypted library backups as new collections, without vector caches
  const target=await fixture(),before=(await target.store.list()).map(row=>row.id);await importVault(target.store.vault.assets,target.store.vault.assets.blobs,backup,'a safe backup passphrase','public',new AbortController().signal,async refs=>{await target.store.restoreImported(refs,new AbortController().signal)})
  const restored=(await target.store.list()).find(row=>!before.includes(row.id))!;expect(restored).toBeTruthy();expect(await target.store.indexStatus(restored.id)).toBeNull();expect((await target.store.data(restored.id)).files).toHaveLength(1);await expect(target.store.search(restored.id,'payment')).rejects.toThrow('consent');expect(target.embed).not.toHaveBeenCalled();await target.store.configure(restored.id,'Restored',target.cfg);await target.store.index(restored.id);expect((await target.store.search(restored.id,'payment')).matches).toHaveLength(1)
 })
+it('removes staged vector shards after cancellation while retaining the last committed index',async()=>{
+ const f=await fixture();await f.add();await f.store.index(f.id);await f.add('long.txt','payment '.repeat(10000));const before=(await f.db.aliases()).filter(alias=>alias.includes('/data/')).sort();let batches=0
+ f.embed.mockImplementation(async inputs=>{if(++batches===2)f.store.cancel(f.id);return inputs.map(()=>[1,0])});await expect(f.store.index(f.id)).rejects.toThrow();expect((await f.db.aliases()).filter(alias=>alias.includes('/data/')).sort()).toEqual(before);expect((await f.store.indexStatus(f.id))?.files).toHaveLength(1)
+})
+it('keeps a published index valid if cancellation arrives after its manifest is committed',async()=>{
+ const f=await fixture();await f.add();const original=f.store.vault.assets.put.bind(f.store.vault.assets);vi.spyOn(f.store.vault.assets,'put').mockImplementation(async(source,info,scope,alias,signal)=>{const ref=await original(source,info,scope,alias,signal);if(alias?.endsWith('/index.json'))f.store.cancel(f.id);return ref})
+ await f.store.index(f.id);expect((await f.store.search(f.id,'payment')).matches).toHaveLength(1)
+})
