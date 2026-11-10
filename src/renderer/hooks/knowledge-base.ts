@@ -1,13 +1,17 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import platform from '@/platform'
+import {useSyncExternalStore} from 'react'
+import {installedVaultFor} from '@/packages/vault/runtime'
 
 const useKnowledgeBases = (enabled = true) => {
+  const keys=installedVaultFor(platform)?.keys
+  const revision=useSyncExternalStore(keys?.subscribe||(()=>()=>{}),keys?.snapshot||(()=>0),()=>0)
   const fetchKnowledgeBases = async () => {
     const knowledgeBaseController = platform.getKnowledgeBaseController()
     return knowledgeBaseController.list()
   }
   return useQuery({
-    queryKey: ['knowledge-bases'],
+    queryKey: ['knowledge-bases', revision],
     queryFn: fetchKnowledgeBases,
     enabled,
   })

@@ -1,5 +1,7 @@
 # Session RAG and linked workspaces
 
+Reusable [protected knowledge collections](protected-knowledge-collections.md) are also available on Android and desktop. They remain separate from a chat's workspace index and share its local extraction/recursive chunking pipeline. EPUB, OpenDocument, RTF and HTML are now supported as well; rebuild older session indexes once for the updated chunker. Native photo/audio embedding stays independent from OCR/transcription and requires a compatible API transport (direct Gemini Embedding 2; Venice currently accepts text only).
+
 ## User workflow
 
 Open **Session RAG and indexing** from the chat header. The mobile header scrolls horizontally when its actions no longer fit. Select an embedding model, review the remote-processing notice and save. **Index now** builds or updates the index. Automatic updates check the tree every 15 seconds while the app is visible and unlocked. An unchanged failed tree is not retried automatically; use Index now after investigating the error.

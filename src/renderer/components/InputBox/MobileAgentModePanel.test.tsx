@@ -113,6 +113,7 @@ const renderPanel = (sessionId = 'new', hasDraftAttachments = false, ref?: React
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.stubGlobal('ResizeObserver',class {observe(){}unobserve(){}disconnect(){}})
   window.matchMedia = vi
     .fn()
     .mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })
