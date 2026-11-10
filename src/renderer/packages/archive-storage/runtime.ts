@@ -16,12 +16,12 @@ export class ArchiveRuntime {
   private active=0;private frozen=false;private recovered?:Promise<void>
   private epoch=0;private garbage?:Promise<void>;private garbageTimer?:ReturnType<typeof setTimeout>
   private readonly raw:{get:(key:string)=>Promise<string|null>;set:(key:string,value:string)=>Promise<void>;remove:(key:string)=>Promise<void>;keys:()=>Promise<string[]>}
-  private readonly values:{get:Platform['getStoreValue'];set:Platform['setStoreValue'];remove:Platform['delStoreValue'];keys:Platform['getAllStoreKeys']}
+  private readonly values:{get:Platform['getStoreValue'];set:Platform['setStoreValue'];remove:Platform['delStoreValue'];keys:Platform['getAllStoreKeys'];all?:Platform['getAllStoreValues']}
   private readonly listeners=new Set<()=>void>()
   constructor(readonly platform:Platform){
     this.images=platform.getImageGenerationStorage()
     this.raw={get:platform.getStoreBlob.bind(platform),set:platform.setStoreBlob.bind(platform),remove:platform.delStoreBlob.bind(platform),keys:platform.listStoreBlobKeys.bind(platform)}
-    this.values={get:platform.getStoreValue.bind(platform),set:platform.setStoreValue.bind(platform),remove:platform.delStoreValue.bind(platform),keys:platform.getAllStoreKeys.bind(platform)}
+    this.values={get:platform.getStoreValue.bind(platform),set:platform.setStoreValue.bind(platform),remove:platform.delStoreValue.bind(platform),keys:platform.getAllStoreKeys.bind(platform),all:platform.getAllStoreValues?.bind(platform)}
     this.disk=new NativeArchiveDisk(this.raw);const device=deviceProtector();this.engine=new ArchiveEngine(new IndexedArchiveCatalog(),this.disk,{protect:value=>device.protect(value,false),unprotect:value=>device.unprotect(value)})
     this.engine.onChange=()=>this.emit();this.rows=new ArchiveRows(platform.getSessionRowStore(),this.engine,work=>this.guard(work))
     this.engine.removeLegacy=async key=>{if(key.startsWith('blob:'))await this.raw.remove(key.slice(5));else if(key.startsWith('value:'))await this.values.remove(key.slice(6));else throw new Error('Invalid legacy archive key')}
@@ -54,14 +54,18 @@ export class ArchiveRuntime {
     p.setStoreBlob=(key,value)=>this.guard(()=>this.setBlob(key,value))
     p.delStoreBlob=key=>this.guard(async()=>{await this.engine.remove(this.blobKey(key));await this.raw.remove(key)})
     p.listStoreBlobKeys=()=>this.guard(async()=>[...new Set([...(await this.raw.keys()).filter(key=>!/^a1-[a-f0-9-]{36}-\d+\.bin$/.test(key)),...(await this.engine.catalog.entries()).filter(e=>e.key.startsWith('blob:')).map(e=>e.key.slice(5))])])
-    p.getStoreValue=key=>VALUE(key)?this.guard(()=>this.getValue(key)):this.values.get(key)
-    p.setStoreValue=(key,value)=>VALUE(key)?this.guard(()=>this.setValue(key,value)):this.values.set(key,value)
-    p.delStoreValue=key=>VALUE(key)?this.guard(async()=>{await this.engine.remove('value:'+key);await this.values.remove(key)}):this.values.remove(key)
+    const read:Platform['getStoreValue']=key=>VALUE(key)?this.guard(()=>this.getValue(key)):this.values.get(key)
+    const write:Platform['setStoreValue']=(key,value)=>VALUE(key)?this.guard(()=>this.setValue(key,value)):this.values.set(key,value)
+    const remove:Platform['delStoreValue']=key=>VALUE(key)?this.guard(async()=>{await this.engine.remove('value:'+key);await this.values.remove(key)}):this.values.remove(key)
+    p.getStoreValue=read;p.setStoreValue=write;p.delStoreValue=remove
     p.getAllStoreKeys=async()=>[...new Set([...await this.values.keys(),...(await this.engine.catalog.entries()).filter(e=>e.key.startsWith('value:')).map(e=>e.key.slice(6))])]
-    p.getAllStoreValues=async()=>{const result:Record<string,unknown>={};for(const key of await p.getAllStoreKeys())result[key]=await p.getStoreValue(key);return result}
-    p.setAllStoreValues=async values=>{for(const [key,value] of Object.entries(values))await p.setStoreValue(key,value)}
-    p.delStoreValues=async keys=>{for(const key of keys)await p.delStoreValue(key)}
-    p.copyStoreValue=async(source,destination)=>{const value=await p.getStoreValue(source);if(value===null||value===undefined)return false;await p.setStoreValue(destination,value);return true}
+    // These are raw storage operations. The vault installs higher-level privacy wrappers after us.
+    // Calling those wrappers here would unseal protected media in bulk reads and reject locked project stubs before filtering.
+    p.getAllStoreValues=()=>this.guard(async()=>{const result:Record<string,unknown>=this.values.all?await this.values.all():{};if(!this.values.all)for(const key of await this.values.keys())result[key]=await this.values.get(key)
+      for(const entry of await this.engine.catalog.entries())if(entry.key.startsWith('value:'))result[entry.key.slice(6)]=JSON.parse(await this.engine.readRef(entry.key,entry.ref));return result})
+    p.setAllStoreValues=async values=>{for(const [key,value] of Object.entries(values))await write(key,value)}
+    p.delStoreValues=async keys=>{for(const key of keys)await remove(key)}
+    p.copyStoreValue=async(source,destination)=>{const value=await read(source);if(value===null||value===undefined)return false;await write(destination,value);return true}
     if(p.resourceFiles){const original=p.resourceFiles;p.resourceFiles={open:key=>this.guard(async()=>{if(!await this.engine.catalog.get(this.blobKey(key)))return original.open(key);const value=await this.getBlob(key);if(value===null)return null;const bytes=encoder.encode(value);return {size:bytes.length,readBytes:async(offset,length)=>bytes.slice(offset,offset+length),close:async()=>{bytes.fill(0)}}}),create:key=>this.guard(async()=>{const sink=await original.create(key);if(!await this.managed())return sink;return {write:bytes=>this.guard(()=>sink.write(bytes)),close:()=>this.guard(async()=>{await sink.close();await this.importLegacyBlob(key,true)}),abort:()=>sink.abort()}})}}
     const images=this.images;p.getImageGenerationStorage=()=>new Proxy(images,{get:(target,key)=>{const original=Reflect.get(target,key);if(typeof original!=='function')return original;return (...args:any[])=>this.guard(async()=>{
       if((key==='create'||key==='update')&&await this.managed()){const previous=key==='update'?await images.getById(args[0]):undefined;if(key==='update'&&!previous)return null;const record=key==='create'?args[0]:{...await this.rows.hydrate(previous),...args[1]};const stub=await this.image(record);args=key==='create'?[stub]:[args[0],stub]}
@@ -96,3 +100,4 @@ export function installArchiveStorage(platform:Platform){if(!archiveStorageSuppo
   if(sharingBackgroundSnapshot().count)throw new Error('Close active shares and transfers before migrating storage')
   if(hasRagJobs()||knowledgeCollections.hasActiveJobs())throw new Error('Stop indexing before migrating storage')
 };runtimes.set(platform,runtime);runtime.install()}
+
