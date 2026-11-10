@@ -114,7 +114,7 @@ const ModelPill: React.FC<ModelPillProps> = ({
   )
 }
 
-const KnowledgeBasePage: React.FC = () => {
+const KnowledgeBasePage: React.FC<{controller?:ReturnType<typeof platform.getKnowledgeBaseController>}> = ({controller}) => {
   const { t } = useTranslation()
   const [kbList, setKbList] = useState<KnowledgeBase[]>([])
   const [newKbName, setNewKbName] = useState('')
@@ -210,8 +210,8 @@ const KnowledgeBasePage: React.FC = () => {
   }, [getModelList])
 
   const knowledgeBaseController = useMemo(() => {
-    return platform.getKnowledgeBaseController()
-  }, [])
+    return controller||platform.getKnowledgeBaseController()
+  }, [controller])
 
   const getProviderName = useCallback(
     (providerId: string) => {

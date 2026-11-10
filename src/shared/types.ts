@@ -369,6 +369,7 @@ export type KnowledgeBaseProviderMode = 'chatbox-ai' | 'custom'
 
 export interface KnowledgeBase {
   id: number
+  protectionScope?: string
   name: string
   embeddingModel: string
   rerankModel: string

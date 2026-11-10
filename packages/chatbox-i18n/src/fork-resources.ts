@@ -1,4 +1,5 @@
 import {ragEnglish,ragItalian} from './rag-resources'
+import {knowledgeEnglish,knowledgeItalian} from './knowledge-resources'
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 import {collaborationEnglish,collaborationItalian} from './collaboration-resources'
 import {catalogEnglish,catalogItalian} from './catalog-resources'
@@ -6,6 +7,7 @@ import {agentsEnglish,agentsItalian} from './agents-resources'
 import {transferEnglish,transferItalian} from './transfer-resources'
 export const forkEnglish = {
   ...ragEnglish,
+  ...knowledgeEnglish,
   ...transferEnglish,
   ...agentsEnglish,
   ...collaborationEnglish,
@@ -670,6 +672,7 @@ export const forkEnglish = {
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
   ...ragItalian,
+  ...knowledgeItalian,
   ...agentsItalian,
   ...transferItalian,
   ...collaborationItalian,

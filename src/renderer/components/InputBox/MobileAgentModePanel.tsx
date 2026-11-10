@@ -29,6 +29,8 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import * as toastActions from '@/stores/toastActions'
 import { useUIStore } from '@/stores/uiStore'
 import { AgentMemorySettingsContent, useAgentMemorySettings } from './AgentMemorySettings'
+import {useKnowledgeBases} from '@/hooks/knowledge-base'
+import {Select} from '@mantine/core'
 import type { AgentModePanelHandle, AgentModePanelProps } from './AgentModePanel'
 import AgentModeStatusIcon from './AgentModeStatusIcon'
 
@@ -48,11 +50,14 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
     modelSupportsAgentMode = true,
     webBrowsingMode,
     onWebBrowsingChange,
+    currentKnowledgeBaseId,
+    onKnowledgeBaseSelect,
     onClose,
   },
   ref
 ) {
   const { t } = useTranslation()
+  const {data:knowledgeBases}=useKnowledgeBases()
   const [page, setPage] = useState<'main' | 'services' | 'memory' | 'venice'>('main')
   useImperativeHandle(
     ref,
@@ -357,6 +362,8 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
         </Group>
       </UnstyledButton>
       <SessionVeniceTools sessionId={sessionId} providerId={providerId} disabled={!workActive}/>
+      <Select label={ft('Knowledge Base')} placeholder={ft('None')} clearable searchable comboboxProps={{withinPortal:false}} value={currentKnowledgeBaseId?String(currentKnowledgeBaseId):null} data={(knowledgeBases||[]).map(kb=>({value:String(kb.id),label:ft(kb.name)}))} onChange={value=>onKnowledgeBaseSelect(value?(knowledgeBases||[]).find(kb=>String(kb.id)===value)||null:null)}/>
+      <Button variant="subtle" onClick={()=>{onClose?.();navigateToSettings('/knowledge-base')}}>{ft('Manage collections')}</Button>
       <UnstyledButton
         aria-label={t('Skills')}
         disabled={entry.value !== 'on'}

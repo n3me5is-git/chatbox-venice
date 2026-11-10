@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict'
+import {writeFile} from 'node:fs/promises'
+import path from 'node:path'
+export async function runKnowledgeCollections({click,evaluate,wait,byText,fill,cdp,output}){
+ await click(byText('Test knowledge collections'));await click(byText('Open collection'))
+ await wait(()=>evaluate(`!![...document.querySelectorAll('input')].find(e=>e.value==='Local manuals')`),'Collection did not open')
+ await click(byText('Index now'));await wait(()=>evaluate(`document.body.textContent.includes('1 Documents')`),'Collection documents missing')
+ await wait(()=>evaluate(`![...document.querySelectorAll('button')].find(e=>e.textContent==='Index now').disabled`),'Collection indexing did not finish')
+ await fill('Try semantic search','solar');await click(byText('Search indexed files'))
+ await wait(()=>evaluate(`document.body.textContent.includes('Private solar panel maintenance manual.')`),'Semantic collection result missing')
+ assert.equal(await evaluate(`window.__knowledgeCiphertext().includes('Private solar')`),false,'Collection text leaked to disk')
+ assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Knowledge collection overflows mobile viewport')
+ await writeFile(path.join(output,'knowledge-collection-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+ await click(byText('Collection protection'));await click(`document.getElementById([...document.querySelectorAll('label')].findLast(e=>e.textContent==='Collection protection').htmlFor)`)
+ await click(`[...document.querySelectorAll('[role="option"]')].findLast(e=>e.textContent.includes('Dedicated PIN'))`)
+ await fill('New PIN or passphrase','123456');await fill('Confirm PIN or passphrase','123456');await click(`[...document.querySelectorAll('label')].findLast(e=>e.textContent==='Enable device biometrics for this collection')`)
+ await click(byText('Save protection'));await wait(()=>evaluate(`!![...document.querySelectorAll('button')].find(e=>e.textContent==='Lock now')`),'Collection protection was not saved')
+ await click(byText('Lock now'));await wait(()=>evaluate(`!![...document.querySelectorAll('button')].find(e=>e.textContent==='Unlock')`),'Collection did not lock')
+ assert.equal(await evaluate(`document.body.textContent.includes('Private solar panel maintenance manual.')`),false,'Locked page retained protected passages')
+ await evaluate(`void window.__knowledgeTool()`);await wait(()=>evaluate(`!![...document.querySelectorAll('label')].find(e=>e.textContent==='PIN or passphrase')`),'Tool access did not request owner PIN')
+ await writeFile(path.join(output,'knowledge-collection-tool-unlock-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+ await fill('PIN or passphrase','000000');await click(byText('Unlock'));await wait(()=>evaluate(`document.body.textContent.includes('The PIN or device key could not unlock this area')`),'Wrong PIN did not fail')
+ await fill('PIN or passphrase','123456');await click(byText('Unlock'));await wait(()=>evaluate(`window.__knowledgeAuthorized===1`),'Tool did not resume after owner authentication')
+ await click(`[...document.querySelectorAll('[role="dialog"]')].at(-1).querySelector('button[aria-label="Close" i]')`)
+}

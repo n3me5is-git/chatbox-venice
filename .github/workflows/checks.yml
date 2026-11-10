@@ -34,6 +34,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Session RAG, linked folders and extraction boundaries
         run: pnpm exec vitest run src/shared/session-rag-policy.test.ts src/renderer/packages/session-resources/linked-folder.test.ts src/shared/session-rag-engine.test.ts src/main/sandbox/linked-folder.test.ts src/renderer/packages/session-rag src/renderer/components/session-resources/SessionRag.test.tsx
+      - name: Portable encrypted knowledge collections and document parsing
+        run: pnpm exec vitest run src/shared/rag-chunker.test.ts src/shared/mobile-work/worker/extended-documents.test.ts src/renderer/packages/knowledge-collections src/renderer/components/knowledge-base/CollectionsPage.test.tsx
       - name: Validate Windows packaging configuration
         run: node scripts/package-fork.cjs --check-config
       - run: pnpm check
