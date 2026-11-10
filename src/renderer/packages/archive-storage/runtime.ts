@@ -3,7 +3,7 @@ import type { ImageGenerationStorage } from '@/storage/ImageGenerationStorage'
 import sanitizeFilename from 'sanitize-filename'
 import { deviceProtector } from '../vault/device'
 import { IndexedArchiveCatalog } from './catalog'
-import { ArchiveBusy,ArchiveEngine } from './engine'
+import { ArchiveBusy,ArchiveEngine,type ArchiveLegacySource } from './engine'
 import { archiveStorageSupported,NativeArchiveDisk } from './native'
 import { ArchiveRows } from './rows'
 const runtimes=new WeakMap<Platform,ArchiveRuntime>()
@@ -24,11 +24,12 @@ export class ArchiveRuntime {
     this.values={get:platform.getStoreValue.bind(platform),set:platform.setStoreValue.bind(platform),remove:platform.delStoreValue.bind(platform),keys:platform.getAllStoreKeys.bind(platform)}
     this.disk=new NativeArchiveDisk(this.raw);const device=deviceProtector();this.engine=new ArchiveEngine(new IndexedArchiveCatalog(),this.disk,{protect:value=>device.protect(value,false),unprotect:value=>device.unprotect(value)})
     this.engine.onChange=()=>this.emit();this.rows=new ArchiveRows(platform.getSessionRowStore(),this.engine,work=>this.guard(work))
+    this.engine.removeLegacy=async key=>{if(key.startsWith('blob:'))await this.raw.remove(key.slice(5));else if(key.startsWith('value:'))await this.values.remove(key.slice(6));else throw new Error('Invalid legacy archive key')}
     this.rows.onMutation=()=>this.scheduleCleanup()
   }
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return ()=>{this.listeners.delete(listener)}}
   private emit(){for(const listener of this.listeners)listener()}
-  async startup(){await(this.recovered ||= this.engine.recover().catch(async error=>{if((await this.engine.state()).phase==='cleanup'){await this.disk.check((await this.engine.state()).root);return}this.recovered=undefined;throw error}))}
+  async startup(){await(this.recovered ||= this.engine.recover().catch(async error=>{const state=await this.engine.state();if(state.phase==='cleanup'){await this.disk.check(state.root);return}throw error}).catch(error=>{this.recovered=undefined;throw error}))}
   async guard<T>(work:()=>Promise<T>):Promise<T>{if(this.garbage)await this.garbage;if(this.frozen)throw new ArchiveBusy();this.epoch++;this.active++;try{await this.startup();await this.engine.ready();return await work()}catch(error){this.emit();throw error}finally{this.active--}}
   private scheduleCleanup(){if(this.garbageTimer)clearTimeout(this.garbageTimer);this.garbageTimer=setTimeout(()=>{this.garbageTimer=undefined;void this.cleanupUnused().catch(()=>{})},2000)}
   /** Metadata-only mark/sweep. Any concurrent data operation invalidates the scan; staged/export reads prevent reclamation. */
@@ -36,7 +37,7 @@ export class ArchiveRuntime {
     const epoch=this.epoch,live=new Set<string>(),mark=(value:unknown)=>{if(!value||typeof value!=='object')return;const item=value as Record<string,unknown>;const pointer=item.__chatboxArchive as {key?:string}|undefined;if(pointer?.key)live.add(pointer.key);if(typeof item.taskId==='string'&&/^archive-payload:[a-f0-9-]{36}$/.test(item.taskId))live.add('payload:'+item.taskId.slice(16));for(const value of Object.values(item))if(value&&typeof value==='object')mark(value)}
     for(const id of await this.rows.backend.listSessionIds()){mark(await this.rows.backend.readCommit(id));for await(const row of this.rows.backend.iterateRows({sessionId:id,consistency:'export'}))mark(row)}
     let cursor:number|null=0;while(cursor!==null){const page=await this.images.getPage(cursor,100);for(const image of page.items)mark(image);cursor=page.nextCursor}
-    const dead=(await this.engine.catalog.entries()).filter(entry=>entry.key.startsWith('payload:')&&!live.has(entry.key));if(this.active||this.rows.streams||this.rows.writers||this.epoch!==epoch)return
+    const dead=(await this.engine.catalog.entries()).filter(entry=>entry.key.startsWith('payload:')&&!live.has(entry.key));if(this.active||this.rows.streams||this.rows.writers||this.garbage||this.frozen&&!force||this.epoch!==epoch)return
     this.garbage=(async()=>{for(const entry of force?dead:dead.slice(0,64)){if(force){await this.engine.erase(entry.ref);await this.engine.catalog.remove(entry.key)}else await this.engine.remove(entry.key)}})();try{await this.garbage}finally{this.garbage=undefined}if(!force&&dead.length>64)this.scheduleCleanup()
   }
   private blobKey(key:string){return 'blob:'+(this.platform.type==='desktop'?sanitizeFilename(key):key)}
@@ -68,19 +69,23 @@ export class ArchiveRuntime {
     })}})
   }
   private async image(record:any){const id=crypto.randomUUID(),payload='payload:'+id;await this.engine.prepareValue(payload,JSON.stringify(record));return {id:record.id,createdAt:record.createdAt,status:record.status,parentId:record.parentId,model:record.model,source:record.source,protection:record.protection,protectedRecord:record.protectedRecord,prompt:'',referenceImages:[],generatedImages:[],taskId:'archive-payload:'+id}}
+  async retryCleanup(leavePrevious=false){if(this.frozen||this.active||this.rows.writers||this.rows.streams||this.garbage)throw new Error('Finish active operations before migrating storage');this.frozen=true
+    try{await this.startup();await this.engine.cleanup(leavePrevious)}finally{this.frozen=false;this.emit()}}
   async migrate(target:string){if(this.frozen||this.active||this.rows.writers||this.rows.streams||this.garbage)throw new Error('Finish active operations before migrating storage')
     await this.beforeMigrate()
     const running=await this.rows.backend.findMessagesByStatus('generating');if(running.length)throw new Error('Stop active generations before migrating storage')
-    if(this.active||this.rows.writers||this.rows.streams)throw new Error('Finish active operations before migrating storage');this.frozen=true;this.emit()
+    if(this.frozen||this.active||this.rows.writers||this.rows.streams||this.garbage)throw new Error('Finish active operations before migrating storage');this.frozen=true;this.emit()
     try{await this.startup();await this.engine.migrate(target,async()=>{
       await this.engine.catalog.setState({...await this.engine.state(),enabled:true})
       if(this.platform.type==='desktop'&&window.electronAPI)await window.electronAPI.invoke('archive:active',true)
       await this.rows.prepare()
       await this.images.initialize();let cursor:number|null=0;while(cursor!==null){const page=await this.images.getPage(cursor,50);for(const record of page.items)if(!/^archive-payload:[a-f0-9-]{36}$/.test(record.taskId||''))await this.images.update(record.id,await this.image(record));cursor=page.nextCursor}
-      for(const key of await this.values.keys())if(VALUE(key)){const value=await this.values.get(key);if(value!==null&&value!==undefined){await this.engine.prepareValue('value:'+key,JSON.stringify(value));await this.values.remove(key)}}
-      // Legacy aliases and all existing vault chunks (including KB originals and vector shards) follow one root.
-      for(const key of await this.raw.keys())if(!/^a1-[a-f0-9-]{36}-\d+\.bin$/.test(key))await this.importLegacyBlob(key)
       await this.cleanupUnused(true)
+      const legacy:ArchiveLegacySource[]=[]
+      for(const key of await this.values.keys())if(VALUE(key))legacy.push({key:'value:'+key,read:async()=>JSON.stringify(await this.values.get(key)??null)})
+      // Legacy aliases and all existing vault chunks (including KB originals and vector shards) follow one root.
+      for(const key of await this.raw.keys())if(!/^a1-[a-f0-9-]{36}-\d+\.bin$/.test(key))legacy.push({key:this.blobKey(key),read:async()=>{const value=await this.raw.get(key);if(value!==null&&typeof value!=='string')throw new Error('Unsupported legacy archive value');return value}})
+      return legacy
     });await this.platform.compactStore?.();await (this.rows.backend as unknown as {compact?:()=>Promise<void>}).compact?.();await (this.images as unknown as {compact?:()=>Promise<void>}).compact?.()}finally{this.frozen=false;this.emit()}
   }
 }

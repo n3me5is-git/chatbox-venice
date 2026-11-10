@@ -49,4 +49,10 @@ public class CollaborationDeviceTest extends EmulatorDeviceFixture {
             assertEquals("android-owner",result.getString("message"));
         }
     }
+    @Test public void archiveBridgeRejectsWritesToAMissingCard() throws Exception {
+        try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)) {
+            JSONObject result=probe(scenario,"async()=>{const id='00000000-0000-4000-8000-000000000001',call=(method,args)=>window.Capacitor.nativePromise('ArchiveStorage',method,args),status=await call('status',{id});let rejected=false;try{await call('operation',{id,action:'write',name:'a1-'+id+'-0.bin',value:'fixture'})}catch(error){rejected=String(error.message).includes('unavailable')}return {available:status.available,rejected}} ");
+            assertFalse(result.toString(),result.getBoolean("available"));assertTrue(result.toString(),result.getBoolean("rejected"));
+        }
+    }
 }

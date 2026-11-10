@@ -12,6 +12,11 @@ export const archiveItalian:Record<string,string>={
  'Choose a folder on a removable SD card':'Scegli una cartella su una scheda SD rimovibile','The folder is read-only':'La cartella è di sola lettura','Choose the original archive folder’s parent':'Scegli la cartella che contiene la cartella dell’archivio originale',
  'Archive folder identity changed':'L’identità della cartella dell’archivio è cambiata','Archive verification failed':'Verifica dell’archivio non riuscita','Encrypted archive checksum mismatch':'La somma di controllo dell’archivio cifrato non corrisponde','Archive payload is missing':'Manca un contenuto dell’archivio',
  'Change archive folder':'Cambia cartella archivio',
+ 'Reconnect previous location':'Ricollega la posizione precedente','Leave previous copies':'Lascia le copie precedenti',
+ 'The new archive is active. If the previous disk is unavailable, you can leave any remaining encrypted copies there.':'Il nuovo archivio è attivo. Se il disco precedente non è disponibile, puoi lasciare lì le copie cifrate ancora presenti.',
+ 'The archive device key is missing':'Manca la chiave dell’archivio su questo dispositivo','The archive device key is invalid':'La chiave dell’archivio non è valida','A source archive item changed during migration':'Un elemento dell’archivio di partenza è cambiato durante la migrazione',
+ 'Insert a writable SD card to choose a location':'Inserisci una scheda SD scrivibile per scegliere la destinazione',
+ 'Choose or create a folder inside the SD card. Android may not let you select the card itself.':'Scegli o crea una cartella dentro la scheda SD. Android potrebbe non consentire di selezionare la scheda direttamente.',
  'Stop indexing before migrating storage':'Interrompi l’indicizzazione prima di migrare la memoria',
  'Stop active generations and backups before migrating storage':'Interrompi generazioni e backup attivi prima di migrare la memoria','Close active shares and transfers before migrating storage':'Chiudi condivisioni e trasferimenti attivi prima di migrare la memoria',
 }

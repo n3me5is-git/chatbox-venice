@@ -1,5 +1,13 @@
 # Changelog — Chatbox Venice
 
+## 1.43.0
+
+See [release notes](docs/releases/v1.43.0.md). Moves the encrypted archive between internal storage and a removable SD card on Android or a selected folder on desktop, with verified migration and explicit recovery when storage is missing.
+
+## 1.42.0
+
+See [release notes](docs/releases/v1.42.0.md). Adds encrypted global knowledge collections on Android and desktop, with collection-specific access controls and shared RAG parsing.
+
 ## 1.41.1
 
 See [release notes](docs/releases/v1.41.1.md). Keeps derived RAG caches local to the session owner, rejects cross-scope protected sources, and blocks raw index access from general file/execution/agent transfer tools.
