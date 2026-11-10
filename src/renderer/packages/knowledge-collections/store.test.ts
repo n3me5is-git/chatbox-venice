@@ -6,6 +6,7 @@ import {EncryptedChunkStore} from '@/packages/vault/chunk-store'
 import type {VaultRuntime} from '@/packages/vault/runtime'
 import {RagSettingsSchema} from '@shared/session-rag'
 import {KnowledgeCollections} from './store'
+import {exportVault,importVault} from '@/packages/vault/backup'
 
 async function fixture(){
  const blobs=new Map<string,string>(),envelopes=new Map<string,string>(),db=new VaultDatabase('kb-'+crypto.randomUUID()),device={capabilities:async()=>({encryption:true,biometric:true,name:'Test device'}),protect:async(value:string)=>{const id=crypto.randomUUID();envelopes.set(id,value);return id},unprotect:async(id:string)=>{const value=envelopes.get(id);if(!value)throw Error('Missing device key');return value}},keys=new VaultKeys(db,device)
@@ -45,4 +46,9 @@ it('restores app-unlock access and removes the encrypted collection without dele
 it('fails closed when a protection change is interrupted partway through key rewrapping',async()=>{
  const f=await fixture();await f.add();const original=f.store.vault.assets.rewrap.bind(f.store.vault.assets);let count=0;const spy=vi.spyOn(f.store.vault.assets,'rewrap').mockImplementation(async(ref,scope)=>{if(++count===2)throw Error('Interrupted storage write');return original(ref,scope)})
  await expect(f.store.protect(f.id,'dedicated',{pin:'123456'})).rejects.toThrow('Interrupted');f.keys.lock('knowledge:'+f.id);expect((await f.store.list())[0].locked).toBe(true);await expect(f.store.data(f.id)).rejects.toThrow('Unlock');spy.mockRestore();await f.store.authorize(f.id);await f.store.protect(f.id,'dedicated');expect((await f.store.list())[0]).toMatchObject({scope:'knowledge:'+f.id,pendingScopes:undefined})
+})
+it('restores encrypted library backups as new collections, without vector caches or implicit provider consent',async()=>{
+ const f=await fixture();await f.add();await f.store.index(f.id);const chunks:Uint8Array<ArrayBuffer>[]=[];for await(const chunk of exportVault(f.store.vault.assets,'a safe backup passphrase',new Set(['public'])))chunks.push(Uint8Array.from(chunk));const backup=new Blob(chunks);expect(await backup.text()).not.toContain('Confidential')
+ const target=await fixture(),before=(await target.store.list()).map(row=>row.id);await importVault(target.store.vault.assets,target.store.vault.assets.blobs,backup,'a safe backup passphrase','public',new AbortController().signal,async refs=>{await target.store.restoreImported(refs,new AbortController().signal)})
+ const restored=(await target.store.list()).find(row=>!before.includes(row.id))!;expect(restored).toBeTruthy();expect(await target.store.indexStatus(restored.id)).toBeNull();expect((await target.store.data(restored.id)).files).toHaveLength(1);await expect(target.store.search(restored.id,'payment')).rejects.toThrow('consent');expect(target.embed).not.toHaveBeenCalled();await target.store.configure(restored.id,'Restored',target.cfg);await target.store.index(restored.id);expect((await target.store.search(restored.id,'payment')).matches).toHaveLength(1)
 })

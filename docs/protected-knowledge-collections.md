@@ -26,6 +26,8 @@ Copy to encrypted collection exports the already indexed text locally into new e
 
 Protected collections are device-local. Session collaboration and direct session transfers do not grant access to or copy the global collection. Choose/import the knowledge separately on another device. General session file tools cannot enumerate collection source/vector storage.
 
+Encrypted library backups in Data & Backup include accessible collection originals and metadata, with streaming export. Derived vectors are excluded. Restore recreates collections under new IDs in the destination area selected by the user, preserving existing collections. It does not copy device-bound PIN/biometric envelopes: configure destination protection again if needed. Fresh embedding/OCR consent and reindexing are required before the restored collection can make provider requests. Collection internals do not clutter the media-library management list.
+
 ## Validation
 
 Actions run collection encryption/unlock/lock-during-query tests, EPUB/RTF/OpenDocument parser fixtures, recursive chunk/reference tests, mobile collection UI tests, existing RAG regression suites and full TypeScript checks. Small authorized live Venice probes validate private BGE-M3, private Qwen3 and Gemini text embedding responses, plus rejection of multimodal input on the Venice endpoint. Native device fingerprint behavior still depends on the platform's configured biometric enrollment and must not be inferred solely from simulated device-protector tests.

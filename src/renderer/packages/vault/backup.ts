@@ -10,6 +10,8 @@ export async function* exportVault(assets:EncryptedChunkStore,password:string,sc
   const record=async(value:BackupRecord)=>encoder.encode(JSON.stringify(await seal(key,encoder.encode(JSON.stringify(value)),`${prefix}:${sequence++}`))+'\n')
   for await(const item of assets.index.all()){
     if(item.alias?.startsWith('private-auth:')||item.alias?.startsWith('private-transfer-stage:'))continue
+    // Collection vectors are derived, device-local caches. Back up originals and metadata only.
+    if(item.alias?.startsWith('knowledge-collection:')&&!/^knowledge-collection:-\d+:(?:manifest|source:\d+)$/.test(item.alias))continue
     signal?.throwIfAborted();if(item.status!=='ready'||!scopes.has(item.scope)||visible&&!await visible(item))continue
     const info=await assets.info(item);if(info.hidden&&info.resourcePath)continue
     yield await record({type:'asset',info,protected:item.scope!=='public'});let bytes=0,chunks=0

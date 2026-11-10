@@ -1,4 +1,7 @@
 export const knowledgeItalian:Record<string,string>={
+ 'Save provider consent on this device before using this collection':'Salva il consenso ai provider su questo dispositivo prima di usare questa raccolta',
+ 'Invalid knowledge collection backup':'Backup della raccolta non valido',
+ 'Collection documents are included in encrypted library backups in Data & Backup. Restored collections have new identities and require fresh provider consent and indexing.':'I documenti delle raccolte sono inclusi nei backup cifrati della libreria in Dati e backup. Le raccolte ripristinate hanno nuove identità e richiedono un nuovo consenso ai provider e l’indicizzazione.',
  'Convert legacy XLS/PPT documents to XLSX/PPTX for local indexing':'Converti i vecchi documenti XLS/PPT in XLSX/PPTX per l’indicizzazione locale',
  'Encrypted document collections reusable across chats, on desktop and Android.':'Raccolte di documenti cifrate e riutilizzabili nelle chat, su desktop e Android.',
  'New collection':'Nuova raccolta','Collection name':'Nome della raccolta','Create collection':'Crea raccolta','Open collection':'Apri raccolta','Manage collections':'Gestisci raccolte','Protected collection':'Raccolta protetta',
