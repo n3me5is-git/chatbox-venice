@@ -3,6 +3,7 @@ import Store from 'electron-store'
 import * as fs from 'fs-extra'
 import path from 'path'
 import sanitizeFilename from 'sanitize-filename'
+import { archiveBlobRequest } from './archive-blob-bridge'
 import * as defaults from '../shared/defaults'
 import type { Config, Settings } from '../shared/types'
 import { getLogger } from './util'
@@ -250,7 +251,8 @@ function checkConfigValid(filepath: string) {
   return true
 }
 
-export async function getStoreBlob(key: string) {
+export async function getStoreBlob(key: string, raw=false) {
+  if(!raw){const result=await archiveBlobRequest<string|null>({action:'get',key});if(result.handled)return result.value}
   const filename = path.resolve(app.getPath('userData'), 'chatbox-blobs', sanitizeFilename(key))
   const exists = await fs.pathExists(filename)
   if (!exists) {
@@ -259,13 +261,15 @@ export async function getStoreBlob(key: string) {
   return fs.readFile(filename, { encoding: 'utf-8' })
 }
 
-export async function setStoreBlob(key: string, value: string) {
+export async function setStoreBlob(key: string, value: string, raw=false) {
+  if(!raw){const result=await archiveBlobRequest<void>({action:'set',key,value});if(result.handled)return result.value}
   const filename = path.resolve(app.getPath('userData'), 'chatbox-blobs', sanitizeFilename(key))
   await fs.ensureDir(path.dirname(filename))
   return fs.writeFile(filename, value, { encoding: 'utf-8' })
 }
 
-export async function delStoreBlob(key: string) {
+export async function delStoreBlob(key: string, raw=false) {
+  if(!raw){const result=await archiveBlobRequest<void>({action:'remove',key});if(result.handled)return result.value}
   const filename = path.resolve(app.getPath('userData'), 'chatbox-blobs', sanitizeFilename(key))
   const exists = await fs.pathExists(filename)
   if (!exists) {
@@ -274,7 +278,8 @@ export async function delStoreBlob(key: string) {
   await fs.remove(filename)
 }
 
-export async function listStoreBlobKeys() {
+export async function listStoreBlobKeys(raw=false) {
+  if(!raw){const result=await archiveBlobRequest<string[]>({action:'keys'});if(result.handled)return result.value}
   const dir = path.resolve(app.getPath('userData'), 'chatbox-blobs')
   const exists = await fs.pathExists(dir)
   if (!exists) {

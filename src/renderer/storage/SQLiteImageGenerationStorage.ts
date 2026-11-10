@@ -7,6 +7,7 @@ const PAGE_SIZE = 20
 const DB_NAME = 'chatbox-image-generation'
 
 export class SQLiteImageGenerationStorage implements ImageGenerationStorage {
+  async compact():Promise<void>{await this.initialize();await this.database.execute('PRAGMA secure_delete = ON;\nVACUUM;\n')}
   private sqlite: SQLiteConnection
   private database!: SQLiteDBConnection
   private initPromise: Promise<void> | null = null

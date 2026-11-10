@@ -32,6 +32,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Encrypted archive relocation, recovery and row-store compatibility
+        run: pnpm exec vitest run src/renderer/packages/archive-storage src/main/archive-storage.test.ts src/renderer/components/settings/ArchiveStorage.test.tsx
       - name: Session RAG, linked folders and extraction boundaries
         run: pnpm exec vitest run src/shared/session-rag-policy.test.ts src/renderer/packages/session-resources/linked-folder.test.ts src/shared/session-rag-engine.test.ts src/main/sandbox/linked-folder.test.ts src/renderer/packages/session-rag src/renderer/components/session-resources/SessionRag.test.tsx
       - name: Portable encrypted knowledge collections and document parsing

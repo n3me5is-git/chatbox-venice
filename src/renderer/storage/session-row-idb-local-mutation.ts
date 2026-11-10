@@ -44,7 +44,7 @@ export async function applyIndexedDBLocalMutation(
   for (const [id, row] of plan.metadata) {
     const previous = await readTreeMessage(tx, sessionId, id)
     const body = plan.bodies.get(id)
-    const payloadBytes = body ? new TextEncoder().encode(JSON.stringify(body)).length : previous!.payloadBytes
+    const payloadBytes = row.facts?.archivePayloadBytes ?? (body ? new TextEncoder().encode(JSON.stringify(body)).length : previous!.payloadBytes)
     tree.put(encodeTreeMetadata({ ...row, payloadBytes, tokenPayloadId: body ? uuid() : previous?.tokenPayloadId }))
     if (body)
       await new Promise<void>((resolve, reject) =>

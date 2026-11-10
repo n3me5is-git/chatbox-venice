@@ -8,6 +8,9 @@ import type { Message } from '../types/session'
 import type { MessageRowMetadata, SessionMessageFacts, SessionThreadSummary } from './session-tree/types'
 
 export function deriveMessageFacts(message: Message): SessionMessageFacts {
+  // App-owned archive stubs retain only derived navigation facts; payloads are hydrated at the platform port.
+  const archive=message as Message & {__chatboxArchive?:{key?:string};__chatboxArchiveFacts?:SessionMessageFacts}
+  if(archive.__chatboxArchiveFacts&&/^payload:[a-f0-9-]{36}$/.test(archive.__chatboxArchive?.key||''))return archive.__chatboxArchiveFacts
   // A compaction summary keeps the files it references readable, seeded and owned.
   const files = [...(message.files ?? []), ...(message.compactedFiles ?? [])]
   const links = [...(message.links ?? []), ...(message.compactedLinks ?? [])]

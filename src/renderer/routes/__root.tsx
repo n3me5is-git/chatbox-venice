@@ -60,6 +60,7 @@ import '@/modals'
 import { rendererApplication } from '@/app/renderer-application'
 import DbSchemaGuardDialog from '@/components/DbSchemaGuardDialog'
 import { BackupTaskOverlay } from '@/components/settings/BackupTaskOverlay'
+import { ArchiveStorageGate } from '@/components/settings/ArchiveStorageGate'
 import SettingsModal from '@/modals/Settings'
 import { navigateToSettings } from '@/modals/settings-navigation'
 import { prefetchModelRegistry } from '@/packages/model-registry'
@@ -785,7 +786,7 @@ export const Route = createRootRoute({
         <AppProviders>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            <AppGate><NiceModal.Provider>
+            <AppGate><NiceModal.Provider><ArchiveStorageGate/>
               <ErrorBoundary>
                 <Root />
               </ErrorBoundary>

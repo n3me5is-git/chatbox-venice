@@ -20,6 +20,7 @@ writeFileSync(gradle, readFileSync(gradle, 'utf8')
 const javaDir = 'android/app/src/main/java/io/github/n3me5is/chatboxvenice'
 copyFileSync('native/android/DocumentSaverPlugin.java', `${javaDir}/DocumentSaverPlugin.java`)
 copyFileSync('native/android/SessionFolderPlugin.java', `${javaDir}/SessionFolderPlugin.java`)
+copyFileSync('native/android/ArchiveStoragePlugin.java', `${javaDir}/ArchiveStoragePlugin.java`)
 copyFileSync('native/android/VaultKeyPlugin.java', `${javaDir}/VaultKeyPlugin.java`)
 copyFileSync('native/android/SharingBackgroundPlugin.java', `${javaDir}/SharingBackgroundPlugin.java`)
 copyFileSync('native/android/SharingBackgroundService.java', `${javaDir}/SharingBackgroundService.java`)
@@ -31,6 +32,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(DocumentSaverPlugin.class);
     registerPlugin(VaultKeyPlugin.class);
     registerPlugin(SessionFolderPlugin.class);
+    registerPlugin(ArchiveStoragePlugin.class);
     registerPlugin(SharingBackgroundPlugin.class);
     super.onCreate(savedInstanceState);
   }

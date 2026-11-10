@@ -40,6 +40,7 @@ ipcRenderer.on('navigate-to', (_event, path: string) => {
 
 const electronHandler: ElectronIPC = {
   onLocalMCPRequest:createListener('local-mcp:request'),
+  onArchiveBlobRequest:createListener('archive:blob-request'),
   invoke: ipcRenderer.invoke,
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   onSystemThemeChange: (callback: () => void) => {

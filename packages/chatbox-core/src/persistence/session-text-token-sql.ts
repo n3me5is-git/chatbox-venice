@@ -39,6 +39,8 @@ export function createTextTokenSource(
   message: Message,
   payloadId: string
 ): SessionTextTokenSource | undefined {
+  // Do not tokenize a storage reference as an empty message. The caller receives the hydrated payload and uses the token cache port.
+  if((message as Message & {__chatboxArchive?:unknown}).__chatboxArchive)return undefined
   // Only a cryptographically random UUID nonce is reusable across runtimes/imports.
   if (!/:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payloadId)) return undefined
   const text = getSessionMessageTokenizationText(message)

@@ -79,7 +79,7 @@ function transcriptMetadata(row: MessageRecord): TranscriptMessageMetadata {
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
     branchId: row.branch_id,
-    payloadBytes: Number(row.payload_utf8_length),
+    payloadBytes: parseRowExtra(row.row_metadata_json).facts?.archivePayloadBytes ?? Number(row.payload_utf8_length),
     ...parseRowExtra(row.row_metadata_json),
   }
   return metadata

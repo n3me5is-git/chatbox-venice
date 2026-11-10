@@ -819,7 +819,7 @@ export class InMemorySessionRowStore implements SessionRowStorePort {
     const sizes = new Map(this.payloadBytes.get(sessionId))
     for (const [id, row] of state.messages) {
       if (previous?.messages.get(id)?.message !== row.message || !sizes.has(id))
-        sizes.set(id, new TextEncoder().encode(JSON.stringify(row.message)).length)
+        sizes.set(id, row.facts?.archivePayloadBytes ?? new TextEncoder().encode(JSON.stringify(row.message)).length)
     }
     for (const id of sizes.keys()) if (!state.messages.has(id)) sizes.delete(id)
     this.payloadBytes.set(sessionId, sizes)

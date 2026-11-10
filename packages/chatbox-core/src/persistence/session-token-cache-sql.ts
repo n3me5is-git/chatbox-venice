@@ -5,6 +5,7 @@ import type {
 } from '../ports/session-token-cache'
 import { SESSION_TOKEN_PAGE_MESSAGES, validTokenCachedValue, validTokenCacheResult } from '../ports/session-token-cache'
 import type { SessionRowSqlDatabase } from './session-row-sql'
+import { parseRowExtra } from './session-row-projection-sql'
 
 export const SESSION_TOKEN_CACHE_SQL = `
 CREATE TABLE IF NOT EXISTS session_token_cache (
@@ -28,13 +29,14 @@ export async function readSqlTokenCache(
     message_id: string
     payload_id: string
     payload_utf8_length: number
+    row_metadata_json: string | null
     text_tokens: number | null
     attachment_tokens: number | null
     tool_tokens: number | null
     approximate: number | null
   }>(
     `WITH requested(id,position) AS (VALUES ${ids.map((_, index) => `(?,${index})`).join(',')})
-    SELECT m.message_id,m.payload_id,m.payload_utf8_length,c.text_tokens,c.attachment_tokens,c.tool_tokens,c.approximate
+    SELECT m.message_id,m.payload_id,m.payload_utf8_length,m.row_metadata_json,c.text_tokens,c.attachment_tokens,c.tool_tokens,c.approximate
     FROM requested JOIN session_messages m ON m.message_id=requested.id
     LEFT JOIN session_token_cache c ON c.session_id=m.session_id AND c.message_id=m.message_id AND c.payload_id=m.payload_id AND c.cache_key=?
     WHERE m.session_id=? ORDER BY requested.position`,
@@ -54,7 +56,7 @@ export async function readSqlTokenCache(
       sessionId: request.sessionId,
       messageId: row.message_id,
       payloadId: row.payload_id,
-      payloadBytes: row.payload_utf8_length,
+      payloadBytes: parseRowExtra(row.row_metadata_json).facts?.archivePayloadBytes ?? row.payload_utf8_length,
       ...(value && validTokenCachedValue(value) ? { value } : {}),
     }
   })

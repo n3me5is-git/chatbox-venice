@@ -41,7 +41,7 @@ export function putTranscriptMessage(tx: IDBTransaction, row: StoredMessageRow, 
       ...metadata,
       facts: metadata.facts ?? deriveMessageFacts(message),
       tokenPayloadId: uuid(),
-      payloadBytes: payloadBytes ?? new TextEncoder().encode(JSON.stringify(message)).length,
+      payloadBytes: metadata.facts?.archivePayloadBytes ?? payloadBytes ?? new TextEncoder().encode(JSON.stringify(message)).length,
     })
   )
 }
