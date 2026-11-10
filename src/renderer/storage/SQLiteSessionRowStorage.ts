@@ -538,6 +538,7 @@ export class SQLiteSessionRowStore implements SessionRowStorePort {
   listSessionIds(): Promise<string[]> {
     return this.store.listSessionIds()
   }
+  async compact():Promise<void>{const database=await this.connect();await database.execute('PRAGMA secure_delete = ON;\nVACUUM;\n')}
 
   findMessagesByStatus(status: MessageRowStatus): Promise<GeneratingMessageRef[]> {
     return this.store.findMessagesByStatus(status)

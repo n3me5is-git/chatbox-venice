@@ -11,6 +11,7 @@ import { CHATBOX_QA_PREFLIGHT } from './qa-preflight'
 import './legacy-database-migration'
 import { registerFileTransferIpc } from './file-transfer-ipc'
 import { registerVaultKeyIpc } from './vault-key'
+import { registerArchiveStorageIpc } from './archive-storage'
 import { registerLocalMCPIPC } from './local-mcp/ipc'
 import { registerMarkdownPDF } from './markdown-pdf'
 
@@ -873,6 +874,7 @@ app.on('open-url', async (_event, url) => {
 
 registerFileTransferIpc()
 registerVaultKeyIpc(() => mainWindow)
+registerArchiveStorageIpc(() => mainWindow)
 registerLocalMCPIPC(() => mainWindow)
 registerMarkdownPDF(() => mainWindow)
 
@@ -899,16 +901,16 @@ ipcMain.handle('setAllStoreValues', (event, dataJson) => {
 })
 
 ipcMain.handle('getStoreBlob', async (event, key) => {
-  return getStoreBlob(key)
+  return getStoreBlob(key,true)
 })
 ipcMain.handle('setStoreBlob', async (event, key, value: string) => {
-  return setStoreBlob(key, value)
+  return setStoreBlob(key, value,true)
 })
 ipcMain.handle('delStoreBlob', async (event, key) => {
-  return delStoreBlob(key)
+  return delStoreBlob(key,true)
 })
 ipcMain.handle('listStoreBlobKeys', async (event) => {
-  return listStoreBlobKeys()
+  return listStoreBlobKeys(true)
 })
 
 ipcMain.handle('getVersion', () => {

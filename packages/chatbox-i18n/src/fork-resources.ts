@@ -1,11 +1,13 @@
 import {ragEnglish,ragItalian} from './rag-resources'
 import {knowledgeEnglish,knowledgeItalian} from './knowledge-resources'
+import {archiveEnglish,archiveItalian} from './archive-resources'
 // English source and Italian translations for fork features. Other locales inherit English for missing keys.
 import {collaborationEnglish,collaborationItalian} from './collaboration-resources'
 import {catalogEnglish,catalogItalian} from './catalog-resources'
 import {agentsEnglish,agentsItalian} from './agents-resources'
 import {transferEnglish,transferItalian} from './transfer-resources'
 export const forkEnglish = {
+  ...archiveEnglish,
   ...ragEnglish,
   ...knowledgeEnglish,
   ...transferEnglish,
@@ -1546,5 +1548,5 @@ const globalSearchItalian:Record<string,string>={
 Object.assign(forkEnglish,Object.fromEntries(Object.keys(globalSearchItalian).map(key=>[key,key])))
 Object.assign(forkTranslations['it-IT'],globalSearchItalian)
 export function withForkTranslations<T extends Record<string,string>>(language: string, original: T) {
-  return {...forkEnglish,...original,...forkTranslations[language]}
+  return {...forkEnglish,...original,...forkTranslations[language],...(language==='it-IT'?archiveItalian:{})}
 }

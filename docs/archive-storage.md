@@ -1,0 +1,24 @@
+# Encrypted archive locations
+
+Android and desktop provide **Settings → Data & Backup → Archive storage**. Android can use internal storage or a user-granted folder on a removable SD/USB volume; the system picker must expose the volume. Desktop can use its normal app profile or a chosen directory. An archive-specific subfolder is created in the selected directory. Use **Change archive folder** to move to another disk. **Restore folder access** selects the parent containing the existing archive subfolder, checks its identity, and restores the native grant.
+
+The location applies to conversation bodies and settings stored with each conversation, generated content, ordinary attachments, encrypted session files, global knowledge-collection originals, and the new session/global encrypted RAG shards. New writes follow the selected location. Returning to internal storage retains encryption.
+
+Keys, wrapping envelopes, the archive catalog, vault headers, conversation identities, derived navigation facts, revision/CAS indexes, and other small settings remain in the device profile. This deliberately preserves existing transactional row operations and bounded transcript reads; opening a chat does not deserialize the complete conversation/library. Payloads are hydrated only for the rows being read. Native image-history records use a durable task-id storage reference supported by both Android SQLite and desktop IndexedDB.
+
+## Encryption and migration
+
+Each logical item uses independent 192 KiB AES-256-GCM blocks, random nonces, immutable random filenames, and authenticated item/sequence/size/hash metadata. The item SHA-256 is checked after decryption. The archive key is wrapped by Android Keystore or the desktop OS key store and never written to the SD/destination. Existing scoped vault encryption remains in place inside these blocks: moving storage does not weaken protected-media/project/KB access controls.
+
+Finish active generations/imports/exports before migration. The app freezes archive data ports, converts legacy payloads to internal encrypted items, then copies one item at a time. Every destination block is read back and authenticated before the catalog atomically publishes the new root. The source remains authoritative until that commit. An interrupted pre-commit copy retains the original root; a post-commit cleanup interruption retains the new root and retries old-copy removal. Existing row revision checks and staging stay in their original database. The UI reloads after migration to discard cached row revisions.
+
+Missing/revoked/unmounted storage is an access error. Neither reads nor writes silently create another archive in internal storage. Reinsert the original card, restore access, and check storage. Moving back requires the source card to be readable. Full-disk/permission/write failures preserve the source; cleanup failures can leave old encrypted copies until the original location becomes available. The app deletes only its registered immutable archive blocks, never unrelated selected-folder contents.
+
+## Boundaries and backups
+
+- SD relocation is **not** cross-device transfer or backup. The device-bound keys/catalog must still exist. Use the existing encrypted backup/restore and direct device-transfer features for portability. Uninstalling/clearing the app can make remaining SD blocks unrecoverable without a backup.
+- Externally linked workspaces are independent ordinary files; changing archive storage does not move or encrypt those folders. Agent native execution scratch directories, downloads/temp caches, website profiles, diagnostic logs, legacy desktop KB/attachment SQLite databases, and old user-created backups remain at their original locations. The portable encrypted KB introduced in 1.42 follows the archive root. Legacy desktop KB should be copied to portable collections using its explicit migration workflow.
+- Desktop's default content files are under `app.getPath('userData')/chatbox-blobs`; row/vault indexes use Chromium IndexedDB and native legacy databases use `chatbox-databases` under that profile. **Current location** displays the actual resolved desktop profile/path rather than assuming an installation-specific Windows profile name.
+- Selected-folder grants and wrapped keys are local only and are never sent through collaboration/MCP. Mobile selection requires the Android device-storage provider and a removable volume; cloud document providers and internal-primary folders cannot be used as an SD destination.
+
+See [protected knowledge collections](protected-knowledge-collections.md) and [session RAG/linked workspaces](session-rag-and-linked-workspaces.md).
