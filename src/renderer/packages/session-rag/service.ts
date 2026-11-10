@@ -16,6 +16,7 @@ const notify=()=>{for(const listener of listeners)listener()}
 export const subscribeRag=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener)}}
 export function subscribeRagPrivacy(id:string,locked:()=>void){let active=true;const check=()=>{void vault().projects.assertSession(id).catch(()=>{if(active)locked()})},unsubscribe=vault().keys.subscribe(check);const hidden=()=>{if(document.hidden)locked()};window.addEventListener('chatbox:privacy-lock',locked);document.addEventListener('visibilitychange',hidden);return()=>{active=false;unsubscribe();window.removeEventListener('chatbox:privacy-lock',locked);document.removeEventListener('visibilitychange',hidden)}}
 export const ragJob=(id:string)=>jobs.get(id)
+export const hasRagJobs=()=>jobs.size>0
 async function get(id:string,path:string){const file=(await sessionFiles.list(id,true)).find(file=>file.path===path);if(!file)return null;const {bytes}=await sessionFiles.read(id,path,true);try{return JSON.parse(new TextDecoder().decode(bytes))}finally{bytes.fill(0)}}
 export async function loadRagSettings(id:string):Promise<RagSettings>{
   const saved=await get(id,RAG_ROOT+'settings.json');if(saved)return RagSettingsSchema.parse(saved)

@@ -147,7 +147,7 @@ export function createRendererBackupResources(workspace: BackupWorkspace): Backu
         const vault=process.env.NODE_ENV==='test'?null:(await import('@/packages/vault/runtime')).vaultRuntimeFor(platform)
         if(vault){await vault.projects.assertApp();const existing=await vault.find(key);if(existing)await vault.keys.key(existing.scope)}
         await ipc.invoke('backup-resource:publish', jobId, key)
-        if(process.env.NODE_ENV!=='test'){const archive=(await import('@/packages/archive-storage/runtime')).archiveRuntimeFor(platform);if(archive&&(await archive.engine.state()).enabled)await archive.guard(()=>archive.importLegacyBlob(key))}
+        if(process.env.NODE_ENV!=='test'){const archive=(await import('@/packages/archive-storage/runtime')).archiveRuntimeFor(platform);if(archive&&(await archive.engine.state()).enabled)await archive.guard(()=>archive.importLegacyBlob(key,true))}
         if(vault&&platform.resourceFiles&&await vault.available()){
           const stored=await platform.resourceFiles.open(key)
           if(stored){const resource=await normalized(stored)

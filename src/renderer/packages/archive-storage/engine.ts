@@ -47,7 +47,7 @@ export class ArchiveEngine {
   async erase(ref:ArchiveRef){for(let i=0;i<ref.parts;i++)await this.disk.remove(ref.root,this.name(ref,i))}
   async get(key:string){const entry=await this.catalog.get(key);return entry?this.readRef(key,entry.ref):null}
   put(key:string,value:string,root?:string){return this.serial(async()=>{const previous=await this.catalog.get(key),ref=await this.writeRef(key,value,root??(await this.state()).root);await this.catalog.put({key,ref});if(previous)await this.erase(previous.ref).catch(()=>{});return ref})}
-  remove(key:string){return this.serial(async()=>{const previous=await this.catalog.get(key);if(previous){await this.catalog.remove(key);await this.erase(previous.ref)}})}
+  remove(key:string){return this.serial(async()=>{const previous=await this.catalog.get(key);if(previous){await this.erase(previous.ref);await this.catalog.remove(key)}})}
   /** Old entries remain authoritative until every destination block has been read back and authenticated. */
   migrate(target:string,prepare:()=>Promise<void>){return this.serial(async()=>{
     let state=await this.state();if(state.phase)throw new ArchiveBusy();if(state.root===target)return;await this.disk.check(state.root);await this.disk.check(target)

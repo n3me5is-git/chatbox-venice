@@ -69,6 +69,7 @@ export class KnowledgeCollections {
   })}
   async lock(id:number){const entry=await this.entry(id);if(entry.scope!=='public')this.vault.keys.lock(entry.scope);this.jobs.get(id)?.abort()}
   running(id:number){return this.jobs.has(id)}
+  hasActiveJobs(){return this.jobs.size>0}
   cancel(id:number){this.jobs.get(id)?.abort()}
   private async engine(id:number,settings:RagSettings,signal:AbortSignal){const expected=JSON.stringify(settings),authority=this.adapters.authority?.(settings);const check=async()=>{signal.throwIfAborted();await this.assert(id);if(JSON.stringify((await this.data(id)).settings)!==expected||this.adapters.authority?.(settings)!==authority)throw Error('RAG settings changed; start the operation again')};const port:RagEnginePort={
     check,list:async()=>(await this.data(id)).files.map(file=>({path:file.path,mime:file.mime,bytes:file.bytes})),read:path=>this.source(id,path),

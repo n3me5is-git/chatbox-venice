@@ -5,6 +5,7 @@ import type { ArchiveEngine } from './engine'
 type Guard=<T>(work:()=>Promise<T>)=>Promise<T>
 /** Keep the existing transactional row indexes, CAS, paging and token caches. Offload only payloads. */
 export class ArchiveRows {
+  onMutation=()=>{}
   writers=0;streams=0
   constructor(readonly backend:SessionRowStorePort,private readonly engine:ArchiveEngine,private readonly guard:Guard){}
   private async save(value:unknown,metadata:Record<string,unknown>={}){const key='payload:'+crypto.randomUUID();await this.engine.prepareValue(key,JSON.stringify(value));return {...metadata,__chatboxArchive:{key}}}
@@ -30,7 +31,7 @@ export class ArchiveRows {
       if(key==='appendThread')args=[await self.thread(args[0])]
       if(key==='appendRows')args=[await Promise.all(args[0].map(async(row:any)=>row.kind==='message'?{...row,message:await self.message(row.message)}:{...row,thread:await self.thread(row.thread)})),...args.slice(1)]
     }
-    try{const result=await self.hydrate(await original.apply(target,args));if(key==='publish'&&!disposed){disposed=true;self.writers--}return result}finally{if(key==='dispose'&&!disposed){disposed=true;self.writers--}}
+    try{const result=await self.hydrate(await original.apply(target,args));if(key==='publish'&&!disposed){disposed=true;self.writers--;self.onMutation()}return result}finally{if(key==='dispose'&&!disposed){disposed=true;self.writers--;self.onMutation()}}
   })}})}
   port():SessionRowStorePort {const self=this;return new Proxy(this.backend,{get(target,key){const original=Reflect.get(target,key);if(typeof original!=='function')return original
     if(key==='iterateRows')return async function*(request:any){self.streams++;try{await self.guard(async()=>{});for await(const row of original.call(target,request))yield await self.guard(()=>self.hydrate(row))}finally{self.streams--}}
@@ -42,6 +43,7 @@ export class ArchiveRows {
         if(key==='stageImportRows')args=[await self.record(args[0]),...args.slice(1)]
       }
       const result=await original.apply(target,args)
+      if(['writeRows','applyDiff','deleteRows','disposeImportRows'].includes(String(key)))self.onMutation()
       return key==='stageRows'||key==='stageImportRows'?self.writer(result,inputRecord):self.hydrate(result)
     })
   }})}
