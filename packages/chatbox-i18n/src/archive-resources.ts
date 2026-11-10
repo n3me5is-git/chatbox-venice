@@ -12,5 +12,6 @@ export const archiveItalian:Record<string,string>={
  'Choose a folder on a removable SD card':'Scegli una cartella su una scheda SD rimovibile','The folder is read-only':'La cartella è di sola lettura','Choose the original archive folder’s parent':'Scegli la cartella che contiene la cartella dell’archivio originale',
  'Archive folder identity changed':'L’identità della cartella dell’archivio è cambiata','Archive verification failed':'Verifica dell’archivio non riuscita','Encrypted archive checksum mismatch':'La somma di controllo dell’archivio cifrato non corrisponde','Archive payload is missing':'Manca un contenuto dell’archivio',
  'Change archive folder':'Cambia cartella archivio',
+ 'Stop active generations and backups before migrating storage':'Interrompi generazioni e backup attivi prima di migrare la memoria','Close active shares and transfers before migrating storage':'Chiudi condivisioni e trasferimenti attivi prima di migrare la memoria',
 }
 export const archiveEnglish=Object.fromEntries(Object.keys(archiveItalian).map(key=>[key,key]))

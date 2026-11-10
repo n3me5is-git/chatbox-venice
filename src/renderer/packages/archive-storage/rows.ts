@@ -8,7 +8,7 @@ export class ArchiveRows {
   writers=0;streams=0
   constructor(readonly backend:SessionRowStorePort,private readonly engine:ArchiveEngine,private readonly guard:Guard){}
   private async save(value:unknown,metadata:Record<string,unknown>={}){const key='payload:'+crypto.randomUUID();await this.engine.prepareValue(key,JSON.stringify(value));return {...metadata,__chatboxArchive:{key}}}
-  async message(row:MessageRow):Promise<MessageRow>{const facts=deriveMessageFacts(row.message);return {...row,facts,message:await this.save(row.message,{id:row.messageId,role:row.message.role,timestamp:row.message.timestamp,contentParts:[],__chatboxArchiveFacts:facts}) as unknown as MessageRow['message']}}
+  async message(row:MessageRow):Promise<MessageRow>{const facts={...deriveMessageFacts(row.message),archivePayloadBytes:new TextEncoder().encode(JSON.stringify(row.message)).length};return {...row,facts,message:await this.save(row.message,{id:row.messageId,role:row.message.role,timestamp:row.message.timestamp,contentParts:[],__chatboxArchiveFacts:facts}) as unknown as MessageRow['message']}}
   async record(record:SessionRecordV2):Promise<SessionRecordV2>{const {id,activeThreadId,storageFormat,rowFormatVersion,rowAuthority,folderId,presentation,contextReadProjection,topologyFingerprint,forkCreatedAt}=record;return await this.save(record,{id,activeThreadId,storageFormat,rowFormatVersion,rowAuthority,folderId,presentation,contextReadProjection,topologyFingerprint,forkCreatedAt}) as unknown as SessionRecordV2}
   async thread(row:ThreadRow):Promise<ThreadRow>{return row.sessionPromptContextSnapshot?{...row,sessionPromptContextSnapshot:await this.save(row.sessionPromptContextSnapshot) as unknown as ThreadRow['sessionPromptContextSnapshot']}:row}
   async hydrate<T>(value:T):Promise<T>{
@@ -20,7 +20,7 @@ export class ArchiveRows {
       // Records retain the latest structural projections published by the row backend.
       return (source.storageFormat==='rows'?{...restored,...metadata}:restored) as T
     }
-    const output:Record<string,unknown>={};for(const [key,item] of Object.entries(source))output[key]=await this.hydrate(item);return output as T
+    const output:Record<string,unknown>={};for(const [key,item] of Object.entries(source))if(key!=='archivePayloadBytes')output[key]=await this.hydrate(item);return output as T
   }
   private async enabled(){return (await this.engine.state()).enabled===true}
   private async commit(commit:SessionRowCommit){return {...commit,record:await this.record(commit.record)}}
@@ -30,7 +30,7 @@ export class ArchiveRows {
       if(key==='appendThread')args=[await self.thread(args[0])]
       if(key==='appendRows')args=[await Promise.all(args[0].map(async(row:any)=>row.kind==='message'?{...row,message:await self.message(row.message)}:{...row,thread:await self.thread(row.thread)})),...args.slice(1)]
     }
-    try{return await self.hydrate(await original.apply(target,args))}finally{if(key==='dispose'&&!disposed){disposed=true;self.writers--}}
+    try{const result=await self.hydrate(await original.apply(target,args));if(key==='publish'&&!disposed){disposed=true;self.writers--}return result}finally{if(key==='dispose'&&!disposed){disposed=true;self.writers--}}
   })}})}
   port():SessionRowStorePort {const self=this;return new Proxy(this.backend,{get(target,key){const original=Reflect.get(target,key);if(typeof original!=='function')return original
     if(key==='iterateRows')return async function*(request:any){self.streams++;try{await self.guard(async()=>{});for await(const row of original.call(target,request))yield await self.guard(()=>self.hydrate(row))}finally{self.streams--}}

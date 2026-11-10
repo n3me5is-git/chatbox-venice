@@ -10,6 +10,7 @@ const runtimes=new WeakMap<Platform,ArchiveRuntime>()
 const VALUE=(key:string)=>key.startsWith('session:')||key==='venice:media:records:v1'
 const encoder=new TextEncoder()
 export class ArchiveRuntime {
+  beforeMigrate:()=>Promise<void>=async()=>{}
   readonly engine:ArchiveEngine;readonly disk:NativeArchiveDisk;readonly rows:ArchiveRows
   private readonly images:ImageGenerationStorage
   private active=0;private frozen=false;private recovered?:Promise<void>
@@ -57,6 +58,7 @@ export class ArchiveRuntime {
   }
   private async image(record:any){const id=crypto.randomUUID(),payload='payload:'+id;await this.engine.prepareValue(payload,JSON.stringify(record));return {id:record.id,createdAt:record.createdAt,status:record.status,parentId:record.parentId,model:record.model,source:record.source,protection:record.protection,protectedRecord:record.protectedRecord,prompt:'',referenceImages:[],generatedImages:[],taskId:'archive-payload:'+id}}
   async migrate(target:string){if(this.frozen||this.active||this.rows.writers||this.rows.streams)throw new Error('Finish active operations before migrating storage')
+    await this.beforeMigrate()
     const running=await this.rows.backend.findMessagesByStatus('generating');if(running.length)throw new Error('Stop active generations before migrating storage')
     if(this.active||this.rows.writers||this.rows.streams)throw new Error('Finish active operations before migrating storage');this.frozen=true;this.emit()
     try{await this.startup();await this.engine.migrate(target,async()=>{
@@ -67,8 +69,12 @@ export class ArchiveRuntime {
       for(const key of await this.values.keys())if(VALUE(key)){const value=await this.values.get(key);if(value!==null&&value!==undefined){await this.engine.prepareValue('value:'+key,JSON.stringify(value));await this.values.remove(key)}}
       // Legacy aliases and all existing vault chunks (including KB originals and vector shards) follow one root.
       for(const key of await this.raw.keys())if(!/^a1-[a-f0-9-]{36}-\d+\.bin$/.test(key))await this.importLegacyBlob(key)
-    });await this.platform.compactStore?.()}finally{this.frozen=false;this.emit()}
+    });await this.platform.compactStore?.();await (this.rows.backend as unknown as {compact?:()=>Promise<void>}).compact?.();await (this.images as unknown as {compact?:()=>Promise<void>}).compact?.()}finally{this.frozen=false;this.emit()}
   }
 }
 export const archiveRuntimeFor=(platform:Platform)=>runtimes.get(platform)
-export function installArchiveStorage(platform:Platform){if(!archiveStorageSupported())return;const runtime=new ArchiveRuntime(platform);runtimes.set(platform,runtime);runtime.install()}
+export function installArchiveStorage(platform:Platform){if(!archiveStorageSupported())return;const runtime=new ArchiveRuntime(platform);runtime.beforeMigrate=async()=>{
+  const [{rendererApplication},{rendererBackupService},{getImageGenerationService},{veniceMediaService},{sharingBackgroundSnapshot}]=await Promise.all([import('@/app/renderer-application'),import('@/app/renderer-backup'),import('@/stores/imageGenerationActions'),import('@/packages/venice/service'),import('@/packages/collaboration/background')])
+  if(rendererApplication.generationRuntime.getGeneratingSessionIds().length||rendererBackupService.isActive()||getImageGenerationService().getSnapshot().phase!=='idle'||(await veniceMediaService.list()).some(record=>veniceMediaService.isActive(record.id)))throw new Error('Stop active generations and backups before migrating storage')
+  if(sharingBackgroundSnapshot().count)throw new Error('Close active shares and transfers before migrating storage')
+};runtimes.set(platform,runtime);runtime.install()}

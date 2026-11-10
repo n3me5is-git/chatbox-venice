@@ -6,6 +6,8 @@ export type MessageRowKind = 'message' | 'summary'
 
 /** Bounded facts derived when a message payload is written. */
 export interface SessionMessageFacts {
+  /** Original decoded size when the durable payload is an encrypted archive reference. */
+  archivePayloadBytes?: number
   autoTitleEligible: boolean
   role: Message['role']
   contextEligible: boolean
