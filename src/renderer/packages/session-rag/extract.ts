@@ -32,7 +32,7 @@ export async function extractRagSource(source:RagSource,bytes:Uint8Array,setting
     return {text:[...content].sort((a,b)=>a[0]-b[0]).map(([page,value])=>'==== Page '+page+' ====\n'+value).join('\n\n')}
   }
   if(/\.doc$/i.test(source.path))return {text:await legacyDoc(bytes,signal)}
-  if(/\.(docx|xlsx|pptx)$/i.test(source.path)){const result=await capacitorExecution.parseDocument(source.path,base64(bytes),signal);return {text:result.text,warning:result.truncated?'Document parser reached its text limit':undefined}}
+  if(/\.(docx|xlsx|pptx|epub|odt|ods|odp|rtf|html?|xhtml)$/i.test(source.path)){const result=await capacitorExecution.parseDocument(source.path,base64(bytes),signal);return {text:result.text,warning:result.truncated?'Document parser reached its text limit':undefined}}
   if(/^(video|image|audio)\//.test(source.mime))return {}
   try{const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);if(text.includes('\0'))return {};return {text}}catch{return {}}
 }

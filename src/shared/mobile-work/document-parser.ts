@@ -14,7 +14,7 @@ export function isWorkDocument(name: string): boolean {
 }
 
 export function isLocalDocument(name: string): boolean {
-  return /\.(docx|xlsx|pptx)$/i.test(name)
+  return /\.(docx|xlsx|pptx|epub|odt|ods|odp|rtf|html?|xhtml)$/i.test(name)
 }
 
 export const MAX_PARSED_DOCUMENT_TEXT = 100_000

@@ -8,6 +8,7 @@ import { settingsStore } from '@/stores/settingsStore'
 import platform from '@/platform'
 import { extractRagSource } from './extract'
 import { multimodalEmbedding, ragProvider, requestRagEmbeddings } from './embeddings'
+import { defaultRagSettings } from './defaults'
 const vault=()=>vaultRuntimeFor(platform)
 const failures=new Map<string,{key:string;error:string}>()
 const jobs=new Map<string,{controller:AbortController;path:string}>(),listeners=new Set<()=>void>()
@@ -18,7 +19,7 @@ export const ragJob=(id:string)=>jobs.get(id)
 async function get(id:string,path:string){const file=(await sessionFiles.list(id,true)).find(file=>file.path===path);if(!file)return null;const {bytes}=await sessionFiles.read(id,path,true);try{return JSON.parse(new TextDecoder().decode(bytes))}finally{bytes.fill(0)}}
 export async function loadRagSettings(id:string):Promise<RagSettings>{
   const saved=await get(id,RAG_ROOT+'settings.json');if(saved)return RagSettingsSchema.parse(saved)
-  const global=settingsStore.getState().getSettings();return RagSettingsSchema.parse({provider:global.defaultEmbeddingModel?.provider,model:global.defaultEmbeddingModel?.model,ocrProvider:global.ocrModel?.provider,ocrModel:global.ocrModel?.model})
+  return defaultRagSettings()
 }
 const consent=(settings:RagSettings)=>JSON.stringify(settings)
 export async function ragAuthorized(id:string,settings:RagSettings){return settings.enabled&&await vault().db.getSetting('rag:consent:'+id)===consent(settings)}

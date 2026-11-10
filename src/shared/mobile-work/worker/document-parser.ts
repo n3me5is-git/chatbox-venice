@@ -18,7 +18,10 @@ export async function parseLocalDocument(name: string, bytes: Uint8Array): Promi
     text = workbook.sheets
       .map((sheet) => `Sheet: ${sheet.name}\n${sheet.rows.map((row) => JSON.stringify(row)).join('\n')}`)
       .join('\n\n')
-  } else throw new Error('Local document parsing supports DOCX, XLSX, and PPTX')
+  } else if(/\.(epub|odt|ods|odp|rtf|html?|xhtml)$/i.test(name)) {
+    const { extendedDocument } = await import('./extended-documents')
+    text = extendedDocument(name, bytes)
+  } else throw new Error('Unsupported local document format')
   const truncated = text.length > MAX_PARSED_DOCUMENT_TEXT
   return { text: text.slice(0, MAX_PARSED_DOCUMENT_TEXT), truncated }
 }

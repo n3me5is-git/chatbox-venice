@@ -1,4 +1,5 @@
 import { RAG_ROOT, RagIndexSchema, RagChunkSchema, chunkRagText, cosine, normalizedVector, ragCitation, ragExcluded, type RagChunk, type RagFile, type RagIndex, type RagSettings } from './session-rag'
+import { RAG_CHUNKER_VERSION } from './rag-chunker'
 export interface RagSource {path:string;mime:string;bytes?:number}
 export interface RagInput {text?:string;data?:Uint8Array;mime?:string}
 export interface RagEnginePort {
@@ -8,7 +9,7 @@ export interface RagEnginePort {
   check():Promise<void>
 }
 export const ragHash=async(bytes:Uint8Array)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',Uint8Array.from(bytes)))).map(n=>n.toString(16).padStart(2,'0')).join('')
-export const ragFingerprint=(settings:RagSettings)=>JSON.stringify([settings.provider,settings.model,settings.dimensions,settings.images,settings.audio,settings.ocr,settings.ocrProvider,settings.ocrModel])
+export const ragFingerprint=(settings:RagSettings)=>JSON.stringify([settings.provider,settings.model,settings.dimensions,settings.images,settings.audio,settings.ocr,settings.ocrProvider,settings.ocrModel,RAG_CHUNKER_VERSION])
 export class SessionRagEngine {
   constructor(private port:RagEnginePort){}
   async index(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void=()=>{}){
