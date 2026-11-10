@@ -2,12 +2,13 @@ import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from '@cap
 import { CAPACITOR_IMAGE_GENERATION_SCHEMA_SQL } from '@chatbox/core'
 import type { ImageGeneration, ImageGenerationPage } from '@shared/types'
 import type { ImageGenerationStorage } from './ImageGenerationStorage'
+import { compactMobileArchiveDatabase } from './mobile-archive-compaction'
 
 const PAGE_SIZE = 20
 const DB_NAME = 'chatbox-image-generation'
 
 export class SQLiteImageGenerationStorage implements ImageGenerationStorage {
-  async compact():Promise<void>{await this.initialize();await this.database.execute('PRAGMA secure_delete = ON;\nVACUUM;\n')}
+  async compact():Promise<void>{await this.initialize();await compactMobileArchiveDatabase(this.database)}
   private sqlite: SQLiteConnection
   private database!: SQLiteDBConnection
   private initPromise: Promise<void> | null = null
@@ -221,3 +222,4 @@ export class SQLiteImageGenerationStorage implements ImageGenerationStorage {
     return (result.values?.[0]?.total as number) || 0
   }
 }
+

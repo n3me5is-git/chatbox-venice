@@ -11,7 +11,7 @@ export function ArchiveStorage(){useTranslation();const runtime=archiveRuntimeFo
   useEffect(()=>{if(!runtime)return;const notice=sessionStorage.getItem('archive-storage-notice');if(notice){setError(notice);sessionStorage.removeItem('archive-storage-notice')}void refresh().then(()=>runtime.engine.state()).then(state=>setSelection(state.root==='internal'?'internal':'external')).catch(error=>setError(error.message));return runtime.subscribe(()=>{void refresh().catch(error=>setError(error.message))})},[runtime])
   if(!runtime)return null
   const run=async(work:()=>Promise<void>)=>{setBusy(true);setError('');try{await work();await refresh()}catch(error){setError(error instanceof Error?error.message:String(error));await refresh().catch(()=>{})}finally{setBusy(false)}}
-  const move=async(target:string)=>{try{await runtime.migrate(target);window.location.reload()}catch(error){if((await runtime.engine.state()).enabled){sessionStorage.setItem('archive-storage-notice',error instanceof Error?error.message:String(error));window.location.reload()}throw error}}
+  const move=async(target:string)=>{try{const result=await runtime.migrate(target);if(!result.reclaimed)sessionStorage.setItem('archive-storage-notice','Archive moved, but some database space could not be reclaimed.');window.location.reload()}catch(error){if((await runtime.engine.state()).enabled){sessionStorage.setItem('archive-storage-notice',error instanceof Error?error.message:String(error));window.location.reload()}throw error}}
   const change=()=>run(async()=>{let target='internal';if(selection==='external'){const result=await runtime.disk.pick();if(!result)return;target=result.id}await move(target)})
   return <SettingsSection title={ft('Archive storage')}><Stack gap="sm">
     <Text size="sm">{ft('Conversations, attachments, generated media, knowledge documents and encrypted RAG indexes follow this location. Device keys and lightweight navigation metadata stay in the app profile.')}</Text>
@@ -33,3 +33,4 @@ export function ArchiveStorage(){useTranslation();const runtime=archiveRuntimeFo
     </>}{error&&<Alert color="red">{ft(error)}</Alert>}
   </Stack></SettingsSection>
 }
+

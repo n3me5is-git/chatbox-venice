@@ -34,6 +34,7 @@ import type {
   SessionTranscriptRequest,
 } from '@chatbox/core/ports'
 import type { MessageRowStatus, SessionRecordV2 } from '@chatbox/core/session/session-tree'
+import { compactMobileArchiveDatabase } from './mobile-archive-compaction'
 
 const DB_NAME = 'chatbox-messages'
 
@@ -538,7 +539,7 @@ export class SQLiteSessionRowStore implements SessionRowStorePort {
   listSessionIds(): Promise<string[]> {
     return this.store.listSessionIds()
   }
-  async compact():Promise<void>{const database=await this.connect();await database.execute('PRAGMA secure_delete = ON;\nVACUUM;\n')}
+  async compact():Promise<void>{await compactMobileArchiveDatabase(await this.connect())}
 
   findMessagesByStatus(status: MessageRowStatus): Promise<GeneratingMessageRef[]> {
     return this.store.findMessagesByStatus(status)
@@ -567,3 +568,4 @@ export class SQLiteSessionRowStore implements SessionRowStorePort {
     return database
   }
 }
+

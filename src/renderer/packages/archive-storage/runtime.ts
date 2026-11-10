@@ -90,7 +90,13 @@ export class ArchiveRuntime {
       // Legacy aliases and all existing vault chunks (including KB originals and vector shards) follow one root.
       for(const key of await this.raw.keys())if(!/^a1-[a-f0-9-]{36}-\d+\.bin$/.test(key))legacy.push({key:this.blobKey(key),read:async()=>{const value=await this.raw.get(key);if(value!==null&&typeof value!=='string')throw new Error('Unsupported legacy archive value');return value}})
       return legacy
-    });await this.platform.compactStore?.();await (this.rows.backend as unknown as {compact?:()=>Promise<void>}).compact?.();await (this.images as unknown as {compact?:()=>Promise<void>}).compact?.()}finally{this.frozen=false;this.emit()}
+    });let reclaimed=true
+      // Compaction is maintenance after publication. A temporary-space error cannot undo the verified move.
+      for(const compact of [()=>this.platform.compactStore?.(),()=> (this.rows.backend as unknown as {compact?:()=>Promise<void>}).compact?.(),()=> (this.images as unknown as {compact?:()=>Promise<void>}).compact?.()]){
+        try{await compact()}catch{reclaimed=false}
+      }
+      return {reclaimed}
+    }finally{this.frozen=false;this.emit()}
   }
 }
 export const archiveRuntimeFor=(platform:Platform)=>runtimes.get(platform)
