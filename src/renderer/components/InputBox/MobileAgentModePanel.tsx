@@ -362,7 +362,7 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
         </Group>
       </UnstyledButton>
       <SessionVeniceTools sessionId={sessionId} providerId={providerId} disabled={!workActive}/>
-      <Select label={t('Knowledge Base')} placeholder={t('None')} clearable searchable comboboxProps={{withinPortal:false}} value={currentKnowledgeBaseId?String(currentKnowledgeBaseId):null} data={(knowledgeBases||[]).map(kb=>({value:String(kb.id),label:t(kb.name)}))} onChange={value=>onKnowledgeBaseSelect(value?(knowledgeBases||[]).find(kb=>String(kb.id)===value)||null:null)}/>
+      <Select label={ft('Knowledge Base')} placeholder={ft('None')} clearable searchable comboboxProps={{withinPortal:false}} value={currentKnowledgeBaseId?String(currentKnowledgeBaseId):null} data={(knowledgeBases||[]).map(kb=>({value:String(kb.id),label:ft(kb.name)}))} onChange={value=>onKnowledgeBaseSelect(value?(knowledgeBases||[]).find(kb=>String(kb.id)===value)||null:null)}/>
       <Button variant="subtle" onClick={()=>{onClose?.();navigateToSettings('/knowledge-base')}}>{ft('Manage collections')}</Button>
       <UnstyledButton
         aria-label={t('Skills')}

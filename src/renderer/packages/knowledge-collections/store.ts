@@ -18,8 +18,8 @@ export class KnowledgeCollections {
   private json:VaultJsonRecords
   private jobs=new Map<number,AbortController>()
   private tail:Promise<unknown>=Promise.resolve()
-  constructor(readonly vault:VaultRuntime,private adapters:CollectionAdapters){this.json=new VaultJsonRecords(vault.assets)}
-  private serial<T>(work:()=>Promise<T>):Promise<T>{const run=()=>typeof navigator!=='undefined'&&navigator.locks?navigator.locks.request('chatbox-knowledge-collections',work):work();const next=this.tail.then(run,run);this.tail=next.catch(()=>{});return next}
+  constructor(readonly vault:VaultRuntime,private adapters:CollectionAdapters){this.json=new VaultJsonRecords(vault.assets,10*1024*1024)}
+  private serial<T>(work:()=>Promise<T>):Promise<T>{const run=async():Promise<T>=>{if(typeof navigator!=='undefined'&&navigator.locks)return await navigator.locks.request('chatbox-knowledge-collections',work);return await work()};const next=this.tail.then(run,run);this.tail=next.catch(()=>{});return next}
   private registry(){return this.vault.db.getSetting<CollectionEntry[]>(REGISTRY).then(value=>value||[])}
   private async entry(id:number){if(!isPortableCollection(id))throw Error('Invalid knowledge collection');const entry=(await this.registry()).find(item=>item.id===id);if(!entry)throw Error('Knowledge collection not found');return entry}
   async assert(id:number){await this.vault.projects.assertApp();const entry=await this.entry(id);for(const scope of [entry.scope,...entry.pendingScopes||[]])await this.vault.keys.key(scope);return entry}

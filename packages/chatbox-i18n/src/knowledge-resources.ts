@@ -1,4 +1,5 @@
 export const knowledgeItalian:Record<string,string>={
+ 'Convert legacy XLS/PPT documents to XLSX/PPTX for local indexing':'Converti i vecchi documenti XLS/PPT in XLSX/PPTX per l’indicizzazione locale',
  'Encrypted document collections reusable across chats, on desktop and Android.':'Raccolte di documenti cifrate e riutilizzabili nelle chat, su desktop e Android.',
  'New collection':'Nuova raccolta','Collection name':'Nome della raccolta','Create collection':'Crea raccolta','Open collection':'Apri raccolta','Manage collections':'Gestisci raccolte','Protected collection':'Raccolta protetta',
  'Create a collection, add documents, then build its index. Select it in a chat to make its search and reading tools available.':'Crea una raccolta, aggiungi i documenti e costruisci l’indice. Selezionala in una chat per rendere disponibili gli strumenti di ricerca e lettura.',

@@ -5,7 +5,8 @@ import {useQueryClient} from '@tanstack/react-query'
 import {SettingsPage} from '@/components/settings/SettingsLayout'
 import {AdaptiveModal} from '@/components/common/AdaptiveModal'
 import {forkT as ft} from '@/i18n/fork'
-import {knowledgeCollections as store} from '@/packages/knowledge-collections/service'
+import {knowledgeCollections as defaultStore} from '@/packages/knowledge-collections/service'
+import type {KnowledgeCollections} from '@/packages/knowledge-collections/store'
 import {defaultRagSettings} from '@/packages/session-rag/defaults'
 import type {CollectionData,CollectionSummary} from '@/packages/knowledge-collections/store'
 import type {RagSettings,RagIndex} from '@shared/session-rag'
@@ -20,7 +21,8 @@ import {legacyKnowledgeController} from '@/platform/knowledge-base/portable-cont
 import {lazy,Suspense} from 'react'
 const LegacyManager=lazy(()=>import('./KnowledgeBase'))
 
-export default function CollectionsPage(){
+export default function CollectionsPage({service=defaultStore}:{service?:KnowledgeCollections}={}){
+ const store=service
  useTranslation();const client=useQueryClient(),revision=useSyncExternalStore(store.vault.keys.subscribe,store.vault.keys.snapshot,store.vault.keys.snapshot)
  const [rerankProvider,setRerankProvider]=useState(''),[rerankModel,setRerankModel]=useState('')
  const [legacyManager,setLegacyManager]=useState(false)
@@ -31,7 +33,7 @@ export default function CollectionsPage(){
  useEffect(()=>{let active=true;setDetail(undefined);setPreview('');setResults(undefined);setProtection(false);void store.list().then(items=>{if(active)setEntries(items)}).catch(error=>{if(active)setError((error as Error).message)});if(selected)void store.data(selected).then(async data=>{const index=await store.indexStatus(selected);if(active){setDetail(data);setName(data.name);setSettings(data.settings);setIndex(index)}}).catch(()=>{});return()=>{active=false}},[selected,revision])
  const run=async(work:()=>Promise<void>)=>{setBusy(true);setError('');try{await work();await refresh()}catch(error){setError((error as Error).message)}finally{setBusy(false);setProgress('')}}
  const select=(id:number)=>void run(async()=>{await store.authorize(id);setSelected(id);await load(id)})
- const addFiles=(files:FileList|null)=>{if(!files||!selected)return;const copied=[...files];void run(async()=>{for(const file of copied)await store.add(selected,file);await load(selected)})}
+ const addFiles=(files:FileList|null)=>{if(!files||!selected)return;const copied=Array.from(files);void run(async()=>{for(const file of copied)await store.add(selected,file);await load(selected)})}
  const openCreate=()=>{setName('');setSettings(defaultRagSettings());setAck(false);setCreating(true)}
  const migrate=(kb:KnowledgeBase)=>void run(async()=>{
    const parsed=parseKnowledgeBaseModelString(kb.embeddingModel);if(!parsed)throw Error('Choose an embedding model')
@@ -61,7 +63,7 @@ export default function CollectionsPage(){
  {platform.type==='desktop'&&legacyKnowledgeController()&&<Button variant="subtle" onClick={()=>setLegacyManager(true)}>{ft('Open legacy desktop manager')}</Button>}
  <AdaptiveModal opened={legacyManager} onClose={()=>setLegacyManager(false)} title={ft('Open legacy desktop manager')} size="xl"><Suspense fallback={<Loader/>}>{legacyManager&&<LegacyManager controller={legacyKnowledgeController()}/>}</Suspense></AdaptiveModal>
  <AdaptiveModal opened={creating} onClose={()=>setCreating(false)} title={ft('New collection')} size="lg"><Stack><TextInput label={ft('Collection name')} value={name} onChange={e=>setName(e.currentTarget.value)}/><CollectionSettings value={settings} onChange={setSettings} ack={ack} onAck={setAck}/><Button disabled={busy||!ack||!name.trim()} onClick={()=>void run(async()=>{const id=await store.create(name,settings);setCreating(false);setSelected(id);await load(id)})}>{ft('Create collection')}</Button></Stack></AdaptiveModal>
- <AdaptiveModal opened={protection&&!locked&&!!detail} onClose={()=>setProtection(false)} title={ft('Collection protection')}>{selected&&<CollectionProtection id={selected} onChanged={()=>{setProtection(false);void refresh()}}/>}</AdaptiveModal>
+ <AdaptiveModal opened={protection&&!locked&&!!detail} onClose={()=>setProtection(false)} title={ft('Collection protection')}>{selected&&<CollectionProtection service={store} id={selected} onChanged={()=>{setProtection(false);void refresh()}}/>}</AdaptiveModal>
  <AdaptiveModal opened={!!preview&&!locked&&!!detail} onClose={()=>setPreview('')} title={ft('Preview passages')} size="lg"><Text style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{preview}</Text></AdaptiveModal>
  </SettingsPage>
 }

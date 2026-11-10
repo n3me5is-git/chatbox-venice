@@ -9,7 +9,7 @@ it('reads EPUB spine order, relative chapters and entities without network resou
 })
 it('extracts OpenDocument paragraphs and RTF unicode while excluding embedded objects',()=>{
  expect(extendedDocument('notes.odt',archive({'content.xml':'<office:document xmlns:office="o" xmlns:text="t"><text:h>Title</text:h><text:p>Private &amp; local</text:p></office:document>'}))).toBe('Title\nPrivate & local')
- expect(rtfText('{\\rtf1\\ansi{\\fonttbl font}Hello \\u224? world\\par {\\pict hidden}End}')).toBe('Hello à world\n End')
+ expect(rtfText('{\\rtf1\\ansi{\\fonttbl font}Hello \\u224? world\\par {\\pict hidden}End}')).toBe('Hello à world\nEnd')
 })
 it('rejects external entities, escaping EPUB chapter paths and malformed archives',()=>{
  expect(()=>extendedDocument('bad.odt',archive({'content.xml':'<!DOCTYPE foo [<!ENTITY a SYSTEM "file:///secret">]><text:p>&a;</text:p>'}))).toThrow('XML')

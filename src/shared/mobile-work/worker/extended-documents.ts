@@ -9,7 +9,7 @@ function htmlText(value:string){
   const doc=document(value,'text/html')
   for(const element of doc.querySelectorAll('script,style,iframe,object,svg'))element.remove()
   for(const element of doc.querySelectorAll('p,div,section,li,h1,h2,h3,h4,tr,br'))element.appendChild(doc.createTextNode('\n'))
-  return (doc.body?.textContent||doc.documentElement?.textContent||'').replace(/\n[ \t]+/g,'\n').trim()
+  return (doc.querySelector('body')?.textContent||doc.documentElement?.textContent||'').replace(/\n[ \t]+/g,'\n').trim()
 }
 function resolveArchive(base:string,target:string){
   if(/^[a-z]+:|^\/|[\\\0]/i.test(target))throw Error('Invalid document resource path')
@@ -31,7 +31,8 @@ export function extendedDocument(name:string,bytes:Uint8Array):string{
   }
   const content=entries.get('content.xml');if(!content)throw Error('OpenDocument content is missing')
   const doc=document(content),parts:string[]=[]
-  for(const node of doc.getElementsByTagName('*'))if(/^(?:text:)?(?:p|h)$/.test(node.tagName))parts.push(node.textContent||'')
+  const pending=Array.from(doc.children).reverse()
+  while(pending.length){const node=pending.pop()!;if(/^(?:text:)?(?:p|h)$/.test(node.tagName))parts.push(node.textContent||'');else pending.push(...Array.from(node.children).reverse())}
   return parts.join('\n')
 }
 export function rtfText(value:string){

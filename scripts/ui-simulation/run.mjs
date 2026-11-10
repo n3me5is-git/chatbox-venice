@@ -1,4 +1,5 @@
 import {runSessionRag} from './run-session-rag.mjs'
+import {runKnowledgeCollections} from './run-knowledge-collections.mjs'
 import {runImageReview} from './run-image-review.mjs'
 import {runPrivacyReview} from './run-privacy-review.mjs'
 import {runSearchReview} from './run-search-review.mjs'
@@ -150,6 +151,7 @@ try {
   await runImageReview({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSessionWorkspace({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSessionRag({click,evaluate,wait,byText,byLabel,fill,cdp,output})
+  await runKnowledgeCollections({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSpeechReview({click,evaluate,wait,byText,byLabel,fill,cdp,delay,output})
   await runMediaArtifactsReview({click,evaluate,wait,byText,cdp,output})
   assert.deepEqual(exceptions, [], 'Browser exceptions')

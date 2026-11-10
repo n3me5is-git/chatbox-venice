@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   trackMemory: vi.fn(),
 }))
 vi.mock('@/components/mcp/MCPConnectionSummary', () => ({ MCPConnectionSummary: () => null }))
+vi.mock('@/hooks/knowledge-base', () => ({useKnowledgeBases:()=>({data:[]})}))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@capacitor/core', () => ({
   Capacitor: {

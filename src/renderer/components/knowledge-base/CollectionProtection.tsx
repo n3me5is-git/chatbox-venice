@@ -1,8 +1,10 @@
 import {Alert,Button,Checkbox,Group,PasswordInput,Select,Stack,Text} from '@mantine/core'
 import {useEffect,useState} from 'react'
 import {forkT as ft} from '@/i18n/fork'
-import {knowledgeCollections as store} from '@/packages/knowledge-collections/service'
-export function CollectionProtection({id,onChanged}:{id:number;onChanged:()=>void}){
+import {knowledgeCollections as defaultStore} from '@/packages/knowledge-collections/service'
+import type {KnowledgeCollections} from '@/packages/knowledge-collections/store'
+export function CollectionProtection({id,onChanged,service=defaultStore}:{id:number;onChanged:()=>void;service?:KnowledgeCollections}){
+ const store=service
  const [mode,setMode]=useState<'none'|'app'|'dedicated'>('none'),[pin,setPin]=useState(''),[repeat,setRepeat]=useState(''),[biometric,setBiometric]=useState(false),[available,setAvailable]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false)
  useEffect(()=>{let active=true;void Promise.all([store.list(),store.vault.keys.capabilities(),store.vault.keys.status('knowledge:'+id)]).then(([entries,caps,status])=>{if(!active)return;const entry=entries.find(item=>item.id===id);setMode(entry?.scope==='public'?'none':entry?.scope==='app'?'app':'dedicated');setAvailable(caps.biometric);setBiometric(status.biometric)}).catch(error=>setError(String(error)));return()=>{active=false}},[id])
  const save=async()=>{setBusy(true);setError('');try{if(pin!==repeat)throw Error('Enter and confirm the same PIN or passphrase');if(mode==='app'&&!store.vault.keys.isUnlocked('app')){const {requestProtectedAccess}=await import('@/components/security/requestUnlock');if(!await requestProtectedAccess('app'))return}await store.protect(id,mode,{pin:pin||undefined,biometric});setPin('');setRepeat('');onChanged()}catch(error){setError((error as Error).message)}finally{setBusy(false)}}

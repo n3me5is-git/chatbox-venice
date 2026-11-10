@@ -42,3 +42,7 @@ it('rechecks authentication after an in-flight embedding request',async()=>{
 it('restores app-unlock access and removes the encrypted collection without deleting another one',async()=>{
  const f=await fixture();await f.keys.configure('app',{pin:'123456',biometric:false});await f.store.protect(f.id,'app');f.keys.lock('app');await expect(f.store.data(f.id)).rejects.toThrow('Unlock');await f.keys.unlock('app','pin','123456');const other=await f.store.create('Other',f.cfg);await f.store.remove(f.id);expect((await f.store.list()).map(row=>row.id)).toEqual([other])
 })
+it('fails closed when a protection change is interrupted partway through key rewrapping',async()=>{
+ const f=await fixture();await f.add();const original=f.store.vault.assets.rewrap.bind(f.store.vault.assets);let count=0;const spy=vi.spyOn(f.store.vault.assets,'rewrap').mockImplementation(async(ref,scope)=>{if(++count===2)throw Error('Interrupted storage write');return original(ref,scope)})
+ await expect(f.store.protect(f.id,'dedicated',{pin:'123456'})).rejects.toThrow('Interrupted');f.keys.lock('knowledge:'+f.id);expect((await f.store.list())[0].locked).toBe(true);await expect(f.store.data(f.id)).rejects.toThrow('Unlock');spy.mockRestore();await f.store.authorize(f.id);await f.store.protect(f.id,'dedicated');expect((await f.store.list())[0]).toMatchObject({scope:'knowledge:'+f.id,pendingScopes:undefined})
+})
