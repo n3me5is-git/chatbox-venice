@@ -53,6 +53,8 @@ import { JK_EVENTS, JK_PAGE_NAMES } from '@/analytics/jk-events'
 import { rendererApplication } from '@/app/renderer-application'
 import Markdown from '@/components/Markdown'
 import { SpeechReadAloud } from '@/components/speech/SpeechControls'
+import { VerifiedResponseStatus } from '@/components/venice/VenicePrivacyStatus'
+import { SECURITY_INFO } from '@shared/response-security'
 import { MessageAuthor } from '@/components/collaboration/MessageAuthor'
 import StreamingTextFade from '@/components/StreamingTextFade'
 import { AppTooltip as Tooltip1 } from '@/components/ui/tooltip'
@@ -933,6 +935,8 @@ const _Message: FC<Props> = (props) => {
                         />
                       )}
                     </div>
+                  ) : item.type === 'info' && item.text === SECURITY_INFO ? (
+                    <Flex key={`security-${index}`} className="my-2"><VerifiedResponseStatus value={item.values}/></Flex>
                   ) : item.type === 'info' ? (
                     <Flex key={`info-${item.text}`} className="mb-2 ">
                       <Flex

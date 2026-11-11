@@ -13,8 +13,8 @@ export function chatSpeechPrivacy(settings:Settings,session?:SessionSettings,sel
   const model=selected?.modelId||session?.modelId||settings.defaultChatModel?.model
   const saved=settings.providers?.[provider||''],metadata=[...(saved?.catalogModels??[]),...(saved?.models??[])].find(item=>item.modelId===model)?.vendorMetadata
   const effective={...session,provider,modelId:model} as SessionSettings
-  const transport=veniceSessionTextPrivacy(effective,settings),caps=metadata?.capabilities as Record<string,unknown>|undefined
-  if(transport==='e2ee'||caps?.supportsE2EE===true)return 'e2ee'
+  const transport=veniceSessionTextPrivacy(effective,settings)
+  if(transport==='e2ee')return 'e2ee'
   if(transport==='tee'||isPrivateModel(metadata)||provider==='venice'&&saved?.venice?.privacyFilter&&saved.venice.privacyFilter!=='all')return 'private'
   return 'standard'
 }

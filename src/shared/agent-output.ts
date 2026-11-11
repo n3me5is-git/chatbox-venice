@@ -5,7 +5,7 @@ export function latestAgentOutput(messages: Message[]): string {
   const message = messages.filter(message => message.role === 'assistant').at(-1)
   if (!message) return ''
   const lastTool = message.contentParts.findLastIndex(part => part.type === 'tool-call')
-  return message.contentParts.slice(lastTool + 1).filter(part => part.type === 'text' && !part.protocolOnly).map(part => part.text).join('\n')
+  return message.contentParts.slice(lastTool + 1).flatMap(part => part.type === 'text' && !part.protocolOnly ? [part.text] : []).join('\n')
 }
 
 /** Coalesce slow encrypted writes: at most one in flight and one latest snapshot. */

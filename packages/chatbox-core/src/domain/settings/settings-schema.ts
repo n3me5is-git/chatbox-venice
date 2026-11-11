@@ -74,7 +74,7 @@ export const VeniceProfileSchema = z.object({
 
 // User-selected transport permissions are separate from model/search profiles.
 export const VeniceChatSecuritySchema = z.object({
-  textPrivacy: z.enum(['standard', 'tee', 'e2ee']).optional(),
+  textPrivacy: z.enum(['auto', 'standard', 'tee', 'e2ee']).optional(),
   e2eeToolsEnabled: z.boolean().optional(),
   e2eeToolMode: z.enum(['encrypted-text', 'native']).optional(),
   secureReceiptCompatibility: z.boolean().optional(),

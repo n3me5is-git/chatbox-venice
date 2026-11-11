@@ -85,6 +85,8 @@ describe('multi-agent authority and privacy boundaries', () => {
   it('checks result egress and prevents sibling access before reading content', async () => {
     const f = fixture(), first = await f.runtime.spawn(f.caller, { ...task, dedicatedId: 'dedicated' }), second = await f.runtime.spawn(f.caller, task), read = vi.fn(async () => 'result')
     await expect(f.runtime.result(f.runtime.caller(second), first.id, read)).rejects.toThrow('direct children'); expect(read).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(f.held.has(first.id)).toBe(true))
+    f.held.get(first.id)!('Final result'); await vi.waitFor(() => expect(first.status).toBe('completed'))
     vi.mocked(f.host.guard).mockResolvedValue({ allow: false, reason: 'Result contains a name' })
     await expect(f.runtime.result(f.caller, first.id, read)).rejects.toThrow('Result contains a name')
   })
@@ -118,6 +120,66 @@ describe('multi-agent authority and privacy boundaries', () => {
   it('marks pending runs interrupted on reload instead of replaying paid tasks', async () => {
     const f = fixture(), saved = await f.runtime.spawn(f.caller, task), next = fixture()
     await next.runtime.restore([structuredClone(saved)]); expect(next.runtime.runs.get(saved.id)?.status).toBe('interrupted'); expect(next.host.execute).not.toHaveBeenCalled()
+  })
+  it('does not complete a parent with active descendants and collects their results at concurrency one', async () => {
+    const f=fixture(1)
+    let nestedId='',parentCalls=0,finishChild!:()=>void
+    vi.mocked(f.host.execute).mockImplementation(async(run)=>{
+      if(run.depth===2){await new Promise<void>(resolve=>finishChild=resolve);return 'Actual researched news'}
+      if(++parentCalls===1){nestedId=(await f.runtime.spawn(f.runtime.caller(run),{title:'News',task:'Research today and return sources'})).id;return 'I have started the research'}
+      const result=await f.runtime.result(f.runtime.caller(run),nestedId,async()=> 'Actual researched news')
+      return 'Summary: '+result.text
+    })
+    const parent=await f.runtime.spawn(f.caller,{title:'Pipeline',task:'Research then summarize'})
+    await vi.waitFor(()=>expect(finishChild).toBeTypeOf('function'))
+    expect(parent.status).toBe('waiting')
+    const read=vi.fn(async()=> 'Premature promise')
+    expect(await f.runtime.result(f.caller,parent.id,read)).toMatchObject({ready:false,text:''})
+    expect(read).not.toHaveBeenCalled()
+    finishChild();await vi.waitFor(()=>expect(parent.status).toBe('completed'))
+    expect(parentCalls).toBe(2);expect(f.host.create).toHaveBeenCalledTimes(2)
+    expect(f.runtime.runs.get(nestedId)?.resultReadAt).toBeGreaterThanOrEqual(f.runtime.runs.get(nestedId)!.finishedAt!)
+    expect(vi.mocked(f.host.execute).mock.calls.at(-1)![1]).toContain('Do not spawn replacement jobs')
+  })
+  it('delivers reviewed steering at the next step and resumes failed work with the same IDs and files', async () => {
+    const f=fixture(),run=await f.runtime.spawn(f.caller,{...task,dedicatedId:'dedicated'})
+    await vi.waitFor(()=>expect(f.held.has(run.id)).toBe(true))
+    expect(await f.runtime.message(f.caller,run.id,'Use only these new sources')).toMatchObject({queuedMessage:true,delivery:'next-step'})
+    expect(await f.runtime.takeMessages(f.runtime.caller(run))).toEqual(['Use only these new sources'])
+    expect(await f.runtime.takeMessages(f.runtime.caller(run))).toEqual([])
+    vi.mocked(f.host.guard).mockResolvedValueOnce({allow:false,reason:'Blocked context'})
+    await expect(f.runtime.message(f.caller,run.id,'Blocked material')).rejects.toThrow('Blocked context')
+    expect(await f.runtime.takeMessages(f.runtime.caller(run))).toEqual([])
+    f.files.set(run.workspaceId+':draft.md',new TextEncoder().encode('Keep this'))
+    f.held.get(run.id)!('Finished');await vi.waitFor(()=>expect(run.status).toBe('completed'))
+    vi.mocked(f.host.execute).mockRejectedValueOnce(Error('Search endpoint unavailable'))
+    await f.runtime.message(f.caller,run.id,'Continue with the saved draft');await vi.waitFor(()=>expect(run.status).toBe('failed'))
+    const result=await f.runtime.result(f.caller,run.id,async()=> 'Partial work')
+    expect(result).toMatchObject({error:'Search endpoint unavailable',status:'failed'})
+    expect(vi.mocked(f.host.guard).mock.calls.at(-1)![1].text).toContain('Search endpoint unavailable')
+    vi.mocked(f.host.execute).mockResolvedValueOnce('Recovered final report')
+    const sessionId=run.sessionId,workspace=run.workspaceId
+    await f.runtime.message(f.caller,run.id,'Finish from draft.md without repeating the previous search')
+    await vi.waitFor(()=>expect(run.status).toBe('completed'))
+    expect(run.sessionId).toBe(sessionId);expect(run.workspaceId).toBe(workspace);expect(f.host.create).toHaveBeenCalledOnce()
+    expect(new TextDecoder().decode(f.files.get(workspace+':draft.md'))).toBe('Keep this')
+  })
+  it('cancels descendants after a parent error and preserves their workspace', async()=>{
+    const f=fixture(1)
+    let childId=''
+    vi.mocked(f.host.execute).mockImplementation(async run=>{childId=(await f.runtime.spawn(f.runtime.caller(run),task)).id;throw Error('Parent connection failed')})
+    const parent=await f.runtime.spawn(f.caller,task)
+    await vi.waitFor(()=>expect(parent.status).toBe('failed'))
+    expect(f.runtime.runs.get(childId)?.status).toBe('cancelled')
+    expect(f.runtime.runs.get(childId)?.workspaceId).toBe(parent.workspaceId)
+    expect(f.host.execute).toHaveBeenCalledOnce()
+  })
+  it('marks a step-limited tool-only turn incomplete instead of inventing a final result', async()=>{
+    const f=fixture();vi.mocked(f.host.execute).mockResolvedValue({text:'',finishReason:'tool-calls'})
+    const run=await f.runtime.spawn(f.caller,task)
+    await vi.waitFor(()=>expect(run.status).toBe('interrupted'))
+    expect(run.error).toContain('resume the same session')
+    expect(f.host.execute).toHaveBeenCalledOnce()
   })
   it('intersects tool grants and parses exact @mentions', () => {
     const f = fixture(); expect(intersectAgentTools(['session_file', 'web_search', 'agent_spawn'], ['session_file', 'run_command'])).toEqual(['session_file'])

@@ -5,7 +5,7 @@ import { isUsingOAuth,mergeSharedOAuthProviderSettings } from '@shared/oauth'
 import { ModelProviderEnum,type ProviderModelInfo } from '@shared/types'
 import { projectVeniceModels } from '@shared/providers/definitions/models/venice/model-selection'
 import { resolveVeniceSettings } from '@shared/providers/definitions/models/venice/options'
-import { effectiveTextPrivacy } from '@shared/providers/definitions/models/venice/privacy'
+import { veniceSessionTextPrivacy } from '@chatbox/core/domain/settings/venice-privacy'
 import { isTextResource } from '@shared/session-resources'
 import { localMCPAllows,parseSessionResourceURI,sessionResourceURI,type LocalMCPGrant,type LocalMCPRequest,type LocalMCPTool } from '@shared/local-mcp'
 import { createModel } from '@/adapters'
@@ -26,7 +26,8 @@ async function assertChat(grant:LocalMCPGrant){await vaultRuntimeFor(platform).p
 async function catalog(grant:LocalMCPGrant){
   const global=settingsStore.getState().getSettings(),session=await getSessionSettings(grant.sessionId)
   const base=global.providers?.venice?.venice,privacy=resolveVeniceSettings(base,undefined,session.veniceProfile,session.veniceSecurity)
-  const restrict=session.provider===ModelProviderEnum.Venice&&(effectiveTextPrivacy(privacy)!=='standard'||privacy.privacyFilter&&privacy.privacyFilter!=='all')
+  const mode=veniceSessionTextPrivacy(session,global)
+  const restrict=session.provider===ModelProviderEnum.Venice&&(mode!=='standard'||privacy.privacyFilter&&privacy.privacyFilter!=='all')
   const output:{provider:string;providerName:string;modelId:string;name:string;capabilities:ProviderModelInfo['capabilities'];privacy:unknown;uncensored:unknown;secure:unknown}[]=[]
   for(const provider of [...SystemProviders(),...(global.customProviders??[])]){
     if(restrict&&provider.id!==ModelProviderEnum.Venice)continue
@@ -38,8 +39,8 @@ async function catalog(grant:LocalMCPGrant){
     if(provider.id===ModelProviderEnum.Venice)models=projectVeniceModels(models,saved.catalogModels,saved.venice,saved.excludedModels)
     for(const model of models){if(model.type&&model.type!=='chat')continue
       const metadata=model.vendorMetadata,capabilities=metadata?.capabilities as Record<string,unknown>|undefined
-      if(provider.id===ModelProviderEnum.Venice&&effectiveTextPrivacy(privacy)==='e2ee'&&capabilities?.supportsE2EE!==true)continue
-      if(provider.id===ModelProviderEnum.Venice&&effectiveTextPrivacy(privacy)==='tee'&&capabilities?.supportsTeeAttestation!==true&&capabilities?.supportsE2EE!==true)continue
+      if(provider.id===ModelProviderEnum.Venice&&mode==='e2ee'&&capabilities?.supportsE2EE!==true)continue
+      if(provider.id===ModelProviderEnum.Venice&&mode==='tee'&&capabilities?.supportsTeeAttestation!==true&&capabilities?.supportsE2EE!==true)continue
       output.push({provider:provider.id,providerName:provider.name,modelId:model.modelId,name:model.nickname||model.modelId,capabilities:model.capabilities,privacy:metadata?.privacy,uncensored:metadata?.uncensored,secure:capabilities?.supportsE2EE===true||capabilities?.supportsTeeAttestation===true})
     }
   }

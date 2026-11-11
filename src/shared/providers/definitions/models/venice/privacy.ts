@@ -1,6 +1,10 @@
 export type PrivacyFilter = 'all' | 'private' | 'tee'
-export function effectiveTextPrivacy(settings: { textPrivacy?: 'standard' | 'tee' | 'e2ee'; privacyFilter?: PrivacyFilter } = {}) {
-  return settings.textPrivacy && settings.textPrivacy !== 'standard' ? settings.textPrivacy : settings.privacyFilter === 'tee' ? 'tee' : 'standard'
+import { resolveVeniceTextPrivacy as effectiveTextPrivacy } from '@chatbox/core/domain/settings/venice-privacy'
+import type { VeniceOptions } from './options'
+export { effectiveTextPrivacy }
+export function modelPrivacySettings(settings: VeniceOptions = {}, metadata?: Record<string, unknown>): VeniceOptions {
+  const mode = effectiveTextPrivacy(settings, metadata)
+  return { ...settings, textPrivacy: mode, e2eeToolsEnabled: settings.e2eeToolsEnabled ?? ((settings.textPrivacy ?? 'auto') === 'auto' && mode === 'e2ee') }
 }
 export function supportsTee(metadata?: Record<string, unknown>) {
   const caps = metadata?.capabilities as Record<string, unknown> | undefined

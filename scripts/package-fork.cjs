@@ -45,8 +45,8 @@ async function main() {
     afterPack: async (context) => require('../.erb/scripts/after-pack.cjs').default({ ...context, appDir }),
     npmRebuild: false,
     publish: [{ provider: 'github', owner: 'n3me5is-git', repo: 'chatbox-venice' }],
-    win: { target: [{ target: 'nsis', arch: ['x64'] }], artifactName: 'Chatbox-Venice-${version}-${arch}-Setup.${ext}', signAndEditExecutable: false, verifyUpdateCodeSignature: false },
-    nsis: { oneClick: false, allowToChangeInstallationDirectory: true, include: path.join(root, 'assets', 'installer.nsh') },
+    win: { icon: path.join(root, 'assets', 'fork-icon.ico'), target: [{ target: 'nsis', arch: ['x64'] }], artifactName: 'Chatbox-Venice-${version}-${arch}-Setup.${ext}', signAndEditExecutable: true, verifyUpdateCodeSignature: false },
+    nsis: { oneClick: false, allowToChangeInstallationDirectory: true, createDesktopShortcut: true, shortcutName: 'Chatbox Venice', installerIcon: path.join(root, 'assets', 'fork-icon.ico'), uninstallerIcon: path.join(root, 'assets', 'fork-icon.ico'), include: path.join(root, 'assets', 'installer.nsh') },
   }
   if (process.argv.includes('--check-config')) {
     const effective = await getConfig(appDir, null, config)

@@ -9,11 +9,12 @@ import type { ProviderModelInfo, ProviderSettings, ToolUseScope } from '../../..
 import type { ModelDependencies } from '../../../types/adapters'
 import { withVeniceCitations } from './venice-citations'
 import { prepareVeniceSearch } from './venice-search'
-import { effectiveTextPrivacy, privacyAllowed, requireModelPrivacy, supportsTee } from './venice/privacy'
+import { effectiveTextPrivacy, modelPrivacySettings, privacyAllowed, requireModelPrivacy, supportsTee } from './venice/privacy'
 import { secureVeniceChat } from './venice/secure-chat'
 import { effectiveVeniceSearch, guardSearchTools, isSearchTool } from './venice/search-policy'
 import type { ModelMessage, ToolSet } from 'ai'
 import type { CallChatCompletionOptions, ChatStreamOptions, ModelStreamPart } from '../../../models/types'
+import { mergeResponseSecurity, SECURITY_INFO, type ResponseSecurity } from '../../../response-security'
 
 export type VeniceSettings = NonNullable<ProviderSettings['venice']>
 interface VeniceOptions extends OpenAICompatibleSettings { venice?: VeniceSettings }
@@ -79,7 +80,7 @@ export function getVeniceParameters(settings: VeniceSettings = {}) {
 }
 
 // Add vendor options after SDK serialization, for both chat transports and tool calls.
-export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: VeniceSettings, extra?: ProviderModelInfo['extraBody'], model?: ProviderModelInfo): typeof globalThis.fetch {
+export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: VeniceSettings, extra?: ProviderModelInfo['extraBody'], model?: ProviderModelInfo, onVerified?: (evidence: ResponseSecurity) => void): typeof globalThis.fetch {
   return async (url, init) => {
     assertVeniceEnabled(settings || {})
     const endpoint = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
@@ -95,13 +96,17 @@ export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: Ven
       const thinking = parsed.enable_thinking
       delete parsed.enable_thinking
       const body = mergeExtraBody({ ...parsed, ...(effort !== undefined ? { reasoning_effort: effort } : {}), venice_parameters: { ...getVeniceParameters(settings), ...(thinking !== undefined ? { disable_thinking: !thinking } : {}) } }, extra || {})
-      const privacy = effectiveTextPrivacy(settings)
+      const privacy = effectiveTextPrivacy(settings, model?.vendorMetadata)
       const mode = privacy === 'standard' ? undefined : privacy
       if ((settings?.privacyFilter && settings.privacyFilter !== 'all' || mode) && body.model !== model?.modelId) throw new Error('Model overrides cannot bypass Venice privacy settings')
       requireModelPrivacy(model?.vendorMetadata, settings?.privacyFilter)
-      const toolMode=settings?.e2eeToolsEnabled===true?settings.e2eeToolMode||'encrypted-text':false
+      const toolMode=(settings?.e2eeToolsEnabled??((settings?.textPrivacy??'auto')==='auto'&&mode==='e2ee'))?settings?.e2eeToolMode||'encrypted-text':false
       if(mode==='e2ee'&&toolMode==='native'&&Array.isArray(body.tools)&&body.tools.length&&(model?.vendorMetadata?.capabilities as Record<string,unknown>|undefined)?.supportsFunctionCalling!==true)throw new ApiError('This model does not declare native function calling. Choose encrypted text tools or another model.')
       const response = mode ? await secureVeniceChat(fetch, endpoint, init || {}, body, mode, toolMode, settings?.secureReceiptCompatibility===true) : await fetch(url, { ...init, body: JSON.stringify(body) })
+      if (mode && response.ok) {
+        const receipt = response.headers.get('X-Chatbox-Secure-Receipt')
+        if (receipt === 'payload-bound' || receipt === 'gateway-signature-only') onVerified?.({ mode, receipt, modelId: model?.modelId || String(body.model), tools: mode === 'e2ee' && Array.isArray(body.tools) && body.tools.length ? toolMode || 'none' : 'none', verifiedAt: Date.now(), responses: 1 })
+      }
       return withVeniceCitations(response)
     }
     return fetch(url, init)
@@ -121,35 +126,41 @@ export default class Venice extends OpenAICompatible {
   }
 
   constructor(options: VeniceOptions, dependencies: ModelDependencies) {
+    options = { ...options, venice: modelPrivacySettings(options.venice, options.model.vendorMetadata) }
     assertVeniceEnabled(options.venice || {})
     requireModelPrivacy(options.model.vendorMetadata, options.venice?.privacyFilter)
     const secure = options.venice?.textPrivacy && options.venice.textPrivacy !== 'standard' || options.venice?.privacyFilter === 'tee'
     if (secure && options.model.type !== 'image' && options.model.type !== 'embedding' && !supportsTee(options.model.vendorMetadata)) throw new ApiError('Choose a model with Venice TEE support or change the secure text setting')
     if (options.venice?.textPrivacy === 'e2ee' && options.model.type !== 'image' && options.model.type !== 'embedding' && (options.model.vendorMetadata?.capabilities as Record<string, unknown> | undefined)?.supportsE2EE !== true) throw new ApiError('Choose an E2EE-capable model from the Venice catalog')
-    const resolved = { ...options, apiHost: options.apiHost.replace(/\/+$/, ''), useProxy: false,
-      customFetch: createVeniceFetch(options.customFetch || createFetchWithProxy(false, dependencies), options.venice, options.model.extraBody, options.model),
-    }
+    const resolved = { ...options, apiHost: options.apiHost.replace(/\/+$/, ''), useProxy: false }
     super(resolved, dependencies)
     this.options = resolved
   }
+  protected override getRequestFetch(options?: CallChatCompletionOptions) {
+    return createVeniceFetch(this.options.customFetch || createFetchWithProxy(false, this.dependencies), this.options.venice, this.options.model.extraBody, this.options.model, options?.onSecurityVerification)
+  }
 
   public override async chat(messages: ModelMessage[], options: CallChatCompletionOptions) {
+    let evidence: ResponseSecurity | undefined
     const prepared = this.usesNativeWebSearch ? { messages } : await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
     const guard = guardSearchTools({ ...options.tools, ...prepared.tools }, options.sessionId)
-    return super.chat(prepared.messages, { ...options, tools: guard.tools, maxSteps: options.maxSteps ?? (Object.keys(guard.tools).some(isSearchTool) ? options.agentMode?32:12 : this.options.venice?.textPrivacy==='e2ee'&&this.options.venice?.e2eeToolsEnabled ? 32 : undefined) })
+    const result = await super.chat(prepared.messages, { ...options, onSecurityVerification: current => { evidence = mergeResponseSecurity(evidence, current); options.onSecurityVerification?.(current) }, tools: guard.tools, maxSteps: options.maxSteps ?? (Object.keys(guard.tools).some(isSearchTool) ? options.agentMode?32:12 : this.options.venice?.textPrivacy==='e2ee'&&this.options.venice?.e2eeToolsEnabled ? 32 : undefined) })
+    return evidence ? { ...result, contentParts: [...result.contentParts, { type: 'info' as const, text: SECURITY_INFO, values: evidence }] } : result
   }
 
   public override async *chatStream<T extends ToolSet>(messages: ModelMessage[], options: ChatStreamOptions): AsyncGenerator<ModelStreamPart<T>> {
+    let evidence: ResponseSecurity | undefined
     const prepared = this.usesNativeWebSearch ? { messages } : await prepareVeniceSearch(messages, this.options.venice || {}, this.options.apiKey, this.options.apiHost, this.dependencies, this.isSupportToolUse(), options.signal)
     const nativeTools=Object.keys(prepared.tools||{})
     const originalStep=options.prepareStep
     const guard = guardSearchTools({ ...options.tools, ...prepared.tools }, options.sessionId)
-    yield* super.chatStream<T>(prepared.messages, { ...options, tools: guard.tools,
+    yield* super.chatStream<T>(prepared.messages, { ...options, tools: guard.tools, onSecurityVerification: current => { evidence = mergeResponseSecurity(evidence, current); options.onSecurityVerification?.(current) },
       maxSteps: options.maxSteps ?? (Object.keys(guard.tools).some(isSearchTool) ? options.agentMode?32:12 : this.options.venice?.textPrivacy==='e2ee'&&this.options.venice?.e2eeToolsEnabled ? 32 : undefined),
       prepareStep: async step => {
         const result = await originalStep?.(step)
         return { ...result, activeTools: guard.active([...new Set([...(result?.activeTools || Object.keys(guard.tools)), ...nativeTools])]) }
       } })
+    if (evidence) yield { type: 'security-verification', evidence }
   }
 
   public override listModels(): Promise<ProviderModelInfo[]> { return fetchVeniceModels(this.options, this.dependencies) }

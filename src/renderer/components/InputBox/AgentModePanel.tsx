@@ -1,4 +1,5 @@
 import { VeniceSearchControl } from '@/components/venice/VeniceSearchControl'
+import { modelPrivacySettings } from '@shared/providers/definitions/models/venice/privacy'
 import { SessionVeniceTools } from '@/components/venice/SessionVeniceTools'
 import { setSearchPermission } from '@shared/providers/definitions/models/venice/search-permissions'
 import { forkT as ft } from '@/i18n/fork'
@@ -228,7 +229,8 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
   const draftVeniceSecurity = useUIStore(s=>s.newSessionState.veniceSecurity)
   const setVeniceDraft = useUIStore(s=>s.setNewSessionState)
   const providerOptions = useSettingsStore((s) => providerId ? s.providers?.[providerId] : undefined)
-  const resolvedVenice = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, isNewSession ? draftVeniceProfile : currentSession?.settings?.veniceProfile, isNewSession ? draftVeniceSecurity : currentSession?.settings?.veniceSecurity)
+  const privacyModel=[...(providerOptions?.catalogModels||[]),...(providerOptions?.models||[])].find(m=>m.modelId===modelId)
+  const resolvedVenice = modelPrivacySettings(resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, isNewSession ? draftVeniceProfile : currentSession?.settings?.veniceProfile, isNewSession ? draftVeniceSecurity : currentSession?.settings?.veniceSecurity),privacyModel?.vendorMetadata)
   const usesNativeSearch = providerId !== 'venice' && Boolean(providerOptions?.models?.find((m) => m.modelId === modelId)?.nativeWebSearch)
   const nativeSearchEnabled = providerId === 'venice'
     ? Boolean((resolvedVenice.webSearch ?? 'off') !== 'off' || resolvedVenice.xSearch || resolvedVenice.webScraping)
