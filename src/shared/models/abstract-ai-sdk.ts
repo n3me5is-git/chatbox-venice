@@ -820,6 +820,7 @@ export default abstract class AbstractAISDKModel implements ModelInterface {
     const result = streamText({
       model,
       messages: coreMessages,
+      onStepFinish: step => options.onStepFinish?.(step),
       prepareStep,
       allowSystemInMessages: true,
       stopWhen: [isStepCount(options.maxSteps || Number.MAX_SAFE_INTEGER), stopWhenPersistentToolCallPause<T>()],

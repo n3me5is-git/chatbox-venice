@@ -30,6 +30,8 @@ import { readAgentData, updateAgentData } from './storage'
 import { listDedicatedAgents } from './library'
 import { workerSessionParameters } from './parameters'
 import { selectContextMessages } from '@shared/context'
+import { latestAgentOutput, latestSnapshotWriter } from '@shared/agent-output'
+import { agentMetrics } from '@shared/agent-metrics'
 
 const vault = () => vaultRuntimeFor(platform)
 const manifest = (id: string) => 'private-agents:runs:' + encodeURIComponent(id)
@@ -118,27 +120,34 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     const history = await agentTranscript(run.sessionId), user = createMessage('user', task), assistant = { ...createMessage('assistant', ''), generating: true }
     await rendererApplication.sessions.insertMessages(run.sessionId, [user, assistant])
     const { tools, images } = await workerTools(run, caller, model, user.id)
-    const system = workerInstruction(run) + '\n' + sessionWorkspaceInstructions + '\nYou are a Work child agent at depth ' + run.depth + '/3. Only the listed tools and this workspace are available. Use agent_catalog to inspect the descriptions and calling instructions of dedicated agents allowed to you. Return a concise result to your caller. Do not claim files exist unless a tool succeeded. When replacing a shared file, first list its current version and pass expectedVersion; a concurrent edit must not be overwritten.'
+    const system = workerInstruction(run) + '\n' + sessionWorkspaceInstructions + '\nYou are a Work child agent at depth ' + run.depth + '/3. Your session ID is ' + run.sessionId + '; your workspace ID is ' + run.workspaceId + '. ' + (run.kind === 'on-demand' ? 'This is the SAME file workspace as your caller; do not create a separate worktree or transfer already shared files.' : 'This workspace is isolated; exchange files only through the reviewed agent_file tool.') + ' Only the listed tools and this workspace are available. Use agent_catalog to inspect dedicated agent instructions. Wait for your child agents and read their actual results with agent_result before delivering your final answer. Use agent_files to verify requested deliverables. Resume existing agents with agent_message after incomplete work; do not spawn replacements. Return the actual findings, relevant source links and exact successful file paths to your caller, not only a promise to work. Do not claim files exist unless a tool succeeded. When replacing a shared file, first list its current version and pass expectedVersion; a concurrent edit must not be overwritten.'
     const messages = await convertToModelMessages([createMessage('system', system), ...selectContextMessages([...history,user],{maxContextMessageCount:settings.maxContextMessageCount})], { modelSupportVision: model.isSupportVision() })
-    let pending: Promise<unknown> = Promise.resolve(), last = 0
+    const writer = latestSnapshotWriter<Message['contentParts']>(contentParts => rendererApplication.sessions.updateMessage(run.sessionId, assistant.id, current => ({ ...current!, contentParts })))
+    const metrics = agentMetrics(Math.max(0, (run.startedAt || Date.now()) - (run.queuedAt || run.createdAt)))
+    const steering: Message[] = []
+    let last = 0
     try {
       const { createWorkerContext } = await import('./worker-context')
       const context = await createWorkerContext(settings,tools,signal,async()=>{await multiAgentRuntime.check(caller)})
       await multiAgentRuntime.check(caller); signal.throwIfAborted()
       const output = await model.chat(messages, { sessionId: run.sessionId, agentMode: true, tools, signal, maxSteps: 30,
         prepareStep: async step => {
-          let messages=await context.prepare([...step.initialMessages,...step.responseMessages])
+          const updates = await multiAgentRuntime.takeMessages(caller, signal)
+          for (const text of updates) { const message = createMessage('user', text); await rendererApplication.sessions.insertMessage(run.sessionId, message); steering.push(message) }
+          const updatesForModel = await convertToModelMessages(steering, { modelSupportVision: model.isSupportVision() })
+          let messages=await context.prepare([...step.initialMessages,...step.responseMessages,...updatesForModel])
           if(images?.injectImagesIntoStepMessages) messages=await images.injectImagesIntoStepMessages(messages)
           return {messages}
         },
         providerOptions: settings.providerOptionsByModel?.[settings.provider + ':' + settings.modelId],
-        onRequestResolved: async () => { signal.throwIfAborted(); await multiAgentRuntime.check(caller) },
-        onResultChange: value => { if (!value.contentParts || Date.now() - last < 500) return; last = Date.now(); const contentParts = structuredClone(value.contentParts); pending = pending.then(() => rendererApplication.sessions.updateMessage(run.sessionId, assistant.id, current => ({ ...current!, contentParts }))) },
+        onRequestResolved: async () => { signal.throwIfAborted(); await multiAgentRuntime.check(caller); metrics.request() },
+        onStepFinish: step => metrics.step(step.usage),
+        onResultChange: value => { if (!value.contentParts) return; metrics.delta(value.contentParts); if (Date.now() - last < 500) return; last = Date.now(); writer.push(structuredClone(value.contentParts)) },
       })
-      await pending
+      await writer.flush()
       await rendererApplication.sessions.updateMessage(run.sessionId, assistant.id, current => ({ ...current!, ...output, generating: false, aiProvider: run.model.provider, modelId: run.model.modelId }))
-      return output.contentParts.filter(part => part.type === 'text').map(part => part.text).join('')
-    } catch (error) { await pending.catch(() => {}); await rendererApplication.sessions.updateMessage(run.sessionId, assistant.id, current => ({ ...current!, generating: false, error: String((error as Error).message) })).catch(() => {}); throw error }
+      return { text: latestAgentOutput([{ ...assistant, ...output }]), finishReason: output.finishReason, metrics: metrics.result() }
+    } catch (error) { await writer.flush().catch(() => {}); await rendererApplication.sessions.updateMessage(run.sessionId, assistant.id, current => ({ ...current!, generating: false, error: String((error as Error).message) })).catch(() => {}); throw error }
   },
 })
 
@@ -172,6 +181,12 @@ export async function loadAgentRuns(rootId: string) {
   await vault().projects.assertSession(rootId)
   if (!loaded.has(rootId)) { loaded.add(rootId); try { await multiAgentRuntime.restore(await readAgentData<AgentRun[]>(manifest(rootId), [])); agentEvents.set(rootId, await readAgentData('private-agents:events:' + encodeURIComponent(rootId), [])) } catch (error) { loaded.delete(rootId); throw error } }
 }
+export async function sendAgentFollowUp(rootId: string, id: string, text: string) {
+  await vault().projects.assertSession(rootId)
+  const grant = grants.get(rootId)
+  if (!grant || grant.external) throw Error('Send a new message in the parent Work chat to restore its agent permissions, then resume this agent.')
+  return multiAgentRuntime.ownerMessage(grant.caller, id, text)
+}
 async function agentFiles(id: string, offset: number, limit: number) {
   const run = multiAgentRuntime.runs.get(id)
   if (!run) throw Error('Agent sandbox is unavailable')
@@ -182,9 +197,9 @@ async function agentFiles(id: string, offset: number, limit: number) {
   const stripArea = ({area,...item}:typeof page[number]) => item
   return { files: page.filter(item=>item.area==='files').map(stripArea), resources: page.filter(item=>item.area==='resources').map(stripArea), nextOffset: offset+page.length<all.length ? offset+page.length : null, truncated: result.truncated || resources?.truncated === true }
 }
-function agentTools(caller: AgentCaller): ToolSet { return createAgentTools(multiAgentRuntime, caller, async id => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || '')), agentFiles, async () => { const policy = await rootPolicy(caller.rootId); return (await listDedicatedAgents()).filter(agent => caller.dedicatedIds.includes(agent.id) && policy.dedicatedIds.includes(agent.id) && (caller.depth === 0 || policy.nestedDedicatedIds.includes(agent.id))).map(agent => ({ id: agent.id, name: agent.name, title: agent.title, description: agentCallerDescription(agent) })) }) }
+function agentTools(caller: AgentCaller): ToolSet { return createAgentTools(multiAgentRuntime, caller, async id => latestAgentOutput(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || '')), agentFiles, async () => { const policy = await rootPolicy(caller.rootId); return (await listDedicatedAgents()).filter(agent => caller.dedicatedIds.includes(agent.id) && policy.dedicatedIds.includes(agent.id) && (caller.depth === 0 || policy.nestedDedicatedIds.includes(agent.id))).map(agent => ({ id: agent.id, name: agent.name, title: agent.title, description: agentCallerDescription(agent) })) }) }
 export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: ToolSet, assert: () => Promise<void>) {
-  const readResult = async (id: string) => modelText(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || ''))
+  const readResult = async (id: string) => latestAgentOutput(await agentTranscript(multiAgentRuntime.runs.get(id)?.sessionId || ''))
   const acquire = async (): Promise<ExternalAgentContext> => {
     await assert()
     const existing = grants.get(grant.sessionId)
@@ -242,7 +257,7 @@ export async function buildMultiAgentTools(rootId: string, settings: SessionSett
   assertAppControl()
   grants.set(rootId, { caller, settings: settingsSnapshot, requester: collaborationRequester(messages).id, policyFingerprint: JSON.stringify(settings.multiAgent || null), ...(!policy.enabled || tagged.length ? { explicit: effective } : {}) })
   multiAgentRuntime.reopen(rootId); await loadAgentRuns(rootId)
-  return { tools: agentTools(caller), instructions: '\n## Delegation\nMulti-agent tools are enabled. Use them when the user requests parallel work or it helps a complex task. On-demand workers share this model and session file workspace. Dedicated workers receive only explicitly passed context and files. Respect guardian blocks; never encode, rename, split or reroute data to evade them. Available dedicated agents:\n' + agents.filter(agent => effective.dedicatedIds.includes(agent.id)).map(agent => JSON.stringify({ id: agent.id, name: '@' + agent.name, title: agent.title, description: agentCallerDescription(agent) })).join('\n') }
+  return { tools: agentTools(caller), instructions: '\n## Delegation\nMulti-agent tools are enabled. Use them when the user requests parallel work or it helps a complex task. On-demand workers share this model and session file workspace (not chat history); there is no separate worktree to recover. Dedicated workers receive only explicitly passed context and files. agent_spawn returns immediately, not a result. Wait with agent_wait, read agent_result, and inspect agent_files for requested deliverables before claiming completion. A research-to-summary pipeline must pass the actual returned findings/source links or shared file paths to the summarizer. An incomplete result or error is not permission to replay a paid job: inspect existing tools/files and use agent_message to resume the same session. Running workers accept steering at the next model step. Respect guardian blocks; never encode, rename, split or reroute data to evade them. Available dedicated agents:\n' + agents.filter(agent => effective.dedicatedIds.includes(agent.id)).map(agent => JSON.stringify({ id: agent.id, name: '@' + agent.name, title: agent.title, description: agentCallerDescription(agent) })).join('\n') }
 }
 
 let installed = false

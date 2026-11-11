@@ -22,7 +22,7 @@ vi.mock('@/packages/model-calls/toolsets/view-image',()=>({buildViewImageToolSet
 vi.mock('@/packages/model-calls/message-utils',()=>({convertToModelMessages:async(messages:any)=>messages}))
 vi.mock('@/packages/model-calls/toolsets/web-search',()=>({buildWebSearchTools:()=>({}),parseLinkTool:{}}))
 vi.mock('@/packages/mcp/controller',()=>({mcpController:{getAvailableTools:()=>({})}}))
-vi.mock('@/packages/session-resources/tools',()=>({sessionWorkspaceInstructions:'Workspace',buildSessionWorkspaceTools:async()=>({session_file:tool({inputSchema:z.object({action:z.string(),path:z.string().optional(),content:z.string().optional()}),execute:state.write})})}))
+vi.mock('@/packages/session-resources/tools',()=>({sessionWorkspaceInstructions:'Workspace',buildSessionWorkspaceTools:async(id:string)=>({session_file:tool({inputSchema:z.object({action:z.string(),path:z.string().optional(),content:z.string().optional()}),execute:input=>state.write(id,input)})})}))
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{list:async()=>[]}}))
 vi.mock('@/packages/session-resources/service',()=>({listSessionResources:async(id:string)=>({items:state.resources.get(id)||[],truncated:false}),readSessionResource:vi.fn()}))
 vi.mock('@/packages/collaboration/bridge',()=>({assertSharedTurn:vi.fn(),routeSharedDecision:async(_id:unknown,_requester:unknown,_input:unknown,local:any)=>local(new AbortController().signal)}))
@@ -121,4 +121,33 @@ it('provides caller details to root and permitted nested workers while keeping u
   const worker=await call(prepared.tools,'agent_spawn',{title:'Inspect agents',task:'Read the allowed agent catalog'})
   await call(prepared.tools,'agent_wait',{ids:[worker.id]})
   expect(await call(prepared.tools,'agent_result',{id:worker.id})).toMatchObject({text:'Caller details verified'})
+})
+
+it.each(['desktop','mobile'])('passes actual research output and shared files to the summarizer on %s without duplicate jobs',async platform=>{
+  state.platform=platform
+  const rootId=grant.sessionId,settings=state.headers.get(rootId).settings,files=new Map<string,string>()
+  state.write.mockImplementation(async(id,input)=>{const key=id+':'+input.path;if(input.action==='write'){files.set(key,input.content);state.resources.set(id,[{path:input.path,mime:'text/markdown',bytes:input.content.length}]);return{path:input.path,version:1}}return{content:files.get(key)}})
+  state.chat.mockImplementation(async(messages,options)=>{
+    const request=messages.at(-1).contentParts.filter((part:any)=>part.type==='text').map((part:any)=>part.text).join('')
+    if(request==='Research today'){
+      await options.tools.session_file.execute({action:'write',path:'news.md',content:'Verified news: item A. Source: https://example.com/news'},{context:{}})
+      return{finishReason:'stop',contentParts:[{type:'text',text:'Verified news: item A. Source: https://example.com/news. File: news.md'}]}
+    }
+    expect(request).toContain('Verified news: item A')
+    expect((await options.tools.session_file.execute({action:'read',path:'news.md'},{context:{}})).content).toContain('Verified news')
+    return{finishReason:'stop',contentParts:[{type:'text',text:'Summary of item A, with its source.'}]}
+  })
+  const prepared=await buildMultiAgentTools(rootId,settings,{session_file:{} as any},[])
+  const researcher=await call(prepared.tools,'agent_spawn',{title:'Research',task:'Research today'})
+  await call(prepared.tools,'agent_wait',{ids:[researcher.id]})
+  const findings=await call(prepared.tools,'agent_result',{id:researcher.id})
+  expect(findings).toMatchObject({ready:true,status:'completed'})
+  const listed=JSON.parse((await call(prepared.tools,'agent_files',{id:researcher.id})).text)
+  expect(listed.files).toContainEqual(expect.objectContaining({path:'news.md'}))
+  const summarizer=await call(prepared.tools,'agent_spawn',{title:'Summary',task:'Summarize '+findings.text})
+  await call(prepared.tools,'agent_wait',{ids:[summarizer.id]})
+  expect(await call(prepared.tools,'agent_result',{id:summarizer.id})).toMatchObject({text:'Summary of item A, with its source.',status:'completed'})
+  expect(state.chat).toHaveBeenCalledTimes(2)
+  expect(multiAgentRuntime.runs.get(researcher.id)!.workspaceId).toBe(rootId)
+  expect(multiAgentRuntime.runs.get(summarizer.id)!.workspaceId).toBe(rootId)
 })
