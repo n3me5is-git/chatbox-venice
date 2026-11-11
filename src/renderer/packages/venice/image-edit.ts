@@ -4,7 +4,7 @@ import { imageDimensions } from '@/packages/image-thumbnail'
 export type EditMode='remix'|'edit'|'mask'
 export type ImagePoint={x:number;y:number;text:string}
 export type EditRect={x:number;y:number;width:number;height:number}
-export function compatibleEditModels(models:readonly ImageModelOption[],mode:EditMode){return models.filter(model=>{const refs=model.capabilities?.inputReferences;return !!refs&&(refs.min??0)<=1&&(refs.max??1)>=1&&(mode==='remix'||model.vendorMetadata?.veniceType==='inpaint')})}
+export function compatibleEditModels(models:readonly ImageModelOption[],mode:EditMode,referenceCount=1){return models.filter(model=>{const refs=model.capabilities?.inputReferences;return !!refs&&(refs.min??0)<=referenceCount&&(refs.max??1)>=referenceCount&&(mode==='remix'||model.vendorMetadata?.veniceType==='inpaint')})}
 export function pointPrompt(prompt:string,points:readonly ImagePoint[],rect:EditRect={x:0,y:0,width:100,height:100}){return [prompt.trim(),...points.filter(point=>point.text.trim()&&point.x>=rect.x&&point.x<=rect.x+rect.width&&point.y>=rect.y&&point.y<=rect.y+rect.height).map((point,index)=>`Image point ${index+1} (x: ${((point.x-rect.x)/rect.width*100).toFixed(1)}%, y: ${((point.y-rect.y)/rect.height*100).toFixed(1)}%): ${point.text.trim()}`)].join('\n\n')}
 export async function localImageBitmap(data:string,signal:AbortSignal,maxPixels=8000000){
  signal.throwIfAborted();const source=data.startsWith('data:image/')?data:/^[A-Za-z0-9+/=\r\n]+$/.test(data)?'data:image/png;base64,'+data:null;if(!source)throw new Error('Save this image on the device before editing it')

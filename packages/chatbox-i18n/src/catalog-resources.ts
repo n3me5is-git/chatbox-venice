@@ -1,4 +1,6 @@
 export const catalogItalian={
+ 'Additional reference images':'Immagini di riferimento aggiuntive',
+ 'The source image counts as one reference. Select a model that supports all attached images.':'L’immagine di partenza conta come un riferimento. Scegli un modello che supporti tutte le immagini allegate.',
  'Up to {{count}} local references; your account may apply additional limits.':'Fino a {{count}} riferimenti locali; il tuo account potrebbe applicare ulteriori limiti.',
  'Text to image':'Da testo a immagine',
  'Up to {{count}} reference images':'Fino a {{count}} immagini di riferimento',
