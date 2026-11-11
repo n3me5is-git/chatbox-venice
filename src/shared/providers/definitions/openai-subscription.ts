@@ -9,6 +9,7 @@ import type { ModelMessage, ToolSet } from 'ai'
 import { subscriptionSourcesFooter, type SubscriptionSearchSource } from '../../oauth/chatgpt-search-sources'
 import type { StreamTextResult } from '../../types'
 import { createOpenAI } from '@ai-sdk/openai'
+import { subscriptionReferenceLimit } from '../../oauth/chatgpt-image-options'
 
 export class ChatGPTSubscriptionModel extends OpenAIResponses {
   public name = 'OpenAI Sub Unofficial'
@@ -48,7 +49,9 @@ export class ChatGPTSubscriptionModel extends OpenAIResponses {
     const size = ({ '1:1': '1024x1024', '3:2': '1536x1024', '2:3': '1024x1536' } as Record<string, string>)[params.aspectRatio || ''] || 'auto'
     if (!Number.isInteger(params.num) || params.num < 1 || params.num > 4) throw new Error('Generate between one and four images')
     const refs = params.images || []
-    if (refs.length > 4 || refs.some(ref => !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(ref.imageUrl) || ref.imageUrl.length > 16 * 1024 * 1024)) throw new Error('Use up to four local PNG, JPEG or WebP references')
+    const limit=subscriptionReferenceLimit(this.options.model)
+    if (refs.length > limit || refs.some(ref => !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(ref.imageUrl) || ref.imageUrl.length > 16 * 1024 * 1024)) throw new Error(`Use up to ${limit} local PNG, JPEG or WebP references`)
+    if(refs.reduce((total,ref)=>total+ref.imageUrl.length,0)>48*1024*1024)throw new Error('The combined image references exceed the local request size limit')
     for (let n = 0; n < params.num; n++) {
       signal?.throwIfAborted()
       if (this.options.model.subscriptionEndpoint === 'images') {

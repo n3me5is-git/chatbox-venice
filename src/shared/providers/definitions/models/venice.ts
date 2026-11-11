@@ -1,3 +1,4 @@
+import { buildVeniceImageRequest } from './venice/image-request'
 import OpenAICompatible, { type OpenAICompatibleSettings } from '../../../models/openai-compatible'
 import { assertVeniceEnabled } from './venice/options'
 import { ApiError } from '../../../models/errors'
@@ -63,20 +64,7 @@ export async function fetchVeniceCatalogModels(
     })
 }
 
-export function getVeniceImageCapabilities(model: ProviderModelInfo): ImageModelCapabilities {
-  const metadata = model.vendorMetadata || {}
-  const constraints = (metadata.constraints || {}) as Record<string, unknown>
-  const capabilities = (metadata.capabilities || {}) as Record<string, unknown>
-  const editing = metadata.veniceType === 'inpaint'
-  const styleReferences = Boolean(metadata.supportsStyleReferences || constraints.supportsStyleReferences || capabilities.supportsStyleReferences)
-  const max = editing ? Number(constraints.maxInputImages ?? capabilities.maxInputImages ?? (constraints.combineImages === false ? 1 : 3))
-    : Number(constraints.maxStyleReferences ?? 1)
-  const ratios = constraints.aspectRatios ?? constraints.aspect_ratios
-  return {
-    aspectRatio: { values: Array.isArray(ratios) ? ratios.filter((r): r is string => typeof r === 'string') : ['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16'] },
-    inputReferences: editing || styleReferences ? { min: editing ? 1 : 0, max: Number.isFinite(max) ? max : 1 } : null,
-  }
-}
+export { getVeniceImageCapabilities } from './venice/image-request'
 
 export function getVeniceParameters(settings: VeniceSettings = {}) {
   settings = effectiveVeniceSearch(settings)
@@ -171,41 +159,12 @@ export default class Venice extends OpenAICompatible {
     signal?: AbortSignal, callback?: (picBase64: string) => void | Promise<void>
   ): Promise<string[]> {
     if (!Number.isInteger(params.num) || params.num < 1 || params.num > 10) throw new ApiError('Choose 1 to 10 images')
-    const settings = this.options.venice || {}
-    const image = settings.image || {}
-    const editing = this.options.model.vendorMetadata?.veniceType === 'inpaint'
-    const capabilities = getVeniceImageCapabilities(this.options.model)
-    const references = params.images || []
-    if (editing && !references.length) throw new ApiError('This Venice model requires a reference image')
-    if (references.length && (!capabilities.inputReferences || references.length > (capabilities.inputReferences.max ?? 1))) {
-      throw new ApiError('The selected Venice model does not support this number of reference images')
-    }
-    if ((image.width === undefined) !== (image.height === undefined)) throw new ApiError('Set both image width and height')
-    if (image.width !== undefined && params.aspectRatio && params.aspectRatio !== 'auto') throw new ApiError('Choose pixel dimensions or aspect ratio, not both')
-    const format = image.format || 'png'
-    const common = {
-      prompt: params.prompt,
-      safe_mode: settings.imageSafeMode ?? true,
-      ...(image.resolution ? { resolution: image.resolution } : {}),
-      ...(image.quality ? { quality: image.quality } : {}),
-      ...(image.enhance_prompt !== undefined ? { enhance_prompt: image.enhance_prompt } : {}),
-      ...(params.aspectRatio && params.aspectRatio !== 'auto' ? { aspect_ratio: params.aspectRatio } : {}),
-    }
-    const request = mergeExtraBody(editing ? {
-      ...common, modelId: this.options.model.modelId, images: references.map((ref) => ref.imageUrl), output_format: format,
-    } : {
-      ...image, ...common, model: this.options.model.modelId,
-      enable_web_search: settings.imageWebSearch ?? false,
-      embed_exif_metadata: image.embed_exif_metadata ?? false,
-      format, return_binary: false, variants: 1,
-      ...(references.length ? { style_references: references.map((ref) => ({ image: ref.imageUrl })) } : {}),
-    }, this.options.model.extraBody || {})
-    if ((editing ? request.modelId : request.model) !== this.options.model.modelId || request.prompt !== params.prompt || (!editing && request.variants !== 1)) throw new ApiError('Model, prompt and quantity must match the approved request. Use the dedicated controls instead of overriding them in JSON.')
+    const { request, editing, format, path } = buildVeniceImageRequest(this.options.model, this.options.venice || {}, params)
     const images: string[] = []
     for (let index = 0; index < params.num; index++) {
       signal?.throwIfAborted()
       const response = await this.dependencies.request.apiRequest({
-        url: `${this.options.apiHost}/image/${editing ? 'multi-edit' : 'generate'}`,
+        url: `${this.options.apiHost}${path}`,
         method: 'POST', headers: { Authorization: `Bearer ${this.options.apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(request), signal, useProxy: false,
         // Billable requests must never be replayed automatically.

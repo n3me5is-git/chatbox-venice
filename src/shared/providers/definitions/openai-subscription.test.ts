@@ -41,6 +41,17 @@ it('never silently retries a denied image request on another model or billing en
   const request=vi.fn(async(_options: any)=>new Response(JSON.stringify({error:{message:'Account image limit'}}),{status:429})), model=imageModel('chatgpt-image-auto',request)
   await expect(model.paint({prompt:'test',num:1})).rejects.toThrow('Account image limit'); expect(request).toHaveBeenCalledOnce()
 })
+it.each(['image-tool','images'] as const)('forwards all sixteen references on the %s route, without billing fallback or replay',async route=>{
+ const request=vi.fn(async(_options:any)=>route==='image-tool'?stream():new Response(JSON.stringify({data:[{b64_json:'iVBORw0KGgo='}]}),{headers:{'content-type':'application/json'}}))
+ const model=imageModel('chatgpt-image-auto',request,route)
+ const images=Array.from({length:16},(_,i)=>({imageUrl:'data:image/png;base64,'+btoa('reference '+i)}))
+ expect(await model.paint({prompt:'Combine all reference images',images,num:1})).toHaveLength(1)
+ const body=JSON.parse(request.mock.calls[0][0].body)
+ expect(route==='images'?body.images.map((item:any)=>item.image_url):body.input[0].content.filter((item:any)=>item.type==='input_image').map((item:any)=>item.image_url)).toEqual(images.map(ref=>ref.imageUrl))
+ expect(request).toHaveBeenCalledOnce()
+ await expect(model.paint({prompt:'too many',images:[...images,images[0]],num:1})).rejects.toThrow('16')
+ expect(request).toHaveBeenCalledOnce()
+})
 
 function textStream(model: string) {
   const annotation = {type:'url_citation',url:'https://example.org/source',title:'Search source',start_index:0,end_index:6}

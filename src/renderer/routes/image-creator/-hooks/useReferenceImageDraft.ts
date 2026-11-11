@@ -6,6 +6,8 @@ import { getImageGenerationService } from '@/stores/imageGenerationActions'
 import { queryClient } from '@/stores/queryClient'
 import { MAX_REFERENCE_IMAGES } from '../-components/constants'
 import { localFileOrigin } from '@/packages/local-file-origin'
+import { reusableLocalImageKey } from '@/packages/local-image-reference'
+import { mediaContentHash } from '@/packages/media-content-hash'
 
 const log = getLogger('reference-image-draft')
 
@@ -13,7 +15,7 @@ async function persistDraftReference(file:File,key:string,data:string){
  const origin=localFileOrigin(file)
  if(origin?.scope&&origin.scope!=='public'){
   const [{vaultRuntimeFor},{default:platform},{dataUrlBytes}]=await Promise.all([import('@/packages/vault/runtime'),import('@/platform'),import('@/packages/vault/chunk-store')])
-  await vaultRuntimeFor(platform).assets.put(dataUrlBytes(data),{name:file.name,kind:'image',mime:file.type},origin.scope,key)
+  await vaultRuntimeFor(platform).assets.put(dataUrlBytes(data),{name:file.name,kind:'image',mime:file.type,hidden:true},origin.scope,key)
  }else await currentBlobStorage.set(key,data)
 }
 
@@ -34,6 +36,8 @@ export function useReferenceImageDraft() {
     revision: 0,
     uploadEpoch: 0,
     mounted: true,
+    imports: Promise.resolve(),
+    hashes: new Map<string, string>(),
     releaseReferences: () => {},
   })
 
@@ -117,24 +121,32 @@ export function useReferenceImageDraft() {
         const reader = new FileReader()
         reader.onload = async () => {
           if (typeof reader.result !== 'string') return
-          const storageKey = StorageKeyGenerator.picture('image-creator-ref')
-          try {
-            await persistDraftReference(file, storageKey, reader.result)
-          } catch (error) {
-            log.error('Failed to store a reference image:', error)
-            return
-          }
+          const data = reader.result
+          // Serialize imports so identical bytes selected together cannot race
+          // into separate blobs. Borrowed library assets remain library-owned.
+          draft.current.imports = draft.current.imports.then(async () => {
+          if (!draft.current.mounted || draft.current.uploadEpoch !== epoch) return
+          const hash = mediaContentHash(data)
+          const existing = draft.current.hashes.get(hash)
+          if (existing && draft.current.images.some(image => image.storageKey === existing)) return
+          const borrowed = await reusableLocalImageKey(file, data)
+          const storageKey = borrowed || StorageKeyGenerator.picture('image-creator-ref')
+          if (!borrowed) await persistDraftReference(file, storageKey, data)
           if (
             !draft.current.mounted ||
             draft.current.uploadEpoch !== epoch ||
             draft.current.images.length >= MAX_REFERENCE_IMAGES
           ) {
-            await removeBlobs([storageKey])
+            if (!borrowed) await removeBlobs([storageKey])
             return
           }
-          queryClient.setQueryData(['blob', storageKey], reader.result)
-          draft.current.uploads.set(storageKey, 'draft')
+          if (!borrowed) {
+            queryClient.setQueryData(['blob', storageKey], data)
+            draft.current.uploads.set(storageKey, 'draft')
+          }
+          draft.current.hashes.set(hash, storageKey)
           addReference(storageKey)
+          }).catch(error => log.error('Failed to store a reference image:', error))
         }
         reader.onerror = () => log.error('Failed to read a reference image:', file.name)
         reader.readAsDataURL(file)
@@ -197,6 +209,7 @@ export function useReferenceImageDraft() {
     await persistDraftReference(file,key,data)
     if(!state.mounted||state.uploadEpoch!==epoch||state.revision!==revision){await removeBlobs([key]);return}
     state.uploads.set(key,'draft');queryClient.setQueryData(['blob',key],data)
+    state.hashes.set(mediaContentHash(data),key)
     updateImages(state.images.map(image=>image.storageKey===storageKey?{...image,storageKey:key}:image))
     if(state.uploads.get(storageKey)==='draft'){state.uploads.delete(storageKey);await removeBlobs([storageKey])}
   },[removeBlobs,updateImages])

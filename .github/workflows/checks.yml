@@ -32,6 +32,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Image reference routing, library reuse and picker actions
+        run: pnpm exec vitest run src/shared/providers/definitions/models/venice/image-reference-model.test.ts src/renderer/packages/local-image-reference.test.ts src/renderer/routes/image-creator/-hooks/useReferenceImageDraft.test.ts src/renderer/components/local-library/LocalMediaBrowser.test.tsx src/shared/providers/definitions/openai-subscription.test.ts
       - name: Encrypted archive relocation, recovery and row-store compatibility
         run: pnpm exec vitest run src/renderer/packages/archive-storage src/main/archive-storage.test.ts src/renderer/components/settings/ArchiveStorage.test.tsx
       - name: Session RAG, linked folders and extraction boundaries

@@ -1,4 +1,6 @@
-export const MAX_REFERENCE_IMAGES = 14
+// Safety ceiling only. Actual acceptance is checked against the selected model's
+// catalog limit (some image editors accept 16 inputs, rather than the old 14).
+export const MAX_REFERENCE_IMAGES = 64
 
 export const HISTORY_PANEL_WIDTH = 170
 

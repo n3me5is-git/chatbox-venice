@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.43.1
+
+See [release notes](docs/releases/v1.43.1.md). Fixes image-reference variant selection, reuses local library images after a SHA-256 check, and adds insertion actions at both ends of the media picker. Extends multiple-reference requests for OpenAI Sub Unofficial.
+
 ## 1.43.0
 
 See [release notes](docs/releases/v1.43.0.md). Moves the encrypted archive between internal storage and a removable SD card on Android or a selected folder on desktop, with verified migration and explicit recovery when storage is missing.

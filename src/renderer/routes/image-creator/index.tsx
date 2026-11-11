@@ -4,6 +4,7 @@ import { chooseUploadSource } from '@/components/local-library/UploadSource'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { CreationUnlock } from '@/components/security/CreationUnlock'
 import { forkT as ft } from '@/i18n/fork'
+import { referenceImageModel, imageVariant } from '@shared/providers/definitions/models/venice/image-reference-model'
 import { VeniceImageEditor } from '@/components/venice/VeniceImageEditor'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { ChatGPTAllowance } from '@/components/settings/provider/ChatGPTAllowance'
@@ -306,6 +307,12 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   )
 
   const selectedOption = imageModelGroups.find(group => group.providerId === selectedProvider)?.models.find(model => model.modelId === selectedModel)
+  const referenceOption = selectedProvider==='venice' ? referenceImageModel(imageModelGroups.find(group=>group.providerId==='venice')?.models||[],selectedModel,referenceImages.length) : selectedOption
+  useEffect(()=>{
+    if(referenceImages.length&&referenceOption&&referenceOption.modelId!==selectedModel){
+      lastUsedModelStore.getState().setPictureModel(selectedProvider,referenceOption.modelId)
+    }
+  },[referenceOption?.modelId,selectedProvider,selectedModel,referenceImages.length])
   const currentGeneratingId = useCurrentGeneratingId()
   const currentRecordId = useCurrentRecordId()
   const { data: currentRecordRaw } = useImageGenerationRecord(currentRecordId)
@@ -558,6 +565,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                 onRemove={handleRemoveReferenceImage}
                 onAddClick={uploadSource}
               />
+              {selectedProvider==='venice'&&selectedOption&&<Text size="xs" c="dimmed">{ft(imageVariant(selectedOption.vendorMetadata)||'Images')}{selectedOption.capabilities?.inputReferences?' · '+ft('Up to {{count}} reference images',{count:selectedOption.capabilities.inputReferences.max??1}):''}{referenceImages.length>0&&referenceOption?.modelId!==selectedModel?' · '+ft('Choose a model that accepts these reference images'):''}</Text>}
               <input
                 ref={fileInputRef}
                 type="file"

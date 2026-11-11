@@ -82,7 +82,7 @@ export function getImageGenerationService(): ImageGenerationService {
         })
       },
       createImageKey: (recordId) => StorageKeyGenerator.picture(`image-gen:${recordId}`),
-      persistReferenceImage:async(data,scope,signal)=>{const vault=vaultRuntimeFor(platform);const supported=await vault.available();if(!supported&&platform.type!=='web'||!supported&&scope)throw new Error('Device encryption is unavailable. Configure a secure device screen lock first.');const key=StorageKeyGenerator.picture('image-creator-ref');if(supported){const {dataUrlBytes}=await import('@/packages/vault/chunk-store');await vault.assets.put(dataUrlBytes(data),{name:'Image reference',mime:/^data:([^;,]+)/.exec(data)?.[1]||'image/png',kind:'image'},scope||'public',key,signal)}else await currentBlobStorage.set(key,data);return key},
+      persistReferenceImage:async(data,scope,signal)=>{const vault=vaultRuntimeFor(platform);const supported=await vault.available();if(!supported&&platform.type!=='web'||!supported&&scope)throw new Error('Device encryption is unavailable. Configure a secure device screen lock first.');const key=StorageKeyGenerator.picture('image-creator-ref');if(supported){const {dataUrlBytes}=await import('@/packages/vault/chunk-store');await vault.assets.put(dataUrlBytes(data),{name:'Image reference',mime:/^data:([^;,]+)/.exec(data)?.[1]||'image/png',kind:'image',hidden:true},scope||'public',key,signal)}else await currentBlobStorage.set(key,data);return key},
       createThumbnail:createImageThumbnail,
       transformImage:(data,record,signal)=>applyLocalImageEdit(data,record,key=>currentBlobStorage.get(key),signal),
       onGenerate: (params, path) =>
