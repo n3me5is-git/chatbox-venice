@@ -30,6 +30,8 @@ interface SubmissionOwner {
 
 export function useReferenceImageDraft() {
   const [images, setImages] = useState<ReferenceImage[]>([])
+  const [pendingImports, setPendingImports] = useState(0)
+  const [importError, setImportError] = useState<string | null>(null)
   const draft = useRef({
     images: [] as ReferenceImage[],
     uploads: new Map<string, 'draft' | SubmissionOwner>(),
@@ -38,6 +40,8 @@ export function useReferenceImageDraft() {
     mounted: true,
     imports: Promise.resolve(),
     hashes: new Map<string, string>(),
+    pendingImports: 0,
+    importError: null as string | null,
     releaseReferences: () => {},
   })
 
@@ -65,6 +69,8 @@ export function useReferenceImageDraft() {
 
   const replace = useCallback(
     (next: ReferenceImage[]) => {
+      draft.current.importError=null
+      if(draft.current.mounted)setImportError(null)
       const retained = new Set(next.map((image) => image.storageKey))
       const keys: string[] = []
       for (const [key, owner] of draft.current.uploads) {
@@ -112,12 +118,16 @@ export function useReferenceImageDraft() {
 
   const upload = useCallback(
     (files: FileList | File[] | null) => {
-      if (!files) return
+      if (!files || !draft.current.mounted) return
+      draft.current.importError=null
+      setImportError(null)
       const epoch = draft.current.uploadEpoch
       const available = MAX_REFERENCE_IMAGES - draft.current.images.length
       for (const file of Array.from(files)
         .filter((file) => file.type.startsWith('image/'))
         .slice(0, available)) {
+          draft.current.pendingImports++
+          setPendingImports(draft.current.pendingImports)
           // Read one file at a time as well as serializing writes: a batch of
           // large references must not create every base64 buffer concurrently.
           draft.current.imports = draft.current.imports.then(async () => {
@@ -149,13 +159,21 @@ export function useReferenceImageDraft() {
           }
           draft.current.hashes.set(hash, storageKey)
           addReference(storageKey)
-          }).catch(error => log.error('Failed to store a reference image:', error))
+          }).catch(error => {
+            log.error('Failed to store a reference image:', error)
+            if(draft.current.mounted&&draft.current.uploadEpoch===epoch){draft.current.importError=error instanceof Error?error.message:String(error);setImportError(draft.current.importError)}
+          }).finally(()=>{
+            draft.current.pendingImports--
+            if(draft.current.mounted)setPendingImports(draft.current.pendingImports)
+          })
       }
     },
     [addReference, removeBlobs]
   )
 
   const beginSubmission = useCallback(() => {
+    if(draft.current.pendingImports)throw new Error('Wait until the reference images have finished loading')
+    if(draft.current.importError)throw new Error(draft.current.importError)
     const submitted = draft.current.images
     const revision = draft.current.revision
     const owner: SubmissionOwner = { state: 'submitting' }
@@ -214,5 +232,5 @@ export function useReferenceImageDraft() {
     if(state.uploads.get(storageKey)==='draft'){state.uploads.delete(storageKey);await removeBlobs([storageKey])}
   },[removeBlobs,updateImages])
 
-  return { images, upload, addReference, removeReference, replace, clear, beginSubmission, cropReference }
+  return { images, upload, addReference, removeReference, replace, clear, beginSubmission, cropReference, isImporting: pendingImports>0, importError }
 }
