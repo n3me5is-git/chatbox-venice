@@ -40,7 +40,7 @@ it('clears the previous searchable model when reopening after resetting approval
 
 it('switches the visible Qwen family to its reference endpoint before the user confirms',async()=>{
  const base='qwen-image-2-1-pro',edit=base+'-edit'
- const paired=[{modelId:base,displayName:'Qwen Image 2.1 Pro',vendorMetadata:{veniceType:'image'},capabilities:{aspectRatio:{values:['1:1']},inputReferences:null}},{modelId:edit,displayName:'Qwen Image 2.1 Pro',vendorMetadata:{veniceType:'inpaint'},capabilities:{aspectRatio:{values:['1:1']},inputReferences:{min:1,max:10}}}]
+ const paired=[{modelId:base,displayName:'Qwen Image 2.1 Pro',vendorMetadata:{veniceType:'image',privacy:'anonymized'},capabilities:{aspectRatio:{values:['1:1']},inputReferences:null}},{modelId:edit,displayName:'Qwen Image 2.1 Pro',vendorMetadata:{veniceType:'inpaint',privacy:'anonymized'},capabilities:{aspectRatio:{values:['1:1']},inputReferences:{min:1,max:10}}}]
  render(<MantineProvider><NiceModal.Provider/></MantineProvider>);let result:Promise<any>
  act(()=>{result=NiceModal.show(VeniceImageApproval,{models:paired,request:{modelId:base,prompt:'Combine these images',count:1}})})
  const files=await screen.findByLabelText('Images to edit or use as references',{selector:'input'})
@@ -51,4 +51,33 @@ it('switches the visible Qwen family to its reference endpoint before the user c
  const approved=await result!
  expect(approved.modelId).toBe(edit)
  expect(approved.referenceImages).toHaveLength(2)
+})
+
+it('requires explicit model selection when reference editing changes privacy',async()=>{
+ const rows=[{modelId:'paired',displayName:'Original model',vendorMetadata:{veniceType:'image',privacy:'private'},capabilities:{aspectRatio:null,inputReferences:null}},{modelId:'paired-edit',displayName:'Editor for references',vendorMetadata:{veniceType:'inpaint',privacy:'anonymized'},capabilities:{aspectRatio:null,inputReferences:{min:1,max:6}}}]
+ render(<MantineProvider><NiceModal.Provider/></MantineProvider>);let result:Promise<any>
+ act(()=>{result=NiceModal.show(VeniceImageApproval,{models:rows,request:{modelId:'paired',prompt:'Edit my image',count:1}})})
+ fireEvent.change(await screen.findByLabelText('Images to edit or use as references',{selector:'input'}),{target:{files:[new File(['image'],'ref.png',{type:'image/png'})]}})
+ expect((screen.getByLabelText('Venice image model',{selector:'input'}) as HTMLInputElement).value).toBe('Original model')
+ expect(screen.getByText(/different or undeclared privacy/)).toBeTruthy()
+ expect((screen.getByRole('button',{name:'Confirm and generate'}) as HTMLButtonElement).disabled).toBe(true)
+ fireEvent.click(screen.getByLabelText('Choose reference model',{selector:'input'}))
+ fireEvent.click(screen.getAllByRole('option').find(row=>row.textContent?.includes('Editor for references'))!)
+ expect((screen.getByLabelText('Venice image model',{selector:'input'}) as HTMLInputElement).value).toBe('Editor for references')
+ expect((screen.getByRole('switch',{name:'Automatically select a compatible variant'}) as HTMLInputElement).checked).toBe(false)
+ fireEvent.click(screen.getByRole('button',{name:'Confirm and generate'}));expect((await result!).modelId).toBe('paired-edit')
+})
+
+it('keeps the manually selected base model instead of silently replacing it again',async()=>{
+ const rows=[{modelId:'paired',displayName:'Original model',vendorMetadata:{veniceType:'image',privacy:'private'},capabilities:{aspectRatio:null,inputReferences:null}},{modelId:'paired-edit',displayName:'Editor for references',vendorMetadata:{veniceType:'inpaint',privacy:'private'},capabilities:{aspectRatio:null,inputReferences:{min:1,max:6}}}]
+ render(<MantineProvider><NiceModal.Provider/></MantineProvider>);let result:Promise<any>
+ act(()=>{result=NiceModal.show(VeniceImageApproval,{models:rows,request:{modelId:'paired',prompt:'Edit my image',count:1}})})
+ fireEvent.change(await screen.findByLabelText('Images to edit or use as references',{selector:'input'}),{target:{files:[new File(['image'],'ref.png',{type:'image/png'})]}})
+ await waitFor(()=>expect((screen.getByLabelText('Venice image model',{selector:'input'}) as HTMLInputElement).value).toBe('Editor for references'))
+ fireEvent.click(screen.getByLabelText('Venice image model',{selector:'input'}))
+ fireEvent.click(screen.getAllByRole('option').find(row=>row.textContent?.includes('Original model'))!)
+ expect((screen.getByLabelText('Venice image model',{selector:'input'}) as HTMLInputElement).value).toBe('Original model')
+ expect((screen.getByRole('button',{name:'Confirm and generate'}) as HTMLButtonElement).disabled).toBe(true)
+ expect(screen.getByLabelText('Images to edit or use as references',{selector:'input'})).toBeTruthy()
+ fireEvent.click(screen.getByRole('button',{name:'Cancel'}));expect(await result!).toBeNull()
 })

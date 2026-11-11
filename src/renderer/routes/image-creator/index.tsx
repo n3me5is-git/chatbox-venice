@@ -4,7 +4,9 @@ import { chooseUploadSource } from '@/components/local-library/UploadSource'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { CreationUnlock } from '@/components/security/CreationUnlock'
 import { forkT as ft } from '@/i18n/fork'
-import { referenceImageModel, imageVariant } from '@shared/providers/definitions/models/venice/image-reference-model'
+import { acceptsImageReferences, imageVariant } from '@shared/providers/definitions/models/venice/image-reference-model'
+import { useReferenceModelSelection } from '@/hooks/useReferenceModelSelection'
+import { ReferenceModelControl } from '@/components/venice/ReferenceModelControl'
 import { VeniceImageEditor } from '@/components/venice/VeniceImageEditor'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { ChatGPTAllowance } from '@/components/settings/provider/ChatGPTAllowance'
@@ -295,6 +297,8 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   const [selectedRatio, setSelectedRatio] = useState<string>('auto')
   const [showModelDrawer, setShowModelDrawer] = useState(false)
   const [showRatioDrawer, setShowRatioDrawer] = useState(false)
+  const [showReferenceModelPicker,setShowReferenceModelPicker]=useState(false)
+  const [automaticReferenceModel,setAutomaticReferenceModel]=useState(true)
 
   const selectedModelCapabilities = useMemo(
     () =>
@@ -309,12 +313,10 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   )
 
   const selectedOption = imageModelGroups.find(group => group.providerId === selectedProvider)?.models.find(model => model.modelId === selectedModel)
-  const referenceOption = selectedProvider==='venice' ? referenceImageModel(imageModelGroups.find(group=>group.providerId==='venice')?.models||[],selectedModel,referenceImages.length) : selectedOption
-  useEffect(()=>{
-    if(referenceImages.length&&referenceOption&&referenceOption.modelId!==selectedModel){
-      lastUsedModelStore.getState().setPictureModel(selectedProvider,referenceOption.modelId)
-    }
-  },[referenceOption?.modelId,selectedProvider,selectedModel,referenceImages.length])
+  const selectAutomaticReferenceModel=useCallback((id:string)=>lastUsedModelStore.getState().setPictureModel(selectedProvider,id),[selectedProvider])
+  const referenceSelection=useReferenceModelSelection({models:selectedProvider==='venice'?imageModelGroups.find(group=>group.providerId==='venice')?.models||[]:[],selectedId:selectedModel,count:referenceImages.length,automatic:selectedProvider==='venice'&&automaticReferenceModel,onSelect:selectAutomaticReferenceModel})
+  const referenceCompatible=referenceImages.length===0||(selectedProvider==='venice'?referenceSelection.compatible:!selectedOption?.capabilities||acceptsImageReferences(selectedOption,referenceImages.length))
+  const referenceModelGroups=imageModelGroups.map(group=>({...group,models:group.models.filter(model=>!model.capabilities||acceptsImageReferences(model,referenceImages.length))})).filter(group=>group.models.length>0)
   const currentGeneratingId = useCurrentGeneratingId()
   const currentRecordId = useCurrentRecordId()
   const { data: currentRecordRaw } = useImageGenerationRecord(currentRecordId)
@@ -345,6 +347,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
 
   const handleModelSelect = useCallback(
     (provider: string, model: string) => {
+      setAutomaticReferenceModel(false)
       lastUsedModelStore.getState().setPictureModel(provider, model)
 
       const capabilities = imageModelGroups
@@ -353,11 +356,11 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
       const newRatioOptions = getImageModelRatioOptions(model, capabilities)
       setSelectedRatio((prev) => resolveImageRatioSelection(prev, newRatioOptions))
     },
-    [imageModelGroups]
+    [imageModelGroups,referenceImages.length]
   )
 
   const handleSubmit = useCallback(async () => {
-    if (!prompt.trim() || isCurrentlyGenerating || isImportingReferences || referenceImportError) return
+    if (!prompt.trim() || isCurrentlyGenerating || isImportingReferences || referenceImportError || !referenceCompatible) return
     if (!selectedModel) {
       toastActions.add(t('Please select a model'))
       return
@@ -393,7 +396,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
       log.error('Failed to generate image:', error)
       toastActions.add(error instanceof Error?error.message:ft('Unable to generate image'))
     }
-  }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, isImportingReferences, referenceImportError, batchCount, t,saveProtected,vault])
+  }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, isImportingReferences, referenceImportError, referenceCompatible, batchCount, t,saveProtected,vault])
 
   const handleQuickPromptSubmit = useCallback((quickPrompt:string)=>{if(isCurrentlyGenerating)return;setPrompt(quickPrompt);textareaRef.current?.focus()},[isCurrentlyGenerating])
 
@@ -569,7 +572,8 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
               />
               {isImportingReferences&&<Text size="xs" c="dimmed">{ft('Wait until the reference images have finished loading')}</Text>}
               {referenceImportError&&<Group><Text size="xs" c="red">{ft(referenceImportError)}</Text><Button size="compact-xs" variant="subtle" onClick={()=>void clearReferenceImages()}>{ft('Clear selection')}</Button></Group>}
-              {selectedProvider==='venice'&&selectedOption&&<Text size="xs" c="dimmed">{ft(imageVariant(selectedOption.vendorMetadata)||'Images')}{selectedOption.capabilities?.inputReferences?' · '+ft('Up to {{count}} reference images',{count:selectedOption.capabilities.inputReferences.max??1}):''}{referenceImages.length>0&&referenceOption?.modelId!==selectedModel?' · '+ft('Choose a model that accepts these reference images'):''}</Text>}
+              <ReferenceModelControl model={selectedOption} count={referenceImages.length} compatible={referenceCompatible} privacyChange={referenceSelection.privacyChange} automatic={automaticReferenceModel} onAutomaticChange={selectedProvider==='venice'?setAutomaticReferenceModel:undefined} onChoose={()=>setShowReferenceModelPicker(true)} editing={selectedProvider===ModelProviderEnum.OpenAISubscription}/>
+              {selectedProvider==='venice'&&selectedOption&&referenceImages.length===0&&<Text size="xs" c="dimmed">{ft(imageVariant(selectedOption.vendorMetadata)||'Images')}{selectedOption.capabilities?.inputReferences?' · '+ft('Up to {{count}} reference images',{count:selectedOption.capabilities.inputReferences.max??1}):''}</Text>}
               {selectedProvider===ModelProviderEnum.OpenAISubscription&&selectedOption?.capabilities?.inputReferences&&<Text size="xs" c="dimmed">{ft('Up to {{count}} local references; your account may apply additional limits.',{count:selectedOption.capabilities.inputReferences.max??1})}</Text>}
               <input
                 ref={fileInputRef}
@@ -630,7 +634,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                       color={isCurrentlyGenerating ? 'dark' : 'chatbox-brand'}
                       radius="xl"
                       onClick={isCurrentlyGenerating ? cancelGeneration : handleSubmit}
-                      disabled={(!prompt.trim() || !selectedModel || isImportingReferences || !!referenceImportError) && !isCurrentlyGenerating}
+                      disabled={(!prompt.trim() || !selectedModel || isImportingReferences || !!referenceImportError || !referenceCompatible) && !isCurrentlyGenerating}
                       className={`shrink-0 mb-1 ${(!prompt.trim() || !selectedModel) && !isCurrentlyGenerating ? SEND_BUTTON_BLOCKED_CLASS : ''}`}
                       style={{ cursor: isCurrentlyGenerating ? 'pointer' : undefined }}
                     >
@@ -694,6 +698,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
         )}
 
         {/* Mobile Drawers */}
+        <MobileModelDrawer open={showReferenceModelPicker} onOpenChange={setShowReferenceModelPicker} modelGroups={referenceModelGroups} selectedProvider={selectedProvider} selectedModel={selectedModel} onSelect={handleModelSelect}/>
         {isSmallScreen && (
           <>
             <MobileHistoryDrawer
