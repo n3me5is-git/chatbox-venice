@@ -1,3 +1,5 @@
+import { createToolDeltaNormalizer } from './openai-tool-delta'
+
 interface ByteTransformController {
   enqueue(chunk: Uint8Array): void
   terminate(): void
@@ -83,6 +85,22 @@ export function wrapOpenAIChatCompletionSse<TStream>(body: TStream): TStream {
   const decoder = new TextDecoder()
   const encoder = new TextEncoder()
   let buffer = ''
+  const normalizeToolDelta = createToolDeltaNormalizer()
+  const normalizeFrame = (frame: string): string => {
+    const data = getSseEventData(frame)
+    if (!data) return frame
+    try {
+      const payload: unknown = JSON.parse(data)
+      if (!normalizeToolDelta(payload)) return frame
+      let written = false
+      return frame.split(/\r?\n/).flatMap(line => {
+        if (line !== 'data' && !line.startsWith('data:')) return [line]
+        if (written) return []
+        written = true
+        return [`data: ${JSON.stringify(payload)}`]
+      }).join(frame.includes('\r\n') ? '\r\n' : '\n')
+    } catch { return frame }
+  }
 
   return body.pipeThrough(
     new TransformStreamImpl({
@@ -97,13 +115,13 @@ export function wrapOpenAIChatCompletionSse<TStream>(body: TStream): TStream {
             controller.terminate()
             return
           }
-          controller.enqueue(encoder.encode(frame + separator))
+          controller.enqueue(encoder.encode(normalizeFrame(frame) + separator))
           boundary = findSseFrameBoundary(buffer)
         }
       },
       flush(controller) {
         buffer += decoder.decode()
-        if (buffer) controller.enqueue(encoder.encode(buffer))
+        if (buffer) controller.enqueue(encoder.encode(normalizeFrame(buffer)))
       },
     })
   ) as TStream

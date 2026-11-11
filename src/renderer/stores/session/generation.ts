@@ -1,7 +1,7 @@
 import { createForkCommandIdentity } from '@chatbox/core/application/session'
 import type { SessionHeader } from '@chatbox/core/ports'
 import { SessionActionBlockedError } from '@chatbox/core/session/action-gates'
-import { withSessionGenerationLock } from '@chatbox/core/generation'
+import { withSessionGenerationLock, trySessionGenerationLock } from '@chatbox/core/generation'
 import { isActionAvailableInMode, resolveSessionMode } from '@chatbox/core/session/mode-policy'
 import { buildContext } from '@shared/context'
 import type { AttachmentResolver } from '@shared/context/types'
@@ -219,7 +219,7 @@ export async function regenerateInNewFork(
   msg: Message,
   options?: { runGenerateMore?: GenerateMoreFn }
 ) {
-  return withSessionGenerationLock(sessionId, async () => {
+  return trySessionGenerationLock(sessionId, async () => {
     if (!(await guardSessionAction(sessionId, 'regenerate'))) {
       return
     }

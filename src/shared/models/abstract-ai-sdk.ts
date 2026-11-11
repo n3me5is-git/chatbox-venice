@@ -47,6 +47,7 @@ import { wrapOpenAICompatibleNonStreamingModel } from './openai-compatible-non-s
 import { stopWhenPersistentToolCallPause } from './persistent-tool-call-pause'
 import { bindReplaySource } from './provider-part-metadata'
 import { createRetryableChatModel } from './retryable-chat-model'
+import { responsesToolDefaults } from './responses-tool-defaults'
 import { simulateStreamingWithTextReplayMetadataMiddleware, textReplayMetadataMiddleware } from './text-replay-metadata'
 import { repairToolCallJson } from './tool-call-json-repair'
 import type {
@@ -165,6 +166,7 @@ export default abstract class AbstractAISDKModel implements ModelInterface {
   protected abstract getChatModel(options: CallChatCompletionOptions): LanguageModelV4
 
   private prepareChatModel(model: LanguageModelV4): LanguageModelV4 {
+    if (this.apiStyle === 'openai-responses') model = wrapLanguageModel({ model, middleware: responsesToolDefaults })
     if (this.apiStyle === 'google') {
       return wrapLanguageModel({
         model,

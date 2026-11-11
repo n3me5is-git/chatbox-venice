@@ -22,6 +22,62 @@ function setup(records: MediaRecord[] = []) {
 function show(service: ReturnType<typeof setup>, options = { audioEnabled: true, videoEnabled: true, musicEnabled: true }) { return render(<MantineProvider><VeniceStudio initialKind={service.testKind} service={service} options={options} /></MantineProvider>) }
 async function loadModels() { fireEvent.click(screen.getByRole('button', { name: "Load models" })); await waitFor(() => expect((screen.getByLabelText("Model", { selector: 'input' }) as HTMLInputElement).value).toBe('Kokoro')) }
 describe('Venice Studio simulated user journeys', () => {
+  it('sends voice style separately from narration and removes it on an unsupported model', async () => {
+    const service = setup()
+    service.catalog.mockResolvedValue([{ id: 'tts-qwen3-1-7b', type: 'tts', model_spec: { name: 'Qwen Voice', voices: ['Vivian'] } }, models[0]])
+    show(service)
+    fireEvent.click(screen.getByRole('button', { name: 'Load models' }))
+    await waitFor(() => expect(screen.getByLabelText('Voice style instructions')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText('Text to read'), { target: { value: 'Hello from the narrator.' } })
+    fireEvent.change(screen.getByLabelText('Voice style instructions'), { target: { value: 'Warm and calm.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate speech' }))
+    await waitFor(() => expect(service.start).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'Hello from the narrator.', options: expect.objectContaining({ prompt: 'Warm and calm.' }) })))
+    fireEvent.click(screen.getByLabelText('Model', { selector: 'input' }))
+    fireEvent.click(screen.getByRole('option', { name: /Kokoro/ }))
+    expect(screen.queryByLabelText('Voice style instructions')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate speech' }))
+    await waitFor(() => expect(service.start).toHaveBeenCalledTimes(2))
+    expect(service.start.mock.calls[1][0].options).not.toHaveProperty('prompt')
+  })
+
+  it('keeps video negatives independent and hides them on Seedance', async () => {
+    const service = setup()
+    service.testKind = 'video'
+    service.catalog.mockResolvedValue(['wan-2.5-preview-text-to-video', 'seedance-2.5-text-to-video'].map((id, i) => ({ id, type: 'video', model_spec: { name: i ? 'Seedance test' : 'Wan test', constraints: { model_type: 'text-to-video', durations: ['5s'], aspect_ratios: ['16:9'] } } })))
+    show(service)
+    fireEvent.click(screen.getByRole('button', { name: 'Load models' }))
+    await waitFor(() => expect(screen.getByLabelText('Elements to avoid')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText('Describe your video'), { target: { value: 'A calm mountain scene' } })
+    fireEvent.change(screen.getByLabelText('Elements to avoid'), { target: { value: 'Jitter and blur' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Show cost' }))
+    await waitFor(() => expect(service.quote).toHaveBeenCalledWith(expect.objectContaining({ options: expect.objectContaining({ negative_prompt: 'Jitter and blur' }) })))
+    fireEvent.click(screen.getByLabelText('Model', { selector: 'input' }))
+    fireEvent.click(screen.getByRole('option', { name: /Seedance test/ }))
+    expect(screen.queryByLabelText('Elements to avoid')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Show cost' }))
+    await waitFor(() => expect(service.quote).toHaveBeenCalledTimes(2))
+    expect(service.quote.mock.calls[1][0].options).not.toHaveProperty('negative_prompt')
+  })
+
+  it('keeps lyrics separate from music description and omits them after switching to ElevenLabs', async () => {
+    const service = setup()
+    service.testKind = 'music'
+    service.catalog.mockResolvedValue([{ id: 'ace-step-15', type: 'music', model_spec: { name: 'ACE Music', supports_lyrics: true, min_duration: 60, max_duration: 210 } }, { id: 'elevenlabs-music', type: 'music', model_spec: { name: 'Eleven Music', supports_lyrics: false, min_duration: 3, max_duration: 600 } }])
+    show(service)
+    fireEvent.click(screen.getByRole('button', { name: 'Load models' }))
+    await waitFor(() => expect(screen.getByLabelText('Lyrics (optional)')).toBeTruthy())
+    fireEvent.change(screen.getByLabelText('Describe the music or sound'), { target: { value: 'A gentle acoustic folk song' } })
+    fireEvent.change(screen.getByLabelText('Lyrics (optional)'), { target: { value: 'Walking through the morning light' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Show cost' }))
+    await waitFor(() => expect(service.quote).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'A gentle acoustic folk song', options: expect.objectContaining({ lyrics_prompt: 'Walking through the morning light' }) })))
+    fireEvent.click(screen.getByLabelText('Model', { selector: 'input' }))
+    fireEvent.click(screen.getByRole('option', { name: /Eleven Music/ }))
+    expect(screen.queryByLabelText('Lyrics (optional)')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Show cost' }))
+    await waitFor(() => expect(service.quote).toHaveBeenCalledTimes(2))
+    expect(service.quote.mock.calls[1][0].options).not.toHaveProperty('lyrics_prompt')
+  })
+
   it('filters video models by intent and sends a Seedance edit through references with the correct quote',async()=>{
     const service=setup()
     service.testKind='video'

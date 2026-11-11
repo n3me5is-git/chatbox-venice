@@ -118,6 +118,17 @@ describe('generation entry-point locking', () => {
     expect(orchestrateGenerationMock.mock.calls.map((call) => call[1].id)).toEqual(['assistant-1', 'assistant-2'])
   })
 
+  it('does not queue Reply Again behind an accepted generation', async () => {
+    let finish = () => {}
+    orchestrateGenerationMock.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    const active = generate('session-1', message('assistant-1'))
+    await vi.waitFor(() => expect(orchestrateGenerationMock).toHaveBeenCalledOnce())
+    await regenerateInNewFork('session-1', message('assistant-1'))
+    expect(guardSessionActionMock).not.toHaveBeenCalled()
+    finish(); await active
+    expect(orchestrateGenerationMock).toHaveBeenCalledOnce()
+  })
+
   it.each(['body', 'metadata'] as const)(
     'preserves durable Reply Below semantics when %s persistence fails',
     async (failure) => {

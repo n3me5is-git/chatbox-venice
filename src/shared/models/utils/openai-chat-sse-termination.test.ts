@@ -34,6 +34,29 @@ function heldOpenStream(chunks: string[], onCancel: () => void): ReadableStream<
 }
 
 describe('OpenAI Chat SSE logical termination', () => {
+  it('lets the production SDK assemble a tool call with empty continuation metadata', async () => {
+    const frames = [
+      { choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, type: 'function', id: 'call-1', function: { name: 'search', arguments: '{"query":' } }] }, finish_reason: null }] },
+      { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, type: '', id: '', function: { name: '', arguments: '"hello"}' } }] }, finish_reason: null }] },
+      { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
+    ].map(chunk => `data: ${JSON.stringify({ id: 'completion-1', object: 'chat.completion.chunk', created: 1, model: 'test', ...chunk })}\n\n`).join('') + 'data: [DONE]\n\n'
+    const provider = createOpenAICompatible({ name: 'fixture', baseURL: 'https://fixture.invalid/v1', fetch: createOpenAIChatCompletionSseFetch(async () => new Response(frames, { headers: { 'content-type': 'text/event-stream' } })) })
+    const result = streamText({ model: provider.chatModel('test'), prompt: 'Search', tools: { search: tool({ inputSchema: z.object({ query: z.string() }) }) } })
+    expect(await result.toolCalls).toMatchObject([{ toolName: 'search', toolCallId: 'call-1', input: { query: 'hello' } }])
+  })
+  it('normalizes split argument fragments and preserves SSE event IDs, Unicode and DONE termination', async () => {
+    const header = { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, type: 'function', id: 'call-1', function: { name: 'search', arguments: '' } }] } }] }
+    const fragment = { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, type: '', id: '', function: { name: '', arguments: '{"query":"caffè"}' } }] } }] }
+    const source = `data: ${JSON.stringify(header)}\r\n\r\nid: fragment-1\r\nevent: message\r\ndata: ${JSON.stringify(fragment)}\r\n\r\ndata: [DONE]\r\n\r\n`
+    const bytes = encoder.encode(source)
+    const input = new ReadableStream<Uint8Array>({ start(controller) { for (const byte of bytes) controller.enqueue(Uint8Array.of(byte)); controller.close() } })
+    const output = await readAll(wrapOpenAIChatCompletionSse(input))
+    expect(output).toContain('id: fragment-1\r\nevent: message')
+    expect(output).toContain('caffè')
+    expect(output).not.toContain('"type":""')
+    expect(output).not.toContain('[DONE]')
+  })
+
   afterEach(() => {
     vi.unstubAllGlobals()
   })

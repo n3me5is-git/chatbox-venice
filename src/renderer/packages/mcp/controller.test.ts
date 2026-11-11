@@ -1074,7 +1074,7 @@ describe('mobile MCP lifecycle', () => {
     vi.unstubAllGlobals()
   })
 
-  it('rejects colliding tool names instead of replacing an enabled server tool', async () => {
+  it('keeps colliding server tools distinct and respects the allowed server set', async () => {
     const configs = ['collision-a', 'collision-b'].map((id) => ({
       id,
       name: 'Same Name',
@@ -1087,9 +1087,10 @@ describe('mobile MCP lifecycle', () => {
       mcpController.servers.set(config.id, { config, instance })
     }
     try {
-      expect(() => mcpController.getAvailableTools(new Set(configs.map(({ id }) => id)))).toThrow(
-        'MCP tool name collision: mcp__same_name__echo'
-      )
+        const combined = mcpController.getAvailableTools(new Set(configs.map(({ id }) => id)))
+        expect(Object.keys(combined)).toHaveLength(2)
+        expect(new Set(Object.keys(combined)).size).toBe(2)
+        expect(Object.keys(combined).every(name => /^mcp__same_name__echo_[a-f0-9]{8}$/.test(name))).toBe(true)
       expect(Object.keys(mcpController.getAvailableTools(new Set(['collision-a'])))).toEqual(['mcp__same_name__echo'])
     } finally {
       await Promise.all(configs.map(({ id }) => mcpController.stopServer(id)))

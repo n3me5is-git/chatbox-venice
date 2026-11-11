@@ -78,7 +78,9 @@ export function musicOptions(model: MediaCatalogItem | undefined, value: { secon
 export function validateMediaRequest(kind: MediaKind, body: Record<string, unknown>, model?: MediaCatalogItem) {
   const s = model?.model_spec; if (!s) return
   if (kind === 'sound-effects' && !supportsMediaKind(model,kind)) throw new Error('Choose a sound-effects model from the Venice catalog')
-  const prompt = String(body.prompt ?? body.input ?? '')
+  const prompt = String(kind === 'speech' && model?.type !== 'music' ? body.input ?? '' : body.prompt ?? body.input ?? '')
+  if (kind === 'speech' && model?.type !== 'music' && body.prompt !== undefined && (typeof body.prompt !== 'string' || body.prompt.length > 500)) throw new Error('Voice style instructions must contain at most 500 characters.')
+  if (kind === 'video' && body.negative_prompt !== undefined && (typeof body.negative_prompt !== 'string' || body.negative_prompt.length > Math.min(32000, Number(s.constraints?.prompt_character_limit) || 2500))) throw new Error('The negative prompt exceeds this model’s character limit.')
   if (!['transcription','voice-conversion'].includes(kind) && ((s.min_prompt_length && prompt.length < s.min_prompt_length) || (s.prompt_character_limit && prompt.length > s.prompt_character_limit))) throw new Error(`The prompt for this model must contain ${s.min_prompt_length || 1} to ${s.prompt_character_limit || '∞'} characters.`)
   if (kind === 'music' || kind === 'sound-effects') {
     for (const [key, flag] of [['force_instrumental', 'supports_force_instrumental'], ['lyrics_prompt', 'supports_lyrics'], ['lyrics_optimizer', 'supports_lyrics_optimizer'], ['loop', 'supports_loop'], ['speed', 'supports_speed'], ['language_code', 'supports_language_code']] as const) {

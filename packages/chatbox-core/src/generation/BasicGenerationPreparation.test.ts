@@ -72,6 +72,16 @@ function createRequest(model = createModel()): GenerationPreparationRequest<Test
 }
 
 describe('BasicGenerationPreparation', () => {
+  it.each([false, true])('retains a resumed portable tool exchange only on explicit continuation (%s)', async resume => {
+    const request = createRequest()
+    request.messages[2].contentParts = [{ type: 'tool-call', state: 'result', toolCallId: 'search-1', toolName: 'web_search', args: { query: 'hello' }, result: { answer: 'Found the document' } }]
+    request.targetMessageIndex = 3
+    request.preserveLastPromptMessageToolCalls = resume
+    const prepared = await new BasicGenerationPreparation<TestContext>({ prepareTools: async () => ({ tools: { web_search: tool({ inputSchema: jsonSchema({ type: 'object' }) }) } }) }).prepare(request)
+    expect(JSON.stringify(prepared.coreMessages).includes('Found the document')).toBe(resume)
+    expect(request.messages[2].generating).toBe(true)
+  })
+
   it('uses shared context building and model conversion for persisted native attachments', async () => {
     const request = createRequest()
     const preparation = new BasicGenerationPreparation<TestContext>()

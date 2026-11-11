@@ -645,7 +645,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   {selectedProvider === ModelProviderEnum.Venice && <VeniceBalance />}
                   {selectedProvider === ModelProviderEnum.OpenAISubscription && <><ChatGPTAllowance compact /><Text size="xs" c="dimmed">{ft('ChatGPT Images lets the subscription backend choose the image model. Add a custom image model and select its endpoint to request a specific model ID.')}</Text></>}
                   <Button size="xs" variant="subtle" onClick={()=>setImageSettingsOpen(true)}>{ft('Image settings')}</Button>
-                  <AdaptiveModal opened={imageSettingsOpen} onClose={()=>setImageSettingsOpen(false)} title={ft('Image settings')} size="lg"><Stack>{selectedProvider===ModelProviderEnum.Venice&&<VeniceImageSettings/>}
+                  <AdaptiveModal opened={imageSettingsOpen} onClose={()=>setImageSettingsOpen(false)} title={ft('Image settings')} size="lg"><Stack>{selectedProvider===ModelProviderEnum.Venice&&<VeniceImageSettings model={selectedOption}/>}
 
                   {/* Toolbar Row */}
                   <Checkbox label={ft('Save new creations as protected')} checked={saveProtected} onChange={event=>setSaveProtected(event.currentTarget.checked)}/>

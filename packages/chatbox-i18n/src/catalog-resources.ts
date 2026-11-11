@@ -1,4 +1,13 @@
 export const catalogItalian={
+ 'Transparent background':'Sfondo trasparente',
+ 'Requires PNG or WebP. JPEG switches this option off.':'Richiede PNG o WebP. Il formato JPEG disattiva questa opzione.',
+ 'Voice style instructions':'Istruzioni sullo stile della voce',
+ 'Describe the tone, pace and emotion for the voice.':'Descrivi il tono, il ritmo e l’emozione della voce.',
+ 'For example: warm, calm and conversational.':'Per esempio: caldo, calmo e colloquiale.',
+ 'Optional negative prompt for the selected video model.':'Prompt negativo facoltativo per il modello video selezionato.',
+ 'Voice style instructions must contain at most 500 characters.':'Le istruzioni sullo stile della voce possono contenere al massimo 500 caratteri.',
+ 'The negative prompt exceeds this model’s character limit.':'Il prompt negativo supera il limite di caratteri del modello.',
+ 'Transparent backgrounds require a supporting model and PNG or WebP output.':'Lo sfondo trasparente richiede un modello compatibile e il formato PNG o WebP.',
  'References':'Riferimenti',
  'Style references':'Riferimenti di stile',
  'References guide the generated image. Choose an editing model to modify a source image.':'I riferimenti guidano l’immagine generata. Per modificare un’immagine di partenza, scegli un modello di editing.',

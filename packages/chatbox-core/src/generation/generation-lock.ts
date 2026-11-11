@@ -39,6 +39,13 @@ export function hasPendingSessionGeneration(sessionId: string): boolean {
   return sessionGenerationTails.has(sessionId)
 }
 
+/** A retry is a button action, not a queued submission. A second tap must never
+ * become another paid request after the current generation finishes. */
+export async function trySessionGenerationLock<T>(sessionId: string, task: () => Promise<T>): Promise<T | undefined> {
+  if (hasPendingSessionGeneration(sessionId)) return undefined
+  return withSessionGenerationLock(sessionId, task)
+}
+
 /** Includes accepted submission work before a generation runtime has been registered. */
 export async function waitForSessionGenerations(signal?: AbortSignal): Promise<void> {
   while (sessionGenerationTails.size) {

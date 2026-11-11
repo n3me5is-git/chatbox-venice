@@ -19,6 +19,7 @@ import { formatMCPError } from './error'
 import { mcpToolSchema } from './mcp-tool-schema'
 import { createMCPFetch, type MCPAuthorizationProvider, type MCPPlatformDependencies } from './platform'
 import type { MCPProtocolMode, MCPServerConfig, MCPServerStatus } from './types'
+import { flattenMCPToolGroups, type MCPToolGroup } from './tool-names'
 
 type TransportConfig = MCPServerConfig['transport']
 type ManagedTransport = { close(): Promise<void>; onclose?: () => void; onerror?: (error: Error) => void }
@@ -678,15 +679,14 @@ export function createMCPController(dependencies: MCPPlatformDependencies) {
     },
 
     getAvailableTools(serverIds?: ReadonlySet<string>): ToolSet {
-      const toolSet: ToolSet = {}
+      const groups: MCPToolGroup[] = []
       for (const { instance, config } of this.servers.values()) {
         if (serverIds && !serverIds.has(config.id)) continue
         const mcpTools = instance.getAvailableTools()
+        const tools: ToolSet = {}
         for (const [toolName, tool] of Object.entries(mcpTools)) {
           const rawExecute = tool.execute?.bind(tool)
-          const name = normalizeToolName(config.name, toolName)
-          if (name in toolSet) throw new Error(`MCP tool name collision: ${name}`)
-          toolSet[name] = {
+          tools[toolName] = {
             ...tool,
             execute: async (args, options) => {
               try {
@@ -706,20 +706,11 @@ export function createMCPController(dependencies: MCPPlatformDependencies) {
             },
           }
         }
+        groups.push({ serverId: config.id, server: config.name, tools })
       }
-      return toolSet
+      return flattenMCPToolGroups(groups)
     },
   }
 }
 
 export type MCPController = ReturnType<typeof createMCPController>
-
-const SERVER_NAME_REGEX = /^[A-Za-z0-9_-]+$/
-
-function normalizeToolName(serverName: string, toolName: string) {
-  serverName = serverName.replace(/\s+/g, '_')
-  if (SERVER_NAME_REGEX.test(serverName)) {
-    return `mcp__${serverName.toLowerCase()}__${toolName}`
-  }
-  return `mcp__${toolName}`
-}

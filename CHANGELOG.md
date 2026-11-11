@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.43.3
+
+See [release notes](docs/releases/v1.43.3.md). Adapts upstream reliability improvements to fork MCP routing, tool continuations and mobile networking, prevents duplicate retries, and adds model-aware Studio controls.
+
 ## 1.43.2
 
 See [release notes](docs/releases/v1.43.2.md). Adds explicit image-reference model controls and capability badges, preserves manual selections, and requires an explicit choice when a compatible variant changes or does not declare its privacy or protection level.

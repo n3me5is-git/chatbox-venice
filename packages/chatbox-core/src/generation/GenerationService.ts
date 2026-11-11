@@ -385,6 +385,18 @@ export class GenerationService<TContext> {
     return this.dependencies.sessions.readSessionMessages(request)
   }
 
+  /** Refresh only an unpinned setup snapshot, before any model request. Approved
+   * continuations and explicit context overrides must keep their revision guard. */
+  private async readInitialContext(request: SessionContextRequest): Promise<SessionContextSource | null> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.readContext(request)
+      } catch (error) {
+        if (!(error instanceof SessionRowConflictError) || request.expectedRevision !== undefined || attempt >= 2) throw error
+      }
+    }
+  }
+
   private async readTargetContext(sessionId: string, messageId: string): Promise<SessionContextSource | null> {
     try {
       return await this.readContext({ sessionId, targetMessageId: messageId })
@@ -517,7 +529,7 @@ export class GenerationService<TContext> {
           request.includeTarget = undefined
         }
       }
-      source = await this.readContext(request)
+      source = await this.readInitialContext(request)
       if (controller.signal.aborted) return finishCanceledSetup(Boolean(source))
       if (!source) {
         finishRuntime()
@@ -549,7 +561,6 @@ export class GenerationService<TContext> {
           await this.readMessages({
             sessionId,
             messageIds: [history.lastUserMessageId],
-            expectedRevision: source.revision ?? undefined,
           })
         )?.messages[0]
       }

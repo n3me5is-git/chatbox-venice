@@ -32,6 +32,10 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Concise user-facing release notes
+        run: node --test scripts/release-notes-policy.test.mjs
+      - name: Fork tool reliability, navigation and model-aware Studio controls
+        run: pnpm exec vitest run packages/chatbox-core/src/mcp/tool-names.test.ts src/renderer/packages/mcp/controller.test.ts packages/chatbox-core/src/generation/GenerationService.test.ts packages/chatbox-core/src/generation/BasicGenerationPreparation.test.ts packages/chatbox-core/src/generation/generation-lock.test.ts packages/chatbox-core/src/application/chat/ChatMessageService.test.ts src/shared/context/message-eligibility.test.ts src/shared/models/responses-tool-defaults.test.ts src/shared/models/utils/openai-tool-delta.test.ts src/shared/models/utils/openai-chat-sse-termination.test.ts src/shared/providers/definitions/glm-native-network.test.ts src/renderer/hooks/useSingleFlightAction.test.tsx src/renderer/stores/session/generation-locking.test.ts src/renderer/stores/atoms/sessionAtoms.test.ts src/renderer/components/session/SessionList.test.tsx src/renderer/components/settings/provider/VeniceImageSettings.test.tsx src/renderer/components/venice/VeniceStudio.test.tsx src/shared/providers/definitions/models/venice/studio-capabilities.test.ts
       - name: Image reference routing, library reuse and picker actions
         run: pnpm exec vitest run src/shared/providers/definitions/models/venice/image-reference-model.test.ts src/renderer/hooks/useReferenceModelSelection.test.tsx src/renderer/components/venice/ReferenceModelControl.test.tsx src/renderer/packages/local-image-reference.test.ts src/renderer/routes/image-creator/-hooks/useReferenceImageDraft.test.ts src/renderer/components/local-library/LocalMediaBrowser.test.tsx src/renderer/components/venice/VeniceImageApproval.test.tsx src/shared/providers/definitions/openai-subscription.test.ts
       - name: Encrypted archive relocation, recovery and row-store compatibility

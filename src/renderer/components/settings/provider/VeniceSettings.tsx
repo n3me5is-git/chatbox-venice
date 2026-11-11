@@ -2,6 +2,7 @@ import { VeniceSettingSelect as Select } from '@/components/venice/VeniceSetting
 import { E2EEToolSettings } from '@/components/venice/E2EEToolSettings'
 import { SecureReceiptSettings } from '@/components/venice/SecureReceiptSettings'
 import { effectiveTextPrivacy } from '@shared/providers/definitions/models/venice/privacy'
+import { imageStudioCapabilities } from '@shared/providers/definitions/models/venice/studio-capabilities'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
@@ -38,23 +39,25 @@ export function VeniceSearchSettings() {
     </Stack></Accordion.Panel></Accordion.Item></Accordion>
   </Stack>
 }
-export function VeniceImageSettings() {
+export function VeniceImageSettings({ model }: { model?: { modelId: string; vendorMetadata?: Record<string, unknown> } } = {}) {
   useTranslation()
   const { providerSettings, setProviderSettings } = useProviderSettings('venice')
   const options = providerSettings?.venice || {}; const image = options.image || {}
+  const controls = model ? imageStudioCapabilities(model) : undefined
   const update = (value: Partial<Options>) => setProviderSettings({ venice: { ...options, ...value } })
   const updateImage = (value: Partial<NonNullable<Options['image']>>) => update({ image: { ...image, ...value } })
   return <Accordion variant="contained" radius="md"><Accordion.Item value="venice-images"><Accordion.Control>{ft("Venice images")}</Accordion.Control><Accordion.Panel><Stack gap="sm">
     <Switch label={ft("Filter sensitive content")} checked={options.imageSafeMode ?? true} onChange={e => update({ imageSafeMode: e.currentTarget.checked })} />
     <Switch label={ft("Use web images as references")} checked={options.imageWebSearch ?? false} onChange={e => update({ imageWebSearch: e.currentTarget.checked })} />
     <SimpleGrid cols={{ base: 1, sm: 2 }}>
-      <Select comboboxProps={{withinPortal:false}} label={ft("File format")} allowDeselect={false} value={image.format ?? 'png'} data={[{ value: 'png', label: 'PNG' }, { value: 'jpeg', label: 'JPEG' }, { value: 'webp', label: 'WebP' }]} onChange={value => updateImage({ format: value as 'png' | 'jpeg' | 'webp' })} />
+      <Select comboboxProps={{withinPortal:false}} label={ft("File format")} allowDeselect={false} value={image.format ?? 'png'} data={[{ value: 'png', label: 'PNG' }, { value: 'jpeg', label: 'JPEG' }, { value: 'webp', label: 'WebP' }]} onChange={value => updateImage({ format: value as 'png' | 'jpeg' | 'webp', ...(value === 'jpeg' ? { transparent_background: false } : {}) })} />
       <Select comboboxProps={{withinPortal:false}} label={ft("Resolution")} placeholder={ft("Recommended by the model")} clearable value={image.resolution ?? null} data={[{ value: '1K', label: 'Standard · 1K' }, { value: '2K', label: ft("High · 2K") }, { value: '4K', label: ft("Very high · 4K") }]} onChange={value => updateImage({ resolution: value || undefined })} />
       <Select comboboxProps={{withinPortal:false}} label={ft("Quality")} placeholder={ft("Recommended by the model")} clearable value={image.quality ?? null} data={[{ value: 'low', label: ft("Fast") }, { value: 'medium', label: ft("Balanced") }, { value: 'high', label: ft("Maximum") }]} onChange={value => updateImage({ quality: value as 'low' | 'medium' | 'high' || undefined })} />
     </SimpleGrid>
     <Text size="xs" c="dimmed">{ft("Available options and costs depend on the selected model. Images and history are saved on this device.")}</Text>
+    {controls?.transparentBackground && <Switch label={ft('Transparent background')} description={ft('Requires PNG or WebP. JPEG switches this option off.')} checked={image.transparent_background ?? false} onChange={event => updateImage({ transparent_background: event.currentTarget.checked, ...(event.currentTarget.checked && image.format === 'jpeg' ? { format: 'png' } : {}) })} />}
     <Accordion variant="default"><Accordion.Item value="advanced"><Accordion.Control>{ft("Advanced image options")}</Accordion.Control><Accordion.Panel><Stack gap="sm">
-      <Textarea label={ft("Elements to avoid")} placeholder={ft("For example: text, blur, background objects…")} value={image.negative_prompt ?? ''} onChange={e => updateImage({ negative_prompt: e.currentTarget.value || undefined })} />
+      {controls?.negativePrompt !== false && <Textarea label={ft("Elements to avoid")} placeholder={ft("For example: text, blur, background objects…")} value={image.negative_prompt ?? ''} onChange={e => updateImage({ negative_prompt: e.currentTarget.value || undefined })} />}
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         <TextInput label={ft("Custom style")} value={image.style_preset ?? ''} onChange={e => updateImage({ style_preset: e.currentTarget.value || undefined })} />
         <NumberInput label={ft("Exact width (pixels)")} placeholder={ft("Automatic")} min={64} max={4096} step={64} value={image.width ?? ''} onChange={value => updateImage({ width: typeof value === 'number' ? value : undefined })} />
@@ -65,7 +68,7 @@ export function VeniceImageSettings() {
       </SimpleGrid>
       <Text size="xs" c="dimmed">{ft("Choose exact dimensions or an aspect ratio in the generator toolbar.")}</Text>
       <Switch label={ft("Enhance the prompt automatically (may cost extra)")} checked={image.enhance_prompt ?? false} onChange={e => updateImage({ enhance_prompt: e.currentTarget.checked })} />
-      <Switch label={ft("Hide watermark")} checked={image.hide_watermark ?? false} onChange={e => updateImage({ hide_watermark: e.currentTarget.checked })} />
+      {controls?.hideWatermark !== false && <Switch label={ft("Hide watermark")} checked={image.hide_watermark ?? false} onChange={e => updateImage({ hide_watermark: e.currentTarget.checked })} />}
       <Switch label={ft("Save prompt in image metadata")} checked={image.embed_exif_metadata ?? false} onChange={e => updateImage({ embed_exif_metadata: e.currentTarget.checked })} />
       <Text size="xs" c="dimmed">{ft("Anyone who receives the file can read its metadata. Prompt metadata stays off until you enable it.")}</Text>
     </Stack></Accordion.Panel></Accordion.Item></Accordion>

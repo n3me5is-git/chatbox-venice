@@ -16,6 +16,7 @@ import {
 } from '@chatbox/core/session/mode-policy'
 import type { PromptCacheDeleteTarget } from '@chatbox/core/session/prompt-cache-policy'
 import NiceModal from '@ebay/nice-modal-react'
+import { useSingleFlightAction } from '@/hooks/useSingleFlightAction'
 import { ActionIcon, type ActionIconProps, Anchor, Button, Flex, Loader, Modal, Stack, Text } from '@mantine/core'
 import { Box, Grid, useTheme } from '@mui/material'
 import { TestId } from '@shared/automation/testids'
@@ -269,7 +270,8 @@ const _Message: FC<Props> = (props) => {
     [t]
   )
 
-  const handleRefresh = useCallback(async () => {
+  const { pending: retryPending, run: runRetry } = useSingleFlightAction()
+  const handleRefresh = useCallback(() => runRetry(async () => {
     const gate = getSessionActionGate('regenerate', sessionLocks)
     if (!gate.allowed) {
       notifyActionBlocked(gate.reason)
@@ -277,7 +279,7 @@ const _Message: FC<Props> = (props) => {
     }
     if (!(await handleStop())) return
     await regenerateInNewFork(sessionId, msg)
-  }, [sessionLocks, handleStop, msg, notifyActionBlocked, sessionId])
+  }), [runRetry, sessionLocks, handleStop, msg, notifyActionBlocked, sessionId])
 
   // Tracking is best-effort and must never block or break the accept/decline
   // action, so this fetches the session on its own and swallows failures.
@@ -357,7 +359,7 @@ const _Message: FC<Props> = (props) => {
     await handleRefresh()
   }, [handleRefresh])
 
-  const handleRetryLastStep = useCallback(async () => {
+  const handleRetryLastStep = useCallback(() => runRetry(async () => {
     if (!lastStepForRetry) return
     const gate = getSessionActionGate('regenerate', sessionLocks)
     if (!gate.allowed) {
@@ -366,20 +368,15 @@ const _Message: FC<Props> = (props) => {
     }
     setRetryChoiceOpened(false)
     await retryFromLastToolCallAfterApiError(sessionId, msg.id, lastStepForRetry.toolCallId)
-  }, [sessionLocks, lastStepForRetry, msg.id, notifyActionBlocked, sessionId])
+  }), [runRetry, sessionLocks, lastStepForRetry, msg.id, notifyActionBlocked, sessionId])
 
   const handleErrorTipRetry = useCallback(async () => {
     if (lastStepForRetry) {
-      const gate = getSessionActionGate('regenerate', sessionLocks)
-      if (!gate.allowed) {
-        notifyActionBlocked(gate.reason)
-        return
-      }
-      await retryFromLastToolCallAfterApiError(sessionId, msg.id, lastStepForRetry.toolCallId)
+      await handleRetryLastStep()
       return
     }
     await handleRefresh()
-  }, [sessionLocks, handleRefresh, lastStepForRetry, msg.id, notifyActionBlocked, sessionId])
+  }, [handleRetryLastStep, handleRefresh, lastStepForRetry])
 
   const handleMessageRetry = useCallback(async () => {
     if (lastStepForRetry) {
@@ -688,10 +685,10 @@ const _Message: FC<Props> = (props) => {
             !msg.generating &&
               msg.role === 'assistant' && {
                 text: t('Reply Again'),
-                icon: IconReload,
+                icon: retryPending ? IconLoader2 : IconReload,
                 testId: TestId.message.actionMenuRetry,
                 onClick: handleRefresh,
-                disabled: generationLocked && !isSmallScreen,
+                disabled: retryPending || (generationLocked && !isSmallScreen),
               },
             canReplyBelow &&
               msg.role !== 'assistant' && {
@@ -773,6 +770,7 @@ const _Message: FC<Props> = (props) => {
       onViewMessageJson,
       isSmallScreen,
       handleRefresh,
+      retryPending,
       msg.generating,
       onGenerateMore,
       onEditClick,
@@ -1203,10 +1201,11 @@ const _Message: FC<Props> = (props) => {
         {!msg.generating && msg.role === 'assistant' && (
           <MessageActionIcon
             testId={TestId.message.actionBarRetry}
-            icon={IconReload}
+            icon={retryPending ? IconLoader2 : IconReload}
+            iconClassName={retryPending ? 'animate-spin' : undefined}
             tooltip={generationLocked ? getSessionLockNotice('generating', t) : t('Reply Again')}
             onClick={handleMessageRetry}
-            disabled={generationLocked && !isSmallScreen}
+            disabled={retryPending || (generationLocked && !isSmallScreen)}
           />
         )}
         {canReplyBelow && msg.role !== 'assistant' && (
