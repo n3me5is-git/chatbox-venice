@@ -41,6 +41,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Verify effective build heap
+        run: pnpm exec node --test scripts/build-memory.test.mjs
       - run: pnpm build
       - name: Compile native Windows Hello helper
         run: ./scripts/build-windows-security.ps1
@@ -100,6 +102,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Verify effective build heap
+        run: pnpm exec node --test scripts/build-memory.test.mjs
       - run: pnpm build:renderer
       - uses: actions/upload-artifact@v4
         with:
