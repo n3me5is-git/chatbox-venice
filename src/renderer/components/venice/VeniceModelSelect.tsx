@@ -22,7 +22,7 @@ export function VeniceModelOption({ model }: { model: MediaCatalogItem }) {
     <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>{model.model_spec?.name || model.id}</Text>
     <Text size="xs" c="dimmed">{variant ? ft(variant) : mediaCategories(model).map(category => ft(categoryLabels[category] || category)).join(' · ')}</Text>
     <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>{model.id}</Text>
-    <Group gap="xs"><VeniceModelBadges metadata={model.model_spec} showUnknown /><VeniceModelCost model={model} /></Group>
+    <Group gap="xs"><VeniceModelBadges metadata={{...model.model_spec,veniceType:model.type}} showUnknown /><VeniceModelCost model={model} /></Group>
   </Stack>
 }
 

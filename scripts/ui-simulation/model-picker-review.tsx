@@ -9,6 +9,22 @@ import { MobileModelDrawer } from '../../src/renderer/routes/image-creator/-comp
 import { videoWorkflows } from '../../src/shared/providers/definitions/models/venice/media-capabilities'
 import { SidebarTools } from '../../src/renderer/components/layout/SidebarTools'
 import { ModelRow } from '../../src/renderer/components/ModelSelectorV2/ModelRow'
+import { ReferenceModelControl } from '../../src/renderer/components/venice/ReferenceModelControl'
+import { useReferenceModelSelection } from '../../src/renderer/hooks/useReferenceModelSelection'
+import { acceptsImageReferences } from '../../src/shared/providers/definitions/models/venice/image-reference-model'
+const referenceRows=[{modelId:'reference-choice',displayName:'Private source model',vendorMetadata:{veniceType:'image',privacy:'private',pricing:{generation:{usd:0.02}}},capabilities:{aspectRatio:null,inputReferences:null}},{modelId:'reference-choice-edit',displayName:'Anonymized reference editor',vendorMetadata:{veniceType:'inpaint',privacy:'anonymized',constraints:{maxInputImages:3},pricing:{inpaint:{usd:0.04}}},capabilities:{aspectRatio:null,inputReferences:{min:1,max:3}}}]
+function ReferenceChoiceFixture(){
+ const [id,setId]=useState('reference-choice'),[automatic,setAutomatic]=useState(true),[picker,setPicker]=useState(false)
+ const selection=useReferenceModelSelection({models:referenceRows,selectedId:id,count:1,automatic,onSelect:setId})
+ const manual=(next:string)=>{setAutomatic(false);setId(next)}
+ ;(window as any).__referenceChoice={id,automatic,compatible:selection.compatible}
+ return <>
+   <ReferenceModelControl model={referenceRows.find(row=>row.modelId===id)} count={1} automatic={automatic} onAutomaticChange={setAutomatic} compatible={selection.compatible} privacyChange={selection.privacyChange} onChoose={()=>setPicker(true)}/>
+   <Button disabled={!selection.compatible} onClick={()=>{(window as any).__referenceFixtureGenerated=((window as any).__referenceFixtureGenerated||0)+1}}>Generate reference fixture</Button>
+   <Button onClick={()=>manual('reference-choice')}>Select base model manually</Button>
+   <MobileModelDrawer open={picker} onOpenChange={setPicker} modelGroups={[{providerId:'venice',label:'Venice',models:referenceRows.filter(row=>acceptsImageReferences(row,1))}]} selectedProvider="venice" selectedModel={id} onSelect={(_provider,next)=>manual(next)}/>
+ </>
+}
 const images = fixture.models.filter(model => ['image','inpaint'].includes(model.type)).map(model => ({ modelId: model.id, displayName: model.model_spec.name || model.id, vendorMetadata: { ...model.model_spec, veniceType: model.type } }))
 const groups = [{ providerId: 'venice', label: 'Venice', models: images }]
 const allGroups=[...groups,...['OpenAI','OpenAI Sub Unofficial','Custom image provider'].map((label,index)=>({providerId:'fixture-'+index,label,isCustom:true,models:Array.from({length:85},(_,n)=>({modelId:'provider-'+index+'-image-'+n,displayName:label+' image '+n}))}))]
@@ -22,6 +38,7 @@ export function ModelPickerReviewSimulation() {
   const [selected, setSelected] = useState(images[0].modelId)
   const [allOpen,setAllOpen]=useState(false)
   const [toolsRevision,setToolsRevision]=useState(0)
+  const [referenceOpen,setReferenceOpen]=useState(false)
   const pick = (provider: string, model: string) => { setSelected(model); (window as any).__longImageSelection = model;(window as any).__nativeImageSelection={provider,model} }
   ;(window as any).__pickerFixture = { imageIds: images.map(row => row.modelId), videoIds: videos.map(row => row.id),workflows:Object.fromEntries(['text','image','references','edit'].map(workflow=>[workflow,videos.filter(model=>videoWorkflows(model).includes(workflow as any)).map(model=>model.id)])) }
   return <>
@@ -34,6 +51,8 @@ export function ModelPickerReviewSimulation() {
     <Button m="sm" onClick={() => setImagesOpen(true)}>Test long image model list</Button>
     <Button m="sm" onClick={() => setStudio(true)}>Test long Studio model list</Button>
     <Button m="sm" onClick={()=>setAllOpen(true)}>Test all image providers</Button>
+    <Button m="sm" onClick={()=>setReferenceOpen(true)}>Test explicit reference choice</Button>
+    <AdaptiveModal opened={referenceOpen} onClose={()=>setReferenceOpen(false)} title="Reference privacy choice" size="lg">{referenceOpen&&<ReferenceChoiceFixture/>}<Button onClick={()=>setReferenceOpen(false)}>Close reference choice</Button></AdaptiveModal>
     <ImageModelSelect modelGroups={groups} onSelect={pick}><span>Test desktop image model list</span></ImageModelSelect>
     <MobileModelDrawer open={imagesOpen} onOpenChange={setImagesOpen} modelGroups={groups} selectedModel={selected} selectedProvider="venice" onSelect={pick}/>
     <MobileModelDrawer open={allOpen} onOpenChange={setAllOpen} modelGroups={allGroups} selectedModel={selected} selectedProvider="venice" onSelect={pick}/>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { referenceImageModel, sameImageFamily } from './image-reference-model'
+import { referenceImageModel, sameImageFamily, canAutoSelectReferenceModel } from './image-reference-model'
 import { buildVeniceImageRequest, getVeniceImageCapabilities } from './image-request'
 
 const pair=(base:string,edit:string,max:number)=>[
@@ -9,6 +9,14 @@ const pair=(base:string,edit:string,max:number)=>[
 const families=[['qwen-image','qwen-edit-uncensored',3],['qwen-image-2-1-pro','qwen-image-2-1-pro-edit',10],['seedream-v5-5','seedream-v5-5-edit',10],['gpt-image-2-5-flare','gpt-image-2-5-flare-edit',6],['wan-2-7-pro-text-to-image','wan-2-7-pro-edit',6],['minimax-h3-image','minimax-h3-image-edit',16]] as const
 
 describe('catalog-backed reference variants',()=>{
+ it('requires an explicit choice for different/unknown privacy, TEE, E2EE or filter flags',()=>{
+   const model=(metadata:Record<string,unknown>)=>({modelId:'model',vendorMetadata:metadata})
+   expect(canAutoSelectReferenceModel(model({privacy:'private'}),model({privacy:'private'}))).toBe(true)
+   expect(canAutoSelectReferenceModel(model({privacy:'anonymized'}),model({privacy:'anonymous'}))).toBe(true)
+   for(const [before,after] of [[{privacy:'private'},{privacy:'anonymized'}],[{privacy:'anonymized'},{privacy:'private'}],[{},{}],[{privacy:'private'},{}],[{privacy:'unknown'},{privacy:'unknown'}],[{privacy:'private',capabilities:{supportsE2EE:true}},{privacy:'private'}],[{privacy:'private',capabilities:{supportsTeeAttestation:true}},{privacy:'private'}],[{privacy:'private',uncensored:true},{privacy:'private',uncensored:false}],[{privacy:'private',uncensored:true},{privacy:'private'}]] as [Record<string,unknown>,Record<string,unknown>][]){
+     expect(canAutoSelectReferenceModel(model(before),model(after)),JSON.stringify([before,after])).toBe(false)
+   }
+ })
  it.each(families)('selects the exact %s reference variant before approval', (base,edit,max)=>{
    const models=pair(base,edit,max)
    expect(sameImageFamily(base,edit)).toBe(true)

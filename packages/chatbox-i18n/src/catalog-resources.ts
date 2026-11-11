@@ -1,4 +1,13 @@
 export const catalogItalian={
+ 'References':'Riferimenti',
+ 'Model for attached images':'Modello per le immagini allegate',
+ 'Choose reference model':'Scegli il modello per i riferimenti',
+ 'Automatically select a compatible variant':'Seleziona automaticamente una variante compatibile',
+ 'Automatic selection requires the same declared privacy, protection and filtering. Manual choices are kept.':'La selezione automatica richiede gli stessi livelli dichiarati di privacy, protezione e filtri. Le scelte manuali vengono mantenute.',
+ 'The compatible variant has different or undeclared privacy, protections or filtering. Choose its model explicitly before generating.':'La variante compatibile ha privacy, protezioni o filtri diversi oppure non dichiarati. Scegli esplicitamente il modello prima di generare.',
+ 'Privacy not declared':'Privacy non dichiarata',
+ 'The provider has not declared the privacy level of this model.':'Il provider non ha dichiarato il livello di privacy di questo modello.',
+ 'Choose a model that accepts all attached images before generating.':'Prima di generare, scegli un modello che accetti tutte le immagini allegate.',
  'Wait until the reference images have finished loading':'Attendi il completamento del caricamento delle immagini di riferimento',
  'Additional reference images':'Immagini di riferimento aggiuntive',
  'The source image counts as one reference. Select a model that supports all attached images.':'L’immagine di partenza conta come un riferimento. Scegli un modello che supporti tutte le immagini allegate.',

@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.43.2
+
+See [release notes](docs/releases/v1.43.2.md). Adds explicit image-reference model controls and capability badges, preserves manual selections, and requires an explicit choice when a compatible variant changes or does not declare its privacy or protection level.
+
 ## 1.43.1
 
 See [release notes](docs/releases/v1.43.1.md). Fixes image-reference variant selection, reuses local library images after a SHA-256 check, and adds insertion actions at both ends of the media picker. Extends multiple-reference requests for OpenAI Sub Unofficial.

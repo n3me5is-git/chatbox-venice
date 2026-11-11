@@ -15,7 +15,9 @@ import type { ImageChoice } from '@shared/providers/definitions/models/venice/im
 import { VeniceModelBadges } from './VeniceModelBadges'
 import {VeniceModelCost} from './VeniceModelCost'
 import { VeniceModelInfo } from './VeniceModelInfo'
-import { referenceImageModel } from '@shared/providers/definitions/models/venice/image-reference-model'
+import { referenceImageModel, acceptsImageReferences } from '@shared/providers/definitions/models/venice/image-reference-model'
+import { useReferenceModelSelection } from '@/hooks/useReferenceModelSelection'
+import { ReferenceModelControl } from './ReferenceModelControl'
 import { reusableLocalImageKey } from '@/packages/local-image-reference'
 export const VeniceImageApproval = NiceModal.create(({ models, request, signal, sessionId }: { models: ImageModelOption[]; request: { modelId?: string; prompt: string; count: number; message?: string }; signal?: AbortSignal; sessionId?: string }) => {
   useTranslation()
@@ -24,11 +26,13 @@ export const VeniceImageApproval = NiceModal.create(({ models, request, signal, 
   usePrivacyDismiss(modal,null)
   const [safeMode, setSafeMode] = useState('default'); const [format, setFormat] = useState('default'); const [seed, setSeed] = useState<number | string>(''); const [extra, setExtra] = useState('')
   const [prompt, setPrompt] = useState(request.prompt); const [count, setCount] = useState(request.count); const [ratio, setRatio] = useState('auto'); const [files, setFiles] = useState<File[]>([]); const [error, setError] = useState('')
+  const [automaticModel,setAutomaticModel]=useState(true)
   const model = models.find(m => m.modelId === modelId); const limits = model?.capabilities?.inputReferences
   const availableReferences=limits||referenceImageModel(models,modelId,1)?.capabilities?.inputReferences
-  const chooseModel=(id:string)=>setModelId((referenceImageModel(models,id,files.length)||models.find(row=>row.modelId===id))?.modelId||id)
-  const chooseFiles=(next:File[])=>{setFiles(next);const compatible=referenceImageModel(models,modelId,next.length);if(compatible)setModelId(compatible.modelId)}
-  useEffect(() => { setModelId(request.modelId || ''); setPrompt(request.prompt); setCount(request.count); setRatio('auto'); setFiles([]); setError(''); setSafeMode('default'); setFormat('default'); setSeed(''); setExtra(''); setApprovalMode(sessionId ? sessionApprovals.mode(sessionId) : 'ask') }, [request, sessionId])
+  const chooseModel=(id:string)=>{setAutomaticModel(false);setModelId(id)}
+  const selection=useReferenceModelSelection({models,selectedId:modelId,count:files.length,automatic:automaticModel,onSelect:setModelId})
+  const chooseFiles=(next:File[])=>setFiles(next)
+  useEffect(() => { setAutomaticModel(true);setModelId(request.modelId || ''); setPrompt(request.prompt); setCount(request.count); setRatio('auto'); setFiles([]); setError(''); setSafeMode('default'); setFormat('default'); setSeed(''); setExtra(''); setApprovalMode(sessionId ? sessionApprovals.mode(sessionId) : 'ask') }, [request, sessionId])
   const cancel = () => { modal.resolve(null); modal.hide() }
   useEffect(() => { const abort = () => cancel(); if (signal?.aborted) abort(); signal?.addEventListener('abort', abort, { once: true }); return () => signal?.removeEventListener('abort', abort) }, [signal])
   const confirm = async () => {
@@ -48,12 +52,15 @@ export const VeniceImageApproval = NiceModal.create(({ models, request, signal, 
     <VeniceModelBadges metadata={model?.vendorMetadata} />{model&&<VeniceModelCost metadata={model.vendorMetadata} showLabel/>}<VeniceModelInfo model={model ? { id: model.modelId, type: String(model.vendorMetadata?.veniceType || 'image'), model_spec: model.vendorMetadata } : undefined} />
     <Textarea label={ft("Prompt to send")} autosize minRows={3} value={prompt} onChange={e => setPrompt(e.currentTarget.value)} />
     <Group grow><NumberInput label={ft("Number of images")} min={1} max={4} value={count} onChange={value => setCount(Math.min(4, Math.max(1, Number(value) || 1)))} /><Select label={ft("Aspect ratio")} comboboxProps={{ withinPortal: false }} allowDeselect={false} value={ratio} data={['auto', ...(model?.capabilities?.aspectRatio?.values || []).filter(value => value !== 'auto')]} onChange={value => setRatio(value || 'auto')} /></Group>
-    {availableReferences && <FileInput cropImages multiple clearable label={ft("Images to edit or use as references")} description={ft("From {{min}} to {{max}} images", {min:limits?.min||0,max:availableReferences.max||1})} accept="image/png,image/jpeg,image/webp" value={files} onChange={chooseFiles} />}
+    {(availableReferences||files.length>0) && <FileInput cropImages multiple clearable label={ft("Images to edit or use as references")} description={ft("From {{min}} to {{max}} images", {min:limits?.min||0,max:availableReferences?.max||16})} accept="image/png,image/jpeg,image/webp" value={files} onChange={chooseFiles} />}
+    <ReferenceModelControl model={model} count={files.length} automatic={automaticModel} onAutomaticChange={setAutomaticModel} compatible={selection.compatible} privacyChange={selection.privacyChange}>
+      <VeniceModelSelect label={ft('Choose reference model')} value={modelId||null} models={models.filter(row=>acceptsImageReferences(row,files.length)).map(row=>({id:row.modelId,type:String(row.vendorMetadata?.veniceType||'image'),model_spec:{...row.vendorMetadata,name:row.displayName}}))} onChange={value=>value&&chooseModel(value)}/>
+    </ReferenceModelControl>
     {files.length>0&&<Text size="xs" c="dimmed">{ft('The selected model and price apply to this reference-based generation.')}</Text>}
     <Group grow><Select label={ft("Content filter")} comboboxProps={{ withinPortal: false }} allowDeselect={false} value={safeMode} data={[{ value: 'default', label: ft("Model settings") }, { value: 'on', label: ft("On") }, { value: 'off', label: ft("Off") }]} onChange={value => setSafeMode(value || 'default')} /><Select label={ft("Image format")} comboboxProps={{ withinPortal: false }} allowDeselect={false} value={format} data={[{ value: 'default', label: ft("Default") }, { value: 'png', label: 'PNG' }, { value: 'jpeg', label: 'JPEG' }, { value: 'webp', label: 'WebP' }]} onChange={value => setFormat(value || 'default')} /></Group>
     <Accordion><Accordion.Item value="call"><Accordion.Control>{ft("Parameters for this call")}</Accordion.Control><Accordion.Panel><Stack gap="sm"><Text size="xs" c="dimmed">{ft("Only this call is changed. Empty fields keep the model defaults.")}</Text>{model?.vendorMetadata?.veniceType !== 'inpaint' && <NumberInput label={ft("Seed for this generation")} value={seed} onChange={setSeed} />}<Textarea label={ft("Extra parameters for this call (JSON)")} value={extra} onChange={e => setExtra(e.currentTarget.value)} autosize minRows={2} /></Stack></Accordion.Panel></Accordion.Item></Accordion>
     <Text size="sm">{ft("You authorize {{count}} paid generations with the selected model. Content is sent to Venice.", {count})}</Text>
     {sessionId && <ApprovalModeOptions value={approvalMode} onChange={setApprovalMode} />}
-    {error && <Alert color="red">{ft(error)}</Alert>}<Group justify="end"><Button variant="default" onClick={cancel}>{ft("Cancel")}</Button><Button disabled={!model || !prompt.trim()} onClick={() => void confirm()}>{ft("Confirm and generate")}</Button></Group>
+    {error && <Alert color="red">{ft(error)}</Alert>}<Group justify="end"><Button variant="default" onClick={cancel}>{ft("Cancel")}</Button><Button disabled={!model || !prompt.trim() || !selection.compatible} onClick={() => void confirm()}>{ft("Confirm and generate")}</Button></Group>
   </Stack></AdaptiveModal>
 })
