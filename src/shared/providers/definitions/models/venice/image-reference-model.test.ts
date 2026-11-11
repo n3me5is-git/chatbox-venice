@@ -40,5 +40,8 @@ describe('catalog-backed reference variants',()=>{
    const style={modelId:'style',vendorMetadata:{veniceType:'image',supportsStyleReferences:true,constraints:{maxStyleReferences:2}}}
    expect(buildVeniceImageRequest(style,{},{prompt:'p',images:[{imageUrl:'data:image/png;base64,YQ=='}]})).toMatchObject({path:'/image/generate',request:{model:'style',style_references:[{image:'data:image/png;base64,YQ=='}]}})
    expect(getVeniceImageCapabilities({modelId:'luma-uni-1-edit',vendorMetadata:{veniceType:'inpaint',constraints:{combineImages:false}}}).inputReferences).toEqual({min:1,max:1})
+   const option={...style,capabilities:getVeniceImageCapabilities(style)}
+   const editor={modelId:'style-edit',vendorMetadata:{veniceType:'inpaint'},capabilities:getVeniceImageCapabilities({modelId:'style-edit',vendorMetadata:{veniceType:'inpaint',constraints:{maxInputImages:2}}})}
+   expect(referenceImageModel([option,editor],'style',2)?.modelId).toBe('style')
  })
 })

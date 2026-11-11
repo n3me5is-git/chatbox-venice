@@ -17,7 +17,7 @@ it('shows the selected endpoint, privacy and explicit chooser, and never approve
 })
 it('distinguishes style references from editing and uses the catalog input limit',()=>{
  const {rerender}=render(<MantineProvider><ImageCapabilityBadges metadata={{veniceType:'image',supportsStyleReferences:true,constraints:{maxStyleReferences:6}}}/></MantineProvider>)
- expect(screen.getByText(/References/)).toBeTruthy();expect(screen.queryByText('Image editing')).toBeNull()
+ expect(screen.getByText(/Style references/)).toBeTruthy();expect(screen.queryByText('Image editing')).toBeNull()
  rerender(<MantineProvider><ImageCapabilityBadges metadata={{veniceType:'inpaint',constraints:{maxInputImages:16}}}/></MantineProvider>)
  expect(screen.getByText(/References/).textContent).toContain('16');expect(screen.getByText('Image editing')).toBeTruthy()
 })

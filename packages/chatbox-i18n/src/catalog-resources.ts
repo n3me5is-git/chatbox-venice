@@ -1,5 +1,7 @@
 export const catalogItalian={
  'References':'Riferimenti',
+ 'Style references':'Riferimenti di stile',
+ 'References guide the generated image. Choose an editing model to modify a source image.':'I riferimenti guidano l’immagine generata. Per modificare un’immagine di partenza, scegli un modello di editing.',
  'Model for attached images':'Modello per le immagini allegate',
  'Choose reference model':'Scegli il modello per i riferimenti',
  'Automatically select a compatible variant':'Seleziona automaticamente una variante compatibile',

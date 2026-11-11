@@ -17,6 +17,7 @@ export function ReferenceModelControl({model,count,automatic,onAutomaticChange,c
       {model&&<Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{model.modelId}</Text>}
     </Stack>{onChoose&&<Button size="xs" variant="light" onClick={onChoose}>{ft('Choose reference model')}</Button>}</Group>
     {model&&<><VeniceModelBadges metadata={model.vendorMetadata}/>{!model.vendorMetadata?.veniceType&&<ImageCapabilityBadges capabilities={model.capabilities} editing={editing}/>}{model.vendorMetadata?.veniceType&&<VeniceModelCost metadata={model.vendorMetadata} showLabel/>}</>}
+    {model?.vendorMetadata?.veniceType==='image'&&model.capabilities?.inputReferences&&<Text size="xs" c="dimmed">{ft('References guide the generated image. Choose an editing model to modify a source image.')}</Text>}
     {onAutomaticChange&&<Switch size="sm" aria-label={ft('Automatically select a compatible variant')} label={ft('Automatically select a compatible variant')} description={ft('Automatic selection requires the same declared privacy, protection and filtering. Manual choices are kept.')} checked={automatic===true} onChange={event=>onAutomaticChange(event.currentTarget.checked)}/>}
     {!compatible&&<Alert color="yellow" p="xs">{ft(privacyChange?'The compatible variant has different or undeclared privacy, protections or filtering. Choose its model explicitly before generating.':'Choose a model that accepts all attached images before generating.')}</Alert>}
     {children}
