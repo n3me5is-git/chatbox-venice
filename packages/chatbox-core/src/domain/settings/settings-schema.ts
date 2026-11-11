@@ -67,6 +67,7 @@ export const VeniceProfileSchema = z.object({
       style_preset: z.string().optional(),
       enhance_prompt: z.boolean().optional(),
       hide_watermark: z.boolean().optional(),
+      transparent_background: z.boolean().optional(),
       embed_exif_metadata: z.boolean().optional(),
     }).optional().catch(undefined),
   })

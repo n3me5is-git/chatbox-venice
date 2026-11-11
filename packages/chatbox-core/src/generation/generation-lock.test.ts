@@ -4,9 +4,22 @@ import {
   resetSessionGenerationLocksForTests,
   waitForSessionGenerations,
   withSessionGenerationLock,
+  trySessionGenerationLock,
 } from './generation-lock'
 
 describe('session generation lock', () => {
+  it('drops retries while a submission owns the turn, but allows another session', async () => {
+    let finish = () => {}
+    const active = withSessionGenerationLock('same', () => new Promise<void>(resolve => { finish = resolve }))
+    const retry = vi.fn(async () => {})
+    await expect(trySessionGenerationLock('same', retry)).resolves.toBeUndefined()
+    expect(retry).not.toHaveBeenCalled()
+    await trySessionGenerationLock('other', retry)
+    expect(retry).toHaveBeenCalledOnce()
+    await Promise.resolve(); finish(); await active
+    await trySessionGenerationLock('same', retry)
+    expect(retry).toHaveBeenCalledTimes(2)
+  })
   it('cancels waiting while accepted submission work keeps running', async () => {
     let finish = () => {}
     const active = withSessionGenerationLock(

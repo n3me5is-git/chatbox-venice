@@ -31,6 +31,7 @@ import {
 import { createModelMessageTokenCounter, estimateModelMessagesTokens, textTokenCounter } from './mid-run-compaction'
 import { estimateToolDefinitionTokens } from './request-overhead'
 import { GenerationRuntimeStore } from './runtime-store'
+import { SessionRowConflictError } from '../ports/session-row-store'
 
 type ModelContext = { host: 'test' }
 
@@ -533,6 +534,37 @@ function thresholdBudget(thresholdTokens: number): CompactionBudget {
 }
 
 describe('generation context sources', () => {
+  it.each([1, 2])('refreshes an unpinned setup after %s concurrent commits and generates once', async conflicts => {
+    const harness = createHarness()
+    const original = harness.sessions.getSessionContextSource
+    const reads = vi.spyOn(harness.sessions, 'getSessionContextSource')
+    for (let i = 0; i < conflicts; i++) reads.mockRejectedValueOnce(new SessionRowConflictError('session-1', 1, 2))
+    reads.mockImplementation(original)
+    let requests = 0
+    harness.setStreamFactory(() => { requests++; return stream([]) })
+    await harness.service.orchestrate('session-1', targetMessage())
+    expect(reads).toHaveBeenCalledTimes(conflicts + 1)
+    expect(requests).toBe(1)
+  })
+
+  it('bounds setup retries and never repeats a non-conflict failure', async () => {
+    for (const error of [new SessionRowConflictError('session-1', 1, 2), new Error('Archive is unavailable')]) {
+      const harness = createHarness()
+      const reads = vi.spyOn(harness.sessions, 'getSessionContextSource').mockRejectedValue(error)
+      await expect(harness.service.orchestrate('session-1', targetMessage())).rejects.toBe(error)
+      expect(reads).toHaveBeenCalledTimes(error instanceof SessionRowConflictError ? 3 : 1)
+      expect(harness.preparedRequests).toHaveLength(0)
+    }
+  })
+
+  it('does not refresh a context override pinned to its original revision', async () => {
+    const harness = createHarness()
+    const reads = vi.spyOn(harness.sessions, 'getSessionContextSource').mockRejectedValue(new SessionRowConflictError('session-1', 1, 2))
+    await expect(harness.service.orchestrate('session-1', targetMessage(), { contextMessages: harness.session.messages })).rejects.toBeInstanceOf(SessionRowConflictError)
+    expect(reads).toHaveBeenCalledOnce()
+    expect(harness.preparedRequests).toHaveLength(0)
+  })
+
   it.each([
     ['approve', 'token-cache'],
     ['retry', 'token-cache'],

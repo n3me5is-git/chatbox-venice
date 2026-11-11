@@ -11,3 +11,12 @@ import type { Message } from '../types'
 export function isContextEligibleMessage(message: Pick<Message, 'generating' | 'isForkMarker'>): boolean {
   return !message.generating && !message.isForkMarker
 }
+
+/** A continuation may include its own still-generating assistant target. Clone
+ * only that trailing message for context; never alter the persisted/UI state. */
+export function selectMessagesBeforeTarget(messages: Message[], targetIndex: number, preserveToolExchange = false): Message[] {
+  const selected = messages.slice(0, targetIndex)
+  const last = selected.at(-1)
+  if (!preserveToolExchange || last?.role !== 'assistant' || !last.generating) return selected
+  return [...selected.slice(0, -1), { ...last, generating: false }]
+}

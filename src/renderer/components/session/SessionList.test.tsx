@@ -34,6 +34,7 @@ const {
     isLoading: false,
     folders: [] as SessionFolder[],
     hasNextPage: false,
+    isFetchingNextPage: false,
     isFetchNextPageError: false,
     fetchNextPage: vi.fn(),
   },
@@ -112,9 +113,12 @@ vi.mock('react-virtuoso', async () => {
     groupCounts: number[]
     groupContent: (index: number) => React.ReactNode
     itemContent: (index: number, groupIndex: number) => React.ReactNode
+    atBottomStateChange?: (value: boolean) => void
+    components?: { Footer?: React.ComponentType }
   }
   return {
-    GroupedVirtuoso: ({ groupCounts, groupContent, itemContent }: VirtuosoProps) => {
+    GroupedVirtuoso: ({ groupCounts, groupContent, itemContent, atBottomStateChange, components }: VirtuosoProps) => {
+      const Footer = components?.Footer
       if (groupCounts.length > 0 && groupCounts.every((count) => count === 0)) {
         itemContent(0, 0)
       }
@@ -122,6 +126,8 @@ vi.mock('react-virtuoso', async () => {
       return React.createElement(
         'div',
         { 'data-testid': 'session-list' },
+        React.createElement('button', { 'data-testid': 'list-at-bottom', onClick: () => atBottomStateChange?.(true) }, 'At bottom'),
+        Footer ? React.createElement(Footer) : null,
         groupCounts.map((count, groupIndex) => {
           const start = offset
           offset += count
@@ -148,7 +154,7 @@ vi.mock('@/app/renderer-application', () => ({
         sessionMetaList: sessionListState.sessions,
         fetchNextPage: sessionListState.fetchNextPage,
         hasNextPage: sessionListState.hasNextPage,
-        isFetchingNextPage: false,
+        isFetchingNextPage: sessionListState.isFetchingNextPage,
         isFetchNextPageError: sessionListState.isFetchNextPageError,
         isLoading: sessionListState.isLoading,
       }),
@@ -380,6 +386,25 @@ describe('SessionList section headers', () => {
 })
 
 describe('SessionList folders', () => {
+  test('continues a reset page at the visible bottom, without a new endReached notification', () => {
+    const { rerender } = renderList()
+    fireEvent.click(screen.getByTestId('list-at-bottom'))
+    expect(sessionListState.fetchNextPage).not.toHaveBeenCalled()
+    sessionListState.hasNextPage = true
+    rerender(<MantineProvider><SessionList sessionListViewportRef={{ current: null }}/></MantineProvider>)
+    expect(sessionListState.fetchNextPage).toHaveBeenCalledOnce()
+  })
+  test('shows page loading only during an actual read and never auto-retries a failed read', () => {
+    sessionListState.hasNextPage = true
+    sessionListState.isFetchNextPageError = true
+    const { container, rerender } = renderList()
+    fireEvent.click(screen.getByTestId('list-at-bottom'))
+    expect(sessionListState.fetchNextPage).not.toHaveBeenCalled()
+    expect(container.querySelector('.animate-spin')).toBeNull()
+    sessionListState.isFetchingNextPage = true
+    rerender(<MantineProvider><SessionList sessionListViewportRef={{ current: null }}/></MantineProvider>)
+    expect(container.querySelector('.animate-spin')).toBeTruthy()
+  })
   const folders: SessionFolder[] = [
     { id: 'work', name: 'Work' },
     { id: 'home', name: 'Home' },
@@ -407,6 +432,7 @@ describe('SessionList folders', () => {
     sessionListState.folders = folders
     sessionListState.hasNextPage = false
     sessionListState.isFetchNextPageError = false
+    sessionListState.isFetchingNextPage = false
     uiStore.setState({ collapsedSessionFolderIds: [], newSessionState: {}, sessionAgentModeMap: {} })
   })
 

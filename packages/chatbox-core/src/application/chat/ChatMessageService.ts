@@ -1,6 +1,6 @@
 import { SessionWriteConflictError } from '../../ports/session-repository'
 import type { SessionHeader } from '../../ports/session-read-model'
-import { withSessionGenerationLock } from '../../generation/generation-lock'
+import { withSessionGenerationLock, trySessionGenerationLock } from '../../generation/generation-lock'
 import type { GenerationRuntimeStore } from '../../generation/runtime-store'
 import {
   assertSessionActionAllowed,
@@ -298,7 +298,7 @@ export class ChatMessageService {
   }
 
   retryMessage(sessionId: string, messageId: string): Promise<void> {
-    return withSessionGenerationLock(sessionId, async () => {
+    return trySessionGenerationLock(sessionId, async () => {
       const reply = { ...this.createMessage('assistant', ''), generating: true }
       const result = await this.dependencies.sessions.executeStructureCommand(sessionId, {
         action: 'message-retry',

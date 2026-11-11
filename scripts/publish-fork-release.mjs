@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
+import { assertReleaseNotes } from './release-notes-policy.mjs'
 
 const version = JSON.parse(readFileSync('release/app/package.json', 'utf8')).version
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Use a stable semantic version for the fork release')
@@ -9,7 +10,7 @@ const tag = `v${version}`
 const sourceSha = process.env.RELEASE_SOURCE_SHA || process.env.GITHUB_SHA
 if (!/^[a-f0-9]{40}$/.test(sourceSha || '')) throw new Error('A verified source commit is required')
 const notes = `docs/releases/${tag}.md`
-readFileSync(notes)
+assertReleaseNotes(readFileSync(notes, 'utf8'), notes)
 const dir = 'release/artifacts'
 for (const name of readdirSync(dir)) {
   if (name.endsWith('.apk')) renameSync(join(dir, name), join(dir, `Chatbox-Venice-${version}-Android.apk`))

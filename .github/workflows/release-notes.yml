@@ -13,10 +13,14 @@ jobs:
   notes:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - name: Check release note format
+        run: node --test scripts/release-notes-policy.test.mjs
       - name: Update published notes from current English source
         uses: actions/github-script@v7
         with:
           script: |
+            const {assertReleaseNotes}=await import(process.env.GITHUB_WORKSPACE+'/scripts/release-notes-policy.mjs')
             const repo = {owner:context.repo.owner,repo:context.repo.repo}
             const {data:files}=await github.rest.repos.getContent({...repo,path:'docs/releases',ref:'main'})
             for(const file of files.filter(f=>/^v\d+\.\d+\.\d+\.md$/.test(f.name))) {
@@ -27,6 +31,7 @@ jobs:
               if(release.draft) continue
               const {data:source}=await github.rest.repos.getContent({...repo,path:file.path,ref:'main'})
               const body=Buffer.from(source.content,'base64').toString('utf8')
+              assertReleaseNotes(body,file.name)
               if(release.body!==body) {
                 await github.rest.repos.updateRelease({...repo,release_id:release.id,body})
                 core.info('Updated '+tag+' notes; packages and tags unchanged')

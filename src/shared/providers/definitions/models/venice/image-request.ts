@@ -1,5 +1,6 @@
 import type { ImageModelCapabilities, ProviderModelInfo, ProviderSettings } from '../../../../types'
 import { mergeExtraBody } from '../../../../models/utils/extra-body'
+import { imageStudioCapabilities } from './studio-capabilities'
 
 export function getVeniceImageCapabilities(model: Pick<ProviderModelInfo,'modelId'|'vendorMetadata'>): ImageModelCapabilities {
   const metadata = model.vendorMetadata || {}
@@ -19,6 +20,8 @@ export function getVeniceImageCapabilities(model: Pick<ProviderModelInfo,'modelI
 /** Shared by the adapter and the dependency-free live API smoke test. */
 export function buildVeniceImageRequest(model:Pick<ProviderModelInfo,'modelId'|'vendorMetadata'|'extraBody'>, settings:NonNullable<ProviderSettings['venice']>, params:{prompt:string;images?:{imageUrl:string}[];aspectRatio?:string}) {
   const image = settings.image || {}
+  const controls = imageStudioCapabilities(model)
+  const { negative_prompt, hide_watermark, transparent_background, ...imageDefaults } = image
   const editing = model.vendorMetadata?.veniceType === 'inpaint'
   const capabilities = getVeniceImageCapabilities(model)
   const references = params.images || []
@@ -34,6 +37,7 @@ export function buildVeniceImageRequest(model:Pick<ProviderModelInfo,'modelId'|'
   const common = {
     prompt: params.prompt,
     safe_mode: settings.imageSafeMode ?? true,
+    ...(controls.transparentBackground && transparent_background === true ? { transparent_background: true } : {}),
     ...(image.resolution ? { resolution: image.resolution } : {}),
     ...(image.quality ? { quality: image.quality } : {}),
     ...(image.enhance_prompt !== undefined ? { enhance_prompt: image.enhance_prompt } : {}),
@@ -42,13 +46,16 @@ export function buildVeniceImageRequest(model:Pick<ProviderModelInfo,'modelId'|'
   const request = mergeExtraBody(editing ? {
     ...common, modelId: model.modelId, images: references.map(ref => ref.imageUrl), output_format: format,
   } : {
-    ...image, ...common, model: model.modelId,
+    ...imageDefaults, ...common, model: model.modelId,
+    ...(controls.negativePrompt && negative_prompt ? { negative_prompt } : {}),
+    ...(controls.hideWatermark && hide_watermark !== undefined ? { hide_watermark } : {}),
     enable_web_search: settings.imageWebSearch ?? false,
     embed_exif_metadata: image.embed_exif_metadata ?? false,
     format, return_binary: false, variants: 1,
     ...(references.length ? { style_references: references.map(ref => ({ image: ref.imageUrl })) } : {}),
   }, model.extraBody || {})
   if ((editing ? request.modelId : request.model) !== model.modelId || request.prompt !== params.prompt || (!editing && request.variants !== 1)) throw new Error('Model, prompt and quantity must match the approved request. Use the dedicated controls instead of overriding them in JSON.')
+  if (request.transparent_background === true && (!controls.transparentBackground || !['png', 'webp'].includes(String(editing ? request.output_format : request.format)))) throw new Error('Transparent backgrounds require a supporting model and PNG or WebP output.')
   if(editing&&JSON.stringify(request.images)!==JSON.stringify(references.map(ref=>ref.imageUrl))||!editing&&references.length&&JSON.stringify(request.style_references)!==JSON.stringify(references.map(ref=>({image:ref.imageUrl}))))throw new Error('Reference images must match the approved request. Use the dedicated image controls instead of JSON.')
   return { request, editing, format, path: `/image/${editing ? 'multi-edit' : 'generate'}` }
 }
