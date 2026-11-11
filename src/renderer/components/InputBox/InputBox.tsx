@@ -1718,7 +1718,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
               )}
 
             {(model?.provider === 'venice' || (webBrowsingMode && globalSearchProvider === 'venice')) && <VeniceBalance />}
-            {model?.provider === 'venice' && <VenicePrivacyStatus provider={veniceToolPolicy} model={modelInfo} session={sessionId === 'new' ? { ...currentSessionMergedSettings, veniceSecurity: draftVeniceSecurity } : currentSessionMergedSettings}/>}
+            {model?.provider === 'venice' && <VenicePrivacyStatus provider={veniceToolPolicy} model={modelInfo||undefined} session={sessionId === 'new' ? { ...currentSessionMergedSettings, veniceSecurity: draftVeniceSecurity } : currentSessionMergedSettings}/>}
             {model?.provider === 'openai-sub-unofficial' && <ChatGPTAllowance compact />}
             {/* Work Mode status row: approval policy + working directories, always visible
                 above the input with their own in-place menus (mirrors the mode panel). */}

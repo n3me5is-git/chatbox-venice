@@ -1,4 +1,10 @@
 export const catalogItalian={
+"Negative prompt":"Prompt negativo",
+"All compatible vendor options can be entered here. The selected model validates them before generation.":"Qui puoi inserire tutte le opzioni compatibili del provider. I parametri vengono verificati per il modello selezionato prima della generazione.",
+"Enter a valid JSON object before approving this generation.":"Inserisci un oggetto JSON valido prima di approvare la generazione.",
+"Enter a prompt before approving this generation.":"Inserisci un prompt prima di approvare la generazione.",
+"Use the dedicated model and prompt controls instead of overriding them in JSON.":"Usa i controlli dedicati per modello e prompt anziché modificarli nel JSON.",
+"Use the dedicated controls for model, prompt, image references and quantity.":"Usa i controlli dedicati per modello, prompt, immagini di riferimento e quantità.",
 "Currently selected":"Attualmente selezionato",
 "Selected model details":"Dettagli del modello selezionato",
 "Automatic: strongest available privacy":"Automatico: massima privacy disponibile",

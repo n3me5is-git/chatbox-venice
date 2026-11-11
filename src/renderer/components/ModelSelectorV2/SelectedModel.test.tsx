@@ -23,7 +23,7 @@ afterEach(()=>{cleanup();vi.clearAllMocks()})
 it.each([false,true])('pins the current model inside the picker and opens its actual details without changing selection, mobile=%s',async mobile=>{
   state.mobile=mobile
   render(<Provider><MantineProvider><style>{'[data-vaul-drawer], [data-vaul-overlay] { animation-name:none!important; }'}</style><ModelSelector selectedProviderId="venice" selectedModelId="e2ee-test" onSelect={state.select}><button>Choose model</button></ModelSelector></MantineProvider></Provider>)
-  expect(screen.queryByLabelText('Selected model details')).toBeNull()
+  expect(screen.queryByRole('button',{name:'Selected model details'})).toBeNull()
   fireEvent.click(screen.getByText('Choose model'))
   const details=await screen.findByLabelText('Selected model details')
   expect(details.closest('[data-selected-model]')?.textContent).toContain('Selected protected model with a long complete name')

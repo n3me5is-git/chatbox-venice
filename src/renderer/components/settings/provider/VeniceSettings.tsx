@@ -39,7 +39,13 @@ export function VeniceSearchSettings() {
     </Stack></Accordion.Panel></Accordion.Item></Accordion>
   </Stack>
 }
-export function VeniceImageSettings({ model }: { model?: { modelId: string; vendorMetadata?: Record<string, unknown> } } = {}) {
+export function VeniceNegativePrompt({model}:{model?:{modelId:string;vendorMetadata?:Record<string,unknown>}}) {
+  useTranslation()
+  const {providerSettings,setProviderSettings}=useProviderSettings('venice'),options=providerSettings?.venice||{},image=options.image||{}
+  if(!model||!imageStudioCapabilities(model).negativePrompt)return null
+  return <details open={!!image.negative_prompt}><summary style={{cursor:'pointer'}}>{ft('Negative prompt')}</summary><Textarea label={ft('Elements to avoid')} placeholder={ft('For example: text, blur, background objects…')} value={image.negative_prompt||''} onChange={event=>setProviderSettings({venice:{...options,image:{...image,negative_prompt:event.currentTarget.value||undefined}}})} autosize minRows={2}/></details>
+}
+export function VeniceImageSettings({ model,showNegativePrompt=true }: { model?: { modelId: string; vendorMetadata?: Record<string, unknown> };showNegativePrompt?:boolean } = {}) {
   useTranslation()
   const { providerSettings, setProviderSettings } = useProviderSettings('venice')
   const options = providerSettings?.venice || {}; const image = options.image || {}
@@ -57,7 +63,7 @@ export function VeniceImageSettings({ model }: { model?: { modelId: string; vend
     <Text size="xs" c="dimmed">{ft("Available options and costs depend on the selected model. Images and history are saved on this device.")}</Text>
     {controls?.transparentBackground && <Switch label={ft('Transparent background')} description={ft('Requires PNG or WebP. JPEG switches this option off.')} checked={image.transparent_background ?? false} onChange={event => updateImage({ transparent_background: event.currentTarget.checked, ...(event.currentTarget.checked && image.format === 'jpeg' ? { format: 'png' } : {}) })} />}
     <Accordion variant="default"><Accordion.Item value="advanced"><Accordion.Control>{ft("Advanced image options")}</Accordion.Control><Accordion.Panel><Stack gap="sm">
-      {controls?.negativePrompt !== false && <Textarea label={ft("Elements to avoid")} placeholder={ft("For example: text, blur, background objects…")} value={image.negative_prompt ?? ''} onChange={e => updateImage({ negative_prompt: e.currentTarget.value || undefined })} />}
+      {showNegativePrompt&&controls?.negativePrompt !== false && <Textarea label={ft("Elements to avoid")} placeholder={ft("For example: text, blur, background objects…")} value={image.negative_prompt ?? ''} onChange={e => updateImage({ negative_prompt: e.currentTarget.value || undefined })} />}
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         <TextInput label={ft("Custom style")} value={image.style_preset ?? ''} onChange={e => updateImage({ style_preset: e.currentTarget.value || undefined })} />
         <NumberInput label={ft("Exact width (pixels)")} placeholder={ft("Automatic")} min={64} max={4096} step={64} value={image.width ?? ''} onChange={value => updateImage({ width: typeof value === 'number' ? value : undefined })} />
