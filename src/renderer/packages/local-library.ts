@@ -3,6 +3,8 @@ import { currentBlobStorage } from '@/adapters/CurrentBlobStorage'
 import { veniceMediaService } from '@/packages/venice/service'
 import { installedVaultFor } from '@/packages/vault/runtime'
 import { markLocalFile } from './local-file-origin'
+import { sha256 } from '@noble/hashes/sha256'
+import { mediaContentHash } from './media-content-hash'
 export type ContentKind = 'image'|'audio'|'video'|'document'
 export type LibraryKind = ContentKind|'vault'
 export type LocalLibraryItem = { id:string; name:string; kind:ContentKind; key:string; mime?:string; thumbnail?:string;category?:string;scope?:string;bytes?:number;alias?:string;sourceId?:string }
@@ -16,7 +18,7 @@ export async function localLibraryPage(kind:LibraryKind,cursor=0,protection:'pub
     const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform);const items:LocalLibraryItem[]=[];let next:number|null=cursor;let scanned=0
     do{const page=await vault.db.page(protection==='public'?'public':undefined,next,20,protection==='protected'?allowedScopes:undefined);next=page.next
       for(const header of page.items){if(protection==='protected'&&(header.scope==='public'||allowedScopes&&!allowedScopes.has(header.scope))||header.alias?.endsWith(':thumbnail')||!vault.keys.isUnlocked(header.scope)||access&&!await access.libraryKeyVisible(header.alias))continue
-        const info=await vault.assets.info(header);if(info.hidden||!['image','audio','video','document'].includes(info.kind)||info.sessionId&&info.deliverable!==true)continue
+        const info=await vault.assets.info(header);if(info.hidden||/^picture(?::)?image-creator-ref/.test(header.alias||'')||!['image','audio','video','document'].includes(info.kind)||info.sessionId&&info.deliverable!==true)continue
         let type:string=info.kind,thumbnail:string|undefined,name=info.name
         const imageId=info.kind==='image'?(info.sourceId||/^picture(?::)?image-gen(?::)?([a-f0-9-]{36})/.exec(header.alias||'')?.[1]):undefined
         if(imageId){const record=await platform.getImageGenerationStorage().getById(imageId);if(record){const index=record.generatedImages.findIndex(key=>key===header.alias||key.replaceAll(':','')===header.alias?.replaceAll(':',''));thumbnail=record.generatedImageThumbnails?.[Math.max(index,0)];name=record.prompt.slice(0,100)||name}}
@@ -54,7 +56,8 @@ export async function localLibraryFile(item:LocalLibraryItem):Promise<File> {
   const access=installedVaultFor(platform)?.projects
   if(item.key.startsWith('vault-asset-')){
     const {vaultRuntimeFor}=await import('@/packages/vault/runtime');const vault=vaultRuntimeFor(platform);const header=await vault.assets.header(item.key);if(!header)throw new Error('This local item is no longer available');await access?.assertLibraryKey(header.alias);const info=await vault.assets.info(header);const chunks:Uint8Array<ArrayBuffer>[]=[]
-    try{for await(const bytes of vault.assets.read(item.key)){await access?.assertLibraryKey(header.alias);chunks.push(bytes)}await access?.assertLibraryKey(header.alias);const extension=info.mime==='text/plain'?'txt':info.mime.split('/')[1]?.replace('jpeg','jpg').replace('mpeg','mp3')||'bin';return markLocalFile(new File(chunks,`Saved-${header.id}.${extension}`,{type:info.mime}),{scope:header.scope,key:item.key})}finally{for(const bytes of chunks)bytes.fill(0)}
+    const hash=sha256.create()
+    try{for await(const bytes of vault.assets.read(item.key)){await access?.assertLibraryKey(header.alias);hash.update(bytes);chunks.push(bytes)}await access?.assertLibraryKey(header.alias);const contentHash=Array.from(hash.digest(),byte=>byte.toString(16).padStart(2,'0')).join('');const extension=info.mime==='text/plain'?'txt':info.mime.split('/')[1]?.replace('jpeg','jpg').replace('mpeg','mp3')||'bin';return markLocalFile(new File(chunks,`Saved-${header.id}.${extension}`,{type:info.mime}),{scope:header.scope,key:header.alias||item.key,contentHash})}finally{for(const bytes of chunks)bytes.fill(0)}
   }
   await access?.assertLibraryKey(item.key)
   const data=item.key.startsWith('data:')?item.key:await currentBlobStorage.get(item.key)
@@ -66,5 +69,6 @@ export async function localLibraryFile(item:LocalLibraryItem):Promise<File> {
   const binary=atob(match[2]);if(binary.length>128*1024*1024)throw new Error('This item exceeds the local attachment size limit')
   const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i)
   const ext=match[1].split('/')[1].replace('mpeg','mp3').replace('jpeg','jpg')
-  return new File([bytes],`Saved-${item.kind}-${item.id.replace(/[^a-zA-Z0-9_-]/g,'').slice(-40)}.${ext}`,{type:match[1]})
+  const header=await installedVaultFor(platform)?.find(item.key)
+  return markLocalFile(new File([bytes],`Saved-${item.kind}-${item.id.replace(/[^a-zA-Z0-9_-]/g,'').slice(-40)}.${ext}`,{type:match[1]}),{scope:header?.scope||item.scope||'public',key:header?.alias||item.key,contentHash:mediaContentHash(data)})
 }

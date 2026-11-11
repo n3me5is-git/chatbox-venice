@@ -1,6 +1,8 @@
 import {useOverlayManager} from './layout/Overlay'
 import { VeniceModelBadges } from './venice/VeniceModelBadges'
 import { VeniceModelCost } from './venice/VeniceModelCost'
+import { imageVariant } from '@shared/providers/definitions/models/venice/image-reference-model'
+import { forkT as ft } from '@/i18n/fork'
 import { ActionIcon, Combobox, type ComboboxProps, Flex, HoverCard, Text, useCombobox } from '@mantine/core'
 import type { ModelProvider } from '@shared/types'
 import { IconInfoCircle, IconServer } from '@tabler/icons-react'
@@ -122,7 +124,7 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
                           size={16}
                           className="shrink-0"
                         />
-                        <div className="min-w-0 flex-1"><Text size="sm" className="break-words">{model.displayName}</Text>{group.providerId==='venice'&&<><Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{model.modelId}</Text><VeniceModelCost metadata={model.vendorMetadata}/></>}</div>
+                        <div className="min-w-0 flex-1"><Text size="sm" className="break-words">{model.displayName}</Text>{group.providerId==='venice'&&<><Text size="xs" c="dimmed">{ft(imageVariant(model.vendorMetadata)||'Images')}{model.capabilities?.inputReferences?' · '+ft('Up to {{count}} reference images',{count:model.capabilities.inputReferences.max??1}):''}</Text><Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{model.modelId}</Text><VeniceModelCost metadata={model.vendorMetadata}/></>}</div>
                         <VeniceModelBadges metadata={model.vendorMetadata} compact />
                         {(
                           <ActionIcon

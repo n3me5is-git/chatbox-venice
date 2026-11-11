@@ -5,6 +5,7 @@ vi.mock('@/platform',()=>({default:{getImageGenerationStorage:()=>({initialize:a
 vi.mock('@/adapters/CurrentBlobStorage',()=>({currentBlobStorage:{get:mocks.get}}))
 vi.mock('@/packages/venice/service',()=>({veniceMediaService:{list:mocks.list}}))
 import { acceptsLocalFile,localLibraryFile,localLibraryPage } from './local-library'
+import { localFileOrigin } from './local-file-origin'
 describe('local library reads selected content only',()=>{
  it('keeps protected image sessions and audio out of the public legacy tabs even while unlocked',async()=>{mocks.getPage.mockResolvedValue({items:[{id:'secret',prompt:'Private',protection:'app',generatedImages:['private-key']},{id:'ordinary',prompt:'Public',generatedImages:['public-key']}],nextCursor:null});expect((await localLibraryPage('image')).items.map(item=>item.key)).toEqual(['public-key']);mocks.list.mockResolvedValue([{id:'secret',kind:'speech',prompt:'Private',protection:'app',status:'ready',blobKey:'private-audio'},{id:'ordinary',kind:'speech',prompt:'Public',status:'ready',blobKey:'public-audio'}]);expect((await localLibraryPage('audio')).items.map(item=>item.key)).toEqual(['public-audio'])})
  it('lists an image page without reading image bytes',async()=>{
@@ -15,6 +16,7 @@ describe('local library reads selected content only',()=>{
   mocks.get.mockResolvedValue('data:audio/wav;base64,YXVkaW8=')
   const file=await localLibraryFile({id:'audio-one',name:'A sound',kind:'audio',key:'stored'})
   expect(file.type).toBe('audio/wav');expect(file.size).toBe(5);expect(acceptsLocalFile(file,'.wav,.mp3')).toBe(true);expect(acceptsLocalFile(file,'image/*')).toBe(false)
+  expect(localFileOrigin(file)).toMatchObject({key:'stored',scope:'public',contentHash:expect.stringMatching(/^[a-f0-9]{64}$/)})
  })
  it('rejects URLs and missing content rather than downloading silently',async()=>{
   mocks.get.mockResolvedValue('https://external.example/private.png')

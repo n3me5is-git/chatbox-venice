@@ -4,6 +4,7 @@ import { settingsStore } from '@/stores/settingsStore'
 import type { ProviderSettings } from '@shared/types'
 import { ModelProviderEnum } from '@shared/types'
 import { SUBSCRIPTION_IMAGE_MODELS } from '@shared/oauth/chatgpt-model-catalog'
+import { SUBSCRIPTION_REFERENCE_LIMIT } from '@shared/oauth/chatgpt-image-options'
 import { fetchVeniceCatalogModels, getVeniceImageCapabilities } from '@shared/providers/definitions/models/venice'
 
 export type { ImageModelOption } from '@chatbox/core/application/image-generation'
@@ -22,7 +23,7 @@ export async function loadProviderImageModels(
   provider: ModelProviderEnum,
   options: ImageModelCatalogOptions = {}
 ): Promise<ImageModelOption[]> {
-  if (provider === ModelProviderEnum.OpenAISubscription) return SUBSCRIPTION_IMAGE_MODELS.map(modelId => ({ modelId, displayName: 'ChatGPT Images', capabilities: { aspectRatio: { values: ['auto', '1:1', '3:2', '2:3'] }, inputReferences: { max: 4 } } }))
+  if (provider === ModelProviderEnum.OpenAISubscription) return SUBSCRIPTION_IMAGE_MODELS.map(modelId => ({ modelId, displayName: 'ChatGPT Images', capabilities: { aspectRatio: { values: ['auto', '1:1', '3:2', '2:3'] }, inputReferences: { max: SUBSCRIPTION_REFERENCE_LIMIT } } }))
   if (provider === ModelProviderEnum.Venice) {
     if (!options.apiKey || options.venice?.enabled === false || settingsStore.getState().providers?.venice?.venice?.enabled === false) return []
     const models = await fetchVeniceCatalogModels({ apiKey: options.apiKey, apiHost: options.apiHost, venice: options.venice }, await createModelDependencies())

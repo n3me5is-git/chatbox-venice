@@ -2,6 +2,8 @@ import { isUsingOAuth, mergeSharedOAuthProviderSettings } from '@shared/oauth'
 import type { PlatformType } from '@shared/platform'
 import { getRatioOptionsForModel } from '@shared/providers/definitions/image-models'
 import { privacyAllowed } from '@shared/providers/definitions/models/venice/privacy'
+import { sameImageFamily } from '@shared/providers/definitions/models/venice/image-reference-model'
+import { subscriptionReferenceLimit } from '@shared/oauth/chatgpt-image-options'
 import {
   type ImageGenerationModel,
   type ImageModelCapabilities,
@@ -120,12 +122,13 @@ export function buildImageModelGroups(options: {
           .map(manualImageModelToOption)
       : []
     let models = mergeImageModels(remote, manualModels)
+    if(provider.id===ModelProviderEnum.OpenAISubscription)models=models.map(model=>({...model,capabilities:{aspectRatio:model.capabilities?.aspectRatio||{values:['auto','1:1','3:2','2:3']},inputReferences:{max:subscriptionReferenceLimit(model)}}}))
     if (provider.id === ModelProviderEnum.Venice) {
       const config = settings.providers?.venice
       // A stale/manual type must not hide a selected model that the catalog identifies as an image model.
       const selected = config?.models || []
-      models=models.map(model=>{const current=remote.find(row=>row.modelId===model.modelId);return current?{...model,vendorMetadata:current.vendorMetadata,capabilities:current.capabilities}:model})
-      models = models.filter(model => privacyAllowed(model.vendorMetadata, config?.venice?.privacyFilter) && (config?.venice?.showOtherModels === true || !config?.models?.length || selected.some(saved => saved.modelId === model.modelId)))
+      models=models.filter(model=>!remote.length||remote.some(row=>row.modelId===model.modelId)).map(model=>{const current=remote.find(row=>row.modelId===model.modelId);return current?{...model,vendorMetadata:current.vendorMetadata,capabilities:current.capabilities}:model})
+      models = models.filter(model => privacyAllowed(model.vendorMetadata, config?.venice?.privacyFilter) && (config?.venice?.showOtherModels === true || !config?.models?.length || selected.some(saved => saved.modelId === model.modelId || remote.some(row=>row.modelId===saved.modelId)&&sameImageFamily(saved.modelId,model.modelId))))
     }
     if (provider.id === ModelProviderEnum.ChatboxAI) {
       const excluded = new Set(settings.providers?.[provider.id]?.excludedModels ?? [])

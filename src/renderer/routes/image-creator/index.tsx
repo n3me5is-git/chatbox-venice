@@ -4,6 +4,7 @@ import { chooseUploadSource } from '@/components/local-library/UploadSource'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { CreationUnlock } from '@/components/security/CreationUnlock'
 import { forkT as ft } from '@/i18n/fork'
+import { referenceImageModel, imageVariant } from '@shared/providers/definitions/models/venice/image-reference-model'
 import { VeniceImageEditor } from '@/components/venice/VeniceImageEditor'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { ChatGPTAllowance } from '@/components/settings/provider/ChatGPTAllowance'
@@ -278,6 +279,8 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
     clear: clearReferenceImages,
     beginSubmission,
     cropReference,
+    isImporting: isImportingReferences,
+    importError: referenceImportError,
   } = useReferenceImageDraft()
   const picture = useLastUsedModelStore((state) => state.picture)
   const [showHistory, setShowHistory] = useState(true)
@@ -306,6 +309,12 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   )
 
   const selectedOption = imageModelGroups.find(group => group.providerId === selectedProvider)?.models.find(model => model.modelId === selectedModel)
+  const referenceOption = selectedProvider==='venice' ? referenceImageModel(imageModelGroups.find(group=>group.providerId==='venice')?.models||[],selectedModel,referenceImages.length) : selectedOption
+  useEffect(()=>{
+    if(referenceImages.length&&referenceOption&&referenceOption.modelId!==selectedModel){
+      lastUsedModelStore.getState().setPictureModel(selectedProvider,referenceOption.modelId)
+    }
+  },[referenceOption?.modelId,selectedProvider,selectedModel,referenceImages.length])
   const currentGeneratingId = useCurrentGeneratingId()
   const currentRecordId = useCurrentRecordId()
   const { data: currentRecordRaw } = useImageGenerationRecord(currentRecordId)
@@ -348,7 +357,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   )
 
   const handleSubmit = useCallback(async () => {
-    if (!prompt.trim() || isCurrentlyGenerating) return
+    if (!prompt.trim() || isCurrentlyGenerating || isImportingReferences || referenceImportError) return
     if (!selectedModel) {
       toastActions.add(t('Please select a model'))
       return
@@ -384,7 +393,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
       log.error('Failed to generate image:', error)
       toastActions.add(error instanceof Error?error.message:ft('Unable to generate image'))
     }
-  }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, batchCount, t,saveProtected,vault])
+  }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, isImportingReferences, referenceImportError, batchCount, t,saveProtected,vault])
 
   const handleQuickPromptSubmit = useCallback((quickPrompt:string)=>{if(isCurrentlyGenerating)return;setPrompt(quickPrompt);textareaRef.current?.focus()},[isCurrentlyGenerating])
 
@@ -558,6 +567,10 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                 onRemove={handleRemoveReferenceImage}
                 onAddClick={uploadSource}
               />
+              {isImportingReferences&&<Text size="xs" c="dimmed">{ft('Wait until the reference images have finished loading')}</Text>}
+              {referenceImportError&&<Group><Text size="xs" c="red">{ft(referenceImportError)}</Text><Button size="compact-xs" variant="subtle" onClick={()=>void clearReferenceImages()}>{ft('Clear selection')}</Button></Group>}
+              {selectedProvider==='venice'&&selectedOption&&<Text size="xs" c="dimmed">{ft(imageVariant(selectedOption.vendorMetadata)||'Images')}{selectedOption.capabilities?.inputReferences?' · '+ft('Up to {{count}} reference images',{count:selectedOption.capabilities.inputReferences.max??1}):''}{referenceImages.length>0&&referenceOption?.modelId!==selectedModel?' · '+ft('Choose a model that accepts these reference images'):''}</Text>}
+              {selectedProvider===ModelProviderEnum.OpenAISubscription&&selectedOption?.capabilities?.inputReferences&&<Text size="xs" c="dimmed">{ft('Up to {{count}} local references; your account may apply additional limits.',{count:selectedOption.capabilities.inputReferences.max??1})}</Text>}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -617,7 +630,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                       color={isCurrentlyGenerating ? 'dark' : 'chatbox-brand'}
                       radius="xl"
                       onClick={isCurrentlyGenerating ? cancelGeneration : handleSubmit}
-                      disabled={(!prompt.trim() || !selectedModel) && !isCurrentlyGenerating}
+                      disabled={(!prompt.trim() || !selectedModel || isImportingReferences || !!referenceImportError) && !isCurrentlyGenerating}
                       className={`shrink-0 mb-1 ${(!prompt.trim() || !selectedModel) && !isCurrentlyGenerating ? SEND_BUTTON_BLOCKED_CLASS : ''}`}
                       style={{ cursor: isCurrentlyGenerating ? 'pointer' : undefined }}
                     >

@@ -1,4 +1,12 @@
 export const catalogItalian={
+ 'Wait until the reference images have finished loading':'Attendi il completamento del caricamento delle immagini di riferimento',
+ 'Additional reference images':'Immagini di riferimento aggiuntive',
+ 'The source image counts as one reference. Select a model that supports all attached images.':'L’immagine di partenza conta come un riferimento. Scegli un modello che supporti tutte le immagini allegate.',
+ 'Up to {{count}} local references; your account may apply additional limits.':'Fino a {{count}} riferimenti locali; il tuo account potrebbe applicare ulteriori limiti.',
+ 'Text to image':'Da testo a immagine',
+ 'Up to {{count}} reference images':'Fino a {{count}} immagini di riferimento',
+ 'Choose a model that accepts these reference images':'Scegli un modello che accetti queste immagini di riferimento',
+ 'The selected model and price apply to this reference-based generation.':'Il modello selezionato e il relativo prezzo si applicano a questa generazione con immagini di riferimento.',
  'This worker action is outside the MCP sharing permissions':'Questa azione del worker non è consentita dai permessi della condivisione MCP',
  'Only direct workers created by this MCP sharing grant can be controlled':'Puoi controllare solo i worker diretti creati da questa condivisione MCP',
  'Enable multi-agent mode in this Work chat before sharing its agents':'Attiva la modalità multiagente in questa chat Work prima di condividerne gli agenti',

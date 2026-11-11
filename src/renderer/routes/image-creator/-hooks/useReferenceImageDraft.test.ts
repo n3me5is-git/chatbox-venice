@@ -6,12 +6,14 @@ const mocks = vi.hoisted(() => ({
   set: vi.fn<(key: string, data: string) => Promise<void>>(),
   remove: vi.fn<(key: string) => Promise<void>>(),
   key: 0,
+  reuse: vi.fn(),
 }))
 
 vi.mock('@/stores/imageGenerationActions', () => ({
   getImageGenerationService: () => ({ protectReferences: () => () => {} }),
 }))
 vi.mock('@/adapters/CurrentBlobStorage', () => ({ currentBlobStorage: mocks }))
+vi.mock('@/packages/local-image-reference',()=>({reusableLocalImageKey:mocks.reuse}))
 vi.mock('@/stores/queryClient', () => ({ queryClient: { setQueryData: vi.fn() } }))
 vi.mock('@/lib/utils', () => ({ getLogger: () => ({ error: vi.fn() }) }))
 vi.mock('@/storage/StoreStorage', () => ({
@@ -23,15 +25,63 @@ import { useReferenceImageDraft } from './useReferenceImageDraft'
 async function uploadedDraft() {
   const hook = renderHook(() => useReferenceImageDraft())
   act(() => hook.result.current.upload([new File(['image'], 'ref.png', { type: 'image/png' })]))
-  await waitFor(() => expect(hook.result.current.images).toHaveLength(1))
+  await waitFor(() => {expect(hook.result.current.images).toHaveLength(1);expect(hook.result.current.isImporting).toBe(false)})
   return { ...hook, key: hook.result.current.images[0].storageKey }
 }
 
 describe('reference image draft ownership', () => {
   beforeEach(() => {
     mocks.key = 0
+    mocks.reuse.mockReset().mockResolvedValue(undefined)
     mocks.set.mockReset().mockResolvedValue(undefined)
     mocks.remove.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('borrows selected library content without storing, copying or deleting the original on cancel',async()=>{
+    mocks.reuse.mockResolvedValue('picture:image-gen:original:output')
+    const {result}=renderHook(()=>useReferenceImageDraft())
+    act(()=>result.current.upload([new File(['image'],'saved.png',{type:'image/png'})]))
+    await waitFor(()=>expect(result.current.images).toEqual([{storageKey:'picture:image-gen:original:output'}]))
+    expect(mocks.set).not.toHaveBeenCalled()
+    await act(()=>result.current.clear())
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it('deduplicates identical bytes selected concurrently even with different filenames',async()=>{
+    const {result}=renderHook(()=>useReferenceImageDraft())
+    act(()=>result.current.upload(['one.png','two.png'].map(name=>new File(['identical'],name,{type:'image/png'}))))
+    await waitFor(()=>expect(mocks.reuse).toHaveBeenCalledOnce())
+    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,30))})
+    expect(result.current.images).toHaveLength(1)
+    expect(mocks.set).toHaveBeenCalledOnce()
+  })
+
+  it('accepts sixteen references without silently truncating a model-supported batch to fourteen',async()=>{
+    const {result}=renderHook(()=>useReferenceImageDraft())
+    act(()=>result.current.upload(Array.from({length:16},(_,i)=>new File([String(i)],`${i}.png`,{type:'image/png'}))))
+    await waitFor(()=>expect(result.current.images).toHaveLength(16))
+  })
+  it('does not permit a paid submission before the selected references have been persisted',async()=>{
+    let finish:(()=>void)|undefined
+    mocks.set.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve}))
+    const {result}=renderHook(()=>useReferenceImageDraft())
+    act(()=>result.current.upload([new File(['image'],'reference.png',{type:'image/png'})]))
+    expect(result.current.isImporting).toBe(true)
+    expect(()=>result.current.beginSubmission()).toThrow('finished loading')
+    await waitFor(()=>expect(mocks.set).toHaveBeenCalledOnce())
+    finish?.()
+    await waitFor(()=>expect(result.current.isImporting).toBe(false))
+    expect(result.current.beginSubmission().referenceImages).toHaveLength(1)
+  })
+  it('reports a failed library attachment and blocks generation instead of sending without that reference',async()=>{
+    mocks.reuse.mockRejectedValueOnce(Error('Unlock protected content'))
+    const {result}=renderHook(()=>useReferenceImageDraft())
+    act(()=>result.current.upload([new File(['image'],'protected.png',{type:'image/png'})]))
+    await waitFor(()=>{expect(result.current.importError).toBe('Unlock protected content');expect(result.current.isImporting).toBe(false)})
+    expect(()=>result.current.beginSubmission()).toThrow('Unlock protected content')
+    expect(mocks.set).not.toHaveBeenCalled()
+    await act(()=>result.current.clear())
+    expect(result.current.importError).toBeNull()
   })
 
   it('cleans up an unsubmitted upload when starting a new draft', async () => {

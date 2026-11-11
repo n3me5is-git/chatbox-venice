@@ -13,6 +13,7 @@ import { listSessionResources,readSessionResource } from '@/packages/session-res
 import platform from '@/platform'
 import { b64 } from '@/packages/collaboration/crypto'
 import { canShareAsset } from '@shared/collaboration'
+import { SUBSCRIPTION_REFERENCE_LIMIT, subscriptionReferenceLimit } from '@shared/oauth/chatgpt-image-options'
 
 const activeCalls=new Map<string,Promise<unknown>>()
 async function onceImageCall<T>(key:string,generate:boolean,run:()=>Promise<T>):Promise<T>{if(!generate)return run();const active=activeCalls.get(key);if(active)return active as Promise<T>;const work=run();activeCalls.set(key,work);try{return await work}finally{activeCalls.delete(key)}}
@@ -26,12 +27,12 @@ export function subscriptionImageToolAvailable(settings?:ProviderSettings){retur
 export function subscriptionChatImageTools(sessionId:string,requester='owner',turnId='external',approvalSessionId=sessionId):ToolSet{
   const provider=()=>settingsStore.getState().providers?.[ModelProviderEnum.OpenAISubscription]
   if(!subscriptionImageToolAvailable(provider()))return {}
-  const input=z.object({action:z.enum(['models','generate','status']),prompt:z.string().trim().min(1).max(20000).optional(),modelId:z.string().max(200).optional(),count:z.number().int().min(1).max(4).optional(),aspectRatio:z.enum(['auto','1:1','3:2','2:3']).optional(),referencePaths:z.array(z.string().max(240)).max(4).optional(),recordId:z.string().max(200).optional()}).strict()
+  const input=z.object({action:z.enum(['models','generate','status']),prompt:z.string().trim().min(1).max(20000).optional(),modelId:z.string().max(200).optional(),count:z.number().int().min(1).max(4).optional(),aspectRatio:z.enum(['auto','1:1','3:2','2:3']).optional(),referencePaths:z.array(z.string().max(240)).max(SUBSCRIPTION_REFERENCE_LIMIT).optional(),recordId:z.string().max(200).optional()}).strict()
   return {chatgpt_image:tool({description:'Generate/edit images using the connected ChatGPT subscription. Prefer this tool for images in a ChatGPT subscription chat unless the user explicitly selects Venice. models lists configured image IDs/endpoints. generate always asks for confirmation and returns a durable background record, not the final image. References are listed image paths in this session. Use status to check the record, never repeat a failed generation without a new user request. Never substitute a paid API or another provider automatically.',inputSchema:input,execute:async(request,options)=>onceImageCall(sessionId+':'+options.toolCallId,request.action==='generate',async()=>{
     assertSharedTurn(approvalSessionId,requester);await installedVaultFor(platform)?.projects.assertSession(sessionId);options.abortSignal?.throwIfAborted()
     if(!subscriptionImageToolAvailable(provider()))throw Error('ChatGPT image generation is disabled or disconnected')
     const models=subscriptionImageModels(provider())
-    if(request.action==='models')return models.map(model=>({id:model.modelId,name:model.nickname||model.modelId,endpoint:model.subscriptionEndpoint||'image-tool'}))
+    if(request.action==='models')return models.map(model=>({id:model.modelId,name:model.nickname||model.modelId,endpoint:model.subscriptionEndpoint||'image-tool',referenceLimit:subscriptionReferenceLimit(model)}))
     const service=getImageGenerationService()
     const result=(record:import('@shared/types').ImageGeneration)=>({ok:true,command:'image generate',accepted:true,background:true,recordId:record.id,status:'pending',recordStatus:record.status,startedAt:record.createdAt,wait:{mode:'callback',managedBy:'chatbox',modelShouldPoll:false},error:record.error,files:record.generatedImages.map((key,index)=>({id:'image:'+record.id+':'+key,path:'images/'+record.id+'/'+(index+1)+'.png'}))})
     if(request.action==='status'){const record=request.recordId?await service.getRecord(request.recordId):null;if(!record||record.source?.sessionId!==sessionId)throw Error('Image not found in this chat');return {...result(record),status:record.status}}

@@ -80,7 +80,7 @@ export class VaultRuntime {
     platform.setStoreBlob=async(alias,value)=>{await this.projects.assertApp();if(alias.startsWith('picture:')&&!value.startsWith('data:')&&/^[A-Za-z0-9+/=\r\n]+$/.test(value)){const mime=value.startsWith('/9j/')?'image/jpeg':value.startsWith('UklGR')?'image/webp':value.startsWith('R0lGOD')?'image/gif':'image/png';value=`data:${mime};base64,${value}`}const mime=/^data:((?:image|audio|video)\/[^;,]+);base64,/.exec(value)?.[1]
       if(!mime||!await this.available()){await this.legacy.set(alias,value);return}
       const previous=await this.find(alias);const recordId=/^picture:image-gen:([^:]+):/.exec(alias)?.[1];const record=recordId?await protectedImages.getById(recordId):null
-      const info={...mimeInfo(mime),...(alias.endsWith(':thumbnail')?{kind:'thumbnail' as const}:{}),...(record?{name:alias.endsWith(':unmasked')?'Unmasked provider result':record.prompt.slice(0,100)||'Saved image',prompt:record.prompt,model:record.model.modelId,sourceId:record.id}:{})}
+      const info={...mimeInfo(mime),...(alias.startsWith('picture:image-creator-ref:')||alias.startsWith('pictureimage-creator-ref')?{hidden:true}:{}),...(alias.endsWith(':thumbnail')?{kind:'thumbnail' as const}:{}),...(record?{name:alias.endsWith(':unmasked')?'Unmasked provider result':record.prompt.slice(0,100)||'Saved image',prompt:record.prompt,model:record.model.modelId,sourceId:record.id}:{})}
       await this.assets.put(dataUrlBytes(value),info,previous?.scope||record?.protection||'public',alias)
       if(previous)await this.assets.remove(`vault-asset-${previous.id}`);await this.legacy.remove(alias)
     }
