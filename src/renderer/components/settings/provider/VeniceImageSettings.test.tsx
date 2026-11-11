@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { VeniceImageSettings } from './VeniceSettings'
 const state = vi.hoisted(() => ({ save: vi.fn(), settings: { venice: { image: { format: 'jpeg', transparent_background: false } } } }))
 vi.mock('@/stores/settingsStore', () => ({ useProviderSettings: () => ({ providerSettings: state.settings, setProviderSettings: state.save }) }))
+vi.mock('@/packages/venice/service', () => ({ veniceMediaService: {} }))
 Object.defineProperty(window, 'matchMedia', { writable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) })
 beforeEach(() => { state.save.mockClear(); vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }) })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })

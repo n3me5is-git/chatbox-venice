@@ -29,7 +29,7 @@ export function quoteLabel(result: unknown, locale = 'en') {
   return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(amount)
 }
 export function friendlyMediaError(error: string) {
-  if (/^Use a PNG|^Unable to read|model|duration|lyrics|unsupported reference/i.test(error)) return error
+  if (/^Use a PNG|^Unable to read|^Voice style instructions|model|duration|lyrics|unsupported reference/i.test(error)) return error
   if (/429|rate.?limit/i.test(error)) return 'Too many requests right now. Wait before trying again.'
   if (/401|403|API key|credentials|original.*key/i.test(error)) return "Check your Venice key and model permissions in settings."
   if (/JSON|Unexpected token|property name|Invalid JSON|streaming.*settings/i.test(error)) return "Check the advanced parameters: the format is invalid."

@@ -41,9 +41,13 @@ export function flattenMCPToolGroups(groups: readonly MCPToolGroup[]): ToolSet {
       while (reserved.has(name) || assigned.has(name))
     }
     assigned.add(name)
-    result[name] = renamed
-      ? { ...entry.tool, description: `[MCP server: ${entry.server}] ${entry.tool.description ?? ''}`.trimEnd() }
-      : entry.tool
+    if (!renamed) { result[name] = entry.tool; continue }
+    const prefix = `[MCP server: ${entry.server}] `
+    const original = entry.tool.description
+    const description: typeof original = typeof original === 'function'
+      ? options => (prefix + original(options)).trimEnd()
+      : (prefix + (original ?? '')).trimEnd()
+    result[name] = { ...entry.tool, description } as ToolSet[string]
   }
   return result
 }
