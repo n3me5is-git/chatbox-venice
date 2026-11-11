@@ -118,13 +118,16 @@ export function useReferenceImageDraft() {
       for (const file of Array.from(files)
         .filter((file) => file.type.startsWith('image/'))
         .slice(0, available)) {
-        const reader = new FileReader()
-        reader.onload = async () => {
-          if (typeof reader.result !== 'string') return
-          const data = reader.result
-          // Serialize imports so identical bytes selected together cannot race
-          // into separate blobs. Borrowed library assets remain library-owned.
+          // Read one file at a time as well as serializing writes: a batch of
+          // large references must not create every base64 buffer concurrently.
           draft.current.imports = draft.current.imports.then(async () => {
+          if (!draft.current.mounted || draft.current.uploadEpoch !== epoch) return
+          const data = await new Promise<string>((resolve,reject)=>{
+            const reader=new FileReader()
+            reader.onload=()=>typeof reader.result==='string'?resolve(reader.result):reject(new Error('Unable to read the reference'))
+            reader.onerror=()=>reject(reader.error||new Error('Unable to read the reference'))
+            reader.readAsDataURL(file)
+          })
           if (!draft.current.mounted || draft.current.uploadEpoch !== epoch) return
           const hash = mediaContentHash(data)
           const existing = draft.current.hashes.get(hash)
@@ -147,9 +150,6 @@ export function useReferenceImageDraft() {
           draft.current.hashes.set(hash, storageKey)
           addReference(storageKey)
           }).catch(error => log.error('Failed to store a reference image:', error))
-        }
-        reader.onerror = () => log.error('Failed to read a reference image:', file.name)
-        reader.readAsDataURL(file)
       }
     },
     [addReference, removeBlobs]
