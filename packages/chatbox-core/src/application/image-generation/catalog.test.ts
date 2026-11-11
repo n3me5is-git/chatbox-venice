@@ -31,6 +31,10 @@ describe('shared image catalog', () => {
     expect(buildImageModelGroups(options)[0].models.map(model=>model.modelId)).toEqual(['gpt-image-2-5-flare','gpt-image-2-5-flare-edit'])
     expect(buildImageModelGroups({...options,settings:{providers:{venice:{...settings.providers.venice,venice:{...settings.providers.venice.venice,privacyFilter:'private'}}}}})).toEqual([])
   })
+  it('does not expose a video model incorrectly saved as an image when the Venice image catalog is available',()=>{
+    const result=buildImageModelGroups({providers:[{id:ModelProviderEnum.Venice,name:'Venice'}],platform:'mobile',settings:{providers:{venice:{apiKey:'test',models:[{modelId:'seedance-2-5-image-to-video-basic',type:'image'},{modelId:'seedream-v5-5',type:'image'}]}}},remoteModels:{[ModelProviderEnum.Venice]:[{modelId:'seedream-v5-5',displayName:'Seedream'}]}})
+    expect(result[0].models.map(model=>model.modelId)).toEqual(['seedream-v5-5'])
+  })
   it('validates remote manifests and preserves optional empty image catalogs', () => {
     expect(parseImageModelManifestResponse({ data: {} })).toEqual([])
     expect(parseImageModelManifestResponse({ data: { imageModels: [{ modelId: 'image' }] } })).toEqual([

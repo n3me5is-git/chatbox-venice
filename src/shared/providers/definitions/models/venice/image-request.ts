@@ -1,7 +1,7 @@
 import type { ImageModelCapabilities, ProviderModelInfo, ProviderSettings } from '../../../../types'
 import { mergeExtraBody } from '../../../../models/utils/extra-body'
 
-export function getVeniceImageCapabilities(model: ProviderModelInfo): ImageModelCapabilities {
+export function getVeniceImageCapabilities(model: Pick<ProviderModelInfo,'modelId'|'vendorMetadata'>): ImageModelCapabilities {
   const metadata = model.vendorMetadata || {}
   const constraints = (metadata.constraints || {}) as Record<string, unknown>
   const capabilities = (metadata.capabilities || {}) as Record<string, unknown>
@@ -17,7 +17,7 @@ export function getVeniceImageCapabilities(model: ProviderModelInfo): ImageModel
 }
 
 /** Shared by the adapter and the dependency-free live API smoke test. */
-export function buildVeniceImageRequest(model:ProviderModelInfo, settings:NonNullable<ProviderSettings['venice']>, params:{prompt:string;images?:{imageUrl:string}[];aspectRatio?:string}) {
+export function buildVeniceImageRequest(model:Pick<ProviderModelInfo,'modelId'|'vendorMetadata'|'extraBody'>, settings:NonNullable<ProviderSettings['venice']>, params:{prompt:string;images?:{imageUrl:string}[];aspectRatio?:string}) {
   const image = settings.image || {}
   const editing = model.vendorMetadata?.veniceType === 'inpaint'
   const capabilities = getVeniceImageCapabilities(model)

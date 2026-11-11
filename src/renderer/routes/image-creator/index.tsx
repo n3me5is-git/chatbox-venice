@@ -566,6 +566,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                 onAddClick={uploadSource}
               />
               {selectedProvider==='venice'&&selectedOption&&<Text size="xs" c="dimmed">{ft(imageVariant(selectedOption.vendorMetadata)||'Images')}{selectedOption.capabilities?.inputReferences?' · '+ft('Up to {{count}} reference images',{count:selectedOption.capabilities.inputReferences.max??1}):''}{referenceImages.length>0&&referenceOption?.modelId!==selectedModel?' · '+ft('Choose a model that accepts these reference images'):''}</Text>}
+              {selectedProvider===ModelProviderEnum.OpenAISubscription&&selectedOption?.capabilities?.inputReferences&&<Text size="xs" c="dimmed">{ft('Up to {{count}} local references; your account may apply additional limits.',{count:selectedOption.capabilities.inputReferences.max??1})}</Text>}
               <input
                 ref={fileInputRef}
                 type="file"

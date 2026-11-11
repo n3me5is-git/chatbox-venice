@@ -1,4 +1,5 @@
 export const catalogItalian={
+ 'Up to {{count}} local references; your account may apply additional limits.':'Fino a {{count}} riferimenti locali; il tuo account potrebbe applicare ulteriori limiti.',
  'Text to image':'Da testo a immagine',
  'Up to {{count}} reference images':'Fino a {{count}} immagini di riferimento',
  'Choose a model that accepts these reference images':'Scegli un modello che accetti queste immagini di riferimento',
