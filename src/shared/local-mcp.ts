@@ -44,3 +44,9 @@ export function localMCPGrantAllows(grant:LocalMCPGrant,name:string,args:Record<
   if(app.mode==='router')return ['app_models','app_model','venice_image','venice_media'].includes(name)&&localMCPAllows(grant.permissions,name,args)
   return false
 }
+
+/** Portable, distinct client keys even when two endpoints use the same display name. */
+export function localMCPClientConfiguration(grant:LocalMCPGrant){
+  const name=(grant.application?.name||'chatbox-venice').toLowerCase().replace(/[^a-z0-9_-]+/g,'-').slice(0,40)
+  return {mcpServers:{['chatbox-'+name+'-'+new URL(grant.url).port]:{url:grant.url,headers:{Authorization:'Bearer '+grant.token}}}}
+}

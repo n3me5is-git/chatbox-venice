@@ -10,7 +10,8 @@ Object.defineProperty(window,'matchMedia',{value:vi.fn(()=>({matches:false,addEv
 vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})
 afterEach(cleanup)
 it('never starts automatically and grants only the permissions selected by the human',async()=>{
-  const invoke=vi.fn(async(command:string,input?:LocalMCPStart):Promise<LocalMCPState>=>command==='start'?{running:true,sessionId:input!.sessionId,permissions:input!.permissions,url:'http://127.0.0.1:3000/mcp',token:'ephemeral-local-token',startedAt:1}:{running:false})
+  let live:LocalMCPState={running:false}
+  const invoke=vi.fn(async(command:string,input?:LocalMCPStart):Promise<LocalMCPState>=>{if(command==='start')live={running:true,sessionId:input!.sessionId,permissions:input!.permissions,url:'http://127.0.0.1:3000/mcp',token:'ephemeral-local-token',startedAt:1};if(command==='stop')live={running:false};return live})
   render(<MantineProvider><LocalMCPSettings sessionId="chat" invoke={invoke}/></MantineProvider>)
   await waitFor(()=>expect(invoke).toHaveBeenCalledWith('status'));expect(invoke).not.toHaveBeenCalledWith('start',expect.anything())
   expect((screen.getByRole('checkbox',{name:'Run isolated JavaScript and optional Python'}) as HTMLInputElement).disabled).toBe(true)

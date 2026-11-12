@@ -18,10 +18,10 @@ export async function transferMCPResource(id:string,input:{action:'list'|'read';
   let range:Uint8Array,version:string,total:number,contentHash:string
   if(header){
     await vault.projects.assertLibraryKey(header.alias)
-    version=header.id;total=item.bytes??header.bytes
+    version=header.id;total=item.bytes===0&&(await vault.assets.info(header)).logicalBytes===0?0:header.bytes
     if(input.version&&input.version!==version)throw Error('The resource changed; restart its transfer')
     if(input.offset>total)throw Error('Offset is outside the resource')
-    let known=hashes.get(header.id)
+    let known=total===0?hex(sha256(new Uint8Array())):hashes.get(header.id)
     if(!known){
       const hash=sha256.create();let position=0
       for await(const bytes of vault.assets.read(item.key!)){try{await assert();await vault.projects.assertLibraryKey(header.alias);hash.update(bytes);position+=bytes.length}finally{bytes.fill(0)}}
@@ -36,6 +36,6 @@ export async function transferMCPResource(id:string,input:{action:'list'|'read';
     const {bytes}=await readSessionResource(id,item)
     try{total=bytes.length;contentHash=hex(sha256(bytes));version=contentHash;if(input.version&&input.version!==version)throw Error('The resource changed; restart its transfer');if(input.offset>total)throw Error('Offset is outside the resource');range=bytes.slice(input.offset,input.offset+input.length)}finally{bytes.fill(0)}
   }
-  try{await assert();return {resourceId:item.id,mime:item.mime,offset:input.offset,bytes:range.length,total,version,sha256:contentHash,chunkSha256:hex(sha256(range)),base64:base64(range),nextOffset:input.offset+range.length<total?input.offset+range.length:null}}
+  try{await assert();if(header)await vault.projects.assertLibraryKey(header.alias);return {resourceId:item.id,mime:item.mime,offset:input.offset,bytes:range.length,total,version,sha256:contentHash,chunkSha256:hex(sha256(range)),base64:base64(range),nextOffset:input.offset+range.length<total?input.offset+range.length:null}}
   finally{range.fill(0)}
 }

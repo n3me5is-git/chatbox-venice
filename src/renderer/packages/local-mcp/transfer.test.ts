@@ -50,3 +50,10 @@ it('honors a locked scope and the workspace switch before reading or uploading b
  state.enabled=false;await expect(uploadMCPFile(g,'workspace',input,signal)).rejects.toThrow('disabled');await expect(transferMCPResource('workspace',{action:'list',offset:0,length:10},signal)).rejects.toThrow('disabled')
  state.enabled=true;state.locked=true;await expect(uploadMCPFile(g,'workspace',input,signal)).rejects.toThrow('Locked');expect(headers.size).toBe(0)
 })
+
+it('exports a zero-byte managed document without leaking its encrypted storage placeholder',async()=>{
+ const ref=await state.vault.assets.put((async function*(){yield new Uint8Array([0])})(),{name:'empty.md',mime:'text/markdown',kind:'document',logicalBytes:0},'public')
+ state.files=[{id:'empty',path:'empty.md',name:'empty.md',mime:'text/markdown',origin:'file',key:ref,bytes:0}]
+ const result=await transferMCPResource('workspace',{action:'read',resourceId:'empty',offset:0,length:1024},new AbortController().signal)
+ expect(result).toMatchObject({total:0,bytes:0,base64:'',sha256:hex(new Uint8Array()),nextOffset:null})
+})
