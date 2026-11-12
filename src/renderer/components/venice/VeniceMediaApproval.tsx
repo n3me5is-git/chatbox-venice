@@ -25,7 +25,7 @@ export const VeniceMediaApproval = NiceModal.create(({ message, sessionId, gener
       if(options)assertMediaToolOptions(request?.kind||'',options)
       if(approved&&generation&&request&&!prompt.trim())throw Error('Enter a prompt before approving this generation.')
       modal.resolve({ approved, mode, ...(options?{options,prompt}: {}) }); modal.hide()
-    }catch(error){setError(t((error as Error).message))}
+    }catch(error){setError(String(t((error as Error).message)))}
   }
   useEffect(()=>{const signal=request?.signal;const abort=()=>close(false);if(signal?.aborted)abort();signal?.addEventListener('abort',abort,{once:true});return()=>signal?.removeEventListener('abort',abort)},[request?.signal])
   const kinds={speech:'Voice',video:'Video',music:'Music','sound-effects':'Sound effects','voice-conversion':'Voice conversion',transcription:'Transcribe'}

@@ -1,5 +1,5 @@
 import { expect,it } from 'vitest'
-import { defaultLocalMCPPermissions,localMCPAllows,localMCPWorkerAllows,parseSessionResourceURI,sessionResourceURI,LocalMCPStartSchema } from './local-mcp'
+import { defaultLocalMCPPermissions,localMCPAllows,localMCPWorkerAllows,parseSessionResourceURI,sessionResourceURI,LocalMCPStartSchema,localMCPGrantAllows,LocalMCPApplicationSchema } from './local-mcp'
 it('separates read, permanent write, execution, paid models, Venice and forwarding permissions',()=>{
   const permissions={...defaultLocalMCPPermissions}
   expect(localMCPAllows(permissions,'session_file',{action:'read'})).toBe(true)
@@ -37,4 +37,11 @@ it('confines resource URIs to the shared chat and validates start options',()=>{
   expect(()=>parseSessionResourceURI('other',uri)).toThrow('shared chat')
   expect(()=>LocalMCPStartSchema.parse({sessionId:'../outside',port:80,permissions:defaultLocalMCPPermissions})).toThrow()
   expect(LocalMCPStartSchema.parse({sessionId:'one',port:0,permissions:defaultLocalMCPPermissions}).port).toBe(0)
+})
+
+it('keeps router, shadow and full app scopes separate from their feature flags',()=>{
+  const grant={running:true as const,sessionId:'application',url:'http://127.0.0.1:1/mcp',token:'test',startedAt:1,permissions:{...defaultLocalMCPPermissions,models:true},application:LocalMCPApplicationSchema.parse({mode:'router',name:'Models'})}
+  expect(localMCPGrantAllows(grant,'app_model')).toBe(true);expect(localMCPGrantAllows(grant,'app_resources')).toBe(true)
+  for(const name of ['app_contexts','app_conversation','app_call','session_file','web_search','agent_spawn','venice_studio'])expect(localMCPGrantAllows(grant,name)).toBe(false)
+  grant.application.mode='shadow';expect(localMCPGrantAllows(grant,'app_contexts')).toBe(true);expect(localMCPGrantAllows(grant,'app_model')).toBe(false)
 })

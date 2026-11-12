@@ -1,4 +1,59 @@
-# Share a chat with a local MCP client
+# Desktop MCP servers
+
+Chatbox Venice can serve trusted local MCP clients using Streamable HTTP. **Settings → MCP → App-wide MCP servers** creates independent endpoints, with separate loopback ports, random access tokens and permissions. The existing **Share this chat through MCP** remains a separate, narrower endpoint. Nothing starts automatically after installation or restart. Up to eight listeners can run together.
+
+An existing single-chat endpoint exposes the selected workspace, saved generations, explicitly supplied text-model requests and optionally its agents. It does **not** provide a conversation send/read tool. The app-wide endpoint adds an explicit conversation grant for that purpose.
+
+## Access profiles
+
+| Profile | Data and operations |
+| --- | --- |
+| Models and Studio only | Acts as a local router. Configured LLMs, optional external function schemas, direct Venice Studio pipelines and input/output transfer in an internal temporary workspace. Cannot browse existing chats, run workers, execute scripts, search or forward other MCP services. |
+| Shadow workspaces only | Can create and manage only this endpoint’s temporary workspaces, with the individually granted tools and agents. Cannot retain a temporary workspace as a normal chat or access existing chats. |
+| Authorized app access | Can discover unlocked root chats and use granted features. Creating, configuring/deleting chats and reading/sending conversation messages have separate controls. Cannot read another endpoint’s temporary workspace or bypass protected content. |
+
+All profiles separately control file reading, uploads/writes, LLM calls, automatic LLM approval, Studio, and automatic Studio approval. Full/shadow profiles can additionally grant isolated code execution, search, forwarded MCP services and multi-agent operation. Dedicated agents must be selected for the endpoint; their own guardian policies and nested permissions still apply. A sandbox ID never authorizes raw access to a worker: use reviewed agent tools.
+
+**Auto** preserves app/model privacy choices, including strongest supported automatic Venice transport. **Require E2EE** filters text calls to E2EE Venice models and fails if encryption or verification fails. **Require TEE or E2EE** permits attested Venice models, using E2EE for capable models. These requirements never fall back to ordinary models. Studio images/audio/video use separate Venice APIs and are not made E2EE by this switch.
+
+An external MCP client receives decrypted results on this computer. The model connection can still be E2EE: Chatbox encrypts before sending to Venice and verifies/decrypts the response locally. Optional external function schemas are definitions only: app_model returns proposed calls without executing them. The external orchestrator executes its tools and supplies explicit tool results in its next request. With encrypted-text E2EE transport these definitions, arguments and results use the existing encrypted tool protocol; native non-E2EE providers have their normal visibility.
+
+## Client setup
+
+Copy a running endpoint’s configuration into a Streamable HTTP MCP client that supports an Authorization header:
+
+```json
+{"mcpServers":{"chatbox-router":{"url":"http://127.0.0.1:YOUR_PORT/mcp","headers":{"Authorization":"Bearer YOUR_LOCAL_TOKEN"}}}}
+```
+
+This is an MCP endpoint, not an OpenAI-compatible HTTP API server. Each port accepts only its own token. Stopping one endpoint leaves the others running. **Stop all MCP endpoints**, app lock, protection changes, window destruction or quitting revoke access. A new run gets a new token. There is no LAN bind or public pairing relay.
+
+## Application tools
+
+- **app_contexts**: list/get authorized root workspaces; create, configure or permanently delete them when granted. Creation uses request_id. New workspaces inherit no conversation, global system prompt, knowledge collection or OS directory. Use settings for the chosen provider/model, context/token parameters and permitted multi-agent policy. System-prompt changes additionally require conversation permission.
+- **app_context_tools**: discover actual tool schemas for a context. **app_call** executes one of these tools after argument and capability validation. This includes the reviewed agent lifecycle/file-transfer tools.
+- **app_conversation**: explicit read or send. Sending uses saved conversation context and only endpoint-granted tools, with ordinary configured model transport. It refuses busy chats and incomplete bounded history rather than silently dropping earlier instructions. Compact long conversations in the app first. This API is a bounded MCP conversation runner; it does not emulate every UI command.
+- **app_models / app_model**: router text-model discovery and one model turn, without implicit chat history. Returns contentParts (including proposed tool calls), text, usage and available local verification evidence. Provide tools only when external function schemas were granted. Definitions use {name, description, inputSchema}; assistant toolCalls use {toolCallId, toolName, input}; tool messages use {role: "tool", toolCallId, toolName, result}.
+- **venice_studio**: direct catalog/pricing, generation, quotes, status, bounded wait, pause/resume, remote queue cleanup, transcription, voice conversion and supported voice cloning. Image generation accepts referencePaths; video references map API reference parameter names to uploaded workspace paths. Choose exact catalog IDs and supported options. Cloned-voice listings are confined to handles created in that temporary context.
+- **app_upload**: sequential binary chunks of at most 256 KiB, encrypted in app storage. Keep uploadId (UUID), path, mime, totalBytes and full-file sha256 constant; index starts at zero; set final on the last chunk. Changed retries and final hash mismatches are rejected. Media can use the existing 128 MiB workspace limit; individual Studio input APIs impose their own smaller limits.
+- **app_resources**: list saved resources or retrieve ranges up to 256 KiB. The response includes base64, version, offsets, total length, full-file SHA-256 and chunk SHA-256. Carry version across chunks and verify the assembled hash. Encrypted media is streamed through a bounded buffer instead of loading the entire library.
+- **app_cleanup**: permanently remove the endpoint’s selected temporary workspace (or all of its temporary workspaces), generated records, files, upload staging and descendant agent sandboxes after retrieval. It never removes an existing personal chat or another endpoint’s space.
+
+Router tools use an internal workspace without a sessionId. Full/shadow operations require an authorized sessionId from app_contexts. Router mode also retains the existing venice_image/venice_media adapters where enabled; venice_studio exposes the direct Studio paths without requiring the chat-tool toggle.
+
+## Retry and shadow lifecycle
+
+Use stable request_id values for paid or destructive operations. Identical retries within the same endpoint run share the original outcome; changing inputs under the same ID is rejected. Failed or ambiguous calls are not replayed automatically. Large results are retrieved from saved resources rather than retained indefinitely in the retry cache. After restart, a new token has no authority to replay old requests.
+
+Temporary output stays hidden from ordinary chat lists, Studio history and the media library. Download all resource chunks before app_cleanup; merely reading a result does not delete it. Endpoint stop also attempts cleanup. If storage is locked/unavailable or Venice cannot confirm queue cleanup, the temporary manifest remains for retry after unlock/startup or **Clean up stopped endpoints**. A force quit cannot guarantee immediate deletion while the app is stopped.
+
+Queue cleanup uses the original Venice endpoint/key and its existing completion API. Local cleanup does not promise secure erasure from SSD backups or deletion unsupported by the provider. In particular, cloned voices currently expire according to Venice retention; removing their local handles is not immediate remote voice deletion. No automatic retry starts another paid generation.
+
+Provider credentials never enter client configuration, model discovery or normal tool responses. The existing credential-redaction layer also covers app-wide results. Resource access still checks app/project locks, workspace switches, relative paths and granted capabilities. Browser Origin headers and unexpected Host headers remain rejected. HTTP requests are limited to 512 KiB, eight operations per endpoint, five minutes per request and bounded responses.
+
+---
+
+## Existing single-chat sharing details
 
 The desktop app can act as an opt-in MCP server. Open **Files and resources → Workspace settings → Share this chat through MCP**, or Settings → MCP while that chat is selected. Choose the permissions, then start sharing. It never starts automatically after installation or restart.
 

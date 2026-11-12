@@ -1,3 +1,4 @@
+import {useTemporaryMCPFilter} from '@/packages/local-mcp/useTemporaryFilter'
 import {ImagePromptField} from '@/components/venice/ImagePromptField'
 import { ProtectedPreviewGate } from '@/components/security/ProtectedPreviewGate'
 import { chooseUploadSource } from '@/components/local-library/UploadSource'
@@ -320,8 +321,9 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   const currentGeneratingId = useCurrentGeneratingId()
   const currentRecordId = useCurrentRecordId()
   const { data: currentRecordRaw } = useImageGenerationRecord(currentRecordId)
+  const visibleMCP=useTemporaryMCPFilter()
   const visibleRecord=currentRecordRaw?.protection&&!vault.keys.isUnlocked(currentRecordRaw.protection)?lockedImageRecord(currentRecordRaw):currentRecordRaw
-  const currentRecord = onlyVenice && visibleRecord?.model.provider !== 'venice' ? undefined : visibleRecord
+  const currentRecord = !visibleMCP(visibleRecord?.source?.sessionId)||onlyVenice && visibleRecord?.model.provider !== 'venice' ? undefined : visibleRecord
 
   const {
     data: historyData,
@@ -332,8 +334,8 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   } = useImageGenerationHistory()
 
   const historyCache = useMemo(() => {
-    return (historyData?.pages.flatMap((page) => page.items) ?? []).filter(record => !onlyVenice || record.model.provider === 'venice').map(record=>record.protection&&!vault.keys.isUnlocked(record.protection)?lockedImageRecord(record):record)
-  }, [historyData, onlyVenice, protectionRevision])
+    return (historyData?.pages.flatMap((page) => page.items) ?? []).filter(record=>visibleMCP(record.source?.sessionId)).filter(record => !onlyVenice || record.model.provider === 'venice').map(record=>record.protection&&!vault.keys.isUnlocked(record.protection)?lockedImageRecord(record):record)
+  }, [historyData, onlyVenice, protectionRevision,visibleMCP])
   useEffect(()=>{void queryClient.invalidateQueries({queryKey:[IMAGE_GEN_LIST_QUERY_KEY]});void queryClient.invalidateQueries({queryKey:[IMAGE_GEN_QUERY_KEY]});if(!vault.keys.isUnlocked('app')&&(saveProtected||currentRecordRaw?.protection))setPrompt('')},[protectionRevision])
 
   const isCurrentlyGenerating = currentGeneratingId !== null

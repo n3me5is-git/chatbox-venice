@@ -88,6 +88,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     const inherited = isolated ? SessionSettingsSchema.parse(run.preset?.parameters || {}) : await getSessionSettings(sourceId)
     const parameters = workerSessionParameters(inherited)
     const session = await rendererApplication.sessions.createSession({ type: 'chat', hidden: true, name: run.title, folderId: parent?.folderId, messages: [], settings: { ...parameters, ...run.model, agentMode: { value: 'off', locked: true, lockReason: 'message_sent' }, multiAgentRun: { rootId: run.rootId, runId: run.id, parentId: run.parentId, workspaceId: isolated ? '' : workspaceId, depth: run.depth } } })
+    await (await import('@/packages/local-mcp/temporary')).registerTemporaryMCPChild(run.rootId,session.id)
     if(isolated)await (await import('@/packages/session-resources/linked-folder')).linkedFolderOperation({sessionId:session.id,action:'inherit',parentId:workspaceId})
     const target = isolated ? session.id : workspaceId
     await rendererApplication.sessions.updateSessionHeader(session.id, header => { if (!header) throw Error('Child chat is unavailable'); return { ...header, settings: { ...header.settings, multiAgentRun: { ...header.settings!.multiAgentRun!, workspaceId: target } } } })
@@ -216,7 +217,7 @@ export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: To
       await assert()
       const options = new Set(dedicatedToolOptions())
       const names = Object.keys(available).map(name => name.startsWith('mcp_') ? name.slice(4) : name).filter(name => options.has(name))
-      const caller: AgentCaller = { id: grant.sessionId, rootId: grant.sessionId, workspaceId: grant.sessionId, depth: 0, model: { provider: settings.provider, modelId: settings.modelId }, tools: [...new Set([...names,'ask_user'])], allowOnDemand: policy.allowOnDemand, dedicatedIds: policy.dedicatedIds }
+      const caller: AgentCaller = { id: grant.sessionId, rootId: grant.sessionId, workspaceId: grant.sessionId, depth: 0, model: { provider: settings.provider, modelId: settings.modelId }, tools: [...new Set([...names,'ask_user'])], allowOnDemand: policy.allowOnDemand, dedicatedIds: policy.dedicatedIds.filter(id=>!grant.application||grant.application.dedicatedIds.includes(id)) }
       const context: ExternalAgentContext = { caller, owned: new Set() }
       const configuration = (value: SessionSettings) => JSON.stringify({ provider: value.provider, modelId: value.modelId, multiAgent: value.multiAgent, agentMode: value.agentMode, ...workerSessionParameters(value), sessionPromptContextSnapshot: value.sessionPromptContextSnapshot })
       const fingerprint = configuration(settings)

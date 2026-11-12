@@ -1,3 +1,4 @@
+import {useTemporaryMCPFilter} from '@/packages/local-mcp/useTemporaryFilter'
 import { ProtectedPreviewGate } from '@/components/security/ProtectedPreviewGate'
 import { VeniceModelSelect } from './VeniceModelSelect'
 import { VeniceSettingSelect } from './VeniceSettingSelect'
@@ -112,7 +113,8 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
   } }}
   const missingVideoSource=kind==='video'&&!!selected&&((videoSupport.start&&!image)||(videoSupport.video&&!videoSupport.references&&!sourceVideo)||(videoSupport.references&&!referenceImages.length&&!referenceVideos.length)||(editingReferences&&referenceVideos.length!==1)||((spec?.constraints?.requires_end_image===true||/first-last|first-and-last|start-end|transition/.test(model))&&videoSupport.end&&!endImage));
   const ready = !missingVideoSource && enabled && !!model && (!saveProtected||!!vault?.keys.isUnlocked('app')) && (['transcription','voice-conversion'].includes(kind) ? !!file : !!prompt.trim())
-  const visibleCreations=records.filter(record=>record.kind===kind).filter(record=>librarySection==='protected'?!!record.protection:!record.protection).map(record=>record.protection&&!vault?.keys.isUnlocked(record.protection)?lockedMediaRecord(record):record)
+  const visibleMCP=useTemporaryMCPFilter()
+  const visibleCreations=records.filter(record=>visibleMCP(record.sessionId)).filter(record=>record.kind===kind).filter(record=>librarySection==='protected'?!!record.protection:!record.protection).map(record=>record.protection&&!vault?.keys.isUnlocked(record.protection)?lockedMediaRecord(record):record)
   const KindIcon = icons[kind]
   return <Stack p={{ base: 'sm', sm: 'lg' }} maw={1000} mx="auto" style={{ width: '100%' }}>
     <Group justify="space-between" gap="sm"><Group gap="sm"><ThemeIcon size={44} radius="xl" variant="light"><KindIcon size={25} /></ThemeIcon><Stack gap={2}><Title order={2}>{ft("Create with Venice")}</Title><Text size="sm" c="dimmed">{ft("Voice, video, music and sound effects in one place.")}</Text></Stack></Group>{openSettings && <Button variant="subtle" size="xs" onClick={openSettings}>{ft("Settings")}</Button>}</Group>

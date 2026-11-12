@@ -1,3 +1,4 @@
+import {externalMessagesSchema,externalToolsSchema,externalModelInput} from './model-input'
 import { asSchema,tool,type ToolSet } from 'ai'
 import { z } from 'zod'
 import { SystemProviders } from '@shared/defaults'
@@ -22,14 +23,22 @@ import { buildWebSearchTools,parseLinkTool } from '@/packages/model-calls/toolse
 import platform from '@/platform'
 
 const forwarding=new Set<string>()
+export async function localMCPSettings(grant:LocalMCPGrant,override?:{provider:string;modelId:string}){
+  const original={...await getSessionSettings(grant.sessionId),...override},required=grant.application?.privacy
+  const settings={...original,...(grant.application?.externalTools?{veniceSecurity:{...original.veniceSecurity,e2eeToolsEnabled:true,e2eeToolMode:'encrypted-text' as const}}:{}),...(!grant.permissions.search?{subscriptionWebSearch:false,veniceProfile:{...original.veniceProfile,webSearch:'off' as const,webSearchEnabled:false}}:{})}
+  if(!required||required==='auto')return settings
+  const actual=veniceSessionTextPrivacy({...settings,veniceSecurity:{...settings.veniceSecurity,textPrivacy:'auto'}},settingsStore.getState().getSettings())
+  return {...settings,veniceSecurity:{...settings.veniceSecurity,textPrivacy:required==='e2ee'||actual==='e2ee'?'e2ee' as const:'tee' as const,...(grant.application?.externalTools?{e2eeToolsEnabled:true,e2eeToolMode:'encrypted-text' as const}:{})}}
+}
 async function assertChat(grant:LocalMCPGrant){await vaultRuntimeFor(platform).projects.assertSession(grant.sessionId);if(!await rendererApplication.sessions.getSessionHeader(grant.sessionId))throw new Error('The shared chat was deleted')}
-async function catalog(grant:LocalMCPGrant){
-  const global=settingsStore.getState().getSettings(),session=await getSessionSettings(grant.sessionId)
+export async function localMCPModelCatalog(grant:LocalMCPGrant){
+  const global=settingsStore.getState().getSettings(),session=await localMCPSettings(grant)
   const base=global.providers?.venice?.venice,privacy=resolveVeniceSettings(base,undefined,session.veniceProfile,session.veniceSecurity)
-  const mode=veniceSessionTextPrivacy(session,global)
-  const restrict=session.provider===ModelProviderEnum.Venice&&(mode!=='standard'||privacy.privacyFilter&&privacy.privacyFilter!=='all')
+  const mode=grant.application?.privacy&&grant.application.privacy!=='auto'?grant.application.privacy:veniceSessionTextPrivacy(session,global)
+  const restrict=grant.application?.privacy!=='auto'&&!!grant.application||session.provider===ModelProviderEnum.Venice&&(mode!=='standard'||privacy.privacyFilter&&privacy.privacyFilter!=='all')
   const output:{provider:string;providerName:string;modelId:string;name:string;capabilities:ProviderModelInfo['capabilities'];privacy:unknown;uncensored:unknown;secure:unknown}[]=[]
   for(const provider of [...SystemProviders(),...(global.customProviders??[])]){
+    if(grant.application?.providers&&!grant.application.providers.includes(provider.id))continue
     if(restrict&&provider.id!==ModelProviderEnum.Venice)continue
     if(provider.id===ModelProviderEnum.Venice&&base?.enabled===false)continue
     const saved=mergeSharedOAuthProviderSettings(provider.id,global.providers)
@@ -49,26 +58,26 @@ async function catalog(grant:LocalMCPGrant){
 async function modelTools(grant:LocalMCPGrant):Promise<ToolSet>{
   if(!grant.permissions.models)return {}
   return {
-    app_models:tool({description:'List configured text models available to this shared chat, respecting its Venice privacy restrictions. Returns capabilities, never credentials.',inputSchema:z.object({}).strict(),execute:()=>catalog(grant)}),
+    app_models:tool({description:'List configured text models available to this shared chat, respecting its Venice privacy restrictions. Returns capabilities, never credentials.',inputSchema:z.object({}).strict(),execute:()=>localMCPModelCatalog(grant)}),
     app_model:tool({
-      description:'Call one configured text model with explicit text messages. Uses this chat’s privacy settings and the app’s stored provider credentials, without returning the credentials or sending chat history automatically. Provider charges may apply. Human approval is required unless automatic model calls were explicitly granted when sharing this chat. No tool recursion or implicit fallback model.',
-      inputSchema:z.object({provider:z.string().max(128),modelId:z.string().max(256),messages:z.array(z.object({role:z.enum(['system','user','assistant']),content:z.string().max(64000)}).strict()).min(1).max(20),maxOutputTokens:z.number().int().min(1).max(8192).default(4096)}).strict(),
+      description:'Call one configured text model with explicit text messages. Uses this chat’s privacy settings and the app’s stored provider credentials, without returning the credentials or sending chat history automatically. Provider charges may apply. Human approval is required unless automatic model calls were explicitly granted when sharing this chat. Optional external function schemas require a separate app-wide endpoint grant; their tool calls are returned to the caller for execution, never executed by app_model. No implicit fallback model.',
+      inputSchema:z.object({provider:z.string().max(128),modelId:z.string().max(256),messages:externalMessagesSchema,tools:externalToolsSchema,maxOutputTokens:z.number().int().min(1).max(8192).default(4096)}).strict(),
       execute:async(input,options)=>{
-        options.abortSignal?.throwIfAborted();const models=await catalog(grant)
+        options.abortSignal?.throwIfAborted();const external=!!input.tools?.length||input.messages.some(message=>message.role==='tool'||'toolCalls'in message);if(external&&!grant.application?.externalTools)throw Error('External function schemas are not granted to this endpoint');const converted=externalModelInput(input.messages,input.tools);const models=await localMCPModelCatalog(grant)
         const selected=models.find(model=>model.provider===input.provider&&model.modelId===input.modelId)
         if(!selected)throw new Error('This model is not available to the shared chat')
         const configuration=settingsStore.getState().getSettings().providers?.[input.provider]
         if(!grant.permissions.automaticModels){
           const {requestExternalModelApproval}=await import('./model-approval')
-          if(!await requestExternalModelApproval(grant,input,options.abortSignal))throw new Error('External model call was not approved')
+          if(!await requestExternalModelApproval(grant,{...input,messages:[{role:'user',content:JSON.stringify({messages:input.messages,tools:input.tools})}]},options.abortSignal))throw new Error('External model call was not approved')
         }
         await assertChat(grant);options.abortSignal?.throwIfAborted()
         // Re-evaluate after approval: settings or privacy may have changed while the dialog was open.
-        if(settingsStore.getState().getSettings().providers?.[input.provider]!==configuration||!(await catalog(grant)).some(model=>model.provider===input.provider&&model.modelId===input.modelId))throw new Error('The model configuration changed. Review the request again.')
-        const settings=await getSessionSettings(grant.sessionId),model=await createModel({...settings,provider:input.provider,modelId:input.modelId,maxTokens:input.maxOutputTokens})
-        const result=await model.chat(input.messages,{sessionId:grant.sessionId,signal:options.abortSignal,maxSteps:1}).catch(()=>{throw new Error(options.abortSignal?.aborted?'Model call cancelled':'Model call failed. Check the provider in the app before retrying.')})
+        if(settingsStore.getState().getSettings().providers?.[input.provider]!==configuration||!(await localMCPModelCatalog(grant)).some(model=>model.provider===input.provider&&model.modelId===input.modelId))throw new Error('The model configuration changed. Review the request again.')
+        const settings=await localMCPSettings(grant,{provider:input.provider,modelId:input.modelId}),model=await createModel({...settings,provider:input.provider,modelId:input.modelId,maxTokens:input.maxOutputTokens})
+        const result=await model.chat(converted.messages,{sessionId:grant.sessionId,signal:options.abortSignal,maxSteps:1,tools:converted.tools}).catch(()=>{throw new Error(options.abortSignal?.aborted?'Model call cancelled':'Model call failed. Check the provider in the app before retrying.')})
         await assertChat(grant)
-        return {provider:input.provider,modelId:input.modelId,text:result.contentParts?.filter(part=>part.type==='text').map(part=>part.text).join('\n')||'',usage:result.usage}
+        return {provider:input.provider,modelId:input.modelId,contentParts:result.contentParts,text:result.contentParts?.filter(part=>part.type==='text').map(part=>part.text).join('\n')||'',usage:result.usage,verification:result.contentParts?.filter(part=>part.type==='info'&&part.text.startsWith('chatbox:verified-response')).map(part=>part.type==='info'?part.values:undefined)||[]}
       },
     }),
   }
@@ -94,8 +103,8 @@ async function toolsFor(grant:LocalMCPGrant){
     const shared=Object.fromEntries(Object.entries(tools).filter(([name])=>name==='session_file'?grant.permissions.readFiles||grant.permissions.writeFiles:localMCPAllows(grant.permissions,name)))
     Object.assign(tools,buildExternalMultiAgentTools(grant,shared,async()=>{
       await assertChat(grant)
-      const current=await window.electronAPI.invoke('local-mcp:control','status') as import('@shared/local-mcp').LocalMCPState
-      if(!current.running||current.token!==grant.token||current.sessionId!==grant.sessionId||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
+      const current=await window.electronAPI.invoke('local-mcp:control','status',grant.endpointId) as import('@shared/local-mcp').LocalMCPState
+      if(!current.running||current.token!==grant.token||current.sessionId!== (grant.application?'application':grant.sessionId)||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
     }))
   }
   return tools
@@ -113,7 +122,7 @@ export async function localMCPTools(grant:LocalMCPGrant):Promise<LocalMCPTool[]>
   if(result.length>256)throw new Error('Too many shared MCP tools. Disable some connected services.')
   return result
 }
-export async function handleLocalMCP(request:LocalMCPRequest,signal:AbortSignal){
+export async function handleSessionLocalMCP(request:LocalMCPRequest,signal:AbortSignal){
   const grant=request.grant;await assertChat(grant);signal.throwIfAborted()
   if(request.operation==='list_tools')return localMCPTools(grant)
   if(request.operation==='list_resources'){
@@ -141,4 +150,9 @@ export async function handleLocalMCP(request:LocalMCPRequest,signal:AbortSignal)
   if(forward)forwarding.add(grant.token)
   try{return await member.execute(validated.value,{toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}})}
   finally{if(forward)forwarding.delete(grant.token)}
+}
+
+export async function handleLocalMCP(request:LocalMCPRequest,signal:AbortSignal):Promise<unknown>{
+  if(request.grant.application)return (await import('./application')).handleApplicationMCP(request,signal)
+  return handleSessionLocalMCP(request,signal)
 }
