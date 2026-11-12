@@ -19,7 +19,7 @@ const active=new Map<string,Set<{id?:string;work:Promise<unknown>}>>()
 const closing=new Set<string>()
 const disposing=new Map<string,Promise<void>>()
 const creating=new Map<string,Promise<string>>()
-const calls=new Map<string,Map<string,{fingerprint:string;work:Promise<unknown>}>>()
+const calls=new Map<string,Map<string,{fingerprint:string;work:Promise<unknown>;contextId?:string;settled?:boolean}>>()
 const vault=()=>vaultRuntimeFor(platform)
 const idSchema=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)
 const optionsSchema=z.object({provider:z.string().min(1).max(128).optional(),modelId:z.string().min(1).max(256).optional(),temperature:z.number().min(0).max(2).optional(),topP:z.number().min(0).max(1).optional(),maxTokens:z.number().int().min(1).max(128000).optional(),contextTokenLimit:z.number().int().min(1024).max(10000000).optional(),webBrowsing:z.boolean().optional(),veniceToolsEnabled:z.boolean().optional(),providerOptionsByModel:z.record(z.string(),z.unknown()).optional(),multiAgent:MultiAgentPolicySchema.optional()}).strict()
@@ -28,9 +28,10 @@ async function live(grant:LocalMCPGrant,signal?:AbortSignal){
   const current=await window.electronAPI.invoke('local-mcp:control','status',grant.endpointId)
   if(!current.running||current.token!==grant.token||JSON.stringify(current.application)!==JSON.stringify(grant.application)||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
 }
-async function authorized(grant:LocalMCPGrant,id:string,signal?:AbortSignal){
+async function authorized(grant:LocalMCPGrant,id:string,signal?:AbortSignal,readDuringCleanup=false){
   await live(grant,signal);if(closing.has(id))throw Error('This workspace is being cleaned up');await vault().projects.assertSession(id)
   const all=await entries(),own=await owner(grant),entry=all.find(item=>item.id===id)
+  if(entry?.cleanupPending&&!readDuringCleanup)throw Error('This temporary workspace is awaiting cleanup. Retrieve saved files or retry app_cleanup.')
   // Even full access cannot open another endpoint's temporary workspace.
   if(entry&&entry.owner!==own)throw Error('This temporary workspace belongs to another MCP endpoint')
   if(grant.application!.mode!=='full'&&!entry)throw Error('This endpoint can access only its own temporary workspaces')
@@ -72,8 +73,8 @@ async function unique(grant:LocalMCPGrant,key:string,input:unknown,work:()=>Prom
   const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(input,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value)))),n=>n.toString(16).padStart(2,'0')).join(''),existing=cache.get(key)
   if(existing){if(existing.fingerprint!==fingerprint)throw Error('Use a new request_id for a different operation');return existing.work}
   if(cache.size>=512)throw Error('Restart this endpoint before issuing more operations')
-  const pending=work(),entry={fingerprint,work:pending};cache.set(key,entry)
-  void pending.then(result=>{if(JSON.stringify(result??null).length>64000)entry.work=Promise.resolve({completed:true,resultRetained:false,message:'The original operation completed. Retrieve saved files or inspect its context; this request_id will not run it again.'})},()=>{entry.work=Promise.resolve({failed:true,message:'The original operation failed or stopped. Inspect its saved context and explain the failure before creating a new request_id.'})})
+  const pending=work(),entry:{fingerprint:string;work:Promise<unknown>;contextId?:string;settled?:boolean}={fingerprint,work:pending,contextId:input&&typeof input==='object'&&'sessionId'in input&&typeof input.sessionId==='string'?input.sessionId:undefined};cache.set(key,entry)
+  void pending.then(result=>{entry.settled=true;if(result&&typeof result==='object'&&'sessionId'in result&&typeof result.sessionId==='string')entry.contextId=result.sessionId;if(JSON.stringify(result??null).length>64000)entry.work=Promise.resolve({completed:true,resultRetained:false,message:'The original operation completed. Retrieve saved files or inspect its context; this request_id will not run it again.'})},()=>{entry.settled=true;entry.work=Promise.resolve({failed:true,message:'The original operation failed or stopped. Inspect its saved context and explain the failure before creating a new request_id.'})})
   return pending
 }
 async function disposeContextWork(id:string){
@@ -86,14 +87,26 @@ async function disposeContextWork(id:string){
   const {veniceMediaService}=await import('@/packages/venice/service')
   const {getImageGenerationService}=await import('@/stores/imageGenerationActions')
   const ids=new Set([id,...(await entries()).filter(item=>item.rootId===id).map(item=>item.id)])
-  const {multiAgentRuntime}=await import('@/packages/multi-agent/runtime');await multiAgentRuntime.stopRoot(id)
-  for(const run of multiAgentRuntime.runs.values())if(run.rootId===id)ids.add(run.sessionId)
+  await mutate(items=>items.map(item=>item.id===id?{...item,cleanupPending:true}:item))
+  const {disposeTemporaryAgentRoot}=await import('@/packages/multi-agent/runtime')
+  for(const child of await disposeTemporaryAgentRoot(id))ids.add(child)
+  const {sessionApprovals}=await import('@/packages/venice/session-approvals');for(const child of ids)sessionApprovals.clear(child)
   for(const voice of temporary?.voices||[])await veniceMediaService.removeVoice(voice)
   for(const record of await veniceMediaService.list())if(record.sessionId&&ids.has(record.sessionId))await veniceMediaService.remove(record.id,!!record.queueId&&!record.remoteCleaned)
   const images=platform.getImageGenerationStorage();await images.initialize();let cursor:number|null=0;const records:string[]=[]
   do{const page=await images.getPage(cursor,100);for(const record of page.items)if(record.source?.sessionId&&ids.has(record.source.sessionId))records.push(record.id);cursor=page.nextCursor}while(cursor!==null)
+  const temporaryEntries=(await entries()).filter(item=>ids.has(item.id)),imageIds=new Set([...records,...temporaryEntries.flatMap(item=>item.imageIds||[])])
   for(const record of records)await getImageGenerationService().deleteRecord(record)
+  // The ordinary gallery conservatively retains unknown references while other
+  // protected records are locked. These aliases belong to this temporary run,
+  // including outputs written just before cancellation, so they can be removed.
+  for(const alias of await vault().db.aliases()){
+    const match=/^picture(?::)?image-gen(?::)?([a-f0-9-]{36})/.exec(alias)
+    if(match&&imageIds.has(match[1]))await vault().assets.remove(alias)
+  }
+  for(const key of temporaryEntries.flatMap(item=>item.ownedAssets||[]))await vault().assets.remove(key)
   for(const child of [...ids].reverse())if(await rendererApplication.sessions.getSessionHeader(child))await rendererApplication.sessions.deleteSession(child)
+  for(const cache of calls.values())for(const entry of cache.values())if(entry.settled&&entry.contextId&&ids.has(entry.contextId))entry.work=Promise.resolve({completed:true,resultRetained:false,message:'This temporary workspace was deleted. The original operation will not be replayed.'})
   await mutate(items=>items.filter(item=>!ids.has(item.id)))
   }finally{closing.delete(id)}
 }
@@ -164,7 +177,7 @@ function appTools(grant:LocalMCPGrant,signal:AbortSignal):ToolSet{
     }}),
     app_resources:tool({description:'List saved files and generations or read a bounded range of one authorized resource. Router mode uses its internal temporary workspace. Read does not delete: fetch every chunk, then explicitly call app_cleanup. No regeneration to recover a saved result.',inputSchema:z.object({sessionId:idSchema.optional(),action:z.enum(['list','read']),resourceId:z.string().max(1024).optional(),version:z.string().max(128).optional(),offset:z.number().int().min(0).default(0),length:z.number().int().min(1).max(256*1024).default(256*1024)}).strict(),execute:async input=>{
       const id=app.mode==='router'?await defaultContext(grant,signal):input.sessionId
-      if(!id)throw Error('A sessionId is required');await authorized(grant,id,signal)
+      if(!id)throw Error('A sessionId is required');await authorized(grant,id,signal,true)
       return (await import('./resource-transfer')).transferMCPResource(id,input,signal)
     }}),
     app_cleanup:tool({description:'Permanently delete this endpoint’s selected temporary workspace, generated media and worker descendants after retrieving the outputs. Omitting sessionId deletes all of this endpoint’s temporary workspaces. Existing user chats and other endpoints are never removed. A failed cleanup remains queued and can be retried.',inputSchema:z.object({sessionId:idSchema.optional()}).strict(),execute:async input=>{
@@ -193,7 +206,7 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
         const work=()=>handleSessionLocalMCP({...request,id:crypto.randomUUID(),operation:'call_tool',grant:scoped,name:member.name,arguments:args,callId:'router:'+request_id},signal)
         if(localMCPObservation(member.name,args))return work()
         if(!z.string().min(1).max(128).safeParse(request_id).success)throw Error('A stable request_id is required for a paid operation')
-        return unique(grant,'router:'+request_id,{name:member.name,args},work)
+        return unique(grant,'router:'+request_id,{name:member.name,args,sessionId:id},work)
       }})
     }
   }
@@ -205,6 +218,7 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
   if(!validated?.success)throw Error('Invalid application tool arguments')
   const input=validated.value as Record<string,unknown>,destructive=request.name==='app_cleanup'||request.name==='app_contexts'&&input.action==='delete'
   const target=request.name==='app_cleanup'?undefined:grant.application!.mode==='router'?await defaultContext(grant,signal):typeof input.sessionId==='string'?input.sessionId:undefined
+  if(target)await authorized(grant,target,signal,request.name==='app_resources')
   if(target&&closing.has(target))throw Error('This workspace is being cleaned up')
   const items=active.get(grant.token)||new Set<{id?:string;work:Promise<unknown>}>();active.set(grant.token,items)
   const pending=Promise.resolve().then(()=>member.execute!(validated.value,{toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}}))

@@ -14,7 +14,7 @@ import {listSessionResources,readSessionResource} from '@/packages/session-resou
 import {vaultRuntimeFor} from '@/packages/vault/runtime'
 import platform from '@/platform'
 import {requestExternalModelApproval} from './model-approval'
-import {temporaryMCPEntries,mutateTemporaryMCPEntries} from './temporary'
+import {temporaryMCPEntries,mutateTemporaryMCPEntries,registerTemporaryMCPImage} from './temporary'
 const kinds=['image','speech','transcription','video','music','sound-effects','voice-conversion'] as const
 const references=z.object({image_url:z.string().optional(),end_image_url:z.string().optional(),reference_image_urls:z.array(z.string()).max(16).optional(),video_url:z.string().optional(),reference_video_urls:z.array(z.string()).max(8).optional(),reference_audio_urls:z.array(z.string()).max(8).optional(),audio_url:z.string().optional()}).strict()
 async function file(id:string,path:string,signal:AbortSignal){
@@ -65,7 +65,7 @@ export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,con
           if(!(await images()).some(model=>model.modelId===input.model))throw Error('Image model is not available')
           const refs=await Promise.all(input.referencePaths.map(async path=>dataURL(await file(id,path,signal))))
           await approve()
-          const handle=await getImageGenerationService().start({prompt:input.prompt,model:{provider:'venice',modelId:input.model,extraBody:options},imageGenerateNum:input.count,aspectRatio:input.aspectRatio,referenceImages:refs,protection:await vaultRuntimeFor(platform).projects.sessionScope(id)||undefined,source:{type:'chatbox_cli',sessionId:id,toolCallId:'studio:'+input.request_id}})
+          const handle=await getImageGenerationService().start({prompt:input.prompt,model:{provider:'venice',modelId:input.model,extraBody:options},imageGenerateNum:input.count,aspectRatio:input.aspectRatio,referenceImages:refs,protection:await vaultRuntimeFor(platform).projects.sessionScope(id)||undefined,source:{type:'chatbox_cli',sessionId:id,toolCallId:'studio:'+input.request_id}},{onRecordCreated:record=>registerTemporaryMCPImage(record,refs)})
           void handle.completion.catch(()=>{})
           return {id:handle.recordId,kind:'image',status:'pending',background:true}
         }
@@ -93,6 +93,6 @@ export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,con
       else if(input.action==='cleanup_remote'){await approve();await veniceMediaService.cleanup(row.id)}
       await assert(id);return summary(await record())
     }
-    return input.request_id&&!localMCPObservation('venice_studio',input)?unique('studio:'+input.request_id,input,work):work()
+    return input.request_id&&!localMCPObservation('venice_studio',input)?unique('studio:'+input.request_id,{...input,sessionId:id},work):work()
   }})
 }

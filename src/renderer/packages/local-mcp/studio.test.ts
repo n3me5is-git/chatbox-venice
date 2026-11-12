@@ -10,7 +10,7 @@ vi.mock('@/packages/session-resources/service',()=>({listSessionResources:async(
 vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({projects:{assertSession:async()=>{},sessionScope:async()=>null},assets:{header:async()=>null}})}))
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('./model-approval',()=>({requestExternalModelApproval:(...args:any[])=>state.approve(...args)}))
-vi.mock('./temporary',()=>({temporaryMCPEntries:async()=>[],mutateTemporaryMCPEntries:vi.fn()}))
+vi.mock('./temporary',()=>({temporaryMCPEntries:async()=>[],mutateTemporaryMCPEntries:vi.fn(),registerTemporaryMCPImage:vi.fn()}))
 import {applicationStudioTool} from './studio'
 const grant=():LocalMCPGrant=>({running:true,sessionId:'application',endpointId:crypto.randomUUID(),application:LocalMCPApplicationSchema.parse({name:'Studio',mode:'router',providers:['venice']}),url:'http://127.0.0.1:1/mcp',token:'private-token',startedAt:1,permissions:{...defaultLocalMCPPermissions,venice:true}})
 async function run(input:any,g=grant()){

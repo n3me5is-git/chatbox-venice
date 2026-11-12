@@ -30,8 +30,8 @@ vi.mock('@/components/agent/UserQuestion',()=>({requestUserAnswers:state.request
 vi.mock('./library',()=>({listDedicatedAgents:async()=>state.agents}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({providers:state.providers})}}))
 vi.mock('@/packages/chatgpt-subscription/image-tools',()=>({subscriptionChatImageTools:(...args:any[])=>{state.imageInit(...args);return {chatgpt_image:{execute:state.image}}}}))
-vi.mock('./storage',()=>({readAgentData:async(key:string,fallback:any)=>state.data.get(key)||fallback,updateAgentData:async(key:string,fallback:any,update:any)=>{const next=update(state.data.get(key)||fallback);state.data.set(key,next);return next}}))
-import { buildExternalMultiAgentTools, buildMultiAgentTools, multiAgentRuntime, revokeExternalAgents } from './runtime'
+vi.mock('./storage',()=>({removeAgentData:async(key:string)=>{state.data.delete(key)},readAgentData:async(key:string,fallback:any)=>state.data.get(key)||fallback,updateAgentData:async(key:string,fallback:any,update:any)=>{const next=update(state.data.get(key)||fallback);state.data.set(key,next);return next}}))
+import { buildExternalMultiAgentTools, buildMultiAgentTools, multiAgentRuntime, revokeExternalAgents, disposeTemporaryAgentRoot } from './runtime'
 let grant:LocalMCPGrant,live:boolean
 beforeEach(()=>{
   vi.clearAllMocks();state.headers.clear();state.messages.clear();state.data.clear();state.resources.clear();multiAgentRuntime.runs.clear();live=true;state.platform='desktop';state.agents=[];state.providers={};state.image.mockResolvedValue({recordId:'saved-image'})
@@ -150,4 +150,18 @@ it.each(['desktop','mobile'])('passes actual research output and shared files to
   expect(state.chat).toHaveBeenCalledTimes(2)
   expect(multiAgentRuntime.runs.get(researcher.id)!.workspaceId).toBe(rootId)
   expect(multiAgentRuntime.runs.get(summarizer.id)!.workspaceId).toBe(rootId)
+})
+
+it('removes temporary worker manifests and memory after every late callback has settled',async()=>{
+ let release!:(result:any)=>void
+ state.chat.mockImplementation(()=>new Promise(resolve=>release=resolve))
+ const tools=build(),worker=await call(tools,'agent_spawn',{title:'Temporary task',task:'Use a temporary workspace'})
+ await vi.waitFor(()=>expect(state.chat).toHaveBeenCalled())
+ const sessionId=multiAgentRuntime.runs.get(worker.id)!.sessionId
+ const cleanup=disposeTemporaryAgentRoot(grant.sessionId)
+ release({contentParts:[{type:'text',text:'Late result after stop'}]})
+ expect(await cleanup).toContain(sessionId)
+ expect(state.data.has('private-agents:runs:'+encodeURIComponent(grant.sessionId))).toBe(false)
+ expect(state.data.has('private-agents:events:'+encodeURIComponent(grant.sessionId))).toBe(false)
+ expect([...multiAgentRuntime.runs.values()].some(run=>run.rootId===grant.sessionId)).toBe(false)
 })

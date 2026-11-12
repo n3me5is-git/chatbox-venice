@@ -2,10 +2,10 @@ import {beforeEach,expect,it,vi} from 'vitest'
 import {tool} from 'ai'
 import {z} from 'zod'
 import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant} from '@shared/local-mcp'
-const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),count:0,call:vi.fn(),models:vi.fn()}))
-vi.mock('@/platform',()=>({default:{type:'desktop',getImageGenerationStorage:()=>({initialize:async()=>{},getPage:async()=>({items:[],nextCursor:null})})}}))
+const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),count:0,call:vi.fn(),models:vi.fn(),dispose:vi.fn(),remove:vi.fn(),aliases:[] as string[],images:[] as any[]}))
+vi.mock('@/platform',()=>({default:{type:'desktop',getImageGenerationStorage:()=>({initialize:async()=>{},getPage:async()=>({items:state.images,nextCursor:null})})}}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultChatModel:{provider:'openai',model:'configured'}})})}}))
-vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({db:{getSetting:async(key:string)=>state.settings.get(key),setSettingIfUnchanged:async(key:string,old:unknown,next:unknown)=>{if(state.settings.get(key)!==old)return false;state.settings.set(key,next);return true}},projects:{assertApp:async()=>{},assertSession:async(id:string)=>{if(state.locked.has(id))throw Error('Locked')}},assets:{}})}))
+vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({db:{aliases:async()=>state.aliases,getSetting:async(key:string)=>state.settings.get(key),setSettingIfUnchanged:async(key:string,old:unknown,next:unknown)=>{if(state.settings.get(key)!==old)return false;state.settings.set(key,next);return true}},projects:{assertApp:async()=>{},assertSession:async(id:string)=>{if(state.locked.has(id))throw Error('Locked')}},assets:{remove:(key:string)=>state.remove(key)}})}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{repository:{meta:{getAllIncludingHidden:async()=>[...state.headers.values()]}},getSessionHeader:async(id:string)=>state.headers.has(id)?{header:state.headers.get(id)}:null,createSession:async(input:any)=>{const header={...input,id:'created-'+(++state.count)};state.headers.set(header.id,header);return header},updateSessionHeader:async(id:string,patch:any)=>state.headers.set(id,{...state.headers.get(id),...patch}),setSessionSystemPrompt:vi.fn(),deleteSession:vi.fn(async(id:string)=>state.headers.delete(id))}}}))
 vi.mock('./backend',()=>({localMCPTools:async()=>[{name:'app_model',inputSchema:{type:'object',properties:{provider:{type:'string'}},required:['provider'],additionalProperties:false}},{name:'session_file',inputSchema:{type:'object'}}],handleSessionLocalMCP:(...args:any[])=>state.call(...args)}))
 vi.mock('./conversation',()=>({applicationConversationTool:()=>tool({inputSchema:z.object({}),execute:async()=>({sent:true})})}))
@@ -14,11 +14,11 @@ vi.mock('./uploads',()=>({mcpUploadSchema:z.object({}),uploadMCPFile:vi.fn(),cle
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{}}))
 vi.mock('@/packages/venice/service',()=>({veniceMediaService:{list:async()=>[],removeVoice:vi.fn()}}))
 vi.mock('@/stores/imageGenerationActions',()=>({getImageGenerationService:()=>({deleteRecord:vi.fn()})}))
-vi.mock('@/packages/multi-agent/runtime',()=>({revokeExternalAgents:vi.fn(),multiAgentRuntime:{stopRoot:vi.fn(),runs:new Map()}}))
+vi.mock('@/packages/multi-agent/runtime',()=>({disposeTemporaryAgentRoot:(id:string)=>state.dispose(id),revokeExternalAgents:vi.fn(),multiAgentRuntime:{stopRoot:vi.fn(),runs:new Map()}}))
 import {handleApplicationMCP} from './application'
 const grant=(mode:'full'|'shadow'|'router',token='test-token'):LocalMCPGrant=>({running:true,sessionId:'application',endpointId:crypto.randomUUID(),application:LocalMCPApplicationSchema.parse({name:mode,mode,manageChats:true,providers:['venice']}),url:'http://127.0.0.1:3000/mcp',token,startedAt:1,permissions:{...defaultLocalMCPPermissions,writeFiles:true,models:true,venice:true}})
 const call=(grant:LocalMCPGrant,name:string,args:Record<string,unknown>={})=>handleApplicationMCP({id:crypto.randomUUID(),operation:'call_tool',grant,name,arguments:args},new AbortController().signal)
-beforeEach(()=>{state.settings.clear();state.headers.clear();state.live=[];state.locked.clear();state.count=0;vi.clearAllMocks();state.call.mockResolvedValue({text:'Result'});vi.stubGlobal('window',{dispatchEvent:vi.fn(),electronAPI:{invoke:vi.fn(async(_channel,command,id)=>command==='list'?state.live:state.live.find(item=>item.endpointId===id)||{running:false})}})})
+beforeEach(()=>{state.settings.clear();state.headers.clear();state.live=[];state.locked.clear();state.count=0;state.aliases=[];state.images=[];vi.clearAllMocks();state.dispose.mockResolvedValue([]);state.remove.mockImplementation(async(key:string)=>{state.aliases=state.aliases.filter(alias=>alias!==key)});state.call.mockResolvedValue({text:'Result'});vi.stubGlobal('window',{dispatchEvent:vi.fn(),electronAPI:{invoke:vi.fn(async(_channel,command,id)=>command==='list'?state.live:state.live.find(item=>item.endpointId===id)||{running:false})}})})
 it('confines shadows to their own contexts, rejects another endpoint and never lists locked names',async()=>{
   const a=grant('shadow','a'),b=grant('shadow','b');state.live=[a,b]
   state.headers.set('personal',{id:'personal',name:'Private business chat',settings:{}})
@@ -77,4 +77,25 @@ it('refreshes status observations even when a client reuses its request ID',asyn
  const input={sessionId,name:'venice_media',arguments:{action:'status',id:'video-one'},request_id:'poll'}
  state.call.mockResolvedValueOnce({status:'queued'}).mockResolvedValueOnce({status:'ready'})
  expect(await call(g,'app_call',input)).toMatchObject({status:'queued'});expect(await call(g,'app_call',input)).toMatchObject({status:'ready'});expect(state.call).toHaveBeenCalledTimes(2)
+})
+
+it('deletes owned image outputs and fresh input copies while retaining unrelated protected images and borrowed inputs',async()=>{
+ const g=grant('shadow','image-cleanup');state.live=[g]
+ const {sessionId}=await call(g,'app_contexts',{action:'create',request_id:'image-workspace'}) as any
+ const id=crypto.randomUUID(),other=crypto.randomUUID(),owned='picture:image-gen:'+id+':output',unrelated='picture:image-gen:'+other+':output'
+ state.images=[{id,source:{sessionId},generatedImages:[owned]}]
+ state.aliases=[owned,unrelated,'new-reference','borrowed-reference']
+ const {registerTemporaryMCPImage}=await import('./temporary')
+ await registerTemporaryMCPImage({id,source:{sessionId},referenceImages:['new-reference','borrowed-reference']},['data:image/png;base64,AQID','borrowed-reference'])
+ expect(await call(g,'app_cleanup',{sessionId})).toMatchObject({deleted:1})
+ expect(state.remove).toHaveBeenCalledWith(owned);expect(state.remove).toHaveBeenCalledWith('new-reference')
+ expect(state.aliases).toEqual([unrelated,'borrowed-reference'])
+})
+it('keeps a partially stopped context pending, blocks new paid work and allows cleanup to retry',async()=>{
+ const g=grant('shadow','pending-cleanup');state.live=[g]
+ const {sessionId}=await call(g,'app_contexts',{action:'create',request_id:'pending-workspace'}) as any
+ state.dispose.mockRejectedValueOnce(Error('Still stopping'))
+ await expect(call(g,'app_cleanup',{sessionId})).rejects.toThrow('Still stopping')
+ await expect(call(g,'app_call',{sessionId,name:'app_model',arguments:{provider:'venice'},request_id:'must-not-pay'})).rejects.toThrow('awaiting cleanup')
+ expect(state.call).not.toHaveBeenCalled();expect(await call(g,'app_cleanup',{sessionId})).toMatchObject({deleted:1})
 })
