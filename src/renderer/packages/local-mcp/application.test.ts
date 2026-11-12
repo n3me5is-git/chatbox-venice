@@ -65,3 +65,8 @@ it('refuses cleanup while a paid operation is running, then removes only its own
   finish({text:'Completed'});await running
   expect(await call(g,'app_cleanup',{sessionId})).toEqual({deleted:1});expect(state.headers.has(sessionId)).toBe(false);expect(state.headers.has('personal')).toBe(true)
 })
+
+it('does not create a router workspace merely to clean an already empty endpoint',async()=>{
+ const g=grant('router','cleanup-empty');state.live=[g]
+ expect(await call(g,'app_cleanup',{})).toEqual({deleted:0});expect(state.count).toBe(0)
+})

@@ -60,7 +60,7 @@ async function createContext(grant:LocalMCPGrant,input:{name?:string;settings?:z
   signal.throwIfAborted();await live(grant,signal);return header.id
 }
 async function defaultContext(grant:LocalMCPGrant,signal:AbortSignal){
-  const awaitOwner=await owner(grant),existing=(await entries()).find(item=>item.owner===awaitOwner)
+  const awaitOwner=await owner(grant),existing=(await entries()).find(item=>item.owner===awaitOwner&&!item.rootId)
   if(existing)return existing.id
   let work=creating.get(grant.token)
   if(!work){work=createContext(grant,{},signal);creating.set(grant.token,work);void work.finally(()=>creating.delete(grant.token)).catch(()=>{})}
@@ -93,7 +93,7 @@ async function disposeContextWork(id:string){
   const images=platform.getImageGenerationStorage();await images.initialize();let cursor:number|null=0;const records:string[]=[]
   do{const page=await images.getPage(cursor,100);for(const record of page.items)if(record.source?.sessionId&&ids.has(record.source.sessionId))records.push(record.id);cursor=page.nextCursor}while(cursor!==null)
   for(const record of records)await getImageGenerationService().deleteRecord(record)
-  for(const child of [...ids].reverse())await rendererApplication.sessions.deleteSession(child)
+  for(const child of [...ids].reverse())if(await rendererApplication.sessions.getSessionHeader(child))await rendererApplication.sessions.deleteSession(child)
   await mutate(items=>items.filter(item=>!ids.has(item.id)))
   }finally{closing.delete(id)}
 }
@@ -180,7 +180,8 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
   if(request.operation==='read_resource')throw Error('Use app_resources with an authorized context')
   let definitions=appTools(grant,signal)
   if(grant.application!.mode==='router'){
-    const id=await defaultContext(grant,signal),scoped=bound(grant,id),listed=await localMCPTools(scoped)
+    const modelRoute=request.operation==='list_tools'||['app_models','app_model','venice_image','venice_media'].includes(request.name||'')
+    const id=modelRoute?await defaultContext(grant,signal):'',scoped=bound(grant,id),listed=modelRoute?await localMCPTools(scoped):[]
     definitions=Object.fromEntries(Object.entries(definitions).filter(([name])=>['app_resources','app_cleanup','app_upload','venice_studio'].includes(name)))
     for(const member of listed){
       if(!['app_model','app_models','venice_image','venice_media'].includes(member.name)||!localMCPAllows(grant.permissions,member.name))continue
@@ -200,7 +201,7 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
   const validated=await asSchema(member.inputSchema).validate?.(request.arguments||{})
   if(!validated?.success)throw Error('Invalid application tool arguments')
   const input=validated.value as Record<string,unknown>,destructive=request.name==='app_cleanup'||request.name==='app_contexts'&&input.action==='delete'
-  const target=grant.application!.mode==='router'?await defaultContext(grant,signal):typeof input.sessionId==='string'?input.sessionId:undefined
+  const target=request.name==='app_cleanup'?undefined:grant.application!.mode==='router'?await defaultContext(grant,signal):typeof input.sessionId==='string'?input.sessionId:undefined
   if(target&&closing.has(target))throw Error('This workspace is being cleaned up')
   const items=active.get(grant.token)||new Set<{id?:string;work:Promise<unknown>}>();active.set(grant.token,items)
   const pending=Promise.resolve().then(()=>member.execute!(validated.value,{toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}}))

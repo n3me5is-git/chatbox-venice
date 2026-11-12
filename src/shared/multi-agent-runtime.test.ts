@@ -192,3 +192,9 @@ describe('multi-agent authority and privacy boundaries', () => {
     for (const text of ['yes', '{"allow":"true","reason":"ok"}', '{"allow":true}', '{"allow":true,"reason":"ok","execute":true}']) expect(() => parseGuardianVerdict(text)).toThrow('blocked')
   })
 })
+
+it('rejects a denied worker model before invoking a guardian or creating a sandbox',async()=>{
+ const f=fixture();f.host.assertModel=vi.fn(async()=>{throw Error('Provider is not granted')})
+ await expect(f.runtime.spawn(f.caller,{...task,dedicatedId:'dedicated'})).rejects.toThrow('not granted')
+ expect(f.host.guard).not.toHaveBeenCalled();expect(f.host.create).not.toHaveBeenCalled()
+})

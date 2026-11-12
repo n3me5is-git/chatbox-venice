@@ -88,7 +88,7 @@ async function toolsFor(grant:LocalMCPGrant){
   const tools:ToolSet={}
   if(grant.permissions.readFiles||grant.permissions.writeFiles)Object.assign(tools,await buildSessionWorkspaceTools(grant.sessionId))
   if(!grant.permissions.execute){delete tools.session_js;delete tools.session_python}
-  if(grant.permissions.venice)Object.assign(tools,veniceChatTools(grant.sessionId,'external','owner',grant.sessionId,{forceApproval:!!grant.application&&!grant.application.automaticStudio}))
+  if(grant.permissions.venice&&(!grant.application||(await getSessionSettings(grant.sessionId)).veniceToolsEnabled!==false))Object.assign(tools,veniceChatTools(grant.sessionId,'external','owner',grant.sessionId,{forceApproval:!!grant.application&&!grant.application.automaticStudio}))
   if(grant.permissions.search){Object.assign(tools,buildWebSearchTools());tools.parse_link=parseLinkTool}
   Object.assign(tools,await modelTools(grant))
   if(grant.permissions.forwardMCP){

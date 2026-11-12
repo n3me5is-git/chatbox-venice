@@ -17,7 +17,7 @@ async function run(input:any,g=grant()){
  const member=applicationStudioTool(g,new AbortController().signal,async()=> 'shadow',async()=>{},async(_id,_input,work)=>work())
  const {asSchema}=await import('ai'),checked=await asSchema(member.inputSchema).validate!(input);if(!checked.success)throw Error('Invalid input');return member.execute!(checked.value,{toolCallId:'test',messages:[],context:{}})
 }
-beforeEach(()=>{vi.clearAllMocks();state.rows=[];state.approve.mockResolvedValue(true);state.start.mockResolvedValue({recordId:'image-one',completion:Promise.resolve(null)});state.media.mockResolvedValue({id:'audio-one',kind:'transcription',model:'asr-one',status:'ready',text:'Transcript',sessionId:'shadow'})})
+beforeEach(()=>{vi.clearAllMocks();state.rows=[];state.approve.mockResolvedValue(true);state.start.mockResolvedValue({recordId:'image-one',completion:Promise.resolve(null)});state.media.mockImplementation(async()=>{const record={id:'audio-one',kind:'transcription',model:'asr-one',status:'ready',text:'Transcript',sessionId:'shadow'};state.rows=[record];return record})})
 it('uses actual reference bytes and advanced image parameters with a separate paid-operation approval',async()=>{
  expect(await run({action:'generate',kind:'image',model:'qwen-image-edit',prompt:'Edit this',options:{negative_prompt:'noise',hide_watermark:true},referencePaths:['input/ref.png'],request_id:'image'})).toMatchObject({id:'image-one',background:true})
  expect(state.start).toHaveBeenCalledWith(expect.objectContaining({prompt:'Edit this',referenceImages:['data:image/png;base64,AQID'],model:{provider:'venice',modelId:'qwen-image-edit',extraBody:{negative_prompt:'noise',hide_watermark:true}},source:expect.objectContaining({sessionId:'shadow'})}))

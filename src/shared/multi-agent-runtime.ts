@@ -8,10 +8,11 @@ export interface AgentHost {
   preset(id: string): Promise<DedicatedAgent | undefined>
   assertRoot(rootId: string): Promise<void>
   assertCaller?(caller: AgentCaller): Promise<void>
+  assertModel?(rootId:string,model:AgentModel,parameters?:Record<string,unknown>):Promise<void>
   create(run: Omit<AgentRun, 'sessionId' | 'workspaceId'>, isolated: boolean, workspaceId: string): Promise<{ sessionId: string; workspaceId: string }>
   save(run: AgentRun): Promise<void>
   execute(run: AgentRun, task: string, signal: AbortSignal): Promise<string | AgentExecutionResult>
-  guard(guardian: Guardian, boundary: AgentBoundary, signal?: AbortSignal): Promise<{ allow: boolean; reason: string }>
+  guard(guardian: Guardian, boundary: AgentBoundary, signal?: AbortSignal,rootId?:string): Promise<{ allow: boolean; reason: string }>
   blocked?(run: AgentRun, boundary: AgentBoundary, reason: string): Promise<void>
   append(run: AgentRun, message: string): Promise<void>
   readFile(workspaceId: string, path: string): Promise<{ bytes: Uint8Array; mime: string }>
@@ -68,7 +69,8 @@ export class MultiAgentRuntime {
     for (const guard of unique) {
       signal?.throwIfAborted()
       try {
-        const verdict = await this.host.guard(guard, value, signal)
+        await this.host.assertModel?.(caller.rootId,guard.model,guard.parameters)
+        const verdict = await this.host.guard(guard, value, signal,caller.rootId)
         if (!verdict.allow) throw new Error('Guardian blocked the transfer: ' + verdict.reason)
       } catch (error) { await this.host.blocked?.(run, value, String((error as Error).message)); this.notify(); throw error }
     }
@@ -99,6 +101,7 @@ export class MultiAgentRuntime {
       dedicatedIds: caller.dedicatedIds.filter(id => policy.nestedDedicatedIds.includes(id) && (!preset || preset.dedicatedIds.includes(id))),
       status: 'queued', queuedAt: Date.now(), createdAt: Date.now(), updatedAt: Date.now(),
     }
+    await this.host.assertModel?.(caller.rootId,base.model,preset?.parameters)
     // No target model or workspace sees the task before guardian approval.
     await this.boundary(caller, { ...base, sessionId: '', workspaceId: '' }, { operation: 'task', from: caller.id, to: id, text: input.task }, signal)
     const created = await this.host.create(base, !!preset, caller.workspaceId)

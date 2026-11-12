@@ -1,3 +1,4 @@
+import {localMCPModelSettings} from '@shared/local-mcp-model-policy'
 import { veniceToolsVisible } from '@shared/providers/definitions/models/venice/tool-policy'
 import { settingsStore } from '@/stores/settingsStore'
 import { type ToolSet } from 'ai'
@@ -35,11 +36,12 @@ import { agentMetrics } from '@shared/agent-metrics'
 
 const vault = () => vaultRuntimeFor(platform)
 const manifest = (id: string) => 'private-agents:runs:' + encodeURIComponent(id)
-type ExternalAuthority = { forceStudioApproval?:boolean; key: string; assert: () => Promise<void>; allows: (name: string, input: Record<string, unknown>) => boolean; context: ExternalAgentContext }
+type ExternalAuthority = { application?:LocalMCPGrant['application']; forceStudioApproval?:boolean; key: string; assert: () => Promise<void>; allows: (name: string, input: Record<string, unknown>) => boolean; context: ExternalAgentContext }
 const grants = new Map<string, { caller: AgentCaller; settings: SessionSettings; requester: string; policyFingerprint: string; explicit?: MultiAgentPolicy; external?: ExternalAuthority }>()
 const acquiringExternal = new Map<string, Promise<ExternalAgentContext>>()
 const loaded = new Set<string>()
 export const agentEvents = new Map<string, Array<{ at: number; agentId: string; operation: string; reason: string }>>()
+const endpointModelSettings=(rootId:string,settings:SessionSettings)=>localMCPModelSettings(grants.get(rootId)?.external?.application,settings,settingsStore.getState().getSettings?.().providers??settingsStore.getState().providers)
 const modelText = (messages: Message[]) => messages.filter(message => message.role === 'assistant').map(message => message.contentParts.filter(part => part.type === 'text').map(part => part.text).join('')).join('\n')
 function workerInstruction(run: AgentRun) {
   for (let node: AgentRun | undefined = run; node; node = multiAgentRuntime.runs.get(node.parentId)) if (node.preset) return node.preset.prompt
@@ -81,12 +83,13 @@ async function guardContent(boundary: AgentBoundary, vision: boolean) {
 export const multiAgentRuntime = new MultiAgentRuntime({
   policy: rootPolicy, assertRoot,
   async assertCaller(caller) { if (caller.depth === 0 && grants.get(caller.rootId)?.caller !== caller) throw Error('This orchestrator grant was replaced. Start a new request.') },
+  async assertModel(rootId,model,parameters){endpointModelSettings(rootId,{...SessionSettingsSchema.parse(parameters||{}),...model})},
   preset: async id => (await listDedicatedAgents()).find(agent => agent.id === id || agent.name === id),
   async create(run, isolated, workspaceId) {
     const parent = (await rendererApplication.sessions.getSessionHeader(run.rootId))?.header
     const sourceId = multiAgentRuntime.runs.get(run.parentId)?.sessionId || run.rootId
     const inherited = isolated ? SessionSettingsSchema.parse(run.preset?.parameters || {}) : await getSessionSettings(sourceId)
-    const parameters = workerSessionParameters(inherited)
+    const parameters = workerSessionParameters(endpointModelSettings(run.rootId,{...inherited,...run.model}))
     const session = await rendererApplication.sessions.createSession({ type: 'chat', hidden: true, name: run.title, folderId: parent?.folderId, messages: [], settings: { ...parameters, ...run.model, agentMode: { value: 'off', locked: true, lockReason: 'message_sent' }, multiAgentRun: { rootId: run.rootId, runId: run.id, parentId: run.parentId, workspaceId: isolated ? '' : workspaceId, depth: run.depth } } })
     await (await import('@/packages/local-mcp/temporary')).registerTemporaryMCPChild(run.rootId,session.id)
     if(isolated)await (await import('@/packages/session-resources/linked-folder')).linkedFolderOperation({sessionId:session.id,action:'inherit',parentId:workspaceId})
@@ -100,8 +103,8 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     list.push({ at: Date.now(), agentId: run.id, operation: boundary.operation, reason: reason.slice(0, 2000) }); agentEvents.set(run.rootId, list.slice(-100))
     await updateAgentData('private-agents:events:' + encodeURIComponent(run.rootId), [], () => agentEvents.get(run.rootId), run.rootId)
   },
-  async guard(guardian, boundary, signal) {
-    const settings = { ...SessionSettingsSchema.parse(guardian.parameters || {}), ...guardian.model, subscriptionWebSearch: false }
+  async guard(guardian, boundary, signal,rootId) {
+    const settings = endpointModelSettings(rootId||'',{ ...SessionSettingsSchema.parse(guardian.parameters || {}), ...guardian.model, subscriptionWebSearch: false })
     const model = await createModel(settings)
     const { createWorkerContext } = await import('./worker-context')
     // A guardian must inspect the complete payload. Never replace its evidence with a summary.
@@ -115,7 +118,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
   async execute(run, task, signal) {
     const caller = multiAgentRuntime.caller(run), grant = grants.get(run.rootId)
     if (!grant) throw Error('The parent Work request is unavailable')
-    const settings = await getSessionSettings(run.sessionId)
+    const settings = endpointModelSettings(run.rootId,await getSessionSettings(run.sessionId))
     const model = await createModel(settings)
     if (!model.isSupportToolUse('agent')) throw Error('Choose a model that supports agent tools')
     const history = await agentTranscript(run.sessionId), user = createMessage('user', task), assistant = { ...createMessage('assistant', ''), generating: true }
@@ -227,7 +230,7 @@ export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: To
         if (configuration(current) !== fingerprint) throw Error('The Work chat configuration changed. Restart MCP sharing before using agents')
       }
       const sharedNames = new Set(Object.keys(available))
-      grants.set(grant.sessionId, { caller, settings, requester: 'owner', policyFingerprint: JSON.stringify(settings.multiAgent || null), external: { forceStudioApproval:!!grant.application&&!grant.application.automaticStudio,key: grant.token, assert: check, context, allows: (name,input) => localMCPWorkerAllows(grant.permissions, sharedNames, name, input) } })
+      grants.set(grant.sessionId, { caller, settings, requester: 'owner', policyFingerprint: JSON.stringify(settings.multiAgent || null), external: { application:grant.application,forceStudioApproval:!!grant.application&&!grant.application.automaticStudio,key: grant.token, assert: check, context, allows: (name,input) => localMCPWorkerAllows(grant.permissions, sharedNames, name, input) } })
       multiAgentRuntime.reopen(grant.sessionId)
       return context
     })()
