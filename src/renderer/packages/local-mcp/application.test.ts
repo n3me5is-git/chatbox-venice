@@ -3,7 +3,7 @@ import {tool} from 'ai'
 import {z} from 'zod'
 import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant} from '@shared/local-mcp'
 const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),count:0,call:vi.fn(),models:vi.fn()}))
-vi.mock('@/platform',()=>({default:{type:'desktop'}}))
+vi.mock('@/platform',()=>({default:{type:'desktop',getImageGenerationStorage:()=>({initialize:async()=>{},getPage:async()=>({items:[],nextCursor:null})})}}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultChatModel:{provider:'openai',model:'configured'}})})}}))
 vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({db:{getSetting:async(key:string)=>state.settings.get(key),setSettingIfUnchanged:async(key:string,old:unknown,next:unknown)=>{if(state.settings.get(key)!==old)return false;state.settings.set(key,next);return true}},projects:{assertApp:async()=>{},assertSession:async(id:string)=>{if(state.locked.has(id))throw Error('Locked')}},assets:{}})}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{repository:{meta:{getAllIncludingHidden:async()=>[...state.headers.values()]}},getSessionHeader:async(id:string)=>state.headers.has(id)?{header:state.headers.get(id)}:null,createSession:async(input:any)=>{const header={...input,id:'created-'+(++state.count)};state.headers.set(header.id,header);return header},updateSessionHeader:async(id:string,patch:any)=>state.headers.set(id,{...state.headers.get(id),...patch}),setSessionSystemPrompt:vi.fn(),deleteSession:vi.fn(async(id:string)=>state.headers.delete(id))}}}))
@@ -14,7 +14,7 @@ vi.mock('./uploads',()=>({mcpUploadSchema:z.object({}),uploadMCPFile:vi.fn(),cle
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{}}))
 vi.mock('@/packages/venice/service',()=>({veniceMediaService:{list:async()=>[],removeVoice:vi.fn()}}))
 vi.mock('@/stores/imageGenerationActions',()=>({getImageGenerationService:()=>({deleteRecord:vi.fn()})}))
-vi.mock('@/packages/multi-agent/runtime',()=>({revokeExternalAgents:vi.fn(),multiAgentRuntime:{stopRoot:vi.fn()}}))
+vi.mock('@/packages/multi-agent/runtime',()=>({revokeExternalAgents:vi.fn(),multiAgentRuntime:{stopRoot:vi.fn(),runs:new Map()}}))
 import {handleApplicationMCP} from './application'
 const grant=(mode:'full'|'shadow'|'router',token='test-token'):LocalMCPGrant=>({running:true,sessionId:'application',endpointId:crypto.randomUUID(),application:LocalMCPApplicationSchema.parse({name:mode,mode,manageChats:true,providers:['venice']}),url:'http://127.0.0.1:3000/mcp',token,startedAt:1,permissions:{...defaultLocalMCPPermissions,writeFiles:true,models:true,venice:true}})
 const call=(grant:LocalMCPGrant,name:string,args:Record<string,unknown>={})=>handleApplicationMCP({id:crypto.randomUUID(),operation:'call_tool',grant,name,arguments:args},new AbortController().signal)
@@ -52,4 +52,16 @@ it('revocation is checked before returning app data and unknown parameters canno
   const g=grant('shadow');state.live=[g]
   await expect(call(g,'app_contexts',{action:'create',request_id:'a',settings:{apiKey:'no'}})).rejects.toThrow('arguments')
   state.live=[];await expect(call(g,'app_contexts',{action:'list'})).rejects.toThrow('revoked');expect(state.count).toBe(0)
+})
+
+it('refuses cleanup while a paid operation is running, then removes only its own temporary context',async()=>{
+  const g=grant('shadow','cleanup-race');state.live=[g]
+  state.headers.set('personal',{id:'personal',name:'Keep me',settings:{}})
+  const {sessionId}=await call(g,'app_contexts',{action:'create',request_id:'temporary'}) as any
+  let finish!:(result:unknown)=>void;state.call.mockImplementation(()=>new Promise(resolve=>finish=resolve))
+  const running=call(g,'app_call',{sessionId,name:'app_model',arguments:{provider:'venice'},request_id:'pending'})
+  await vi.waitFor(()=>expect(state.call).toHaveBeenCalled())
+  await expect(call(g,'app_cleanup',{sessionId})).rejects.toThrow('active workspace operations');expect(state.headers.has(sessionId)).toBe(true)
+  finish({text:'Completed'});await running
+  expect(await call(g,'app_cleanup',{sessionId})).toEqual({deleted:1});expect(state.headers.has(sessionId)).toBe(false);expect(state.headers.has('personal')).toBe(true)
 })

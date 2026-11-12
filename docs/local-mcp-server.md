@@ -1,6 +1,6 @@
 # Desktop MCP servers
 
-Chatbox Venice can serve trusted local MCP clients using Streamable HTTP. **Settings → MCP → App-wide MCP servers** creates independent endpoints, with separate loopback ports, random access tokens and permissions. The existing **Share this chat through MCP** remains a separate, narrower endpoint. Nothing starts automatically after installation or restart. Up to eight listeners can run together.
+Chatbox Venice can serve trusted local MCP clients using Streamable HTTP. **Settings → MCP → App-wide MCP servers** creates independent endpoints, with separate loopback ports, random access tokens and permissions. The existing **Share this chat through MCP** remains a separate, narrower endpoint. Endpoint permission profiles are saved without access tokens and can be edited or manually restarted. Nothing starts automatically after installation or restart. Up to eight listeners can run together.
 
 An existing single-chat endpoint exposes the selected workspace, saved generations, explicitly supplied text-model requests and optionally its agents. It does **not** provide a conversation send/read tool. The app-wide endpoint adds an explicit conversation grant for that purpose.
 

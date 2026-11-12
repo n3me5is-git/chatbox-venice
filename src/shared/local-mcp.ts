@@ -35,7 +35,7 @@ export function localMCPGrantAllows(grant:LocalMCPGrant,name:string,args:Record<
   const app=grant.application
   if(!app)return localMCPAllows(grant.permissions,name,args)
   if(name==='app_contexts')return app.mode!=='router'
-  if(name==='app_conversation')return app.mode!=='router'&&app.conversations&&grant.permissions.models
+  if(name==='app_conversation')return app.mode!=='router'&&app.conversations&&(args.action!=='send'||grant.permissions.models)
   if(name==='app_resources')return grant.permissions.readFiles
   if(name==='app_upload')return grant.permissions.writeFiles
   if(name==='venice_studio')return grant.permissions.venice

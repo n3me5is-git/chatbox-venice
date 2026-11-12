@@ -74,7 +74,7 @@ export function RouteComponent() {
           : t('Tools from MCP servers are available to models that support tool use.')
       }
     >
-      <SettingsSection><ApplicationMCPSettings/></SettingsSection>
+      {platform.type==='desktop'&&<SettingsSection><ApplicationMCPSettings/></SettingsSection>}
       <VeniceMCPSettings />
       {sharedSessionId&&<SettingsSection><LocalMCPSettings sessionId={sharedSessionId}/></SettingsSection>}
       <BuiltinServersSection />

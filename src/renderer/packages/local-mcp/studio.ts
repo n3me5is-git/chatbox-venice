@@ -52,7 +52,8 @@ export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,con
         if(!input.model||!input.filePath)throw Error('Choose a model and an uploaded sample')
         // Keep handles bound to temporary contexts so a router never lists an existing personal voice.
         if(!(await temporaryMCPEntries()).some(item=>item.id===id))throw Error('Create a temporary workspace for voice cloning')
-        await media();await approve();const voice=await veniceMediaService.createVoice(input.model,await file(id,input.filePath,signal),input.prompt,signal)
+        if(!(await media()).some(model=>model.id===input.model))throw Error('Voice-cloning model is not available to this endpoint')
+        await approve();const voice=await veniceMediaService.createVoice(input.model,await file(id,input.filePath,signal),input.prompt,signal)
         await mutateTemporaryMCPEntries(items=>items.map(item=>item.id===id?{...item,voices:[...(item.voices||[]),voice.id]}:item));return {id:voice.id,model:voice.model,name:voice.name,expiresAt:voice.expiresAt,remote:'Expires according to Venice retention; local cleanup does not remove the remote voice immediately'}
       }
       if(input.action==='generate'||input.action==='quote'){
@@ -74,8 +75,10 @@ export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,con
           if(key in options)throw Error('Specify each reference once')
           const values=await Promise.all((Array.isArray(paths)?paths:[paths]).map(async path=>{const source=await file(id,path!,signal);size+=source.size;if(size>24*1024*1024)throw Error('Combined reference files exceed 24 MB');return dataURL(source)}));options[key]=Array.isArray(paths)?values:values[0]
         }
+        if(input.filePath&&!['transcription','voice-conversion'].includes(input.kind))throw Error('This category does not accept a source file; use only reference parameters supported by the exact model')
         const source=input.filePath?await file(id,input.filePath,signal):undefined
-        const request={kind:input.kind,model:input.model,prompt:input.prompt,options,file:source,sessionId:id,signal,protection:await vaultRuntimeFor(platform).projects.sessionScope(id)||undefined}
+        const durationSeconds=input.kind==='voice-conversion'&&source?await (await import('@/packages/voice-file')).voiceFileDuration(source,signal):undefined
+        const request={kind:input.kind,model:input.model,prompt:input.prompt,options,file:source,durationSeconds,sessionId:id,signal,protection:await vaultRuntimeFor(platform).projects.sessionScope(id)||undefined}
         if(input.action==='quote')return veniceMediaService.quote(request)
         await approve();return summary(await veniceMediaService.start(request))
       }

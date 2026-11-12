@@ -32,7 +32,7 @@ it('round-trips encrypted binary chunks, verifies SHA-256 and keeps retrying an 
  expect(JSON.stringify([...values.values()])).not.toContain('IIIIIIIIIIIIIIIIIIII')
  const file=state.files[0],a=await transferMCPResource('workspace',{action:'read',resourceId:file.id,offset:0,length:256*1024},signal) as any
  const b=await transferMCPResource('workspace',{action:'read',resourceId:file.id,offset:a.nextOffset,length:256*1024,version:a.version},signal) as any
- expect(Buffer.concat([Buffer.from(a.base64,'base64'),Buffer.from(b.base64,'base64')])).toEqual(Buffer.from(content));expect(a.sha256).toBe(hex(content));expect(b.nextOffset).toBeNull()
+ const joined=new Uint8Array(a.bytes+b.bytes);joined.set(Uint8Array.from(atob(a.base64),c=>c.charCodeAt(0)));joined.set(Uint8Array.from(atob(b.base64),c=>c.charCodeAt(0)),a.bytes);expect(joined).toEqual(content);expect(a.sha256).toBe(hex(content));expect(b.nextOffset).toBeNull()
  await expect(transferMCPResource('workspace',{action:'read',resourceId:file.id,offset:1,length:2,version:'changed'},signal)).rejects.toThrow('changed')
  await cleanupMCPUploads(await localMCPOwner(g));expect(headers.size).toBe(1) // committed user file survives upload staging cleanup
 })
