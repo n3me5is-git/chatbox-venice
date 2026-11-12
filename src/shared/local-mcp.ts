@@ -50,3 +50,10 @@ export function localMCPClientConfiguration(grant:LocalMCPGrant){
   const name=(grant.application?.name||'chatbox-venice').toLowerCase().replace(/[^a-z0-9_-]+/g,'-').slice(0,40)
   return {mcpServers:{['chatbox-'+name+'-'+new URL(grant.url).port]:{url:grant.url,headers:{Authorization:'Bearer '+grant.token}}}}
 }
+
+/** Status/catalog/read requests must remain fresh when a client repeats its request ID. */
+export function localMCPObservation(name:string,args:Record<string,unknown>={}){
+  if(['app_models','agent_catalog','agent_tree','agent_status','agent_wait','agent_result','agent_files'].includes(name))return true
+  const actions:Record<string,string[]>={session_file:['list','read','search','preview'],venice_image:['models','status'],venice_media:['catalog','list','quote','status','show','wait'],venice_studio:['catalog','quote','status','wait','voices']}
+  return actions[name]?.includes(String(args.action))===true
+}

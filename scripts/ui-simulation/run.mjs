@@ -46,7 +46,7 @@ try {
     await evaluate(`new Promise(resolve => { if (document.activeElement?.closest('.mantine-NumberInput-root')) document.activeElement.blur(); requestAnimationFrame(() => requestAnimationFrame(resolve)) })`)
     let previous
     const box = await wait(async () => {
-      const current = await evaluate(`(() => { const e = ${expression}; if (!e) return null; e.scrollIntoView({block:'center',behavior:'instant'}); const r=e.getBoundingClientRect(); const x=r.x+r.width/2,y=r.y+r.height/2; const hit=document.elementFromPoint(x,y); return {x,y,width:r.width,height:r.height,viewport:innerHeight,hit:hit===e||e.contains(hit)} })()`)
+      const current = await evaluate(`(async() => { const e = ${expression}; if (!e) return null; e.scrollIntoView({block:'center',behavior:'instant'}); await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))); const r=e.getBoundingClientRect(); const x=r.x+r.width/2,y=r.y+r.height/2; const hit=document.elementFromPoint(x,y); return {x,y,width:r.width,height:r.height,viewport:innerHeight,hit:hit===e||e.contains(hit)} })()`)
       if (!current || !current.width || !current.height || !current.hit || current.y < 0 || current.y >= current.viewport) return false
       const stable = previous && Math.abs(previous.x-current.x) < 0.5 && Math.abs(previous.y-current.y) < 0.5
       previous = current; return stable ? {x:current.x,y:current.y} : false
@@ -89,7 +89,7 @@ try {
   await click(byLabel("Aspect ratio")); await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.trim() === '16:9')`)
   await click(byLabel("Content filter")); await click(`[...document.querySelectorAll('[role="option"]')].findLast(e => e.textContent.trim() === "Off")`)
   await click(byText("Parameters for this call")); await fill("Seed for this generation", '42')
-  await evaluate(`window.__radioEvents=[]; ['pointerdown','pointerup','click','change'].forEach(type=>document.addEventListener(type,e=>window.__radioEvents.push({type,tag:e.target.tagName,name:e.target.name,value:e.target.value,checked:e.target.checked}),true))`)
+  await evaluate(`window.__radioEvents=[]; ['pointerdown','pointerup','click','change'].forEach(type=>document.addEventListener(type,e=>window.__radioEvents.push({type,tag:e.target.tagName,html:e.target.outerHTML?.slice(0,500),name:e.target.name,value:e.target.value,checked:e.target.checked}),true))`)
   await click(`[...document.querySelectorAll('label')].findLast(e=>e.textContent==='Remember similar generations after approval')`)
   try { await wait(()=>evaluate(`[...document.querySelectorAll('input[type="radio"][value="similar"]')].at(-1)?.checked`),'Similar approval radio was not selected') }
   catch(error) { const diagnostic=await evaluate(`({events:window.__radioEvents,radios:[...document.querySelectorAll('input[type="radio"]')].map(e=>({id:e.id,name:e.name,value:e.value,checked:e.checked})),body:document.body.innerText})`); await writeFile(path.join(output,'radio-failure.json'),JSON.stringify(diagnostic,null,2)); throw new Error(error.message+': '+JSON.stringify(diagnostic)) }

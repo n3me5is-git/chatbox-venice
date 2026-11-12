@@ -4,7 +4,7 @@ import {validatedToolSchema} from '@shared/validated-tool-schema'
 import {applicationConversationTool} from './conversation'
 import {asSchema,tool,type ToolSet} from 'ai'
 import {z} from 'zod'
-import {LocalMCPApplicationSchema,localMCPAllows,localMCPGrantAllows,type LocalMCPGrant,type LocalMCPRequest} from '@shared/local-mcp'
+import {LocalMCPApplicationSchema,localMCPObservation,localMCPAllows,localMCPGrantAllows,type LocalMCPGrant,type LocalMCPRequest} from '@shared/local-mcp'
 import {SessionSettingsSchema,type SessionSettings} from '@shared/types'
 import {MultiAgentPolicySchema} from '@shared/multi-agent'
 import {rendererApplication} from '@/app/renderer-application'
@@ -159,7 +159,8 @@ function appTools(grant:LocalMCPGrant,signal:AbortSignal):ToolSet{
     app_call:tool({description:'Run a discovered tool in one authorized root workspace. Grants apply at execution, including agent, model, studio, search and file permissions. Paid calls require a stable request_id. Reuse that ID to retrieve the same outcome; do not create a new ID after an ambiguous timeout. A failed operation is not automatically retried.',inputSchema:z.object({sessionId:idSchema,name:z.string().min(1).max(200),arguments:z.record(z.string(),z.unknown()).default({}),request_id:z.string().min(1).max(128)}).strict(),execute:async input=>{
       await authorized(grant,input.sessionId,signal)
       if(!localMCPAllows(grant.permissions,input.name,input.arguments))throw Error('This action exceeds the endpoint permissions')
-      return unique(grant,'call:'+input.request_id,input,()=>handleSessionLocalMCP({id:crypto.randomUUID(),operation:'call_tool',grant:bound(grant,input.sessionId),name:input.name,arguments:input.arguments,callId:'application:'+input.request_id},signal))
+      const perform=()=>handleSessionLocalMCP({id:crypto.randomUUID(),operation:'call_tool',grant:bound(grant,input.sessionId),name:input.name,arguments:input.arguments,callId:'application:'+input.request_id},signal)
+      return localMCPObservation(input.name,input.arguments)?perform():unique(grant,'call:'+input.request_id,input,perform)
     }}),
     app_resources:tool({description:'List saved files and generations or read a bounded range of one authorized resource. Router mode uses its internal temporary workspace. Read does not delete: fetch every chunk, then explicitly call app_cleanup. No regeneration to recover a saved result.',inputSchema:z.object({sessionId:idSchema.optional(),action:z.enum(['list','read']),resourceId:z.string().max(1024).optional(),version:z.string().max(128).optional(),offset:z.number().int().min(0).default(0),length:z.number().int().min(1).max(256*1024).default(256*1024)}).strict(),execute:async input=>{
       const id=app.mode==='router'?await defaultContext(grant,signal):input.sessionId
@@ -186,11 +187,13 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
     for(const member of listed){
       if(!['app_model','app_models','venice_image','venice_media'].includes(member.name)||!localMCPAllows(grant.permissions,member.name))continue
       const paid=member.name!=='app_models',schema=structuredClone(member.inputSchema)
-      if(paid){schema.properties={...(schema.properties as object),request_id:{type:'string',minLength:1,maxLength:128}};schema.required=[...((schema.required as string[])||[]),'request_id']}
-      definitions[member.name]=tool({description:member.description+(paid?' Supply a stable request_id. Retrying the same ID does not start a second paid operation.':''),inputSchema:validatedToolSchema(schema),execute:async(input:any)=>{
+      if(paid){schema.properties={...(schema.properties as object),request_id:{type:'string',minLength:1,maxLength:128}};if(member.name==='app_model')schema.required=[...((schema.required as string[])||[]),'request_id']}
+      definitions[member.name]=tool({description:member.description+(paid?' Supply a stable request_id for generation or writes. Status/catalog requests remain fresh.':''),inputSchema:validatedToolSchema(schema),execute:async(input:any)=>{
         const {request_id,...args}=input
         const work=()=>handleSessionLocalMCP({...request,id:crypto.randomUUID(),operation:'call_tool',grant:scoped,name:member.name,arguments:args,callId:'router:'+request_id},signal)
-        return paid?unique(grant,'router:'+request_id,{name:member.name,args},work):work()
+        if(localMCPObservation(member.name,args))return work()
+        if(!z.string().min(1).max(128).safeParse(request_id).success)throw Error('A stable request_id is required for a paid operation')
+        return unique(grant,'router:'+request_id,{name:member.name,args},work)
       }})
     }
   }

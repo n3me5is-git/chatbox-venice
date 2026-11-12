@@ -1,6 +1,6 @@
 import {tool} from 'ai'
 import {z} from 'zod'
-import type {LocalMCPGrant} from '@shared/local-mcp'
+import {localMCPObservation,type LocalMCPGrant} from '@shared/local-mcp'
 import {ModelProviderEnum} from '@shared/types'
 import {assertImageToolOptions,assertMediaToolOptions} from '@shared/providers/definitions/models/venice/call-options'
 import {privacyAllowed} from '@shared/providers/definitions/models/venice/privacy'
@@ -93,6 +93,6 @@ export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,con
       else if(input.action==='cleanup_remote'){await approve();await veniceMediaService.cleanup(row.id)}
       await assert(id);return summary(await record())
     }
-    return input.request_id?unique('studio:'+input.request_id,input,work):work()
+    return input.request_id&&!localMCPObservation('venice_studio',input)?unique('studio:'+input.request_id,input,work):work()
   }})
 }

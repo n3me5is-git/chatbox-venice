@@ -15,3 +15,12 @@ it('changes only this chat and resets immediately from the visible controls',()=
 Object.defineProperty(window,'matchMedia',{writable:true,value:vi.fn(()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()}))})
 vi.stubGlobal('ResizeObserver',class {observe(){} unobserve(){} disconnect(){}})
 Element.prototype.scrollIntoView=vi.fn()
+
+it('accepts a touch on the full approval row while a scroll gesture does not select it',()=>{
+ render(<MantineProvider><VeniceSessionApprovals sessionId="ui-chat"/></MantineProvider>)
+ const radio=screen.getByRole('radio',{name:'Remember similar generations after approval'}),row=radio.closest('[data-approval-mode]')!
+ const pointer=(type:string,x:number)=>{const event=new Event(type,{bubbles:true,cancelable:true});Object.assign(event,{pointerId:1,pointerType:'touch',clientX:x,clientY:10});fireEvent(row,event)}
+ pointer('pointerdown',10);pointer('pointerup',40);expect(sessionApprovals.mode('ui-chat')).toBe('ask')
+ pointer('pointerdown',10);pointer('pointerup',10);expect(sessionApprovals.mode('ui-chat')).toBe('similar')
+ fireEvent.click(screen.getByRole('radio',{name:'Automatically approve generations'}).closest('[data-approval-mode]')!);expect(sessionApprovals.mode('ui-chat')).toBe('automatic')
+})

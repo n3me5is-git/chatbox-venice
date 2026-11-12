@@ -70,3 +70,11 @@ it('does not create a router workspace merely to clean an already empty endpoint
  const g=grant('router','cleanup-empty');state.live=[g]
  expect(await call(g,'app_cleanup',{})).toEqual({deleted:0});expect(state.count).toBe(0)
 })
+
+it('refreshes status observations even when a client reuses its request ID',async()=>{
+ const g=grant('shadow','polling');state.live=[g]
+ const {sessionId}=await call(g,'app_contexts',{action:'create',request_id:'workspace'}) as any
+ const input={sessionId,name:'venice_media',arguments:{action:'status',id:'video-one'},request_id:'poll'}
+ state.call.mockResolvedValueOnce({status:'queued'}).mockResolvedValueOnce({status:'ready'})
+ expect(await call(g,'app_call',input)).toMatchObject({status:'queued'});expect(await call(g,'app_call',input)).toMatchObject({status:'ready'});expect(state.call).toHaveBeenCalledTimes(2)
+})
