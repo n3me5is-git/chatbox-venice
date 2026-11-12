@@ -4,6 +4,7 @@ import {isRagInternal} from '@shared/session-rag-policy'
 import {listSessionResources,readSessionResource} from '@/packages/session-resources/service'
 import {vaultRuntimeFor} from '@/packages/vault/runtime'
 import platform from '@/platform'
+const hashes=new Map<string,string>()
 const hex=(value:Uint8Array)=>Array.from(value,n=>n.toString(16).padStart(2,'0')).join('')
 const base64=(value:Uint8Array)=>{let text='';for(let i=0;i<value.length;i+=8192)text+=String.fromCharCode(...value.subarray(i,i+8192));return btoa(text)}
 export async function transferMCPResource(id:string,input:{action:'list'|'read';resourceId?:string;offset:number;length:number;version?:string},signal:AbortSignal){
@@ -20,14 +21,17 @@ export async function transferMCPResource(id:string,input:{action:'list'|'read';
     version=header.id;total=item.bytes??header.bytes
     if(input.version&&input.version!==version)throw Error('The resource changed; restart its transfer')
     if(input.offset>total)throw Error('Offset is outside the resource')
-    range=new Uint8Array(Math.min(input.length,total-input.offset));let position=0;const hash=sha256.create()
-    try{
-      for await(const bytes of vault.assets.read(item.key!)){
-        try{await assert();await vault.projects.assertLibraryKey(header.alias);hash.update(bytes);const from=Math.max(0,input.offset-position),to=Math.min(bytes.length,input.offset+range.length-position);if(to>from)range.set(bytes.subarray(from,to),position+from-input.offset);position+=bytes.length}finally{bytes.fill(0)}
-      }
+    let known=hashes.get(header.id)
+    if(!known){
+      const hash=sha256.create();let position=0
+      for await(const bytes of vault.assets.read(item.key!)){try{await assert();await vault.projects.assertLibraryKey(header.alias);hash.update(bytes);position+=bytes.length}finally{bytes.fill(0)}}
       if(position!==total)throw Error('The resource length changed')
-      contentHash=hex(hash.digest())
-    }catch(error){range.fill(0);throw error}
+      known=hex(hash.digest());hashes.set(header.id,known)
+      if(hashes.size>256)hashes.delete(hashes.keys().next().value!)
+    }
+    contentHash=known
+    range=await vault.assets.readRange(item.key!,input.offset,Math.min(input.length,total-input.offset))
+
   }else{
     const {bytes}=await readSessionResource(id,item)
     try{total=bytes.length;contentHash=hex(sha256(bytes));version=contentHash;if(input.version&&input.version!==version)throw Error('The resource changed; restart its transfer');if(input.offset>total)throw Error('Offset is outside the resource');range=bytes.slice(input.offset,input.offset+input.length)}finally{bytes.fill(0)}

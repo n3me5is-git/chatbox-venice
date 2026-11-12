@@ -6,7 +6,7 @@ import { isUsingOAuth,mergeSharedOAuthProviderSettings } from '@shared/oauth'
 import { ModelProviderEnum,type ProviderModelInfo } from '@shared/types'
 import { projectVeniceModels } from '@shared/providers/definitions/models/venice/model-selection'
 import { resolveVeniceSettings } from '@shared/providers/definitions/models/venice/options'
-import { veniceSessionTextPrivacy } from '@chatbox/core/domain/settings/venice-privacy'
+import { resolveVeniceTextPrivacy,veniceSessionTextPrivacy } from '@chatbox/core/domain/settings/venice-privacy'
 import { isTextResource } from '@shared/session-resources'
 import { localMCPAllows,parseSessionResourceURI,sessionResourceURI,type LocalMCPGrant,type LocalMCPRequest,type LocalMCPTool } from '@shared/local-mcp'
 import { createModel } from '@/adapters'
@@ -25,6 +25,7 @@ import platform from '@/platform'
 const forwarding=new Set<string>()
 export async function localMCPSettings(grant:LocalMCPGrant,override?:{provider:string;modelId:string}){
   const original={...await getSessionSettings(grant.sessionId),...override},required=grant.application?.privacy
+  if(grant.application?.mode==='router')original.veniceSecurity=undefined
   const settings={...original,...(grant.application?.externalTools?{veniceSecurity:{...original.veniceSecurity,e2eeToolsEnabled:true,e2eeToolMode:'encrypted-text' as const}}:{}),...(!grant.permissions.search?{subscriptionWebSearch:false,veniceProfile:{...original.veniceProfile,webSearch:'off' as const,webSearchEnabled:false}}:{})}
   if(!required||required==='auto')return settings
   const actual=veniceSessionTextPrivacy({...settings,veniceSecurity:{...settings.veniceSecurity,textPrivacy:'auto'}},settingsStore.getState().getSettings())
@@ -34,8 +35,8 @@ async function assertChat(grant:LocalMCPGrant){await vaultRuntimeFor(platform).p
 export async function localMCPModelCatalog(grant:LocalMCPGrant){
   const global=settingsStore.getState().getSettings(),session=await localMCPSettings(grant)
   const base=global.providers?.venice?.venice,privacy=resolveVeniceSettings(base,undefined,session.veniceProfile,session.veniceSecurity)
-  const mode=grant.application?.privacy&&grant.application.privacy!=='auto'?grant.application.privacy:veniceSessionTextPrivacy(session,global)
-  const restrict=grant.application?.privacy!=='auto'&&!!grant.application||session.provider===ModelProviderEnum.Venice&&(mode!=='standard'||privacy.privacyFilter&&privacy.privacyFilter!=='all')
+  const mode=grant.application?.privacy&&grant.application.privacy!=='auto'?grant.application.privacy:grant.application?.mode==='router'?resolveVeniceTextPrivacy(base):veniceSessionTextPrivacy(session,global)
+  const restrict=grant.application?.privacy!=='auto'&&!!grant.application||grant.application?.mode!=='router'&&session.provider===ModelProviderEnum.Venice&&(mode!=='standard'||privacy.privacyFilter&&privacy.privacyFilter!=='all')
   const output:{provider:string;providerName:string;modelId:string;name:string;capabilities:ProviderModelInfo['capabilities'];privacy:unknown;uncensored:unknown;secure:unknown}[]=[]
   for(const provider of [...SystemProviders(),...(global.customProviders??[])]){
     if(grant.application?.providers&&!grant.application.providers.includes(provider.id))continue
@@ -87,7 +88,7 @@ async function toolsFor(grant:LocalMCPGrant){
   const tools:ToolSet={}
   if(grant.permissions.readFiles||grant.permissions.writeFiles)Object.assign(tools,await buildSessionWorkspaceTools(grant.sessionId))
   if(!grant.permissions.execute){delete tools.session_js;delete tools.session_python}
-  if(grant.permissions.venice)Object.assign(tools,veniceChatTools(grant.sessionId))
+  if(grant.permissions.venice)Object.assign(tools,veniceChatTools(grant.sessionId,'external','owner',grant.sessionId,{forceApproval:!!grant.application&&!grant.application.automaticStudio}))
   if(grant.permissions.search){Object.assign(tools,buildWebSearchTools());tools.parse_link=parseLinkTool}
   Object.assign(tools,await modelTools(grant))
   if(grant.permissions.forwardMCP){

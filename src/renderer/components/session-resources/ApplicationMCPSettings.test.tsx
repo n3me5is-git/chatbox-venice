@@ -7,7 +7,7 @@ const state=vi.hoisted(()=>({grants:[] as any[],invoke:vi.fn(),cleanup:vi.fn(asy
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('react-i18next',()=>({useTranslation:()=>({})}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({providers:{venice:{apiKey:'SENTINEL_KEY'}}})})}}))
-vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({available:async()=>true,projects:{assertApp:async()=>{}}})}))
+vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({available:async()=>true,db:{getSetting:async()=>[],setSetting:async()=>{}},projects:{assertApp:async()=>{}}})}))
 vi.mock('@/packages/local-mcp/application',()=>({cleanupInactiveMCPContexts:()=>state.cleanup(),revokeApplicationMCP:vi.fn(async()=>({pending:0}))}))
 import {ApplicationMCPSettings} from './ApplicationMCPSettings'
 Object.defineProperty(window,'matchMedia',{value:vi.fn(()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()}))})

@@ -15,6 +15,9 @@ import platform from '@/platform'
 import {handleSessionLocalMCP,localMCPTools} from './backend'
 
 import {temporaryMCPEntries as entries,mutateTemporaryMCPEntries as mutate,localMCPOwner as owner} from './temporary'
+const active=new Map<string,Set<{id?:string;work:Promise<unknown>}>>()
+const closing=new Set<string>()
+const disposing=new Map<string,Promise<void>>()
 const creating=new Map<string,Promise<string>>()
 const calls=new Map<string,Map<string,{fingerprint:string;work:Promise<unknown>}>>()
 const vault=()=>vaultRuntimeFor(platform)
@@ -26,7 +29,7 @@ async function live(grant:LocalMCPGrant,signal?:AbortSignal){
   if(!current.running||current.token!==grant.token||JSON.stringify(current.application)!==JSON.stringify(grant.application)||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
 }
 async function authorized(grant:LocalMCPGrant,id:string,signal?:AbortSignal){
-  await live(grant,signal);await vault().projects.assertSession(id)
+  await live(grant,signal);if(closing.has(id))throw Error('This workspace is being cleaned up');await vault().projects.assertSession(id)
   const all=await entries(),own=await owner(grant),entry=all.find(item=>item.id===id)
   // Even full access cannot open another endpoint's temporary workspace.
   if(entry&&entry.owner!==own)throw Error('This temporary workspace belongs to another MCP endpoint')
@@ -73,7 +76,10 @@ async function unique(grant:LocalMCPGrant,key:string,input:unknown,work:()=>Prom
   void pending.then(result=>{if(JSON.stringify(result??null).length>64000)entry.work=Promise.resolve({completed:true,resultRetained:false,message:'The original operation completed. Retrieve saved files or inspect its context; this request_id will not run it again.'})},()=>{entry.work=Promise.resolve({failed:true,message:'The original operation failed or stopped. Inspect its saved context and explain the failure before creating a new request_id.'})})
   return pending
 }
-async function disposeContext(id:string){
+async function disposeContextWork(id:string){
+  if([...active.values()].some(items=>[...items].some(item=>item.id===id)))throw Error('Wait for active workspace operations before cleanup')
+  closing.add(id)
+  try{
   await vault().projects.assertSession(id)
   const temporary=(await entries()).find(item=>item.id===id)
   if(temporary)await cleanupMCPUploads(temporary.owner,id)
@@ -89,11 +95,15 @@ async function disposeContext(id:string){
   for(const record of records)await getImageGenerationService().deleteRecord(record)
   for(const child of [...ids].reverse())await rendererApplication.sessions.deleteSession(child)
   await mutate(items=>items.filter(item=>!ids.has(item.id)))
+  }finally{closing.delete(id)}
 }
+function disposeContext(id:string){let work=disposing.get(id);if(!work){work=disposeContextWork(id);disposing.set(id,work);void work.finally(()=>disposing.delete(id)).catch(()=>{})}return work}
 const revoking=new Map<string,Promise<{pending:number}|undefined>>()
 async function revokeApplicationWork(grant:LocalMCPGrant){
   if(!grant.application)return
   calls.delete(grant.token)
+  const awaitOwner=await owner(grant),running=[...[...(active.get(grant.token)||[])].map(item=>item.work),...(creating.has(grant.token)?[creating.get(grant.token)!]:[])]
+  if(running.length){let timer:ReturnType<typeof setTimeout>|undefined;const done=await Promise.race([Promise.allSettled(running).then(()=>true),new Promise<false>(resolve=>{timer=setTimeout(()=>resolve(false),10000)})]);if(timer)clearTimeout(timer);if(!done)return {pending:(await entries()).filter(item=>item.owner===awaitOwner).length}}
   await (await import('@/packages/multi-agent/runtime')).revokeExternalAgents(grant.token)
   const own=await owner(grant),failed:string[]=[]
   await cleanupMCPUploads(own).catch(()=>failed.push('uploads'))
@@ -157,6 +167,7 @@ function appTools(grant:LocalMCPGrant,signal:AbortSignal):ToolSet{
       return (await import('./resource-transfer')).transferMCPResource(id,input,signal)
     }}),
     app_cleanup:tool({description:'Permanently delete this endpoint’s selected temporary workspace, generated media and worker descendants after retrieving the outputs. Omitting sessionId deletes all of this endpoint’s temporary workspaces. Existing user chats and other endpoints are never removed. A failed cleanup remains queued and can be retried.',inputSchema:z.object({sessionId:idSchema.optional()}).strict(),execute:async input=>{
+      if(!input.sessionId&&[...(active.get(grant.token)||[])].some(item=>!item.id))throw Error('Wait for workspace creation before cleanup')
       const own=await owner(grant),items=(await entries()).filter(item=>item.owner===own&&(!input.sessionId||item.id===input.sessionId))
       if(input.sessionId&&!items.length)throw Error('This endpoint does not own that temporary workspace')
       for(const item of items){await live(grant,signal);await disposeContext(item.id)}return {deleted:items.length}
@@ -188,6 +199,12 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
   const member=definitions[request.name];if(!member?.execute)throw Error('This application tool is unavailable')
   const validated=await asSchema(member.inputSchema).validate?.(request.arguments||{})
   if(!validated?.success)throw Error('Invalid application tool arguments')
-  const result=await member.execute(validated.value,{toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}})
-  await live(grant,signal);return result
+  const input=validated.value as Record<string,unknown>,destructive=request.name==='app_cleanup'||request.name==='app_contexts'&&input.action==='delete'
+  const target=grant.application!.mode==='router'?await defaultContext(grant,signal):typeof input.sessionId==='string'?input.sessionId:undefined
+  if(target&&closing.has(target))throw Error('This workspace is being cleaned up')
+  const items=active.get(grant.token)||new Set<{id?:string;work:Promise<unknown>}>();active.set(grant.token,items)
+  const pending=Promise.resolve().then(()=>member.execute!(validated.value,{toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}}))
+  const operation={id:target,work:pending};if(!destructive)items.add(operation)
+  try{const result=await pending;await live(grant,signal);return result}finally{items.delete(operation);if(!items.size)active.delete(grant.token)}
+
 }

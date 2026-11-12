@@ -26,7 +26,7 @@ import {privacyAllowed} from '@shared/providers/definitions/models/venice/privac
 import {quickModelPrice} from '@shared/providers/definitions/models/venice/pricing'
 const inFlight = new Map<string, Promise<unknown>>()
 const retryGate=new GenerationRetryGate()
-export function veniceChatTools(sessionId: string,turnId='external',requester='owner',decisionSessionId=sessionId) {
+export function veniceChatTools(sessionId: string,turnId='external',requester='owner',decisionSessionId=sessionId,access:{forceApproval?:boolean}={}) {
   syncSessionApprovalScope(sessionId)
   const authorizations = new WeakMap<ImageChoice, {scope: string; revision: number; automatic: boolean}>()
   const options = () => veniceConfiguration().options
@@ -56,7 +56,7 @@ export function veniceChatTools(sessionId: string,turnId='external',requester='o
       const failure=await latestImage()
       if(failure?.status==='error'&&!await retryGate.allow(sessionId+':'+turnId,{id:failure.id,kind:ft('Image'),model:failure.model.modelId,error:failure.error||''},value=>retry(value,signal)))return null
       const before = veniceConfiguration(); const scope = syncSessionApprovalScope(sessionId); const models = await images()
-      const policy=isSharedChat(decisionSessionId)?{...sessionApprovals,allows:()=>false}:sessionApprovals
+      const policy=access.forceApproval||isSharedChat(decisionSessionId)?{...sessionApprovals,allows:()=>false}:sessionApprovals
       const approved = await requestSessionImageChoice(sessionId, request, models, request => routeSharedDecision<ImageChoice & {approvalMode?:ApprovalMode}|null>(decisionSessionId,requester,{kind:'image',prompt:request.prompt,modelId:request.modelId,count:request.count,aspectRatio:request.aspectRatio,extra_json:request.extraBody?JSON.stringify(request.extraBody):undefined,models:models.map(model=>({id:model.modelId,name:model.displayName,requiresReferences:!!model.capabilities?.inputReferences?.min,ratios:model.capabilities?.aspectRatio?.values,price:quickModelPrice({id:model.modelId,type:String(model.vendorMetadata?.veniceType||'image'),model_spec:model.vendorMetadata})}))},signal=>NiceModal.show(VeniceImageApproval,{models,request,signal,sessionId}) as Promise<ImageChoice & {approvalMode?:ApprovalMode}|null>,value=>value?{modelId:value.modelId,prompt:value.prompt,count:value.count,aspectRatio:value.aspectRatio,...(value.extraBody&&Object.keys(value.extraBody).length?{extra_json:JSON.stringify(value.extraBody)}:{})}:null,value=>{if(!value||typeof value!=='object'||!('modelId'in value))return null;const extraBody=parseExtraBody(value.extra_json||'');assertImageToolOptions(extraBody);const {extra_json,...approved}=value;return {...approved,referenceImages:[],...(extraBody?{extraBody}:{})}} ,signal),policy)
       const current = veniceConfiguration()
       if (before.apiKey !== current.apiKey || before.apiHost !== current.apiHost || scope !== syncSessionApprovalScope(sessionId)) throw new Error('Venice settings changed. Review the request again.')
@@ -93,7 +93,7 @@ export function veniceChatTools(sessionId: string,turnId='external',requester='o
     }
     const scope = syncSessionApprovalScope(sessionId)
     const descriptor = request?.action === 'generate' ? {tool:'venice_media', kind:request.kind!, model:request.model!, options:request.options || {}} : undefined
-    if (descriptor && !isSharedChat(decisionSessionId) && sessionApprovals.allows(sessionId, descriptor)) return true
+    if (descriptor && !access.forceApproval && !isSharedChat(decisionSessionId) && sessionApprovals.allows(sessionId, descriptor)) return true
     const revision = sessionApprovals.revision(sessionId)
     const catalogModel=request?.model?(await veniceMediaService.cachedCatalog?.().catch(()=>[])||[]).find(model=>model.id===request.model):undefined
     const result = await routeSharedDecision<MediaApprovalDecision & {mode:ApprovalMode}>(decisionSessionId,requester,{kind:'confirm',title:'Venice tool approval',detail:message},signal=>NiceModal.show(VeniceMediaApproval, {message, sessionId, generation:!!descriptor, request:request?{...request,signal}:undefined,catalogModel}) as Promise<MediaApprovalDecision & {mode:ApprovalMode}>,value=>value.approved,value=>({approved:value===true,mode:'ask'}),request?.signal)

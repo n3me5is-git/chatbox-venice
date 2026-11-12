@@ -35,7 +35,7 @@ import { agentMetrics } from '@shared/agent-metrics'
 
 const vault = () => vaultRuntimeFor(platform)
 const manifest = (id: string) => 'private-agents:runs:' + encodeURIComponent(id)
-type ExternalAuthority = { key: string; assert: () => Promise<void>; allows: (name: string, input: Record<string, unknown>) => boolean; context: ExternalAgentContext }
+type ExternalAuthority = { forceStudioApproval?:boolean; key: string; assert: () => Promise<void>; allows: (name: string, input: Record<string, unknown>) => boolean; context: ExternalAgentContext }
 const grants = new Map<string, { caller: AgentCaller; settings: SessionSettings; requester: string; policyFingerprint: string; explicit?: MultiAgentPolicy; external?: ExternalAuthority }>()
 const acquiringExternal = new Map<string, Promise<ExternalAgentContext>>()
 const loaded = new Set<string>()
@@ -155,7 +155,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
 async function workerTools(run: AgentRun, caller: AgentCaller, model: ModelInterface, turnId: string) {
   const images = model.isSupportVision() ? buildViewImageToolSet({ sessionId: run.sessionId, toolResultImages: supportsToolResultImages(model.apiStyle) }) : undefined
   const workspace = await buildSessionWorkspaceTools(run.workspaceId, images?.imageResults)
-  const venice = run.tools.some(name => name.startsWith('venice_'))&&veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, turnId, grants.get(run.rootId)?.requester || 'owner', run.rootId) : {}
+  const venice = run.tools.some(name => name.startsWith('venice_'))&&veniceToolsVisible(run.model.provider,settingsStore.getState().providers?.venice?.venice) ? (await import('@/packages/venice/tools')).veniceChatTools(run.sessionId, turnId, grants.get(run.rootId)?.requester || 'owner', run.rootId,{forceApproval:grants.get(run.rootId)?.external?.forceStudioApproval}) : {}
   const subscription: ToolSet = run.model.provider === ModelProviderEnum.OpenAISubscription && grants.get(run.rootId)?.settings.provider === ModelProviderEnum.OpenAISubscription && run.tools.includes('chatgpt_image') ? (await import('@/packages/chatgpt-subscription/image-tools')).subscriptionChatImageTools(run.sessionId, grants.get(run.rootId)?.requester || 'owner', turnId, run.rootId) : {}
   const available: ToolSet = { ...workspace, ...venice, ...subscription, ...buildWebSearchTools(), parse_link: parseLinkTool, ...mcpController.getAvailableTools(), ask_user: createAskUserTool((input, signal) => routeSharedDecision(run.rootId, grants.get(run.rootId)?.requester || 'owner', { kind: 'questions', input }, signal => requestUserAnswers(input, signal), value => value, value => value && typeof value === 'object' && 'answers' in value ? value : null, signal)) }
   const tools: ToolSet = {}
@@ -227,7 +227,7 @@ export function buildExternalMultiAgentTools(grant: LocalMCPGrant, available: To
         if (configuration(current) !== fingerprint) throw Error('The Work chat configuration changed. Restart MCP sharing before using agents')
       }
       const sharedNames = new Set(Object.keys(available))
-      grants.set(grant.sessionId, { caller, settings, requester: 'owner', policyFingerprint: JSON.stringify(settings.multiAgent || null), external: { key: grant.token, assert: check, context, allows: (name,input) => localMCPWorkerAllows(grant.permissions, sharedNames, name, input) } })
+      grants.set(grant.sessionId, { caller, settings, requester: 'owner', policyFingerprint: JSON.stringify(settings.multiAgent || null), external: { forceStudioApproval:!!grant.application&&!grant.application.automaticStudio,key: grant.token, assert: check, context, allows: (name,input) => localMCPWorkerAllows(grant.permissions, sharedNames, name, input) } })
       multiAgentRuntime.reopen(grant.sessionId)
       return context
     })()

@@ -22,7 +22,7 @@ async function file(id:string,path:string,signal:AbortSignal){
   if(item.bytes!==undefined&&item.bytes>25*1024*1024)throw Error('Studio input file exceeds 25 MB')
   const vault=vaultRuntimeFor(platform),header=item.key?await vault.assets.header(item.key):null
   if(header){if(header.bytes>25*1024*1024)throw Error('Studio input file exceeds 25 MB');const chunks:Uint8Array<ArrayBuffer>[]=[];try{for await(const chunk of vault.assets.read(item.key!)){signal.throwIfAborted();await vault.projects.assertSession(id);chunks.push(chunk)}return new File(chunks,item.name,{type:item.mime})}finally{for(const bytes of chunks)bytes.fill(0)}}
-  const {bytes}=await readSessionResource(id,item);try{return new File([bytes],item.name,{type:item.mime})}finally{bytes.fill(0)}
+  const {bytes}=await readSessionResource(id,item);try{return new File([Uint8Array.from(bytes)],item.name,{type:item.mime})}finally{bytes.fill(0)}
 }
 async function dataURL(input:File){const bytes=new Uint8Array(await input.arrayBuffer());try{let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));return 'data:'+input.type+';base64,'+btoa(text)}finally{bytes.fill(0)}}
 export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,context:(id?:string)=>Promise<string>,assert:(id:string)=>Promise<unknown>,unique:(id:string,input:unknown,work:()=>Promise<unknown>)=>Promise<unknown>){

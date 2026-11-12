@@ -1,4 +1,12 @@
 export const mcpItalian={
+  'Choose automatic port 0 or a port from 1024 to 65535':'Scegli la porta automatica 0 oppure una porta tra 1024 e 65535',
+  'Start saved endpoint':'Avvia endpoint salvato',
+  'Edit profile':'Modifica profilo',
+  'Delete profile':'Elimina profilo',
+  'Save and start endpoint':'Salva e avvia endpoint',
+  'Cancel profile editing':'Annulla modifica profilo',
+  'Forwarded MCP services keep their own permissions. Shadow cleanup cannot remove files or data they save outside Chatbox.':'I servizi MCP inoltrati mantengono i propri permessi. La pulizia shadow non può eliminare file o dati che salvano fuori da Chatbox.',
+
   "App-wide MCP servers": "Server MCP globali dell’app",
   "Run independent local endpoints with separate ports, tokens and permissions. Each endpoint starts only when you enable it. Locking or quitting revokes all tokens.": "Avvia endpoint locali indipendenti, ciascuno con porta, token e permessi propri. Si avviano solo su tua richiesta. Il blocco o la chiusura dell’app revoca tutti i token.",
   "Shared chat": "Chat condivisa",
