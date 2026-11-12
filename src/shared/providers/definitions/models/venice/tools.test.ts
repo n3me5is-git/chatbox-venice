@@ -48,3 +48,5 @@ describe('Venice chat media tools', () => {
     const s = setup(); await expect(s.call({ action: 'generate', kind: 'video', model: 'video', prompt: 'hello', extra_json: '[]' })).rejects.toThrow('JSON object'); expect(s.confirm).not.toHaveBeenCalled(); expect(s.service.start).not.toHaveBeenCalled()
   })
 })
+
+it('uses human-edited advanced media parameters, keeping the approved model identity fixed',async()=>{const s=setup();s.confirm.mockResolvedValueOnce({approved:true,prompt:'Edited scene',options:{negative_prompt:'blur',resolution:'720p',duration:'5s'}});await s.call({action:'generate',kind:'video',model:'wan-video',prompt:'Original'});expect(s.service.start).toHaveBeenCalledWith(expect.objectContaining({model:'wan-video',prompt:'Edited scene',options:{negative_prompt:'blur',resolution:'720p',duration:'5s'}}));const next=setup();next.confirm.mockResolvedValueOnce({approved:true,options:{model:'other'}});await expect(next.call({action:'generate',kind:'video',model:'wan-video',prompt:'Scene'})).rejects.toThrow('dedicated model');expect(next.service.start).not.toHaveBeenCalled()})

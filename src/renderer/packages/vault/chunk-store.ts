@@ -41,6 +41,25 @@ export class EncryptedChunkStore {
     }
     await this.scopeKey(header.scope);if(total!==header.bytes)throw new Error('Encrypted content was truncated')
   }
+  /** Authenticated bounded random access for local transfers; decrypt only intersecting chunks. */
+  async readRange(ref:string,offset:number,length:number){
+    if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(length)||length<0||length>256*1024)throw Error('Invalid encrypted file range')
+    const header=await this.header(ref);if(!header||header.status!=='ready')throw Error('This encrypted item is unavailable')
+    const key=await this.dataKey(header)
+    if(!header.manifest)throw Error('Encrypted content has no authenticated manifest')
+    const encoded=await open(key,header.manifest,header.id+':manifest')
+    let manifest:{bytes:number;chunks:number};try{manifest=JSON.parse(new TextDecoder().decode(encoded))}finally{encoded.fill(0)}
+    if(manifest.bytes!==header.bytes||manifest.chunks!==header.chunks||!Number.isInteger(header.chunks)||header.chunks<1||header.chunks>Math.ceil(this.maximum/CHUNK)||!Number.isSafeInteger(header.bytes)||header.bytes<1||header.bytes>this.maximum||offset>header.bytes)throw Error('Invalid encrypted content manifest or range')
+    const output=new Uint8Array(Math.min(length,header.bytes-offset)),end=offset+output.length
+    try{
+      for(let index=Math.floor(offset/CHUNK);index*CHUNK<end;index++){
+        const value=await this.blobs.get(keyFor(header.id,index));if(!value)throw Error('Encrypted content is incomplete')
+        const bytes=await open(key,JSON.parse(value),header.id+':chunk:'+index)
+        try{if(bytes.length!==Math.min(CHUNK,header.bytes-index*CHUNK))throw Error('Encrypted content length mismatch');const from=Math.max(0,offset-index*CHUNK),to=Math.min(bytes.length,end-index*CHUNK);output.set(bytes.subarray(from,to),index*CHUNK+from-offset)}finally{bytes.fill(0)}
+      }
+      await this.scopeKey(header.scope);return output
+    }catch(error){output.fill(0);throw error}
+  }
   async dataUrl(ref:string){const header=await this.header(ref);if(!header) return null;const info=await this.info(header);if(!Number.isSafeInteger(header.bytes)||header.bytes<1||header.bytes>this.maximum)throw new Error('Invalid encrypted content size')
     // Compatibility path for existing image consumers. Downloads/export use chunk iterators.
     const all=new Uint8Array(header.bytes);let offset=0;try{for await(const bytes of this.read(ref)){all.set(bytes,offset);offset+=bytes.length;bytes.fill(0)}return `data:${info.mime};base64,${encode64(all)}`}finally{all.fill(0)}

@@ -39,7 +39,13 @@ export function VeniceSearchSettings() {
     </Stack></Accordion.Panel></Accordion.Item></Accordion>
   </Stack>
 }
-export function VeniceImageSettings({ model }: { model?: { modelId: string; vendorMetadata?: Record<string, unknown> } } = {}) {
+export function VeniceNegativePrompt({model}:{model?:{modelId:string;vendorMetadata?:Record<string,unknown>}}) {
+  useTranslation()
+  const {providerSettings,setProviderSettings}=useProviderSettings('venice'),options=providerSettings?.venice||{},image=options.image||{}
+  if(!model||!imageStudioCapabilities(model).negativePrompt)return null
+  return <details open={!!image.negative_prompt}><summary style={{cursor:'pointer'}}>{ft('Negative prompt')}</summary><Textarea label={ft('Elements to avoid')} placeholder={ft('For example: text, blur, background objects…')} value={image.negative_prompt||''} onChange={event=>setProviderSettings({venice:{...options,image:{...image,negative_prompt:event.currentTarget.value||undefined}}})} autosize minRows={2}/></details>
+}
+export function VeniceImageSettings({ model,showNegativePrompt=true }: { model?: { modelId: string; vendorMetadata?: Record<string, unknown> };showNegativePrompt?:boolean } = {}) {
   useTranslation()
   const { providerSettings, setProviderSettings } = useProviderSettings('venice')
   const options = providerSettings?.venice || {}; const image = options.image || {}
@@ -57,7 +63,7 @@ export function VeniceImageSettings({ model }: { model?: { modelId: string; vend
     <Text size="xs" c="dimmed">{ft("Available options and costs depend on the selected model. Images and history are saved on this device.")}</Text>
     {controls?.transparentBackground && <Switch label={ft('Transparent background')} description={ft('Requires PNG or WebP. JPEG switches this option off.')} checked={image.transparent_background ?? false} onChange={event => updateImage({ transparent_background: event.currentTarget.checked, ...(event.currentTarget.checked && image.format === 'jpeg' ? { format: 'png' } : {}) })} />}
     <Accordion variant="default"><Accordion.Item value="advanced"><Accordion.Control>{ft("Advanced image options")}</Accordion.Control><Accordion.Panel><Stack gap="sm">
-      {controls?.negativePrompt !== false && <Textarea label={ft("Elements to avoid")} placeholder={ft("For example: text, blur, background objects…")} value={image.negative_prompt ?? ''} onChange={e => updateImage({ negative_prompt: e.currentTarget.value || undefined })} />}
+      {showNegativePrompt&&controls?.negativePrompt !== false && <Textarea label={ft("Elements to avoid")} placeholder={ft("For example: text, blur, background objects…")} value={image.negative_prompt ?? ''} onChange={e => updateImage({ negative_prompt: e.currentTarget.value || undefined })} />}
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         <TextInput label={ft("Custom style")} value={image.style_preset ?? ''} onChange={e => updateImage({ style_preset: e.currentTarget.value || undefined })} />
         <NumberInput label={ft("Exact width (pixels)")} placeholder={ft("Automatic")} min={64} max={4096} step={64} value={image.width ?? ''} onChange={value => updateImage({ width: typeof value === 'number' ? value : undefined })} />
@@ -86,10 +92,11 @@ export function VeniceModuleSettings() {
     <Switch label={ft("Show other models from Venice")} description={ft("Include the current provider catalog even when only some models were selected. Privacy restrictions still apply.")} checked={options.showOtherModels === true} onChange={e => update({ showOtherModels: e.currentTarget.checked })} />
     <Select comboboxProps={{withinPortal:false}} label={ft("Privacy Only")} allowDeselect={false} value={options.privacyFilter || 'all'} data={[{ value: 'all', label: ft("All privacy levels") }, { value: 'private', label: ft("At least Private") }, { value: 'tee', label: ft("TEE or E2EE models only") }]} onChange={value => update({ privacyFilter: value as Options['privacyFilter'] })} />
     <Text size="sm" c="dimmed">{ft('These are provider defaults. Each Venice chat can follow them or save its own privacy configuration in Conversation Settings.')}</Text>
-    <Select comboboxProps={{withinPortal:false}} label={ft("Secure text chat")} allowDeselect={false} value={options.textPrivacy || 'standard'} data={[{ value: 'standard', label: ft("Standard HTTPS") }, { value: 'tee', label: ft("Require TEE verification") }, { value: 'e2ee', label: ft("Require end-to-end encryption") }]} onChange={value => update({ textPrivacy: value as Options['textPrivacy'] })} />
-    <Text size="xs" c="dimmed">{ft('E2EE encrypts text on this device. Native Venice search and multimodal input are unavailable. Client tools can be enabled explicitly below. Secure replies are shown after verification. TEE alone allows Venice to read the prompt.')}</Text>
-    {options.textPrivacy==='e2ee'&&<E2EEToolSettings enabled={options.e2eeToolsEnabled===true} mode={options.e2eeToolMode||'encrypted-text'} onChange={(e2eeToolsEnabled,e2eeToolMode)=>update({e2eeToolsEnabled,e2eeToolMode})}/>}
-    {effectiveTextPrivacy(options)!=='standard'&&<SecureReceiptSettings enabled={options.secureReceiptCompatibility===true} onChange={secureReceiptCompatibility=>update({secureReceiptCompatibility})}/>}
+    <Select comboboxProps={{withinPortal:false}} label={ft("Secure text chat")} allowDeselect={false} value={options.textPrivacy || 'auto'} data={[{value:'auto',label:ft('Automatic: strongest available privacy')},{ value: 'standard', label: ft("Standard HTTPS") }, { value: 'tee', label: ft("Require TEE verification") }, { value: 'e2ee', label: ft("Require end-to-end encryption") }]} onChange={value => update({ textPrivacy: value as Options['textPrivacy'] })} />
+    <Text size="xs" c="dimmed">{ft('Automatic privacy selects E2EE first, then TEE. Verification failures block the request; they never trigger an unencrypted fallback. Existing tool permissions still apply.')}</Text>
+    <Text size="xs" c="dimmed">{ft('E2EE encrypts text on this device. Use client search tools for encrypted chats; native model search and multimodal input are unavailable. TEE alone allows Venice to read the prompt.')}</Text>
+    {(options.textPrivacy==='e2ee'||(options.textPrivacy??'auto')==='auto')&&<E2EEToolSettings enabled={options.e2eeToolsEnabled??((options.textPrivacy??'auto')==='auto')} mode={options.e2eeToolMode||'encrypted-text'} onChange={(e2eeToolsEnabled,e2eeToolMode)=>update({e2eeToolsEnabled,e2eeToolMode})}/>}
+    {(effectiveTextPrivacy(options)!=='standard'||(options.textPrivacy??'auto')==='auto')&&<SecureReceiptSettings enabled={options.secureReceiptCompatibility===true} onChange={secureReceiptCompatibility=>update({secureReceiptCompatibility})}/>}
     <Text size="xs" c="dimmed">{ft("Model attestation checks use a fresh nonce, model identity, debug-mode rejection and key binding. Model hardware verification relies on Venice. Separate NEAR gateway signatures use local Intel-chain verification; model software measurements and NVIDIA roots are not independently verified.")}</Text>
     <Text fw={600} mt="sm">{ft("What would you like to use?")}</Text>
     <SimpleGrid cols={{ base: 1, sm: 2 }}>

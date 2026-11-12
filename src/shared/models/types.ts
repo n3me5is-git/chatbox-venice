@@ -9,6 +9,7 @@ import {
   type ToolUseScope,
 } from 'src/shared/types'
 import { z } from 'zod'
+import type { ResponseSecurity } from '../response-security'
 
 export interface ModelInterface {
   name: string
@@ -80,6 +81,8 @@ export interface CallChatCompletionOptions<Tools extends ToolSet = ToolSet> {
   maxSteps?: number
   onRequestResolved?: (request: ResolvedChatRequest) => void | Promise<void>
   prepareStep?: PrepareStepFunction<ToolSet>
+  onStepFinish?: (step: { usage?: { outputTokens?: number }; finishReason?: string }) => void
+  onSecurityVerification?: (evidence: ResponseSecurity) => void
 }
 
 export interface ResultChange {
@@ -97,6 +100,7 @@ export type OnStatusChange = (status: MessageStatus | null) => void
 
 // New types for chatStream() API
 export interface ChatStreamOptions {
+  onSecurityVerification?: (evidence: ResponseSecurity) => void
   sessionId?: string
   /** Whether Agent/Work Mode capabilities are active for this request. */
   agentMode?: boolean
@@ -118,4 +122,4 @@ export interface ChatStreamOptions {
 export type ModelStatus = MessageStatus
 
 // ModelStreamPart extends AI SDK's TextStreamPart with custom status events
-export type ModelStreamPart<T extends ToolSet = ToolSet> = TextStreamPart<T> | { type: 'status'; status: MessageStatus }
+export type ModelStreamPart<T extends ToolSet = ToolSet> = TextStreamPart<T> | { type: 'status'; status: MessageStatus } | { type: 'security-verification'; evidence: ResponseSecurity }

@@ -7,9 +7,9 @@ export default function LocalMCPHost(){
   useEffect(()=>{
     const ipc=window.electronAPI;if(platform.type!=='desktop'||!ipc?.onLocalMCPRequest)return
     const requests=new Map<string,AbortController>()
-    const stop=()=>{for(const controller of requests.values())controller.abort();requests.clear();void ipc.invoke('local-mcp:control','stop').then(()=>window.dispatchEvent(new Event('local-mcp:state-changed'))).catch(()=>{})}
+    const stop=()=>{for(const controller of requests.values())controller.abort();requests.clear();void ipc.invoke('local-mcp:control','stop-all').then(()=>window.dispatchEvent(new Event('local-mcp:state-changed'))).catch(()=>{})}
     const unsubscribe=ipc.onLocalMCPRequest(request=>{
-      if(request.operation==='revoke'){void import('@/packages/multi-agent/runtime').then(module=>module.revokeExternalAgents(request.grant.token)).catch(()=>{});return}
+      if(request.operation==='revoke'){void import('@/packages/local-mcp/application').then(module=>module.revokeApplicationMCP(request.grant)).catch(()=>{});void import('@/packages/multi-agent/runtime').then(module=>module.revokeExternalAgents(request.grant.token)).catch(()=>{});return}
       if(request.operation==='cancel'){requests.get(request.id)?.abort();return}
       const controller=new AbortController();requests.set(request.id,controller)
       const reply=(value:unknown)=>ipc.invoke('local-mcp:reply',request.id,redactLocalMCPResult(value,settingsStore.getState().getSettings()))
@@ -19,7 +19,9 @@ export default function LocalMCPHost(){
         return reply({error:message.slice(0,2000)}).catch(()=>{})
       }).finally(()=>requests.delete(request.id))
     })
-    const unlock=vaultRuntimeFor(platform).keys.subscribe(stop)
+    const cleanup=()=>{void import('@/packages/local-mcp/application').then(module=>module.cleanupInactiveMCPContexts()).catch(()=>{})}
+    cleanup()
+    const unlock=vaultRuntimeFor(platform).keys.subscribe(()=>{stop();cleanup()})
     window.addEventListener('chatbox:privacy-lock',stop)
     return()=>{unsubscribe();unlock();window.removeEventListener('chatbox:privacy-lock',stop);stop()}
   },[])

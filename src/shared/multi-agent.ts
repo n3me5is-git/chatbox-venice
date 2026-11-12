@@ -55,6 +55,21 @@ export interface AgentRun {
   createdAt: number
   updatedAt: number
   error?: string
+  queuedAt?: number
+  startedAt?: number
+  finishedAt?: number
+  resultReadAt?: number
+  finishReason?: string
+  metrics?: AgentMetrics
+}
+export interface AgentMetrics {
+  queueMs: number
+  firstTokenMs?: number
+  generationMs: number
+  toolMs: number
+  outputTokens: number
+  steps: number
+  tokensPerSecond?: number
 }
 export interface AgentBoundary {
   operation: 'task' | 'message' | 'result' | 'file'

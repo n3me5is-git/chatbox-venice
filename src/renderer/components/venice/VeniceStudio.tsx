@@ -1,3 +1,4 @@
+import {useTemporaryMCPFilter} from '@/packages/local-mcp/useTemporaryFilter'
 import { ProtectedPreviewGate } from '@/components/security/ProtectedPreviewGate'
 import { VeniceModelSelect } from './VeniceModelSelect'
 import { VeniceSettingSelect } from './VeniceSettingSelect'
@@ -112,7 +113,8 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
   } }}
   const missingVideoSource=kind==='video'&&!!selected&&((videoSupport.start&&!image)||(videoSupport.video&&!videoSupport.references&&!sourceVideo)||(videoSupport.references&&!referenceImages.length&&!referenceVideos.length)||(editingReferences&&referenceVideos.length!==1)||((spec?.constraints?.requires_end_image===true||/first-last|first-and-last|start-end|transition/.test(model))&&videoSupport.end&&!endImage));
   const ready = !missingVideoSource && enabled && !!model && (!saveProtected||!!vault?.keys.isUnlocked('app')) && (['transcription','voice-conversion'].includes(kind) ? !!file : !!prompt.trim())
-  const visibleCreations=records.filter(record=>record.kind===kind).filter(record=>librarySection==='protected'?!!record.protection:!record.protection).map(record=>record.protection&&!vault?.keys.isUnlocked(record.protection)?lockedMediaRecord(record):record)
+  const visibleMCP=useTemporaryMCPFilter()
+  const visibleCreations=records.filter(record=>visibleMCP(record.sessionId)).filter(record=>record.kind===kind).filter(record=>librarySection==='protected'?!!record.protection:!record.protection).map(record=>record.protection&&!vault?.keys.isUnlocked(record.protection)?lockedMediaRecord(record):record)
   const KindIcon = icons[kind]
   return <Stack p={{ base: 'sm', sm: 'lg' }} maw={1000} mx="auto" style={{ width: '100%' }}>
     <Group justify="space-between" gap="sm"><Group gap="sm"><ThemeIcon size={44} radius="xl" variant="light"><KindIcon size={25} /></ThemeIcon><Stack gap={2}><Title order={2}>{ft("Create with Venice")}</Title><Text size="sm" c="dimmed">{ft("Voice, video, music and sound effects in one place.")}</Text></Stack></Group>{openSettings && <Button variant="subtle" size="xs" onClick={openSettings}>{ft("Settings")}</Button>}</Group>
@@ -127,7 +129,7 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
       <Group align="end" wrap="wrap"><VeniceModelSelect label={ft("Model")} placeholder={catalog.length ? ft("Choose a model") : ft("Load available models")} models={compatible} value={model || null} disabled={!compatible.length} style={{flex:1,minWidth:180}} onChange={value=>value&&pickModel(value)} />
         <Button leftSection={<IconRefresh size={16} />} variant="default" disabled={options.enabled === false || busy} onClick={() => void run(async () => setCatalog(await service.catalog()))}>{catalog.length ? ft("Refresh models") : ft("Load models")}</Button></Group>
       <Group justify="space-between"><VeniceModelBadges metadata={selected?.model_spec} /><VeniceModelInfo model={selected} /></Group>
-      {selected&&<VeniceModelCost model={selected} showLabel/>}
+      {selected&&<VeniceModelCost model={selected} showLabel comparison/>}
       {vault&&<><Checkbox label={ft('Save new creations as protected')} checked={saveProtected} onChange={event=>setSaveProtected(event.currentTarget.checked)}/>{saveProtected&&!vault.keys.isUnlocked('app')&&<ScopeUnlock keys={vault.keys}/>}</>}
       {selected?.model_spec?.description && <Text size="sm" c="dimmed">{selected.model_spec.description}</Text>}
       {['transcription','voice-conversion'].includes(kind) ? <><VeniceRecorder onRecorded={setFile} compatibleFormats={kind==='voice-conversion'&&Array.isArray(spec?.accepted_audio_formats)?spec.accepted_audio_formats.map(String):undefined}/><FileInput label={kind === 'voice-conversion' ? ft("Recording to convert") : ft("Upload audio or video")} description={kind === 'voice-conversion' ? ft("Up to 25 MB. Choose a format accepted by the selected model; no upload happens until you confirm conversion.") : ft("Up to 25 MB. The file is sent to Venice only when you select Transcribe.")} placeholder={ft("Choose a file from this device")} accept={kind === 'voice-conversion' ? (Array.isArray(spec?.accepted_audio_formats) ? spec.accepted_audio_formats.map(format=>'.'+format).join(',') : 'audio/*') : 'audio/*,video/*'} value={file} onChange={setFile} clearable /></>
@@ -155,7 +157,7 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
         {videoSupport.audioInput && <FileInput label={ft("Audio to use in the video")} accept="audio/wav,audio/mpeg" value={audioFile} onChange={setAudioFile} clearable />}
         {videoSupport.audio && <Checkbox label={ft("Generate video audio")} checked={audio} onChange={e => setAudio(e.currentTarget.checked)} />}
       </>}
-      {kind === 'video' && videoSupportsNegativePrompt(selected) && <Textarea label={ft('Elements to avoid')} description={ft('Optional negative prompt for the selected video model.')} maxLength={Math.min(32000, Number(spec?.constraints?.prompt_character_limit) || 2500)} value={negativePrompt} onChange={event => setNegativePrompt(event.currentTarget.value)} autosize minRows={2} />}
+      {kind === 'video' && videoSupportsNegativePrompt(selected) && <details open={!!negativePrompt}><summary style={{cursor:'pointer'}}>{ft('Negative prompt')}</summary><Textarea label={ft('Elements to avoid')} description={ft('Optional negative prompt for the selected video model.')} maxLength={Math.min(32000, Number(spec?.constraints?.prompt_character_limit) || 2500)} value={negativePrompt} onChange={event => setNegativePrompt(event.currentTarget.value)} autosize minRows={2} /></details>}
       {(kind === 'music' || kind === 'sound-effects') && <>
         {music.supported && (music.choices.length ? <Select comboboxProps={{withinPortal:false}} label={ft("Duration")} allowDeselect={false} value={String(seconds)} data={music.choices.map(value => ({ value: String(value), label: ft("{{count}} seconds",{count:value}) }))} onChange={value => setSeconds(Number(value))} /> : <NumberInput label={ft("Duration (seconds)")} min={music.min} max={music.max} value={seconds} onChange={setSeconds} />)}
         {spec?.supports_force_instrumental === true && <Checkbox label={ft("Instrumental only")} checked={instrumental} onChange={e => setInstrumental(e.currentTarget.checked)} />}

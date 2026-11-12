@@ -2,7 +2,7 @@ import { beforeEach,expect,it,vi } from 'vitest'
 import { tool } from 'ai'
 import { z } from 'zod'
 import type { LocalMCPGrant,LocalMCPRequest } from '@shared/local-mcp'
-import { defaultLocalMCPPermissions,sessionResourceURI } from '@shared/local-mcp'
+import { defaultLocalMCPPermissions,sessionResourceURI,LocalMCPApplicationSchema } from '@shared/local-mcp'
 const state=vi.hoisted(()=>({settings:{} as any,session:{} as any,locked:false,chat:vi.fn(),approve:vi.fn(),execute:vi.fn(),read:vi.fn(),metadata:vi.fn(),agents:vi.fn()}))
 vi.mock('@shared/defaults',()=>({SystemProviders:()=>[{id:'venice',name:'Venice'},{id:'openai',name:'OpenAI'}]}))
 vi.mock('@/adapters',()=>({createModel:vi.fn(async()=>({chat:state.chat}))}))
@@ -19,7 +19,7 @@ vi.mock('@/packages/model-calls/toolsets/web-search',()=>({buildWebSearchTools:(
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('./model-approval',()=>({requestExternalModelApproval:(...args:any[])=>state.approve(...args)}))
 vi.mock('@/packages/multi-agent/runtime',()=>({buildExternalMultiAgentTools:(...args:any[])=>state.agents(...args)}))
-import { handleLocalMCP,localMCPTools } from './backend'
+import { handleLocalMCP,handleSessionLocalMCP,localMCPTools } from './backend'
 const grant=():LocalMCPGrant=>({running:true,sessionId:'chat',url:'http://127.0.0.1:31337/mcp',token:'local-client-token',startedAt:1,permissions:{...defaultLocalMCPPermissions,models:true}})
 const request=(operation:LocalMCPRequest['operation'],extra:Partial<LocalMCPRequest>={}):LocalMCPRequest=>({id:'one',grant:grant(),operation,...extra})
 const signal=()=>new AbortController().signal
@@ -66,4 +66,22 @@ it('supports an explicitly granted automatic model call and rejects configuratio
   await handleLocalMCP(request('call_tool',{grant:automatic,name:'app_model',arguments:input}),signal());expect(state.approve).not.toHaveBeenCalled()
   state.chat.mockClear();state.approve.mockImplementation(async()=>{state.settings={...state.settings,providers:{...state.settings.providers,venice:{...state.settings.providers.venice,apiKey:'CHANGED'}}};return true})
   await expect(handleLocalMCP(request('call_tool',{name:'app_model',arguments:input}),signal())).rejects.toThrow('configuration changed');expect(state.chat).not.toHaveBeenCalled()
+})
+
+it('keeps external tool definitions opt-in and returns their calls without executing local tools',async()=>{
+  const scoped=grant();scoped.application=LocalMCPApplicationSchema.parse({mode:'router',name:'ERP',providers:['venice'],privacy:'e2ee'})
+  const input={provider:'venice',modelId:'secure',messages:[{role:'user',content:'Read pseudonymous order A'}],tools:[{name:'erp_lookup',inputSchema:{type:'object',properties:{id:{type:'string'}}}}]}
+  const request={id:'external',operation:'call_tool' as const,grant:scoped,name:'app_model',arguments:input}
+  await expect(handleSessionLocalMCP(request,signal())).rejects.toThrow('not granted');expect(state.chat).not.toHaveBeenCalled()
+  scoped.application.externalTools=true
+  state.chat.mockResolvedValue({contentParts:[{type:'tool-call',toolCallId:'erp-one',toolName:'erp_lookup',args:{id:'A'}}]})
+  expect(await handleSessionLocalMCP(request,signal())).toMatchObject({contentParts:[{type:'tool-call',toolName:'erp_lookup'}]})
+  expect(state.chat.mock.calls[0][1].tools.erp_lookup.execute).toBeUndefined();expect(state.execute).not.toHaveBeenCalled()
+  const {createModel}=await import('@/adapters');expect(createModel).toHaveBeenCalledWith(expect.objectContaining({veniceSecurity:expect.objectContaining({textPrivacy:'e2ee',e2eeToolsEnabled:true,e2eeToolMode:'encrypted-text'})}))
+})
+it('constrains a required encrypted router even when its internal context uses a different default provider',async()=>{
+  const scoped=grant();scoped.application=LocalMCPApplicationSchema.parse({mode:'router',name:'Secure',privacy:'e2ee',providers:['venice']});state.session={provider:'openai',modelId:'other'}
+  const output=await handleSessionLocalMCP({id:'catalog',operation:'call_tool',grant:scoped,name:'app_models',arguments:{}},signal()) as any[]
+  expect(output.map(model=>model.modelId)).toEqual(['secure'])
+  await expect(handleSessionLocalMCP({id:'call',operation:'call_tool',grant:scoped,name:'app_model',arguments:{provider:'openai',modelId:'other',messages:[{role:'user',content:'no downgrade'}]}},signal())).rejects.toThrow('not available')
 })

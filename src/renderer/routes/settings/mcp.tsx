@@ -1,3 +1,4 @@
+import {ApplicationMCPSettings} from '@/components/session-resources/ApplicationMCPSettings'
 import { VeniceMCPSettings } from '@/components/venice/VeniceMCPSettings'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { zodValidator } from '@tanstack/zod-adapter'
@@ -73,6 +74,7 @@ export function RouteComponent() {
           : t('Tools from MCP servers are available to models that support tool use.')
       }
     >
+      {platform.type==='desktop'&&<SettingsSection><ApplicationMCPSettings/></SettingsSection>}
       <VeniceMCPSettings />
       {sharedSessionId&&<SettingsSection><LocalMCPSettings sessionId={sharedSessionId}/></SettingsSection>}
       <BuiltinServersSection />

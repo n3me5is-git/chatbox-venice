@@ -1,3 +1,4 @@
+import {useTemporaryMCPFilter} from '@/packages/local-mcp/useTemporaryFilter'
 import {ImagePromptField} from '@/components/venice/ImagePromptField'
 import { ProtectedPreviewGate } from '@/components/security/ProtectedPreviewGate'
 import { chooseUploadSource } from '@/components/local-library/UploadSource'
@@ -51,7 +52,7 @@ import errorNoticeClasses from '@/components/common/ErrorNotice.module.css'
 import { ImageModelSelect } from '@/components/ImageModelSelect'
 import { VeniceModelInfo } from '@/components/venice/VeniceModelInfo'
 import { VeniceModelBadges } from '@/components/venice/VeniceModelBadges'
-import { VeniceImageSettings } from '@/components/settings/provider/VeniceSettings'
+import { VeniceImageSettings, VeniceNegativePrompt } from '@/components/settings/provider/VeniceSettings'
 import { SEND_BUTTON_BLOCKED_CLASS } from '@/components/InputBox/inputSurface'
 import Page from '@/components/layout/Page'
 import { type ImageModelGroup, useImageModelGroups } from '@/hooks/useImageModelGroups'
@@ -320,8 +321,9 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   const currentGeneratingId = useCurrentGeneratingId()
   const currentRecordId = useCurrentRecordId()
   const { data: currentRecordRaw } = useImageGenerationRecord(currentRecordId)
+  const visibleMCP=useTemporaryMCPFilter()
   const visibleRecord=currentRecordRaw?.protection&&!vault.keys.isUnlocked(currentRecordRaw.protection)?lockedImageRecord(currentRecordRaw):currentRecordRaw
-  const currentRecord = onlyVenice && visibleRecord?.model.provider !== 'venice' ? undefined : visibleRecord
+  const currentRecord = !visibleMCP(visibleRecord?.source?.sessionId)||onlyVenice && visibleRecord?.model.provider !== 'venice' ? undefined : visibleRecord
 
   const {
     data: historyData,
@@ -332,8 +334,8 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   } = useImageGenerationHistory()
 
   const historyCache = useMemo(() => {
-    return (historyData?.pages.flatMap((page) => page.items) ?? []).filter(record => !onlyVenice || record.model.provider === 'venice').map(record=>record.protection&&!vault.keys.isUnlocked(record.protection)?lockedImageRecord(record):record)
-  }, [historyData, onlyVenice, protectionRevision])
+    return (historyData?.pages.flatMap((page) => page.items) ?? []).filter(record=>visibleMCP(record.source?.sessionId)).filter(record => !onlyVenice || record.model.provider === 'venice').map(record=>record.protection&&!vault.keys.isUnlocked(record.protection)?lockedImageRecord(record):record)
+  }, [historyData, onlyVenice, protectionRevision,visibleMCP])
   useEffect(()=>{void queryClient.invalidateQueries({queryKey:[IMAGE_GEN_LIST_QUERY_KEY]});void queryClient.invalidateQueries({queryKey:[IMAGE_GEN_QUERY_KEY]});if(!vault.keys.isUnlocked('app')&&(saveProtected||currentRecordRaw?.protection))setPrompt('')},[protectionRevision])
 
   const isCurrentlyGenerating = currentGeneratingId !== null
@@ -645,7 +647,8 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   {selectedProvider === ModelProviderEnum.Venice && <VeniceBalance />}
                   {selectedProvider === ModelProviderEnum.OpenAISubscription && <><ChatGPTAllowance compact /><Text size="xs" c="dimmed">{ft('ChatGPT Images lets the subscription backend choose the image model. Add a custom image model and select its endpoint to request a specific model ID.')}</Text></>}
                   <Button size="xs" variant="subtle" onClick={()=>setImageSettingsOpen(true)}>{ft('Image settings')}</Button>
-                  <AdaptiveModal opened={imageSettingsOpen} onClose={()=>setImageSettingsOpen(false)} title={ft('Image settings')} size="lg"><Stack>{selectedProvider===ModelProviderEnum.Venice&&<VeniceImageSettings model={selectedOption}/>}
+                  {selectedProvider===ModelProviderEnum.Venice&&<VeniceNegativePrompt model={selectedOption}/>}
+                  <AdaptiveModal opened={imageSettingsOpen} onClose={()=>setImageSettingsOpen(false)} title={ft('Image settings')} size="lg"><Stack>{selectedProvider===ModelProviderEnum.Venice&&<VeniceImageSettings model={selectedOption} showNegativePrompt={false}/>}
 
                   {/* Toolbar Row */}
                   <Checkbox label={ft('Save new creations as protected')} checked={saveProtected} onChange={event=>setSaveProtected(event.currentTarget.checked)}/>

@@ -3,7 +3,7 @@ import { randomBytes,randomUUID,timingSafeEqual } from 'node:crypto'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { CallToolRequestSchema,ListToolsRequestSchema,ListResourcesRequestSchema,ReadResourceRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { LocalMCPStartSchema,localMCPAllows,type LocalMCPStart,type LocalMCPState,type LocalMCPGrant,type LocalMCPTool } from '../../shared/local-mcp'
+import { LocalMCPStartSchema,localMCPGrantAllows,type LocalMCPStart,type LocalMCPState,type LocalMCPGrant,type LocalMCPTool } from '../../shared/local-mcp'
 
 export interface LocalMCPBackend {
   listTools(grant:LocalMCPGrant,signal:AbortSignal):Promise<LocalMCPTool[]>
@@ -12,7 +12,7 @@ export interface LocalMCPBackend {
   readResource(grant:LocalMCPGrant,uri:string,signal:AbortSignal):Promise<any>
 }
 function deny(response:ServerResponse,status:number,message:string){if(!response.headersSent)response.writeHead(status,{'content-type':'application/json','cache-control':'no-store'}).end(JSON.stringify({jsonrpc:'2.0',id:null,error:{code:-32000,message}}))}
-/** Explicit, revocable single-chat grants. No LAN bind, browser origins, cookies or persistent tokens. */
+/** Explicit, revocable endpoint grants. No LAN bind, browser origins, cookies or persistent tokens. */
 export class LocalMCPServer {
   private http:HTTPServer|undefined
   private grant:LocalMCPGrant|undefined
@@ -21,6 +21,8 @@ export class LocalMCPServer {
   state():LocalMCPState{return this.grant?structuredClone(this.grant):{running:false}}
   async start(input:LocalMCPStart){
     const parsed=LocalMCPStartSchema.parse(input)
+    if(parsed.application&&!parsed.endpointId)throw new Error('Application endpoints need an identity')
+    if(parsed.application?.mode==='router'&&(parsed.permissions.execute||parsed.permissions.search||parsed.permissions.forwardMCP||parsed.permissions.multiAgent))throw new Error('Router endpoints cannot grant workspace execution, agents, search or other MCP services')
     if(parsed.permissions.execute&&(!parsed.permissions.readFiles||!parsed.permissions.writeFiles))throw new Error('Code execution requires read and write access')
     if(parsed.permissions.automaticModels&&!parsed.permissions.models)throw new Error('Automatic model calls require model access')
     await this.stop()
@@ -31,7 +33,7 @@ export class LocalMCPServer {
     try{await new Promise<void>((resolve,reject)=>{http.once('error',reject);http.listen(parsed.port,'127.0.0.1',()=>{http.off('error',reject);resolve()})})}
     catch(error){this.http=undefined;http.close();throw error}
     const address=http.address();if(!address||typeof address==='string')throw new Error('Local MCP address unavailable')
-    this.grant={running:true,sessionId:parsed.sessionId,permissions:parsed.permissions,token,url:'http://127.0.0.1:'+address.port+'/mcp',startedAt}
+    this.grant={running:true,sessionId:parsed.sessionId,...(parsed.endpointId?{endpointId:parsed.endpointId}:{}),...(parsed.application?{application:parsed.application}:{}),permissions:parsed.permissions,token,url:'http://127.0.0.1:'+address.port+'/mcp',startedAt}
     return this.state()
   }
   async stop(){
@@ -69,7 +71,7 @@ export class LocalMCPServer {
     server.setRequestHandler(ListToolsRequestSchema,async()=>{alive();return {tools:await this.backend.listTools(grant,controller.signal)}})
     server.setRequestHandler(CallToolRequestSchema,async message=>{
       alive();const args=message.params.arguments??{},name=message.params.name
-      if(!localMCPAllows(grant.permissions,name,args))return {isError:true,content:[{type:'text',text:'This tool or action is outside the shared chat permissions'}]}
+      if(!localMCPGrantAllows(grant,name,args))return {isError:true,content:[{type:'text',text:'This tool or action is outside the shared chat permissions'}]}
       try{const output=await this.backend.callTool(grant,name,args,'local-mcp:'+grant.startedAt+':'+requestId,controller.signal);alive();const text=JSON.stringify(output??null);if(Buffer.byteLength(text)>16*1024*1024)throw new Error('MCP output exceeds the size limit');const blocked=!!output&&typeof output==='object'&&'blocked' in output&&output.blocked===true;return {...(blocked?{isError:true}:{}),content:[{type:'text',text}]}}
       catch(error){return {isError:true,content:[{type:'text',text:String((error as Error)?.message||error).slice(0,2000)}]}}
     })

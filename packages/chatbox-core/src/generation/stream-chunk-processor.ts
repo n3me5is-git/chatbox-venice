@@ -8,6 +8,7 @@ import { BaseError } from '@shared/models/errors'
 import { toMessageUsage } from '@shared/models/message-usage'
 import { isPersistentToolCallPauseError } from '@shared/models/persistent-tool-call-pause'
 import type { ModelStreamPart } from '@shared/models/types'
+import { SECURITY_INFO } from '@shared/response-security'
 import { extractToolResultImage } from '@shared/tool-result-image'
 import type {
   Message,
@@ -154,6 +155,13 @@ export async function processStreamChunk(
   }
 
   switch (chunk.type) {
+    case 'security-verification': {
+      const previous = contentParts.findIndex(part => part.type === 'info' && part.text === SECURITY_INFO)
+      const part = { type: 'info' as const, text: SECURITY_INFO, values: chunk.evidence }
+      if (previous < 0) contentParts.push(part)
+      else contentParts[previous] = part
+      break
+    }
     case 'text-end':
     case 'text-delta': {
       if (accumulate((accumulator) => accumulateTextChunk(accumulator, chunk))) preparingToolInput = undefined

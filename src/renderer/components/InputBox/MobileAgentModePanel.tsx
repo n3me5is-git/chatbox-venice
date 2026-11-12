@@ -1,4 +1,5 @@
 import { VeniceSearchControl } from '@/components/venice/VeniceSearchControl'
+import { modelPrivacySettings } from '@shared/providers/definitions/models/venice/privacy'
 import { SessionVeniceTools } from '@/components/venice/SessionVeniceTools'
 import { setSearchPermission } from '@shared/providers/definitions/models/venice/search-permissions'
 import { forkT as ft } from '@/i18n/fork'
@@ -102,7 +103,8 @@ const MobileAgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProp
   const licenseKey = useSettingsStore((s) => s.licenseKey)
   const providerOptions = useSettingsStore(s => providerId ? s.providers?.[providerId] : undefined)
   const usesNativeSearch = providerId !== 'venice' && Boolean(providerOptions?.models?.find(m => m.modelId === modelId)?.nativeWebSearch)
-  const veniceOptions = resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, sessionId==='new'?draft.veniceProfile:header?.settings?.veniceProfile, sessionId==='new'?draft.veniceSecurity:header?.settings?.veniceSecurity)
+  const privacyModel=[...(providerOptions?.catalogModels||[]),...(providerOptions?.models||[])].find(m=>m.modelId===modelId)
+  const veniceOptions = modelPrivacySettings(resolveVeniceSettings(providerOptions?.venice, providerOptions?.models?.find(m => m.modelId === modelId)?.veniceProfile, sessionId==='new'?draft.veniceProfile:header?.settings?.veniceProfile, sessionId==='new'?draft.veniceSecurity:header?.settings?.veniceSecurity),privacyModel?.vendorMetadata)
   const webIssue = !usesNativeSearch && webBrowsingMode && getWebSearchConfigurationIssue(webSearch, licenseKey) !== null
   const webProvider = WEB_SEARCH_PROVIDERS.find((p) => p.value === webSearch.provider)?.label ?? webSearch.provider
   const labels: Record<LocalWorkCapabilityId, string> = {

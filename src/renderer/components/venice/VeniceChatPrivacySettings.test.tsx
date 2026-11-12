@@ -75,5 +75,5 @@ it('confirms a downgrade when returning to weaker provider defaults', () => {
   expect(saved().textPrivacy).toBe('e2ee')
   fireEvent.click(within(screen.getByRole('dialog')).getByText('Change privacy for this chat'))
   expect(saved()).toBeNull()
-  expect(screen.getByText(/Choosing an E2EE-capable model alone/)).toBeTruthy()
+  expect(screen.getByText(/Automatic privacy uses E2EE or TEE/)).toBeTruthy()
 })

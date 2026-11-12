@@ -1,3 +1,4 @@
+import { veniceModelPage } from './model-variant'
 import { describe, expect, it } from 'vitest'
 import fixture from '../../../../../../test/fixtures/venice/catalog-2026-11-08.json'
 import flags from '../../../../../../test/fixtures/venice/video-flags-docs-2026-11-08.json'
@@ -39,3 +40,5 @@ describe('Venice video variants with repeated names', () => {
     expect(()=>validateMediaRequest('video',{duration:'4s',image_url:'data:image/png;base64,AA=='},m)).not.toThrow()
   })
 })
+
+it('opens public family cards while preserving the E2EE-specific model card',()=>{expect(veniceModelPage('kling-v3-4k-text-to-video')).toBe('https://venice.ai/models/kling-v3-4k');expect(veniceModelPage('e2ee-deepseek-v4-flash')).toBe('https://venice.ai/models/e2ee-deepseek-v4-flash')})

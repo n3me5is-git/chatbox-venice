@@ -18,6 +18,7 @@ import { extractStreamErrorMessage } from '@shared/models/utils/stream-error-mes
 import { supportsSessionGeneration } from '@shared/session/capabilities'
 import { cleanupSessionAttachments } from './attachment-cleanup'
 import { createMessage, type Message } from '@shared/types'
+import { SECURITY_INFO } from '@shared/response-security'
 import { countMessageWords } from '@shared/utils/message'
 import { normalizeErrorForSentry } from '@shared/utils/sentry_policy'
 import { createModel } from '@/adapters'
@@ -158,6 +159,9 @@ export async function modifyMessage(
   refreshCounting?: boolean,
   updateOnlyCache?: boolean
 ) {
+  // This is the edit facade, not the streaming writer. A reception receipt must
+  // never remain a green badge on manually changed response content.
+  updated = { ...updated, contentParts: updated.contentParts.filter(part => part.type !== 'info' || part.text !== SECURITY_INFO) }
   const session = await getSessionHeader(sessionId)
   if (!session) {
     return

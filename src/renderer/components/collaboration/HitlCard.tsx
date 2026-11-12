@@ -5,22 +5,26 @@ import type { HitlRequest,HitlAnswer } from '@shared/collaboration'
 import { UserQuestionForm } from '@/components/agent/UserQuestion'
 import { forkT as ft } from '@/i18n/fork'
 import {QuickPriceDisplay} from '@/components/venice/VeniceModelCost'
+import { parseExtraBody } from '@shared/models/utils/extra-body'
+import { assertImageToolOptions } from '@shared/providers/definitions/models/venice/call-options'
 
 export function HitlCard({request,answer}:{request:HitlRequest;answer:(value:HitlAnswer)=>Promise<void>}){
   useTranslation();const input=request.input,[error,setError]=useState(''),[busy,setBusy]=useState(false)
-  const [model,setModel]=useState(input.kind==='image'?input.modelId||input.models[0]?.id||'':''),[prompt,setPrompt]=useState(input.kind==='image'?input.prompt:''),[count,setCount]=useState(input.kind==='image'?input.count:1),[ratio,setRatio]=useState('auto')
+  const [model,setModel]=useState(input.kind==='image'?input.modelId||input.models[0]?.id||'':''),[prompt,setPrompt]=useState(input.kind==='image'?input.prompt:''),[count,setCount]=useState(input.kind==='image'?input.count:1),[ratio,setRatio]=useState(input.kind==='image'?input.aspectRatio||'auto':'auto'),[extra,setExtra]=useState(input.kind==='image'?input.extra_json||'':'')
+  const approveImage=()=>{try{assertImageToolOptions(parseExtraBody(extra));void submit({modelId:model,prompt,count,aspectRatio:ratio,...(extra.trim()?{extra_json:extra}:{})})}catch(error){setError((error as Error).message)}}
   const submit=async(value:HitlAnswer)=>{setBusy(true);try{await answer(value)}catch(error){setError(error instanceof Error?error.message:String(error));setBusy(false)}}
   return <Card withBorder><Stack gap="sm"><Text fw={600}>{ft('Your decision is needed')}</Text><Text size="xs" c="dimmed">{ft('Only the first valid response is accepted. Closing or rejecting stops this action.')}</Text>
     <fieldset disabled={busy} style={{border:0,padding:0,minWidth:0}}>
     {input.kind==='questions'?<UserQuestionForm input={input.input} onSubmit={value=>void submit(value)} onCancel={()=>void submit(null)}/>:input.kind==='confirm'?<Stack><Text fw={500}>{ft(input.title)}</Text><Text size="sm" style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{input.detail}</Text><Group><Button variant="default" onClick={()=>void submit(false)}>{ft('Reject')}</Button><Button onClick={()=>void submit(true)}>{ft('Approve')}</Button></Group></Stack>:<Stack>
       <Text size="sm">{ft('This generation may incur a cost on the owner’s account.')}</Text>
-      <Select label={ft('Image model')} data={input.models.map(model=>({value:model.id,label:model.name,disabled:model.requiresReferences}))} value={model} onChange={value=>{setModel(value||'');setRatio('auto')}} searchable allowDeselect={false} comboboxProps={{withinPortal:false}}/>
+      <Select label={ft('Image model')} data={input.models.map(model=>({value:model.id,label:model.name,disabled:model.requiresReferences}))} value={model} onChange={value=>{setModel(value||'');setRatio('auto');setExtra('')}} searchable allowDeselect={false} comboboxProps={{withinPortal:false}}/>
       {input.models.find(row=>row.id===model)?.price&&<QuickPriceDisplay price={input.models.find(row=>row.id===model)!.price!} showLabel/>}
       {input.models.some(row=>row.requiresReferences)&&<Text size="xs" c="dimmed">{ft('Image editing requires references on the owner’s device.')}</Text>}
       <Textarea label={ft('Prompt')} value={prompt} onChange={event=>setPrompt(event.currentTarget.value)} autosize minRows={3} maxRows={8}/>
       <NumberInput label={ft('Number of images')} value={count} onChange={value=>setCount(Number(value)||1)} min={1} max={4}/>
       <Select label={ft('Aspect ratio')} value={ratio} onChange={value=>setRatio(value||'auto')} data={[...new Set(['auto',...(input.models.find(row=>row.id===model)?.ratios||['1:1','16:9','9:16','4:3','3:4'])])]} comboboxProps={{withinPortal:false}}/>
-      <Group><Button variant="default" onClick={()=>void submit(null)}>{ft('Cancel')}</Button><Button disabled={!model||!prompt.trim()||!!input.models.find(row=>row.id===model)?.requiresReferences} onClick={()=>void submit({modelId:model,prompt,count,aspectRatio:ratio})}>{ft('Approve generation')}</Button></Group>
+      <details open={!!extra}><summary>{ft('Parameters for this call')}</summary><Textarea label={ft('Extra parameters for this call (JSON)')} value={extra} onChange={event=>setExtra(event.currentTarget.value)} maxLength={64000} autosize minRows={3}/></details>
+      <Group><Button variant="default" onClick={()=>void submit(null)}>{ft('Cancel')}</Button><Button disabled={!model||!prompt.trim()||!!input.models.find(row=>row.id===model)?.requiresReferences} onClick={approveImage}>{ft('Approve generation')}</Button></Group>
     </Stack>}</fieldset>
     {error&&<Text c="red" size="sm">{ft(error)}</Text>}
   </Stack></Card>

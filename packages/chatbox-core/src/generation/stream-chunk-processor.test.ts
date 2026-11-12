@@ -1,6 +1,7 @@
 import type { ModelStreamPart } from '@shared/models/types'
 import type { MessageReasoningPart, MessageToolCallPart } from '@shared/types/session'
 import type { ToolSet } from 'ai'
+import { SECURITY_INFO } from '@shared/response-security'
 import { describe, expect, it, vi } from 'vitest'
 import { generationStreamFixture } from '../testing/generation-stream'
 import {
@@ -16,6 +17,14 @@ import {
 const callbacks: StreamProcessorCallbacks = {
   onFileReceived: vi.fn(async () => 'mock-storage-key'),
 }
+
+it('keeps verified security evidence with the message and replaces only its own prior marker',async()=>{
+  const state=createInitialState([{type:'text',text:'Verified answer'},{type:'info',text:'Other notice'}])
+  const evidence={mode:'e2ee' as const,receipt:'payload-bound' as const,tools:'encrypted-text' as const,modelId:'protected',verifiedAt:1,responses:1}
+  const first=await processStreamChunk({type:'security-verification',evidence},state,callbacks)
+  const next=await processStreamChunk({type:'security-verification',evidence:{...evidence,responses:2}},first.state,callbacks)
+  expect(next.state.contentParts).toEqual([{type:'text',text:'Verified answer'},{type:'info',text:'Other notice'},{type:'info',text:SECURITY_INFO,values:{...evidence,responses:2}}])
+})
 
 function chunk(type: string, data: Record<string, unknown> = {}): ModelStreamPart<ToolSet> {
   return { type, ...data } as ModelStreamPart<ToolSet>

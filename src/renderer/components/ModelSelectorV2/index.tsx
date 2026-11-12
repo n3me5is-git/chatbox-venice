@@ -43,6 +43,7 @@ import {
   SELECTED_CLASS,
 } from './constants'
 import { DetailCard } from './DetailCard'
+import { SelectedModel, SelectedModelDetails } from './SelectedModel'
 import { filterModelsForSelector } from './filterModels'
 import { GenericProviderRows } from './GenericProviderRows'
 import { searchGenericModel, toProviderModelInfo } from './helpers'
@@ -86,6 +87,14 @@ export const ModelSelectorV2 = forwardRef<HTMLDivElement, ModelSelectorV2Props>(
     const [advancedExpanded, setAdvancedExpanded] = useState(false)
     const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => new Set())
     const [mobileDetail, setMobileDetail] = useState<DetailModel | null>(null)
+    const [selectedDetail, setSelectedDetail] = useState<DetailModel | null>(null)
+    const currentDetail = useMemo<DetailModel | null>(() => {
+      if(!selectedProviderId||!selectedModelId)return null
+      const provider=providers.find(provider=>provider.id===selectedProviderId)
+      const known=provider?.models?.find(model=>model.modelId===selectedModelId)
+      const catalog=selectedProviderId===ModelProviderEnum.ChatboxAI?chatboxAIModelList?.models[selectedModelId]:undefined
+      return {providerId:selectedProviderId,providerName:provider?.name||selectedProviderId,modelId:selectedModelId,name:known?.nickname||catalog?.modelName||selectedModelId,type:known?.type||catalog?.type,capabilities:known?.capabilities||catalog?.capabilities,vendorMetadata:known?.vendorMetadata,description:typeof known?.vendorMetadata?.description==='string'?known.vendorMetadata.description:undefined,pricing:catalog?.pricing}
+    },[selectedProviderId,selectedModelId,providers,chatboxAIModelList])
   useOverlayManager(!!mobileDetail,()=>setMobileDetail(null))
     const [desktopDetail, setDesktopDetail] = useState<DesktopDetailState | null>(null)
     const desktopDropdownRef = useRef<HTMLDivElement>(null)
@@ -387,11 +396,12 @@ export const ModelSelectorV2 = forwardRef<HTMLDivElement, ModelSelectorV2Props>(
         data-testid={TestId.model.selectorPanel}
         gap={0}
         className={clsx(
-          'overflow-hidden',
+          'overflow-hidden min-h-0',
           MODEL_SELECTOR_SURFACE_CLASS,
           isMobile ? 'border-0' : 'rounded-[10px] border border-solid border-chatbox-border-primary shadow-lg'
         )}
       >
+        {currentDetail&&<SelectedModel model={currentDetail} onDetails={()=>{setMobileOpen(false);combobox.closeDropdown();setSelectedDetail(currentDetail)}}/>}
         {isMobile && (
           <div className="px-3 pt-1.5 pb-2">
             <SegmentedControl
@@ -437,6 +447,8 @@ export const ModelSelectorV2 = forwardRef<HTMLDivElement, ModelSelectorV2Props>(
         {!isMobile && searchPosition === 'top' && searchBox}
         <div
           className={clsx('overflow-y-auto', isMobile ? 'max-h-[70vh]' : 'max-h-[48vh]')}
+          data-chat-model-scroll
+          style={{minHeight:0,flex:'1 1 auto',overscrollBehavior:'contain',touchAction:'pan-y',WebkitOverflowScrolling:'touch'}}
           onScroll={
             isMobile
               ? undefined
@@ -581,6 +593,7 @@ export const ModelSelectorV2 = forwardRef<HTMLDivElement, ModelSelectorV2Props>(
     if (isMobile) {
       return (
         <>
+          <SelectedModelDetails model={selectedDetail} onClose={()=>setSelectedDetail(null)}/>
           <Drawer.Root open={mobileOpen} onOpenChange={handleMobileOpenChange} noBodyStyles>
             <Drawer.Trigger asChild>{children}</Drawer.Trigger>
             <Drawer.Portal>
@@ -615,7 +628,7 @@ export const ModelSelectorV2 = forwardRef<HTMLDivElement, ModelSelectorV2Props>(
               <Drawer.Content className="fixed bottom-0 left-0 right-0 outline-none">
                 <Stack
                   gap={0}
-                  className={clsx('rounded-t-[16px] border border-b-0 border-solid', MODEL_SELECTOR_SURFACE_CLASS)}
+                  className={clsx('rounded-t-[16px] border border-b-0 border-solid max-h-[90dvh] overflow-y-auto', MODEL_SELECTOR_SURFACE_CLASS)}
                   style={DRAWER_SURFACE_STYLE}
                 >
                   <div aria-hidden className="mx-auto my-3 h-1 w-14 rounded-full bg-chatbox-tint-tertiary opacity-70" />
@@ -642,7 +655,7 @@ export const ModelSelectorV2 = forwardRef<HTMLDivElement, ModelSelectorV2Props>(
     }
 
     return (
-      <Combobox store={combobox} width={360} withinPortal {...comboboxProps}>
+      <><SelectedModelDetails model={selectedDetail} onClose={()=>setSelectedDetail(null)}/><Combobox store={combobox} width={360} withinPortal {...comboboxProps}>
         <Combobox.Target targetType="button">
           {isValidElement(children) ? (
             cloneElement(children as ReactElement, {
@@ -695,7 +708,7 @@ export const ModelSelectorV2 = forwardRef<HTMLDivElement, ModelSelectorV2Props>(
             </div>
           )}
         </Combobox.Dropdown>
-      </Combobox>
+      </Combobox></>
     )
   }
 )

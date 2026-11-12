@@ -1,3 +1,4 @@
+import { SECURITY_INFO } from '@shared/response-security'
 import type { Message, MessageToolCallPart } from '../types/session'
 import { getMessageText } from './message'
 import type { ExportableThread } from './row-chat-export'
@@ -138,7 +139,7 @@ export async function formatChatAsMarkdown(
             textBuffer.push('[image]')
             continue
           }
-          if (part.type === 'info') {
+          if (part.type === 'info' && part.text !== SECURITY_INFO) {
             textBuffer.push(part.text)
           }
         }
@@ -211,7 +212,7 @@ export async function formatChatAsTxt(
             textBuffer.push('[image]')
             continue
           }
-          if (part.type === 'info') {
+          if (part.type === 'info' && part.text !== SECURITY_INFO) {
             textBuffer.push(part.text)
           }
         }

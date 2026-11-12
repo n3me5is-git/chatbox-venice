@@ -29,12 +29,12 @@ const QuickPriceSchema=z.object({amount:z.number().nonnegative(),maximum:z.numbe
 export const HitlInputSchema=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('questions'),input:UserQuestionsSchema}).strict(),
   z.object({kind:z.literal('confirm'),title:z.string().max(240),detail:z.string().max(20000)}).strict(),
-  z.object({kind:z.literal('image'),prompt:z.string().max(20000),modelId:z.string().max(200).optional(),count:z.number().int().min(1).max(4),models:z.array(z.object({id:z.string().max(200),name:z.string().max(240),requiresReferences:z.boolean().optional(),ratios:z.array(z.string().max(10)).max(30).optional(),price:QuickPriceSchema.optional()})).max(300)}).strict(),
+  z.object({kind:z.literal('image'),extra_json:z.string().max(64000).optional(),aspectRatio:z.string().max(10).optional(),prompt:z.string().max(20000),modelId:z.string().max(200).optional(),count:z.number().int().min(1).max(4),models:z.array(z.object({id:z.string().max(200),name:z.string().max(240),requiresReferences:z.boolean().optional(),ratios:z.array(z.string().max(10)).max(30).optional(),price:QuickPriceSchema.optional()})).max(300)}).strict(),
 ])
 export type HitlInput=z.infer<typeof HitlInputSchema>
 export const HitlRequestSchema=z.object({id:z.string().uuid(),requester:z.string().max(100),input:HitlInputSchema,expires:z.number(),policy:HitlPolicySchema}).strict()
 export type HitlRequest=z.infer<typeof HitlRequestSchema>
-export const HitlAnswerSchema=z.union([z.null(),z.boolean(),z.object({answers:z.array(z.object({selected:z.array(z.string().max(240)).max(8),text:z.string().max(10000)}).strict()).max(3)}).strict(),z.object({modelId:z.string().max(200),prompt:z.string().trim().min(1).max(20000),count:z.number().int().min(1).max(4),aspectRatio:z.string().regex(/^(auto|\d{1,2}:\d{1,2})$/)}).strict()])
+export const HitlAnswerSchema=z.union([z.null(),z.boolean(),z.object({answers:z.array(z.object({selected:z.array(z.string().max(240)).max(8),text:z.string().max(10000)}).strict()).max(3)}).strict(),z.object({modelId:z.string().max(200),extra_json:z.string().max(64000).optional(),prompt:z.string().trim().min(1).max(20000),count:z.number().int().min(1).max(4),aspectRatio:z.string().regex(/^(auto|\d{1,2}:\d{1,2})$/)}).strict()])
 export type HitlAnswer=z.infer<typeof HitlAnswerSchema>
 export function validHitlAnswer(input:HitlInput,answer:unknown):answer is HitlAnswer{
   if(!HitlAnswerSchema.safeParse(answer).success)return false

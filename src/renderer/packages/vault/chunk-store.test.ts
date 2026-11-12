@@ -49,3 +49,13 @@ describe('authenticated media stored in bounded encrypted chunks',()=>{
   expect(await f.store.cleanupOrphans()).toBe(1);expect(f.values.get('unrelated-chat-blob')).toBe('keep')
  })
 })
+
+it('authenticates bounded random ranges across chunk boundaries without reading the entire file',async()=>{
+ const f=fixture();f.keys.set('public',await aesKey(crypto.getRandomValues(new Uint8Array(32))))
+ const ref=await f.store.put((async function*(){yield new Uint8Array(1048576).fill(7);yield new Uint8Array(1048576).fill(8);yield new Uint8Array([9,10])})(),info)
+ const seen:string[]=[];const original=f.store.blobs.get;f.store.blobs.get=async key=>{seen.push(key);return original(key)}
+ expect([...await f.store.readRange(ref,1048574,5)]).toEqual([7,7,8,8,8]);expect(seen).toHaveLength(2)
+ seen.length=0;expect([...await f.store.readRange(ref,2097152,4)]).toEqual([9,10]);expect(seen).toHaveLength(1)
+ const header=(await f.store.header(ref))!;await f.index.put({...header,bytes:3});await expect(f.store.readRange(ref,0,1)).rejects.toThrow('manifest')
+ await f.index.put(header);f.keys.delete('public');await expect(f.store.readRange(ref,0,1)).rejects.toBeInstanceOf(VaultLockedError)
+})

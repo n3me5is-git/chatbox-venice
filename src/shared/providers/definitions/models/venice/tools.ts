@@ -4,11 +4,13 @@ import { validatedToolSchema } from '../../../../validated-tool-schema'
 import { parseExtraBody } from '../../../../models/utils/extra-body'
 import type { VeniceMediaService, MediaKind, MediaRecord } from './media'
 import type { VeniceOptions } from './options'
+import { assertMediaToolOptions } from './call-options'
+export interface MediaApprovalDecision { approved: boolean; prompt?: string; options?: Record<string, unknown> }
 type Service = Pick<VeniceMediaService, 'catalog' | 'list' | 'quote' | 'start' | 'resume' | 'pause' | 'remove' | 'cleanup' | 'waitFor'>
 export interface MediaApprovalContext { action: 'generate' | 'delete_local' | 'cleanup_remote'; kind?: MediaKind; model?: string; options?: Record<string, unknown>; prompt?:string; id?:string; signal?:AbortSignal }
 type Input = { action: 'catalog' | 'list' | 'quote' | 'generate' | 'status' | 'show' | 'wait' | 'resume' | 'pause' | 'delete_local' | 'cleanup_remote'; id?: string; kind?: MediaKind; model?: string; prompt?: string; extra_json?: string; timeout_seconds?: number }
 const summary = (r: MediaRecord) => ({ id: r.id, kind: r.kind, model: r.model, status: r.status, createdAt: r.createdAt, text: r.text, error: r.error, remoteCleaned: r.remoteCleaned, localAvailable: !!(r.blobKey || r.text), artifact: { type: 'venice_media', recordId: r.id } })
-export function buildVeniceMediaTools(sessionId: string, service: Service, settings: () => VeniceOptions, confirm: (message: string, request?: MediaApprovalContext) => Promise<boolean>): ToolSet {
+export function buildVeniceMediaTools(sessionId: string, service: Service, settings: () => VeniceOptions, confirm: (message: string, request?: MediaApprovalContext) => Promise<boolean | MediaApprovalDecision>): ToolSet {
   if (settings().enabled === false || settings().chatToolsEnabled === false) return {}
   return { venice_media: {
     description: 'Optional Venice media tools for this chat only. Generate speech, video, music or sound-effects (separate kinds); quote video/music; inspect, wait for, show, resume or delete this chat\'s media. Content goes to Venice. Paid generation is never automatically retried. Audio/video are not E2EE. Use catalog for current model IDs, then catalog with the selected model ID to inspect its full supported options before generation. For a queued record use wait with its id (up to 60 seconds); it observes the background job without submitting or restarting it. Use show with an existing id to attach its player card to this reply; playback needs a user click. Never regenerate content to retrieve or play it. Resume an interrupted existing record explicitly. Local deletion does not delete the remote copy. Transcription requires user file selection in Studio.',
@@ -30,8 +32,15 @@ export function buildVeniceMediaTools(sessionId: string, service: Service, setti
       if (input.action === 'generate' || input.action === 'quote') {
         if (!input.kind || input.kind === 'transcription' || !input.model || (input.action === 'generate' && !input.prompt)) throw new Error('Specify kind, model and prompt')
         const request = { kind: input.kind, model: input.model, prompt: input.prompt || '', options: parseExtraBody(input.extra_json || ''), sessionId, signal: abortSignal }
+        assertMediaToolOptions(input.kind,request.options)
         if (input.action === 'quote') return service.quote(request)
-        if (!await confirm(`Generate ${input.kind} with Venice (${input.model})?\nThis request may incur a cost and sends this content to Venice:\n\n${request.prompt}\n\nParameters: ${input.extra_json || '{}'}`, { action: 'generate', kind: input.kind, model: input.model, options: request.options, prompt:request.prompt, signal:abortSignal })) return { cancelled: true, message: 'The user skipped or cancelled this generation. Do not retry or reopen approval without a new user request.' }
+        const decision=await confirm(`Generate ${input.kind} with Venice (${input.model})?\nThis request may incur a cost and sends this content to Venice:\n\n${request.prompt}\n\nParameters: ${input.extra_json || '{}'}`, { action: 'generate', kind: input.kind, model: input.model, options: request.options, prompt:request.prompt, signal:abortSignal })
+        if (!(typeof decision==='boolean'?decision:decision.approved)) return { cancelled: true, message: 'The user skipped or cancelled this generation. Do not retry or reopen approval without a new user request.' }
+        if(typeof decision!=='boolean') {
+          if(decision.options!==undefined)request.options=parseExtraBody(JSON.stringify(decision.options))
+          if(decision.prompt!==undefined) {if(!decision.prompt.trim()||decision.prompt.length>100000)throw Error('Provide a bounded non-empty prompt');request.prompt=decision.prompt}
+          assertMediaToolOptions(input.kind,request.options)
+        }
         allowed()
         return summary(await service.start(request))
       }
@@ -48,7 +57,8 @@ export function buildVeniceMediaTools(sessionId: string, service: Service, setti
         return { ...summary(latest), waitTimedOut: waited.timedOut, message: waited.timedOut ? 'Still processing. Wait again for this same id; do not submit a new generation.' : latest.status === 'error' ? 'Generation failed. Explain the error to the user and ask before any new paid generation.' : latest.status === 'paused' ? 'Processing is paused. Resume this existing id explicitly; do not generate again.' : 'Generation is ready to open from its artifact card.' }
       }
       if (['delete_local', 'cleanup_remote'].includes(input.action)) {
-        if (!await confirm(input.action === 'delete_local' ? `Delete generation ${record.id} from this device? The remote copy will remain.` : `Delete generation ${record.id} on Venice?`, { action: input.action as 'delete_local' | 'cleanup_remote', id:record.id, signal:abortSignal })) return { cancelled: true }
+        const decision=await confirm(input.action === 'delete_local' ? `Delete generation ${record.id} from this device? The remote copy will remain.` : `Delete generation ${record.id} on Venice?`, { action: input.action as 'delete_local' | 'cleanup_remote', id:record.id, signal:abortSignal })
+        if (!(typeof decision==='boolean'?decision:decision.approved)) return { cancelled: true }
         allowed()
       }
       if (input.action === 'resume') await service.resume(record.id)

@@ -395,7 +395,7 @@ function createTray() {
     // gm convert ./iconTemplateRaw.png -colorspace gray -negate -threshold 50% -resize 64x64 -units PixelsPerInch -density 144 iconTemplate@2x.png
     iconPath = getAssetPath('iconTemplate.png')
   } else if (process.platform === 'win32') {
-    iconPath = getAssetPath('icon.ico')
+    iconPath = getAssetPath('fork-icon.ico')
   }
   tray = new Tray(iconPath)
   const contextMenu = Menu.buildFromTemplate([
@@ -508,7 +508,7 @@ async function createWindow() {
     y: state.y,
     minWidth: windowState.minWidth,
     minHeight: windowState.minHeight,
-    icon: getAssetPath('icon.png'),
+    icon: getAssetPath(process.platform === 'win32' ? 'fork-icon.png' : 'icon.png'),
     webPreferences: {
       spellcheck: true,
       webSecurity: false, // 其中一个作用是解决跨域问题

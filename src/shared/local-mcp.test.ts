@@ -1,5 +1,5 @@
 import { expect,it } from 'vitest'
-import { defaultLocalMCPPermissions,localMCPAllows,localMCPWorkerAllows,parseSessionResourceURI,sessionResourceURI,LocalMCPStartSchema } from './local-mcp'
+import { defaultLocalMCPPermissions,localMCPAllows,localMCPWorkerAllows,parseSessionResourceURI,sessionResourceURI,LocalMCPStartSchema,localMCPGrantAllows,LocalMCPApplicationSchema,localMCPClientConfiguration } from './local-mcp'
 it('separates read, permanent write, execution, paid models, Venice and forwarding permissions',()=>{
   const permissions={...defaultLocalMCPPermissions}
   expect(localMCPAllows(permissions,'session_file',{action:'read'})).toBe(true)
@@ -37,4 +37,18 @@ it('confines resource URIs to the shared chat and validates start options',()=>{
   expect(()=>parseSessionResourceURI('other',uri)).toThrow('shared chat')
   expect(()=>LocalMCPStartSchema.parse({sessionId:'../outside',port:80,permissions:defaultLocalMCPPermissions})).toThrow()
   expect(LocalMCPStartSchema.parse({sessionId:'one',port:0,permissions:defaultLocalMCPPermissions}).port).toBe(0)
+})
+
+it('keeps router, shadow and full app scopes separate from their feature flags',()=>{
+  const grant={running:true as const,sessionId:'application',url:'http://127.0.0.1:1/mcp',token:'test',startedAt:1,permissions:{...defaultLocalMCPPermissions,models:true},application:LocalMCPApplicationSchema.parse({mode:'router',name:'Models'})}
+  expect(localMCPGrantAllows(grant,'app_model')).toBe(true);expect(localMCPGrantAllows(grant,'app_resources')).toBe(true)
+  for(const name of ['app_contexts','app_conversation','app_call','session_file','web_search','agent_spawn','venice_studio'])expect(localMCPGrantAllows(grant,name)).toBe(false)
+  grant.application.mode='shadow';expect(localMCPGrantAllows(grant,'app_contexts')).toBe(true);expect(localMCPGrantAllows(grant,'app_model')).toBe(false)
+})
+
+it('copies distinct portable client names for same-name endpoints without exporting grant metadata',()=>{
+ const base={running:true as const,sessionId:'application',url:'http://127.0.0.1:3000/mcp',token:'private-local-token',startedAt:1,permissions:defaultLocalMCPPermissions,application:LocalMCPApplicationSchema.parse({mode:'router',name:'Local agent è'})}
+ const first=localMCPClientConfiguration(base),second=localMCPClientConfiguration({...base,url:'http://127.0.0.1:3001/mcp'})
+ const a=Object.keys(first.mcpServers)[0],b=Object.keys(second.mcpServers)[0];expect(a).toMatch(/^[a-z0-9_-]+$/);expect(a).not.toBe(b)
+ expect(Object.values(first.mcpServers)[0]).toEqual({url:base.url,headers:{Authorization:'Bearer private-local-token'}});expect(JSON.stringify(first)).not.toContain('permissions')
 })

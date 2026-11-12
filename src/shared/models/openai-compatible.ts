@@ -57,8 +57,11 @@ export default abstract class OpenAICompatible extends AbstractAISDKModel implem
     return super.isSupportToolUse()
   }
 
-  protected getProvider() {
-    const fetch = this.options.customFetch || createFetchWithProxy(this.options.useProxy, this.dependencies)
+  protected getRequestFetch(_options?: CallChatCompletionOptions): typeof globalThis.fetch {
+    return this.options.customFetch || createFetchWithProxy(this.options.useProxy, this.dependencies)
+  }
+  protected getProvider(options?: CallChatCompletionOptions) {
+    const fetch = this.getRequestFetch(options)
     return createOpenAICompatible({
       name: this.name,
       apiKey: this.options.apiKey,
@@ -67,8 +70,8 @@ export default abstract class OpenAICompatible extends AbstractAISDKModel implem
     })
   }
 
-  protected getChatModel() {
-    const provider = this.getProvider()
+  protected getChatModel(options?: CallChatCompletionOptions) {
+    const provider = this.getProvider(options)
     return wrapLanguageModel({
       model: provider.languageModel(this.options.model.modelId),
       middleware: extractReasoningMiddleware({ tagName: 'think' }),

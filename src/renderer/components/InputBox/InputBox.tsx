@@ -95,6 +95,9 @@ import { resolveWebBrowsingMode } from '@/stores/session'
 import { useSessionAgentMode } from '@/stores/session/agent-mode'
 import { useSessionSettings } from '@/stores/session/session-settings'
 import { settingsStore, useSettingsStore } from '@/stores/settingsStore'
+import { VenicePrivacyStatus } from '@/components/venice/VenicePrivacyStatus'
+import { resolveVeniceSettings } from '@shared/providers/definitions/models/venice/options'
+import { modelPrivacySettings } from '@shared/providers/definitions/models/venice/privacy'
 import { useUIStore } from '@/stores/uiStore'
 import { confirmModelSwitchIfNeeded } from '@/utils/prompt-cache-confirm'
 import { getSessionLockNotice, notifySessionLockBlocked } from '@/utils/session-lock-copy'
@@ -698,23 +701,24 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
 
     // When agent mode is on, block models that don't support agent tools in the model selector.
     const agentModeDisabledMessage = t('This model does not support Agent Mode')
+    const draftVeniceSecurity = useUIStore(state => state.newSessionState.veniceSecurity)
     const veniceToolPolicy=useSettingsStore(state=>state.providers?.venice?.venice)
-    const encryptedTextTools=veniceToolPolicy?.textPrivacy==='e2ee'&&veniceToolPolicy.e2eeToolsEnabled===true&&veniceToolPolicy.e2eeToolMode!=='native'
     const modelDisabledCheck = useCallback(
       (m: ProviderModelInfo) => {
         if (agentModeEntry.value !== 'on') return undefined
+        const privacy=modelPrivacySettings(resolveVeniceSettings(veniceToolPolicy,m.veniceProfile,currentSessionMergedSettings?.veniceProfile,sessionId==='new'?draftVeniceSecurity:currentSessionMergedSettings?.veniceSecurity),m.vendorMetadata)
+        const encryptedTextTools=privacy.textPrivacy==='e2ee'&&privacy.e2eeToolsEnabled===true&&privacy.e2eeToolMode!=='native'
         if(encryptedTextTools&&(m.providerId==='venice'||m.vendorMetadata?.veniceType==='text')&&(m.vendorMetadata?.capabilities as Record<string,unknown>|undefined)?.supportsE2EE===true)return undefined
         if (!m.capabilities?.includes('tool_use')) return agentModeDisabledMessage
         if (isDeepSeekWeakToolUse(m.modelId, 'agent')) return agentModeDisabledMessage
         return undefined
       },
-      [agentModeDisabledMessage, agentModeEntry.value, encryptedTextTools]
+      [agentModeDisabledMessage, agentModeEntry.value, veniceToolPolicy, currentSessionMergedSettings, sessionId, draftVeniceSecurity]
     )
 
     // Check model tool use capabilities for agent mode and file handling.
     // Uses 'agent' scope as the gate — models with weak function calling
     // (e.g. DeepSeek V3/R1) return false, disabling agent mode entirely.
-    const draftVeniceSecurity = useUIStore(state => state.newSessionState.veniceSecurity)
     const {
       modelSupportToolUseForFile,
       modelSupportsAgentMode,
@@ -1714,6 +1718,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(
               )}
 
             {(model?.provider === 'venice' || (webBrowsingMode && globalSearchProvider === 'venice')) && <VeniceBalance />}
+            {model?.provider === 'venice' && <VenicePrivacyStatus provider={veniceToolPolicy} model={modelInfo||undefined} session={sessionId === 'new' ? { ...currentSessionMergedSettings, veniceSecurity: draftVeniceSecurity } : currentSessionMergedSettings}/>}
             {model?.provider === 'openai-sub-unofficial' && <ChatGPTAllowance compact />}
             {/* Work Mode status row: approval policy + working directories, always visible
                 above the input with their own in-place menus (mirrors the mode panel). */}

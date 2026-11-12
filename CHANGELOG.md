@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.43.4
+
+See [release notes](docs/releases/v1.43.4.md). Adds independent desktop MCP permission profiles and local routing, improves agent completion and resumption, surfaces Venice privacy verification and model details, and preserves advanced generation options.
+
 ## 1.43.3
 
 See [release notes](docs/releases/v1.43.3.md). Adapts upstream reliability improvements to fork MCP routing, tool continuations and mobile networking, prevents duplicate retries, and adds model-aware Studio controls.

@@ -125,3 +125,19 @@ The main process sends a revocation notification before stopping or replacing a 
 ## Caller-facing descriptions
 
 Agent descriptions support multiple lines (4,000 characters). Optional additionalDetails (12,000 characters) explain expected input, outputs and appropriate use. sharePromptWithCaller defaults to off for existing and new definitions; only explicit opt-in appends the worker prompt to the caller description. The guardian prompt is never included. Root instructions, nested agent_catalog and the external MCP catalog use the same formatter, filtered to permitted agents. Catalog access does not start an agent or expand permissions. Treat all catalog text as reference data.
+
+## Worker lifecycle and result delivery
+
+A worker remains pending until its descendants settle. Waiting yields its execution slot, including with a parallel-worker limit of one. The runtime then gives the same parent conversation a bounded continuation to collect unread child results. It never creates a replacement worker for this continuation. Errors cancel active descendants, retaining their transcripts and files for explicit recovery. Tool-only turns, step limits and missing final answers are reported as interrupted instead of completed.
+
+agent_result returns ready=false while a child is pending. Completed results contain the latest final answer after its tools, rather than concatenating all earlier tasks or treating an introductory promise as an answer. Failures accompany partial results after the same guardian review. agent_files lists shared workspace paths separately from resources generated in the child's own conversation; agent_file reviews immutable bytes across isolated sandboxes. On-demand workspace files already belong to the caller's workspace and do not require a copy.
+
+agent_message steers a running worker at the next provider-request boundary, or resumes a terminal worker in the same session and workspace. The inbox is bounded and guardian-reviewed before enqueueing. It does not inject data into a request already sent to a provider. A late message accepted during final persistence is queued for the next turn. The owner inspector can steer descendants; model tools retain direct-child ownership checks. After app restart or a privacy lock, a new parent Work request is required to restore authority; saved jobs are never replayed automatically.
+
+The inspector renders a read-only conversation with Markdown, expandable reasoning and tool details, and access to workspace/generated-resource explorers. Its explicit follow-up control resumes existing work. Encrypted transcript snapshots are coalesced so slow storage cannot accumulate an unbounded queue of obsolete streaming snapshots.
+
+Performance distinguishes queue time, time to first token, observed decoding time, tool/wait time, provider output tokens and request count. Token rates are unavailable for buffered responses (including E2EE when decrypted chunks arrive together); replay speed is not model decoding speed. Comparing providers requires identical model, reasoning, prompt/context and concurrency. These metrics are local and introduce no network telemetry or token pacing.
+
+## App-wide desktop MCP endpoints
+
+Each running endpoint owns a separate listener and revocable token. Full or shadow profiles can grant multi-agent use for an authorized root context. Dedicated IDs are intersected with the endpoint’s human-selected allowlist; descendants retain that intersection, their existing guardian and depth restrictions, and the endpoint’s file/code/model/service grants. Studio approval cannot become automatic through a worker when the endpoint requires approval. Router profiles expose no agents. Temporary roots and their worker descendants are hidden from ordinary media history and cleaned together after retrieval. Cleanup refuses concurrent workspace operations; revocation first cancels requests and workers. See [desktop MCP setup](local-mcp-server.md).

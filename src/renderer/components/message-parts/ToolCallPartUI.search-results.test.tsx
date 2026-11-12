@@ -54,6 +54,8 @@ vi.mock('@/stores/uiStore', () => ({
 
 import { StepTimelineUI } from './StepTimelineUI'
 import { ToolCallPartUI } from './ToolCallPartUI'
+import { AgentTranscript } from '../multi-agent/AgentTranscript'
+import { createMessage } from '@shared/types'
 
 const LONG_LINK =
   'https://example.com/docs/very-long-path/that-has-no-spaces-and-would-overflow-the-viewport-if-the-card-grew-with-its-content?token=abcdefghijklmnopqrstuvwxyz0123456789'
@@ -267,6 +269,16 @@ describe('tool call search result overflow', () => {
     expandByLabel('Venice Web Search')
     expect(screen.getByRole('link', { name: /OAuth token refresh patterns/ }).getAttribute('href')).toBe(LONG_LINK)
     expect(screen.getByText('How to rotate refresh tokens…')).toBeTruthy()
+  })
+  it('inspects a worker as a conversation with expandable real thinking and tool results',()=>{
+    const message=createMessage('assistant','')
+    message.contentParts=[{type:'reasoning',text:'Check both sources before summarizing',duration:1000},webSearchPart(),{type:'text',text:'Verified final summary'}]
+    render(<MantineProvider><AgentTranscript sessionId="child-session" messages={[createMessage('user','Research the news'),message]}/></MantineProvider>)
+    expect(screen.getByText('Research the news')).toBeTruthy();expect(screen.getByText('Verified final summary')).toBeTruthy()
+    const thinking=screen.getByText('Deeply thought').closest('button')!
+    expect(thinking.getAttribute('aria-expanded')).toBe('false');fireEvent.click(thinking)
+    expect(thinking.getAttribute('aria-expanded')).toBe('true');expect(screen.getByText('Check both sources before summarizing')).toBeTruthy()
+    expandByLabel('Web Search');expect(screen.getByRole('link',{name:/OAuth token refresh patterns/}).getAttribute('href')).toBe(LONG_LINK)
   })
 
 })

@@ -1,5 +1,13 @@
 import type { MediaCatalogItem } from './media'
 import { videoModelFamilies } from './video-docs'
+import pages from './model-pages.json'
+
+export function veniceModelPage(modelId: string) {
+  // E2EE routes have their own privacy-specific cards even when the public
+  // documentation groups them with an ordinary model family.
+  const slug=modelId.startsWith('e2ee-')?modelId:(pages.pages as Record<string,string>)[modelId]||modelId
+  return `https://venice.ai/models/${encodeURIComponent(slug)}`
+}
 
 export function videoModelDocumentation(model:MediaCatalogItem){
   const family=videoModelFamilies[model.id]
