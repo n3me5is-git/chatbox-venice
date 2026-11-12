@@ -279,6 +279,14 @@ export class MultiAgentRuntime {
     this.queue = this.queue.filter(entry => entry.run.rootId !== rootId)
     await Promise.allSettled([...this.runs.values()].filter(run => run.rootId === rootId && run.parentId === rootId).map(run => this.cancelTree(run.id)))
   }
+  async waitUntilStopped(rootId:string,timeoutMs=10000){
+    const until=Date.now()+timeoutMs
+    while([...this.active.keys()].some(id=>this.runs.get(id)?.rootId===rootId)||(this.pendingSpawns.get(rootId)||0)>0||[...this.pendingMessages].some(id=>this.runs.get(id)?.rootId===rootId)){
+      if(Date.now()>=until)return false
+      await new Promise(resolve=>setTimeout(resolve,25))
+    }
+    return true
+  }
   reopen(rootId: string) { this.rootsStopping.delete(rootId) }
   caller(run: AgentRun): AgentCaller { return { id: run.id, rootId: run.rootId, workspaceId: run.workspaceId, depth: run.depth, model: run.model, tools: run.tools, allowOnDemand: run.allowOnDemand, dedicatedIds: run.dedicatedIds } }
 }

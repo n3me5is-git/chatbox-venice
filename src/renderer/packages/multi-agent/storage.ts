@@ -25,3 +25,11 @@ export async function updateAgentData<T>(key: string, fallback: T, update: (curr
   locks.set(key, work)
   try { return await work } finally { if (locks.get(key) === work) locks.delete(key) }
 }
+
+/** Serialize deletion after already accepted encrypted writes. */
+export async function removeAgentData(key:string){
+  const previous=locks.get(key)||Promise.resolve()
+  const work=previous.catch(()=>{}).then(()=>vaultRuntimeFor(platform).assets.remove(key))
+  locks.set(key,work)
+  try{await work}finally{if(locks.get(key)===work)locks.delete(key)}
+}

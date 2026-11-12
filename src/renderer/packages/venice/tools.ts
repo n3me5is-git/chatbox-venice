@@ -78,7 +78,7 @@ export function veniceChatTools(sessionId: string,turnId='external',requester='o
         const prior = await saved(toolCallId); if (prior) return prior
         const access=installedVaultFor(platform)?.projects;await access?.assertSession(sessionId);const protection=await access?.sessionScope(sessionId)||undefined
         assertSharedTurn(decisionSessionId,requester)
-        const handle = await startImageGeneration({ protection, prompt: choice.prompt, model: { provider: 'venice', modelId: choice.modelId, ...(choice.extraBody ? { extraBody: choice.extraBody } : {}) }, imageGenerateNum: choice.count, aspectRatio: choice.aspectRatio, referenceImages: choice.referenceImages, source: { type: 'chatbox_cli', sessionId, toolCallId } }, { onRecordCreated: record => platform.setStoreValue(`venice:image-call:${sessionId}:${toolCallId}`, record.id) })
+        const handle = await startImageGeneration({ protection, prompt: choice.prompt, model: { provider: 'venice', modelId: choice.modelId, ...(choice.extraBody ? { extraBody: choice.extraBody } : {}) }, imageGenerateNum: choice.count, aspectRatio: choice.aspectRatio, referenceImages: choice.referenceImages, source: { type: 'chatbox_cli', sessionId, toolCallId } }, { onRecordCreated: async record => {await (await import('@/packages/local-mcp/temporary')).registerTemporaryMCPImage(record,choice.referenceImages);await platform.setStoreValue(`venice:image-call:${sessionId}:${toolCallId}`, record.id)} })
         void handle.completion.then(record => { if (record) queueImageTaskCompletion(record, { sessionId, toolCallId }, handle.startedAt) }).catch(error => queueImageTaskCompletionError(handle.recordId, handle.startedAt, { sessionId, toolCallId }, error))
         return saved(toolCallId)
       })()

@@ -10,7 +10,7 @@ vi.mock('@/packages/session-resources/service',()=>({listSessionResources:async(
 vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({projects:{assertSession:async()=>{},sessionScope:async()=>null},assets:{header:async()=>null}})}))
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('./model-approval',()=>({requestExternalModelApproval:(...args:any[])=>state.approve(...args)}))
-vi.mock('./temporary',()=>({temporaryMCPEntries:async()=>[],mutateTemporaryMCPEntries:vi.fn()}))
+vi.mock('./temporary',()=>({temporaryMCPEntries:async()=>[],mutateTemporaryMCPEntries:vi.fn(),registerTemporaryMCPImage:vi.fn()}))
 import {applicationStudioTool} from './studio'
 const grant=():LocalMCPGrant=>({running:true,sessionId:'application',endpointId:crypto.randomUUID(),application:LocalMCPApplicationSchema.parse({name:'Studio',mode:'router',providers:['venice']}),url:'http://127.0.0.1:1/mcp',token:'private-token',startedAt:1,permissions:{...defaultLocalMCPPermissions,venice:true}})
 async function run(input:any,g=grant()){
@@ -20,7 +20,7 @@ async function run(input:any,g=grant()){
 beforeEach(()=>{vi.clearAllMocks();state.rows=[];state.approve.mockResolvedValue(true);state.start.mockResolvedValue({recordId:'image-one',completion:Promise.resolve(null)});state.media.mockImplementation(async()=>{const record={id:'audio-one',kind:'transcription',model:'asr-one',status:'ready',text:'Transcript',sessionId:'shadow'};state.rows=[record];return record})})
 it('uses actual reference bytes and advanced image parameters with a separate paid-operation approval',async()=>{
  expect(await run({action:'generate',kind:'image',model:'qwen-image-edit',prompt:'Edit this',options:{negative_prompt:'noise',hide_watermark:true},referencePaths:['input/ref.png'],request_id:'image'})).toMatchObject({id:'image-one',background:true})
- expect(state.start).toHaveBeenCalledWith(expect.objectContaining({prompt:'Edit this',referenceImages:['data:image/png;base64,AQID'],model:{provider:'venice',modelId:'qwen-image-edit',extraBody:{negative_prompt:'noise',hide_watermark:true}},source:expect.objectContaining({sessionId:'shadow'})}))
+ expect(state.start).toHaveBeenCalledWith(expect.objectContaining({prompt:'Edit this',referenceImages:['data:image/png;base64,AQID'],model:{provider:'venice',modelId:'qwen-image-edit',extraBody:{negative_prompt:'noise',hide_watermark:true}},source:expect.objectContaining({sessionId:'shadow'})}),expect.objectContaining({onRecordCreated:expect.any(Function)}))
  expect(state.approve).toHaveBeenCalledTimes(1)
 })
 it('does not start generation after a denial and forbids a provider outside the endpoint allowlist',async()=>{

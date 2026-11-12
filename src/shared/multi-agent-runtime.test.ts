@@ -198,3 +198,11 @@ it('rejects a denied worker model before invoking a guardian or creating a sandb
  await expect(f.runtime.spawn(f.caller,{...task,dedicatedId:'dedicated'})).rejects.toThrow('not granted')
  expect(f.host.guard).not.toHaveBeenCalled();expect(f.host.create).not.toHaveBeenCalled()
 })
+
+it('does not claim a cancelled root is idle while its model callback can still save data',async()=>{
+ const f=fixture(),run=await f.runtime.spawn(f.caller,task)
+ await vi.waitFor(()=>expect(f.held.has(run.id)).toBe(true));await f.runtime.stopRoot(f.caller.rootId)
+ expect(await f.runtime.waitUntilStopped(f.caller.rootId,10)).toBe(false)
+ f.held.get(run.id)!('Late completion after cancellation')
+ expect(await f.runtime.waitUntilStopped(f.caller.rootId,1000)).toBe(true)
+})

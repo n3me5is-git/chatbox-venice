@@ -27,7 +27,7 @@ import { assertSharedTurn, routeSharedDecision } from '@/packages/collaboration/
 import { requestUserAnswers } from '@/components/agent/UserQuestion'
 import { getSessionSettings } from '@/stores/session/session-settings'
 import platform from '@/platform'
-import { readAgentData, updateAgentData } from './storage'
+import { readAgentData, updateAgentData, removeAgentData } from './storage'
 import { listDedicatedAgents } from './library'
 import { workerSessionParameters } from './parameters'
 import { selectContextMessages } from '@shared/context'
@@ -40,6 +40,7 @@ type ExternalAuthority = { application?:LocalMCPGrant['application']; forceStudi
 const grants = new Map<string, { caller: AgentCaller; settings: SessionSettings; requester: string; policyFingerprint: string; explicit?: MultiAgentPolicy; external?: ExternalAuthority }>()
 const acquiringExternal = new Map<string, Promise<ExternalAgentContext>>()
 const loaded = new Set<string>()
+const removedTemporaryRoots=new Set<string>()
 export const agentEvents = new Map<string, Array<{ at: number; agentId: string; operation: string; reason: string }>>()
 const endpointModelSettings=(rootId:string,settings:SessionSettings)=>localMCPModelSettings(grants.get(rootId)?.external?.application,settings,settingsStore.getState().getSettings?.().providers??settingsStore.getState().providers)
 const modelText = (messages: Message[]) => messages.filter(message => message.role === 'assistant').map(message => message.contentParts.filter(part => part.type === 'text').map(part => part.text).join('')).join('\n')
@@ -68,7 +69,7 @@ async function rootPolicy(id: string) {
   return policy.enabled ? { ...policy, dedicatedIds: [...new Set([...policy.dedicatedIds, ...(explicit?.dedicatedIds || [])])] } : explicit || policy
 }
 async function assertRoot(id: string) { await vault().projects.assertSession(id); const grant = grants.get(id); if (!grant) throw Error('Run a new Work request before using child agents'); if (grant.external) await grant.external.assert(); assertSharedTurn(id, grant.requester); await rootPolicy(id) }
-async function saveRun(run: AgentRun) { await updateAgentData<AgentRun[]>(manifest(run.rootId), [], runs => [...runs.filter(item => item.id !== run.id), { ...run }], run.rootId) }
+async function saveRun(run: AgentRun) { if(removedTemporaryRoots.has(run.rootId))return;await updateAgentData<AgentRun[]>(manifest(run.rootId), [], runs => [...runs.filter(item => item.id !== run.id), { ...run }], run.rootId) }
 async function guardContent(boundary: AgentBoundary, vision: boolean) {
   if (boundary.text.length > 100000) throw Error('The guardian cannot inspect this entire message. Split the task into smaller reviewed messages.')
   const content: any[] = [{ type: 'text', text: JSON.stringify({ operation: boundary.operation, from: boundary.from, to: boundary.to, text: boundary.text, file: boundary.file ? { path: boundary.file.path, mime: boundary.file.mime, bytes: boundary.file.bytes, sha256: boundary.file.sha256 } : undefined }) }]
@@ -99,6 +100,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
   },
   save: saveRun,
   async blocked(run, boundary, reason) {
+    if(removedTemporaryRoots.has(run.rootId))return
     const list = agentEvents.get(run.rootId) || []
     list.push({ at: Date.now(), agentId: run.id, operation: boundary.operation, reason: reason.slice(0, 2000) }); agentEvents.set(run.rootId, list.slice(-100))
     await updateAgentData('private-agents:events:' + encodeURIComponent(run.rootId), [], () => agentEvents.get(run.rootId), run.rootId)
@@ -275,3 +277,16 @@ export function initializeMultiAgent() {
   })
 }
 initializeMultiAgent()
+
+/** Used only for an endpoint-owned temporary root after revocation/cleanup. */
+export async function disposeTemporaryAgentRoot(rootId:string){
+  removedTemporaryRoots.add(rootId);grants.delete(rootId)
+  await multiAgentRuntime.stopRoot(rootId)
+  if(!await multiAgentRuntime.waitUntilStopped(rootId))throw Error('Agent work is still stopping. Retry temporary workspace cleanup.')
+  await multiAgentRuntime.stopRoot(rootId) // drain a spawn that finished while cancellation was requested
+  const runs=[...multiAgentRuntime.runs.values()].filter(run=>run.rootId===rootId)
+  await removeAgentData(manifest(rootId));await removeAgentData('private-agents:events:'+encodeURIComponent(rootId))
+  for(const run of runs)multiAgentRuntime.runs.delete(run.id)
+  loaded.delete(rootId);agentEvents.delete(rootId)
+  return runs.map(run=>run.sessionId)
+}
