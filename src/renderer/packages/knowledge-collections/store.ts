@@ -25,8 +25,8 @@ export class KnowledgeCollections {
   private jobs=new Map<number,AbortController>()
   private gates=new Map<number,KnowledgeAccessGate>()
   private gate(id:number){let gate=this.gates.get(id);if(!gate){gate=new KnowledgeAccessGate();this.gates.set(id,gate)}return gate}
-  private read<T>(id:number,work:()=>Promise<T>){return typeof navigator!=='undefined'&&navigator.locks?navigator.locks.request('chatbox-kb-read:'+id,{mode:'shared'},work):this.gate(id).read(work)}
-  private publish<T>(id:number,work:()=>Promise<T>){return typeof navigator!=='undefined'&&navigator.locks?navigator.locks.request('chatbox-kb-read:'+id,work):this.gate(id).publish(work)}
+  private async read<T>(id:number,work:()=>Promise<T>):Promise<T>{if(typeof navigator!=='undefined'&&navigator.locks)return await navigator.locks.request('chatbox-kb-read:'+id,{mode:'shared'},work);return await this.gate(id).read(work)}
+  private async publish<T>(id:number,work:()=>Promise<T>):Promise<T>{if(typeof navigator!=='undefined'&&navigator.locks)return await navigator.locks.request('chatbox-kb-read:'+id,work);return await this.gate(id).publish(work)}
   private tail:Promise<unknown>=Promise.resolve()
   constructor(readonly vault:VaultRuntime,private adapters:CollectionAdapters){this.json=new VaultJsonRecords(vault.assets,10*1024*1024)}
   private serial<T>(work:()=>Promise<T>):Promise<T>{const run=async():Promise<T>=>{if(typeof navigator!=='undefined'&&navigator.locks)return await navigator.locks.request('chatbox-knowledge-collections',work);return await work()};const next=this.tail.then(run,run);this.tail=next.catch(()=>{});return next}
@@ -73,7 +73,7 @@ export class KnowledgeCollections {
     await this.publish(id,async()=>{await this.save(id,{...data,files:data.files.filter(item=>item.id!==fileId)});const entry=await this.assert(id),raw=await this.json.get(prefix(id)+'.chatbox/knowledge/state.json'),state=raw?KnowledgeStateSchema.parse(raw):null,native=await this.nativeIndex(id),garbage=new Set<string>()
       if(native){for(const item of native.files)if(item.path===file.path)for(const alias of item.shards)garbage.add(alias);await this.json.set(prefix(id)+RAG_ROOT+'index.json',{...native,updated:Date.now(),files:native.files.filter(item=>item.path!==file.path),errors:native.errors.filter(item=>item.path!==file.path)},entry.scope)}
       if(state){for(const item of state.vector.files)if(item.path===file.path)for(const alias of item.shards)garbage.add(alias);for(const ref of state.metadata?.files||[])if(ref.fileId===String(fileId))garbage.add(ref.alias);for(const ref of state.derivatives)if(ref.fileId===String(fileId))garbage.add(ref.alias);const next={...state,revision:crypto.randomUUID(),vector:{...state.vector,updated:Date.now(),files:state.vector.files.filter(item=>item.path!==file.path),errors:state.vector.errors.filter(item=>item.path!==file.path)},metadata:state.metadata?{...state.metadata,files:state.metadata.files.filter(item=>item.fileId!==String(fileId))}:null,derivatives:state.derivatives.filter(item=>item.fileId!==String(fileId))};await this.json.set(prefix(id)+'.chatbox/knowledge/state.json',next,entry.scope)}
-      await this.vault.assets.remove(file.alias);for(const alias of garbage)await this.json.remove(prefix(id)+alias).catch(()=>{})
+      await this.vault.assets.remove(file.alias);for(const alias of garbage)await this.json.remove(prefix(id)+alias).catch(()=>{});if(data.files.length===1)await this.clearDerived(id)
     })
   })}
   private async assetAliases(id:number){const aliases:string[]=[];for await(const header of this.vault.db.all())if(header.alias?.startsWith(prefix(id)))aliases.push(header.alias);return aliases}

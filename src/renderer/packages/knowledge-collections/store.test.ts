@@ -93,8 +93,8 @@ it('keeps the last complete generation after invalid extraction and removes only
 })
 it('retains OCR alongside native image vectors only after the separate media-text opt-in and never OCRs during preview',async()=>{
  const extract=vi.fn(async(_source:any,_bytes:any,cfg:any)=>cfg.images?{media:true}:{text:'Project Alpha has client Acme.',kind:'ocr' as const}),f=await fixture({extract,analyze:extractRelations}),cfg={...f.cfg,images:true,ocr:true,ocrProvider:'vision',ocrModel:'vision'},bytes=new Uint8Array([1,2,3]);await f.store.add(f.id,{name:'source.png',type:'image/png',size:3,arrayBuffer:async()=>bytes.buffer} as File)
- await f.store.configure(f.id,'Photos',cfg,undefined,undefined,undefined,{...advanced(),augmentation:{...advanced().augmentation,mediaText:true}});await f.store.index(f.id);expect(extract).toHaveBeenCalledTimes(2);const file=(await f.store.data(f.id)).files[0],parsed=await f.store.documentText(f.id,file.id);expect(parsed).toMatchObject({kind:'ocr',text:'Project Alpha has client Acme.'});expect(extract).toHaveBeenCalledTimes(2)
- await f.store.index(f.id);expect(extract).toHaveBeenCalledTimes(2)
+ await f.store.configure(f.id,'Photos',cfg,undefined,undefined,undefined,{...advanced(),augmentation:{...advanced().augmentation,mediaText:true}});await f.store.index(f.id);expect(extract).toHaveBeenCalledTimes(1);const file=(await f.store.data(f.id)).files[0],parsed=await f.store.documentText(f.id,file.id);expect(parsed).toMatchObject({kind:'ocr',text:'Project Alpha has client Acme.'});expect(extract).toHaveBeenCalledTimes(1)
+ await f.store.index(f.id);expect(extract).toHaveBeenCalledTimes(1)
 })
 it('deletes only one document from vector and graph generations without re-embedding other sources',async()=>{
  const f=await fixture({analyze:extractRelations});await f.add('alpha.md','Project Alpha has client Acme.');await f.add('beta.md','Project Beta has client Nova.');await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,undefined,advanced());await f.store.index(f.id);const [first]=(await f.store.data(f.id)).files;f.embed.mockClear();await f.store.removeFile(f.id,first.id)
