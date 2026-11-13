@@ -8,7 +8,7 @@ const state=vi.hoisted(()=>({list:vi.fn(),create:vi.fn(),data:vi.fn(),authorize:
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultVirtualRerankModel:{provider:'private',model:'small-ranker'}})})}}))
 vi.mock('@/platform',()=>({default:{type:'mobile'}}))
 vi.mock('@/packages/session-rag/defaults',()=>({defaultRagSettings:()=>RagSettingsSchema.parse({provider:'venice',model:'private-embedding'})}))
-vi.mock('@/packages/session-rag/embeddings',()=>({multimodalEmbedding:(provider:string)=>provider==='gemini'}))
+vi.mock('@/packages/session-rag/embeddings',()=>({multimodalEmbedding:(provider:string)=>provider==='gemini',embeddingMediaSupport:(provider:string)=>({image:provider==='gemini',audio:provider==='gemini'})}))
 vi.mock('@/packages/knowledge-collections/service',()=>({knowledgeCollections:{list:state.list,create:state.create,data:state.data,authorize:state.authorize,configure:state.configure,index:state.index,indexStatus:state.status,assert:async()=>{if(state.locked)throw Error('Unlock')},running:()=>false,lock:state.lock,vault:{keys:{snapshot:()=>state.revision,subscribe:(callback:()=>void)=>{state.notify=callback;return()=>{}},isUnlocked:()=>!state.locked}}}}))
 vi.mock('@/components/settings/SettingsLayout',()=>({SettingsPage:({children,action}:any)=><main>{action}{children}</main>}))
 vi.mock('@/components/common/AdaptiveModal',()=>({AdaptiveModal:({opened,children}:any)=>opened?<div role="dialog">{children}</div>:null}))
@@ -25,8 +25,8 @@ it('creates an encrypted collection on mobile only after explicit remote-process
  expect(state.index).not.toHaveBeenCalled()
 })
 it('keeps native photos/audio independent from OCR and never enables them for text-only APIs',async()=>{
- mount();fireEvent.click(screen.getByRole('button',{name:'New collection'}));expect((screen.getByRole('switch',{name:'Index photos directly (no OCR)'}) as HTMLInputElement).disabled).toBe(true)
- fireEvent.click(screen.getByRole('button',{name:'Use native multimodal'}));fireEvent.click(screen.getByRole('switch',{name:'Index photos directly (no OCR)'}));expect((screen.getByRole('switch',{name:'Index audio directly (no transcription)'}) as HTMLInputElement).checked).toBe(false);expect((screen.getByRole('switch',{name:'Optional OCR for images and scanned PDFs'}) as HTMLInputElement).checked).toBe(false)
+ mount();fireEvent.click(screen.getByRole('button',{name:'New collection'}));expect((screen.getByRole('checkbox',{name:'Index photos directly (no OCR)'}) as HTMLInputElement).disabled).toBe(true)
+ fireEvent.click(screen.getByRole('button',{name:'Use native multimodal'}));fireEvent.click(screen.getByRole('switch',{name:'Index photos directly (no OCR)'}));expect((screen.getByRole('checkbox',{name:'Index audio directly (no transcription)'}) as HTMLInputElement).checked).toBe(false);expect((screen.getByRole('switch',{name:'Optional OCR for images and scanned PDFs'}) as HTMLInputElement).checked).toBe(false)
 })
 it('requests owner authentication before loading a protected collection',async()=>{
  state.locked=true;state.list.mockResolvedValue([{id:-1,scope:'knowledge:-1',name:'Protected collection',locked:true}]);state.authorize.mockRejectedValue(Error('Knowledge collection access was declined'));mount();fireEvent.click(await screen.findByRole('button',{name:'Unlock'}));await screen.findByRole('alert');expect(state.authorize).toHaveBeenCalledWith(-1);expect(state.data).not.toHaveBeenCalled();expect(state.index).not.toHaveBeenCalled()

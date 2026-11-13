@@ -79,7 +79,7 @@ it('retains supported relations while explicitly excluding a pronoun-only citati
 })
 
 it('reuses unchanged extraction windows and reanchors their exact quotes after an insertion',async()=>{
- const f=fixture(),cfg={...settings,windowChars:2000},text=Array.from({length:3},(_,n)=>'Apollo has client Acme.\n'+String(n).repeat(1500)+'\n').join(''),source=await doc('a',text)
+ const f=fixture(),cfg={...settings,windowChars:2000},text=Array.from({length:3},(_,n)=>'Apollo has client Acme.'+String(n).repeat(1500)+'\n').join(''),source=await doc('a',text)
  f.extract.mockImplementation(async window=>({summary:'Project/client evidence',entities:[{name:'Apollo',type:'project',quote:'Apollo has client Acme.'},{name:'Acme',type:'client',quote:'Apollo has client Acme.'}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:'Apollo has client Acme.'}],tags:[]}))
  const first=await f.engine.index([source],cfg,new AbortController().signal);expect(first.stats!.extractedWindows).toBe(3);f.extract.mockClear();const changed=await doc('a','NOTE\n'+text);f.revisions.set('a',changed.sourceHash);const next=await f.engine.index([changed],cfg,new AbortController().signal)
  expect(f.extract).toHaveBeenCalledOnce();expect(next.stats).toMatchObject({extractedWindows:1,reusedWindows:2});const record=await f.port.get<any>(next.files[0].alias);expect(record.relations).toHaveLength(3);for(const edge of record.relations)expect(changed.text.slice(edge.anchor.start,edge.anchor.end)).toBe(edge.anchor.quote)

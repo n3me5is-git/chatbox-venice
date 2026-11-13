@@ -26,8 +26,8 @@ const consent=(settings:RagSettings)=>JSON.stringify(settings)
 export async function ragAuthorized(id:string,settings:RagSettings){return settings.enabled&&await vault().db.getSetting('rag:consent:'+id)===consent(settings)}
 async function put(id:string,path:string,value:unknown){const bytes=new TextEncoder().encode(JSON.stringify(value));try{await sessionFiles.write(id,path,bytes,{mime:'application/json',deliverable:false,managed:true})}finally{bytes.fill(0)}}
 export async function configureRag(id:string,input:RagSettings){
-  await vault().projects.assertSession(id);const settings=RagSettingsSchema.parse(input)
-  if(settings.enabled){ragProvider(settings);if((settings.images||settings.audio)&&!multimodalEmbedding(settings.provider,settings.model))throw Error('This embedding model accepts text only');if(settings.ocr&&(!settings.ocrProvider||!settings.ocrModel))throw Error('Choose an OCR model first')}
+  await vault().projects.assertSession(id);const settings=RagSettingsSchema.parse({...input,...(input.provider==='venice'?{images:false,audio:false}:{})})
+  if(settings.enabled){ragProvider(settings);if((settings.images||settings.audio)&&!multimodalEmbedding(settings.provider,settings.model))throw Error('This embedding model accepts text only');if(settings.ocr&&(!settings.ocrProvider||!settings.ocrModel))throw Error('Choose an OCR model first');if(settings.stt&&(!settings.sttProvider||!settings.sttModel))throw Error('Choose a global STT model before enabling transcription')}
   jobs.get(id)?.controller.abort();failures.delete(id);await put(id,RAG_ROOT+'settings.json',settings);await sessionFiles.rag(id,settings.enabled);const {rendererApplication}=await import('@/app/renderer-application');await rendererApplication.sessions.updateSessionHeader(id,header=>{if(!header)throw Error('Chat is unavailable');return {...header,settings:{...header.settings,sessionRagEnabled:settings.enabled}}})
   await vault().db.setSetting('rag:consent:'+id,consent(settings))
   const auto=await vault().db.getSetting<string[]>('rag:auto-sessions')||[];await vault().db.setSetting('rag:auto-sessions',[...auto.filter(value=>value!==id),...(settings.enabled&&settings.auto?[id]:[])])
@@ -40,8 +40,8 @@ export async function assertRagIndexSources(id:string){
 }
 export async function ragStatus(id:string){const settings=await loadRagSettings(id),parsed=RagIndexSchema.nullable().safeParse(await get(id,RAG_ROOT+'index.json'));return {settings,authorized:await ragAuthorized(id,settings),index:parsed.success?parsed.data:null,running:jobs.has(id),error:parsed.success?failures.get(id)?.error:'Invalid RAG index'}}
 async function engine(id:string,settings:RagSettings){
-  const saved=ragProvider(settings),authority=JSON.stringify([saved.host,saved.saved.apiKey,settings.ocr?settingsStore.getState().getSettings().providers?.[settings.ocrProvider]:null])
-  const check=async()=>{await vault().projects.assertSession(id);const current=await loadRagSettings(id),provider=ragProvider(current);if(!await ragAuthorized(id,current)||consent(current)!==consent(settings)||JSON.stringify([provider.host,provider.saved.apiKey,current.ocr?settingsStore.getState().getSettings().providers?.[current.ocrProvider]:null])!==authority)throw Error('RAG settings changed; start the operation again')}
+  const saved=ragProvider(settings),authority=JSON.stringify([saved.host,saved.saved.apiKey,settings.ocr?settingsStore.getState().getSettings().providers?.[settings.ocrProvider]:null,settings.stt?settingsStore.getState().getSettings().providers?.[settings.sttProvider]:null,settings.stt?settingsStore.getState().getSettings().speechCatalog:null])
+  const check=async()=>{await vault().projects.assertSession(id);const current=await loadRagSettings(id),provider=ragProvider(current);if(!await ragAuthorized(id,current)||consent(current)!==consent(settings)||JSON.stringify([provider.host,provider.saved.apiKey,current.ocr?settingsStore.getState().getSettings().providers?.[current.ocrProvider]:null,current.stt?settingsStore.getState().getSettings().providers?.[current.sttProvider]:null,current.stt?settingsStore.getState().getSettings().speechCatalog:null])!==authority)throw Error('RAG settings changed; start the operation again')}
   let snapshot:Awaited<ReturnType<typeof listSessionResources>>['items']|undefined
   const port:RagEnginePort={
     check,

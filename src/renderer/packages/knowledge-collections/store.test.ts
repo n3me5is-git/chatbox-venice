@@ -74,7 +74,7 @@ it('uses the optional LLM reranker only after collection opt-in, preserving prot
 
 it('keeps native multimodal retrieval instead of asking a text-only LLM to rank MIME placeholders',async()=>{
  const llmRerank=vi.fn(),f=await fixture({llmRerank,extract:async()=>({media:true})})
- await f.store.configure(f.id,'Photos',{...f.cfg,images:true},'test','small','llm');const bytes=new Uint8Array([1,2,3]);await f.store.add(f.id,{name:'photo.png',type:'image/png',size:3,arrayBuffer:async()=>bytes.buffer} as File);await f.store.index(f.id)
+ await f.store.configure(f.id,'Photos',{...f.cfg,provider:'gemini',images:true},'test','small','llm');const bytes=new Uint8Array([1,2,3]);await f.store.add(f.id,{name:'photo.png',type:'image/png',size:3,arrayBuffer:async()=>bytes.buffer} as File);await f.store.index(f.id)
  const found=await f.store.search(f.id,'photo');expect(found.matches).toHaveLength(1);expect(found).toHaveProperty('rerankWarning');expect(llmRerank).not.toHaveBeenCalled()
 })
 
@@ -92,7 +92,7 @@ it('keeps the last complete generation after invalid extraction and removes only
  analyze.mockRejectedValueOnce(Error('Extraction unavailable'));await expect(f.store.index(f.id,()=>{},true)).rejects.toThrow('unavailable');expect(await f.store.indexStatus(f.id)).toEqual(before);expect((await f.store.search(f.id,'Acme')).matches).toHaveLength(1)
 })
 it('retains OCR alongside native image vectors only after the separate media-text opt-in and never OCRs during preview',async()=>{
- const extract=vi.fn(async(_source:any,_bytes:any,cfg:any)=>cfg.images?{media:true}:{text:'Project Alpha has client Acme.',kind:'ocr' as const}),f=await fixture({extract,analyze:extractRelations}),cfg={...f.cfg,images:true,ocr:true,ocrProvider:'vision',ocrModel:'vision'},bytes=new Uint8Array([1,2,3]);await f.store.add(f.id,{name:'source.png',type:'image/png',size:3,arrayBuffer:async()=>bytes.buffer} as File)
+ const extract=vi.fn(async(_source:any,_bytes:any,cfg:any)=>cfg.images?{media:true}:{text:'Project Alpha has client Acme.',kind:'ocr' as const}),f=await fixture({extract,analyze:extractRelations}),cfg={...f.cfg,provider:'gemini',images:true,ocr:true,ocrProvider:'vision',ocrModel:'vision'},bytes=new Uint8Array([1,2,3]);await f.store.add(f.id,{name:'source.png',type:'image/png',size:3,arrayBuffer:async()=>bytes.buffer} as File)
  await f.store.configure(f.id,'Photos',cfg,undefined,undefined,undefined,{...advanced(),augmentation:{...advanced().augmentation,mediaText:true}});await f.store.index(f.id);expect(extract).toHaveBeenCalledTimes(1);const file=(await f.store.data(f.id)).files[0],parsed=await f.store.documentText(f.id,file.id);expect(parsed).toMatchObject({kind:'ocr',text:'Project Alpha has client Acme.'});expect(extract).toHaveBeenCalledTimes(1)
  await f.store.index(f.id);expect(extract).toHaveBeenCalledTimes(1)
 })
@@ -119,6 +119,11 @@ it('creates metadata source references only for matching source and text revisio
 it('does not pay embeddings or metadata extraction after removal or metadata-only source replacement',async()=>{
  const analyze=vi.fn(async()=>({summary:'Project',entities:[{name:'Acme',type:'client',quote:'Apollo has client Acme.'},{name:'Apollo',type:'project',quote:'Apollo has client Acme.'}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:'Apollo has client Acme.'}],tags:[]})),extract=vi.fn(async()=>({text:'Apollo has client Acme.'})),f=await fixture({analyze,extract}),fileId=await f.add('one.txt','raw-v1'),other=await f.add('two.txt','other-source')
  await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,'api',{augmentation:{enabled:true,model:{provider:'private',model:'extract'},keepMarkdown:true,mediaText:false,windowChars:8000},retrievalMode:'hybrid'});await f.store.index(f.id);f.embed.mockClear();analyze.mockClear()
- const bytes=new TextEncoder().encode('raw-v2');await f.store.replaceFile(f.id,fileId,{name:'one.txt',type:'text/plain',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File);const index=await f.store.index(f.id);expect(f.embed).not.toHaveBeenCalled();expect(analyze).not.toHaveBeenCalled();expect('metadata'in index&&index.metadata?.stats).toMatchObject({reboundDocuments:1})
+ const bytes=new TextEncoder().encode('raw-v2');await f.store.replaceFile(f.id,fileId,{name:'one.txt',type:'text/plain',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File);const index=await f.store.index(f.id);expect(f.embed).not.toHaveBeenCalled();expect(analyze).not.toHaveBeenCalled();expect((await f.store.metadata(f.id,{})).indexingStats).toMatchObject({reboundDocuments:1})
  await f.store.removeFile(f.id,other);expect(f.embed).not.toHaveBeenCalled();expect(analyze).not.toHaveBeenCalled();expect((await f.store.metadata(f.id,{})).results).toHaveLength(1)
+})
+
+it('forces Venice media settings to text while preserving independently opted-in OCR/STT',async()=>{
+ const f=await fixture();await f.store.configure(f.id,'Text embeddings',{...f.cfg,images:true,audio:true,ocr:true,ocrProvider:'vision',ocrModel:'private-ocr',stt:true,sttProvider:'venice',sttModel:'whisper'})
+ expect((await f.store.data(f.id)).settings).toMatchObject({images:false,audio:false,ocr:true,stt:true,ocrModel:'private-ocr',sttModel:'whisper'})
 })

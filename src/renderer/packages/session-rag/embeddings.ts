@@ -6,8 +6,26 @@ import type { RagInput } from '@shared/session-rag-engine'
 import { settingsStore } from '@/stores/settingsStore'
 import { apiRequest } from '@/utils/request'
 import {requireModelPrivacy} from '@shared/providers/definitions/models/venice/privacy'
-export function multimodalEmbedding(provider:string,model:string){const custom=settingsStore.getState().getSettings().customProviders?.find(item=>item.id===provider);return (provider==='gemini'||custom?.type===ModelProviderType.Gemini)&&/^gemini-embedding-2(?:$|-)/.test(model)}
-export function ragProvider(settings:RagSettings){const global=settingsStore.getState().getSettings(),definition=[...SystemProviders(),...(global.customProviders||[])].find(p=>p.id===settings.provider),saved=global.providers?.[settings.provider];if(!definition||!saved?.apiKey||!settings.model||settings.provider==='venice'&&saved.venice?.enabled===false)throw Error('Configure the selected embedding provider first');if(![ModelProviderType.OpenAI,ModelProviderType.Gemini].includes(definition.type))throw Error('Choose an OpenAI-compatible or Gemini embedding provider');if(settings.provider==='venice')requireModelPrivacy(saved.models?.find(model=>model.modelId===settings.model)?.vendorMetadata,saved.venice?.privacyFilter);return {definition,saved,host:saved.apiHost||definition.defaultSettings?.apiHost||''}}
+export type EmbeddingModality='text'|'image'|'audio'|'video'|'document'
+export interface RagEmbeddingAdapter{
+ id:string
+ supports(providerId:string,modelId:string,providerType:ModelProviderType):boolean
+ modalities:readonly EmbeddingModality[]
+ request(inputs:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal,context:{apiHost:string;apiKey:string;providerType:ModelProviderType}):Promise<number[][]>
+}
+const extensions=new Map<string,RagEmbeddingAdapter>()
+/** Trusted, code-registered transports. Never infer a wire format from a model name. */
+export function registerRagEmbeddingAdapter(adapter:RagEmbeddingAdapter){if(!adapter.id||extensions.has(adapter.id))throw Error('Embedding adapter is already registered');extensions.set(adapter.id,adapter);return()=>{if(extensions.get(adapter.id)===adapter)extensions.delete(adapter.id)}}
+const adapterFor=(provider:string,model:string,type:ModelProviderType)=>provider==='venice'?undefined:[...extensions.values()].find(adapter=>adapter.supports(provider,model,type))
+export function embeddingMediaSupport(provider:string,model:string){
+ if(provider==='venice')return {image:false,audio:false}
+ const custom=[...SystemProviders(),...(settingsStore.getState().getSettings().customProviders||[])].find(item=>item.id===provider),type=custom?.type||(provider==='gemini'?ModelProviderType.Gemini:ModelProviderType.OpenAI),adapter=adapterFor(provider,model,type)
+ if(adapter)return {image:adapter.modalities.includes('image'),audio:adapter.modalities.includes('audio')}
+ const google=type===ModelProviderType.Gemini&&/^gemini-embedding-2(?:$|-)/.test(model)
+ return {image:google,audio:google}
+}
+export function multimodalEmbedding(provider:string,model:string){const support=embeddingMediaSupport(provider,model);return support.image||support.audio}
+export function ragProvider(settings:RagSettings){const global=settingsStore.getState().getSettings(),definition=[...SystemProviders(),...(global.customProviders||[])].find(p=>p.id===settings.provider),saved=global.providers?.[settings.provider];if(!definition||!saved?.apiKey||!settings.model||settings.provider==='venice'&&saved.venice?.enabled===false)throw Error('Configure the selected embedding provider first');if(![ModelProviderType.OpenAI,ModelProviderType.Gemini].includes(definition.type)&&!adapterFor(settings.provider,settings.model,definition.type))throw Error('Choose an OpenAI-compatible or Gemini embedding provider');if(settings.provider==='venice')requireModelPrivacy(saved.models?.find(model=>model.modelId===settings.model)?.vendorMetadata,saved.venice?.privacyFilter);return {definition,saved,host:saved.apiHost||definition.defaultSettings?.apiHost||''}}
 const encode=(data:Uint8Array)=>{let value='';for(const byte of data)value+=String.fromCharCode(byte);return btoa(value)}
 async function mediaPart(input:RagInput,signal:AbortSignal){
   if(!input.data||!input.mime)throw Error('Invalid embedding input')
@@ -19,6 +37,9 @@ async function mediaPart(input:RagInput,signal:AbortSignal){
 export async function requestRagEmbeddings(inputs:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal){
   const {definition,saved,host}=ragProvider(settings)
   try{
+    if(settings.provider==='venice'&&inputs.some(input=>input.text===undefined))throw Error('Venice embeddings require text. Enable OCR or transcription for media.')
+    const extension=adapterFor(settings.provider,settings.model,definition.type)
+    if(extension){for(const input of inputs){const modality:EmbeddingModality=input.text!==undefined?'text':input.mime?.startsWith('image/')?'image':input.mime?.startsWith('audio/')?'audio':input.mime?.startsWith('video/')?'video':'document';if(!extension.modalities.includes(modality))throw Error('This embedding transport does not support the selected modality')}signal.throwIfAborted();const result=await extension.request(inputs,query,settings,signal,{apiHost:host,apiKey:saved.apiKey!,providerType:definition.type});signal.throwIfAborted();return result}
     if(definition.type===ModelProviderType.Gemini){
       const vectors:number[][]=[]
       for(const input of inputs){signal.throwIfAborted();if(input.data&&!multimodalEmbedding(settings.provider,settings.model))throw Error('This embedding model accepts text only')

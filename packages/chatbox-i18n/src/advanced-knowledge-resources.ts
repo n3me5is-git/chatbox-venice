@@ -1,4 +1,9 @@
 export const advancedKnowledgeItalian:Record<string,string>={
+"Use text embeddings for media":"Usa embedding testuali per i contenuti multimediali",
+"Venice currently accepts text embeddings only. Images use OCR and audio uses transcription when enabled below. Without extraction, those media are not indexed; they are never sent as base64 text.":"Venice attualmente accetta solo embedding testuali. Se abilitate qui sotto, le immagini passano da OCR e l’audio da trascrizione. Senza estrazione questi contenuti non vengono indicizzati e non sono mai inviati come testo base64.",
+"Venice embeddings require text. Enable OCR or transcription for media.":"Gli embedding Venice richiedono testo. Abilita OCR o trascrizione per i contenuti multimediali.",
+"This embedding transport does not support the selected modality":"Questo trasporto di embedding non supporta la modalità selezionata",
+"I allow the selected embedding/OCR/STT providers to process the enabled content. Their privacy level may differ from this chat model.":"Consento ai provider selezionati per embedding/OCR/STT di elaborare i contenuti abilitati. Il loro livello di privacy può differire da quello del modello della chat.",
 "Last index update":"Ultimo aggiornamento dell’indice",
 "new embeddings":"nuovi embedding",
 "reused passages":"passaggi riutilizzati",
