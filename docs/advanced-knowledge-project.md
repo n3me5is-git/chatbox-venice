@@ -2,6 +2,8 @@
 
 Status: implementation in progress. Existing encrypted and legacy collections keep their native behavior unless a feature is explicitly enabled. This document is the delivery map, not a statement that every item below has shipped.
 
+First milestone is developed in [draft PR #19](https://github.com/n3me5is-git/chatbox-venice/pull/19): optional collection LLM reranking and explicit vector reindexing. The augmentation engine is an independently tested foundation, not yet connected to collection indexing, graph UI or answer fact checking. No new release is claimed by this project document.
+
 ## Product goals
 
 Optional LLM reranking; source-linked relational metadata and summaries; hybrid retrieval across selected collections; exact citations with context; optional pre-publication answer verification; a mobile-friendly knowledge graph; uploaded sources or explicitly linked read-only directories. English UI fallback and Italian translations. No extra local server, Python environment, graph service or mandatory native dependency.

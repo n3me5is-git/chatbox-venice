@@ -63,3 +63,11 @@ it('does not silently resolve same-name entities with conflicting types to one r
  const f=fixture();f.extract.mockResolvedValue({summary:'',entities:[{name:'Acme',type:'client',quote:'Apollo has client Acme.'},{name:'Acme',type:'company',quote:'Apollo has client Acme.'},{name:'Apollo',type:'project',quote:'Apollo has client Acme.'}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:'Apollo has client Acme.'}],tags:[]})
  await expect(f.engine.index([await doc('a','Apollo has client Acme.')],settings,new AbortController().signal)).rejects.toThrow('ungrounded')
 })
+
+it('paginates document details rather than returning every entity in a long document',async()=>{
+ const f=fixture(),text='Apollo has client Acme.\n'.repeat(400),source=await doc('long',text);f.revisions.set('long',source.sourceHash)
+ f.extract.mockImplementation(async window=>({summary:'',entities:Array.from({length:32},()=>({name:'Acme',type:'client',quote:window.slice(0,22)})),relations:[],tags:[]}))
+ await f.engine.index([source],settings,new AbortController().signal)
+ const first=await f.engine.query({fileId:'long'},new AbortController().signal);expect(first.results[0].entities).toHaveLength(10);expect(first.results[0].nextDetailOffset).toBe(10);expect(first.responseBytes).toBeLessThan(256*1024)
+ const second=await f.engine.query({fileId:'long',rowOffset:10},new AbortController().signal);expect(second.results[0].entities).toHaveLength(10)
+})
