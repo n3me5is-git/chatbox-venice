@@ -162,7 +162,8 @@ export class KnowledgeCollections {
   async citeChunks(id:number,requested:{fileId:number;chunkIndex:number;text:string}[]){return this.read(id,async()=>{
     if(requested.length>20)throw Error('Request at most 20 passages');const data=await this.data(id),index=await this.indexStatus(id),neighbors=requested.flatMap(item=>[item.chunkIndex-1,item.chunkIndex,item.chunkIndex+1].filter(n=>n>=0).map(chunkIndex=>({fileId:item.fileId,chunkIndex}))),rows=await this.readChunks(id,data,index,neighbors,64),hashes=new Map<number,string>(),references=[]
     for(const item of requested){const row=rows.find(row=>row.fileId===item.fileId&&row.chunkIndex===item.chunkIndex),file=data.files.find(file=>file.id===item.fileId);if(!row||!file||row.text!==item.text)throw Error('Knowledge index changed; repeat the search');if(!row.text.trim())continue
-      if(!hashes.has(file.id))hashes.set(file.id,await this.fileRevision(id,file)||'')if(hashes.get(file.id)!==row.chunk.sourceHash)throw Error('Knowledge source changed; reindex this collection')
+      if(!hashes.has(file.id))hashes.set(file.id,await this.fileRevision(id,file)||'');
+      if(hashes.get(file.id)!==row.chunk.sourceHash)throw Error('Knowledge source changed; reindex this collection')
       const reference=await this.evidence(id,{collectionId:id,fileId:file.id,name:file.name,mime:file.mime,sourceHash:row.chunk.sourceHash,quote:row.text,before:rows.find(part=>part.fileId===file.id&&part.chunkIndex===item.chunkIndex-1)?.text||'',after:rows.find(part=>part.fileId===file.id&&part.chunkIndex===item.chunkIndex+1)?.text||'',line:row.chunk.line,endLine:row.chunk.endLine,page:row.chunk.page});references.push({fileId:file.id,chunkIndex:item.chunkIndex,...reference})
     }await this.assert(id);return references
   })}
