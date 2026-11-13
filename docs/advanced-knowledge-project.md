@@ -2,7 +2,7 @@
 
 Status: implementation in progress. Existing encrypted and legacy collections keep their native behavior unless a feature is explicitly enabled. This document is the delivery map, not a statement that every item below has shipped.
 
-First milestone is developed in [draft PR #19](https://github.com/n3me5is-git/chatbox-venice/pull/19): optional collection LLM reranking and explicit vector reindexing. The augmentation engine is an independently tested foundation, not yet connected to collection indexing, graph UI or answer fact checking. No new release is claimed by this project document.
+Development is tracked in [draft PR #19](https://github.com/n3me5is-git/chatbox-venice/pull/19). Integrated: optional collection LLM reranking, BM25/vector rank fusion, atomic encrypted vector/metadata/text generations, OCR/STT derivatives, incremental source replacement and deletion. Source-linked chat citations, owner-authenticated excerpt viewer, paginated metadata/source tools and a bounded touch graph explorer are now under integration checks. Multi-collection federation, linked collection directories and pre-publication fact checking remain subsequent milestones. No new release is claimed by this document.
 
 ## Product goals
 
@@ -74,3 +74,11 @@ Render only a bounded selected subgraph, not thousands of DOM nodes. Search by n
 ## Performance and privacy criteria
 
 One document/window in memory during extraction, bounded candidate windows, serial background indexing by default, cooperative yields and abort checks. No graph-wide LLM work during ordinary search. Cache unchanged source revisions. Derived text/graph share source protection and backup/cleanup policies. No new runtime dependencies or workstation build installs. Record benchmark machine and fixture size; simulated-model timing cannot establish real provider speed or factual accuracy. Real model probes require an active authorized test key and a stated cost cap.
+
+## Live diagnostics — 13 November 2026
+
+The optional Actions-built driver was run locally with a temporary runtime-only Venice credential and synthetic documents. Private Qwen3 Embedding 8B returned 4096-dimensional vectors. Semantic and hybrid retrieval each ranked the expected document first for six small fixture questions; this does not establish large-corpus retrieval quality. Private Mistral Small extracted source-anchored project/client metadata and correctly reranked the conflicting policy candidates. The first extraction exposed pronoun-only relation quotes; the extraction instruction now requires a contiguous span containing both endpoint names, unsupported edges are excluded with warnings, and the second real run completed with zero omitted edges.
+
+A separate Nemotron multimodal probe failed with HTTP 400 because the Venice endpoint rejected the documented NVIDIA modality/input_type parameters. A multimodal model label alone is not treated as proof that the Venice transport supports image embeddings. Existing supported native multimodal adapters remain independent from OCR/STT opt-ins.
+
+Citations persist encrypted, exact source-revision receipts with adjacent context. Source replacement leaves historical excerpts visibly stale; source deletion removes its receipts. The graph computes one bounded deterministic layout (150 nodes/300 edges) and retains at most 48 response rows, without an animation loop. None of these provenance indicators is an answer-verification verdict.

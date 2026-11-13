@@ -1,3 +1,4 @@
+import {KnowledgeEvidenceSchema,knowledgeEvidenceId,knowledgeEvidenceUrl,type KnowledgeEvidence} from '@shared/knowledge-evidence'
 import {KnowledgeAccessGate} from './access-gate'
 import {AugmentedCollectionIndex,KnowledgeStateSchema,type KnowledgeState} from './augmented'
 import {KnowledgeAugmentationSchema,type KnowledgeAugmentation} from '@shared/knowledge-augmentation'
@@ -24,6 +25,7 @@ export class KnowledgeCollections {
   private json:VaultJsonRecords
   private jobs=new Map<number,AbortController>()
   private gates=new Map<number,KnowledgeAccessGate>()
+  private evidenceWrites=new Map<string,Promise<KnowledgeEvidence>>()
   private gate(id:number){let gate=this.gates.get(id);if(!gate){gate=new KnowledgeAccessGate();this.gates.set(id,gate)}return gate}
   private async read<T>(id:number,work:()=>Promise<T>):Promise<T>{if(typeof navigator!=='undefined'&&navigator.locks)return await navigator.locks.request('chatbox-kb-read:'+id,{mode:'shared'},work);return await this.gate(id).read(work)}
   private async publish<T>(id:number,work:()=>Promise<T>):Promise<T>{if(typeof navigator!=='undefined'&&navigator.locks)return await navigator.locks.request('chatbox-kb-read:'+id,work);return await this.gate(id).publish(work)}
@@ -73,14 +75,14 @@ export class KnowledgeCollections {
     await this.publish(id,async()=>{await this.save(id,{...data,files:data.files.filter(item=>item.id!==fileId)});const entry=await this.assert(id),raw=await this.json.get(prefix(id)+'.chatbox/knowledge/state.json'),state=raw?KnowledgeStateSchema.parse(raw):null,native=await this.nativeIndex(id),garbage=new Set<string>()
       if(native){for(const item of native.files)if(item.path===file.path)for(const alias of item.shards)garbage.add(alias);await this.json.set(prefix(id)+RAG_ROOT+'index.json',{...native,updated:Date.now(),files:native.files.filter(item=>item.path!==file.path),errors:native.errors.filter(item=>item.path!==file.path)},entry.scope)}
       if(state){for(const item of state.vector.files)if(item.path===file.path)for(const alias of item.shards)garbage.add(alias);for(const ref of state.metadata?.files||[])if(ref.fileId===String(fileId))garbage.add(ref.alias);for(const ref of state.derivatives)if(ref.fileId===String(fileId))garbage.add(ref.alias);const next={...state,revision:crypto.randomUUID(),vector:{...state.vector,updated:Date.now(),files:state.vector.files.filter(item=>item.path!==file.path),errors:state.vector.errors.filter(item=>item.path!==file.path)},metadata:state.metadata?{...state.metadata,files:state.metadata.files.filter(item=>item.fileId!==String(fileId))}:null,derivatives:state.derivatives.filter(item=>item.fileId!==String(fileId))};await this.json.set(prefix(id)+'.chatbox/knowledge/state.json',next,entry.scope)}
-      await this.vault.assets.remove(file.alias);for(const alias of garbage)await this.json.remove(prefix(id)+alias).catch(()=>{});if(data.files.length===1)await this.clearDerived(id)
+      for(const alias of await this.assetAliases(id))if(alias.startsWith(prefix(id)+'.chatbox/knowledge/evidence/'+fileId+'/'))await this.json.remove(alias);await this.vault.assets.remove(file.alias);for(const alias of garbage)await this.json.remove(prefix(id)+alias).catch(()=>{});if(data.files.length===1)await this.clearDerived(id)
     })
   })}
   private async assetAliases(id:number){const aliases:string[]=[];for await(const header of this.vault.db.all())if(header.alias?.startsWith(prefix(id)))aliases.push(header.alias);return aliases}
   private async clearDerived(id:number){await this.assert(id);for(const alias of await this.assetAliases(id))if(alias.startsWith(prefix(id)+RAG_ROOT)||alias.startsWith(prefix(id)+'.chatbox/knowledge/'))await this.vault.assets.remove(alias)}
-  async clearIndex(id:number){return this.serial(async()=>{if(this.jobs.has(id))throw Error('Stop indexing before clearing the index');await this.clearDerived(id)})}
-  async remove(id:number){return this.serial(async()=>{if(this.jobs.has(id))throw Error('Stop indexing before deleting this collection');await this.assert(id);for(const alias of await this.assetAliases(id))await this.vault.assets.remove(alias);await this.vault.db.setSetting(REGISTRY,(await this.registry()).filter(item=>item.id!==id))})}
-  async protect(id:number,mode:'none'|'app'|'dedicated',options:{pin?:string;biometric?:boolean}={}){return this.serial(async()=>{
+  async clearIndex(id:number){return this.serial(async()=>{if(this.jobs.has(id))throw Error('Stop indexing before clearing the index');await this.publish(id,()=>this.clearDerived(id))})}
+  async remove(id:number){return this.serial(()=>this.publish(id,async()=>{if(this.jobs.has(id))throw Error('Stop indexing before deleting this collection');await this.assert(id);for(const alias of await this.assetAliases(id))await this.vault.assets.remove(alias);await this.vault.db.setSetting(REGISTRY,(await this.registry()).filter(item=>item.id!==id))}))}
+  async protect(id:number,mode:'none'|'app'|'dedicated',options:{pin?:string;biometric?:boolean}={}){return this.serial(()=>this.publish(id,async()=>{
     if(this.jobs.has(id))throw Error('Stop indexing before changing this collection');const entry=await this.assert(id);let scope='public'
     if(mode==='app'){scope='app';await this.vault.keys.key(scope)}
     if(mode==='dedicated'){scope='knowledge:'+id;const status=await this.vault.keys.status(scope);if(options.pin||options.biometric!==undefined)await this.vault.keys.configure(scope,{pin:options.pin,biometric:!!options.biometric,keepPin:status.pin&&!options.pin});else if(status.configured)await this.vault.keys.key(scope);else throw Error('Choose at least one unlock method')}
@@ -89,7 +91,7 @@ export class KnowledgeCollections {
     await replace({...entry,pendingScopes:[...new Set([entry.scope,scope,...entry.pendingScopes||[]])]})
     for(const alias of await this.assetAliases(id))await this.vault.assets.rewrap(alias,scope)
     await replace({...entry,scope,pendingScopes:undefined});this.vault.keys.refresh()
-  })}
+  }))}
   async lock(id:number){const entry=await this.entry(id);if(entry.scope!=='public')this.vault.keys.lock(entry.scope);this.jobs.get(id)?.abort()}
   running(id:number){return this.jobs.has(id)}
   hasActiveJobs(){return this.jobs.size>0}
@@ -121,10 +123,10 @@ export class KnowledgeCollections {
   })}
   private async nativeIndex(id:number){await this.assert(id);const raw=await this.json.get(prefix(id)+RAG_ROOT+'index.json');return raw?RagIndexSchema.parse(raw):null}
   async indexStatus(id:number){await this.assert(id);const raw=await this.json.get(prefix(id)+'.chatbox/knowledge/state.json');if(!raw)return this.nativeIndex(id);const state=KnowledgeStateSchema.parse(raw),data=await this.data(id);return {...state.vector,files:state.vector.files.map(file=>{const source=data.files.find(source=>source.path===file.path),metadata=state.metadata?.files.find(item=>item.fileId===String(source?.id));return metadata?.warningCount?{...file,warning:'Some extracted relations were excluded because their evidence was insufficient'}:file})}}
-  private async readChunks(id:number,data:CollectionData,index:Awaited<ReturnType<KnowledgeCollections['indexStatus']>>,requested:{fileId:number;chunkIndex:number}[]|Set<string>){
-    await this.assert(id);if(requested instanceof Set?requested.size>20:requested.length>20)throw Error('Request at most 20 passages');if(!index)return [];const result:{fileId:number;filename:string;chunkIndex:number;text:string;chunk:RagChunk}[]=[]
+  private async readChunks(id:number,data:CollectionData,index:Awaited<ReturnType<KnowledgeCollections['indexStatus']>>,requested:{fileId:number;chunkIndex:number}[]|Set<string>,maximum=20){
+    await this.assert(id);if(requested instanceof Set?requested.size>maximum:requested.length>maximum)throw Error('Request at most 20 passages');if(!index)return [];const result:{fileId:number;filename:string;chunkIndex:number;text:string;chunk:RagChunk}[]=[]
     for(const file of data.files){if(!(requested instanceof Set)&&!requested.some(item=>item.fileId===file.id))continue;const indexed=index.files.find(item=>item.path===file.path);let at=0
-      for(const path of indexed?.shards||[]){await this.assert(id);const raw=await this.json.get<unknown[]>(prefix(id)+path);for(const value of raw||[]){const chunk=RagChunkSchema.parse(value),chunkIndex=at++;if(requested instanceof Set?requested.has(chunk.id):requested.some(item=>item.fileId===file.id&&item.chunkIndex===chunkIndex))result.push({fileId:file.id,filename:file.name,chunkIndex,text:chunk.text,chunk})}}
+      for(const [shardIndex,path] of (indexed?.shards||[]).entries()){at=shardIndex*32;if(!(requested instanceof Set)&&!requested.some(item=>item.fileId===file.id&&item.chunkIndex>=at&&item.chunkIndex<at+32))continue;await this.assert(id);const raw=await this.json.get<unknown[]>(prefix(id)+path);if(!Array.isArray(raw)||raw.length>32)throw Error('Invalid RAG index');for(const value of raw){const chunk=RagChunkSchema.parse(value),chunkIndex=at++;if(chunk.path!==file.path||chunk.sourceHash!==indexed?.hash)throw Error('Invalid RAG index');if(requested instanceof Set?requested.has(chunk.id):requested.some(item=>item.fileId===file.id&&item.chunkIndex===chunkIndex))result.push({fileId:file.id,filename:file.name,chunkIndex,text:chunk.text,chunk})}}
     }await this.assert(id);return result
   }
   async chunks(id:number,requested:{fileId:number;chunkIndex:number}[]|Set<string>){return this.read(id,async()=>this.readChunks(id,await this.data(id),await this.indexStatus(id),requested))}
@@ -135,6 +137,27 @@ export class KnowledgeCollections {
       // Viewer reads never start OCR/STT or other paid requests implicitly.
       const result=await this.adapters.extract(file,bytes,{...data.settings,images:false,audio:false,ocr:false,stt:false},signal);signal.throwIfAborted();await this.assert(id);if(result.text===undefined)throw Error('Reindex this collection to retain its OCR or transcript');const text=result.text.replace(/\r\n?/g,'\n');return {version:1 as const,text,sourceHash,textHash:await ragHash(new TextEncoder().encode(text)),kind:'parsed' as const,name:file.name,mime:file.mime}
     }finally{bytes.fill(0)}
+  })}
+  async toolCapabilities(id:number){const entry=await this.entry(id);await this.vault.projects.assertApp();if([entry.scope,...entry.pendingScopes||[]].some(scope=>!this.vault.keys.isUnlocked(scope)))return {advanced:false,locked:true};const data=await this.data(id);return {advanced:!!data.augmentation?.enabled,locked:false}}
+  private async evidence(id:number,input:Omit<KnowledgeEvidence,'id'|'version'|'created'>){
+    const identity=await knowledgeEvidenceId(input),key=prefix(id)+'.chatbox/knowledge/evidence/'+input.fileId+'/'+identity+'.json';let work=this.evidenceWrites.get(key)
+    if(!work){work=(async()=>{await this.assert(id);const existing=await this.json.get(key);if(existing){const record=KnowledgeEvidenceSchema.parse(existing);if(record.id!==identity||record.collectionId!==id||record.fileId!==input.fileId||await knowledgeEvidenceId(record)!==identity)throw Error('Invalid knowledge reference');return record}const entry=await this.assert(id),record=KnowledgeEvidenceSchema.parse({...input,id:identity,version:1,created:Date.now()});await this.json.set(key,record,entry.scope);await this.assert(id);return record})();this.evidenceWrites.set(key,work);void work.finally(()=>this.evidenceWrites.delete(key)).catch(()=>{})}const record=await work;await this.assert(id);return {id:record.id,url:knowledgeEvidenceUrl(id,record.fileId,record.id)}
+  }
+  async citeChunks(id:number,requested:{fileId:number;chunkIndex:number;text:string}[]){return this.read(id,async()=>{
+    if(requested.length>20)throw Error('Request at most 20 passages');const data=await this.data(id),index=await this.indexStatus(id),neighbors=requested.flatMap(item=>[item.chunkIndex-1,item.chunkIndex,item.chunkIndex+1].filter(n=>n>=0).map(chunkIndex=>({fileId:item.fileId,chunkIndex}))),rows=await this.readChunks(id,data,index,neighbors,64),hashes=new Map<number,string>(),references=[]
+    for(const item of requested){const row=rows.find(row=>row.fileId===item.fileId&&row.chunkIndex===item.chunkIndex),file=data.files.find(file=>file.id===item.fileId);if(!row||!file||row.text!==item.text)throw Error('Knowledge index changed; repeat the search');if(!row.text.trim())continue
+      if(!hashes.has(file.id)){const bytes=await this.source(id,file.path);try{hashes.set(file.id,await ragHash(bytes))}finally{bytes.fill(0)}}if(hashes.get(file.id)!==row.chunk.sourceHash)throw Error('Knowledge source changed; reindex this collection')
+      const reference=await this.evidence(id,{collectionId:id,fileId:file.id,name:file.name,mime:file.mime,sourceHash:row.chunk.sourceHash,quote:row.text,before:rows.find(part=>part.fileId===file.id&&part.chunkIndex===item.chunkIndex-1)?.text||'',after:rows.find(part=>part.fileId===file.id&&part.chunkIndex===item.chunkIndex+1)?.text||'',line:row.chunk.line,endLine:row.chunk.endLine,page:row.chunk.page});references.push({fileId:file.id,chunkIndex:item.chunkIndex,...reference})
+    }await this.assert(id);return references
+  })}
+  async citeAnchors(id:number,requested:{fileId:number;sourceHash:string;textHash:string;start:number;end:number}[],signal=new AbortController().signal){
+    if(requested.length>8)throw Error('Request at most 8 source excerpts');const groups=new Map<number,typeof requested>();for(const item of requested){if(!Number.isSafeInteger(item.start)||!Number.isSafeInteger(item.end)||item.start<0||item.end<=item.start||item.end-item.start>8000)throw Error('Invalid source excerpt range');const group=groups.get(item.fileId)||[];group.push(item);groups.set(item.fileId,group)}const references=[]
+    for(const [fileId,items] of groups){const document=await this.documentText(id,fileId,signal);await this.read(id,async()=>{const data=await this.data(id),file=data.files.find(file=>file.id===fileId);if(!file)throw Error('Knowledge document not found');const bytes=await this.source(id,file.path);try{if(await ragHash(bytes)!==document.sourceHash)throw Error('Knowledge source changed; reindex this collection')}finally{bytes.fill(0)}
+      for(const item of items){signal.throwIfAborted();if(item.sourceHash!==document.sourceHash||item.textHash!==document.textHash||item.end>document.text.length)throw Error('Knowledge source changed; reindex this collection');const quote=document.text.slice(item.start,item.end),line=document.text.slice(0,item.start).split('\n').length,reference=await this.evidence(id,{collectionId:id,fileId,name:file.name,sourceHash:document.sourceHash,textHash:document.textHash,start:item.start,end:item.end,quote,before:document.text.slice(Math.max(0,item.start-2000),item.start),after:document.text.slice(item.end,item.end+2000),line,endLine:line+quote.split('\n').length-1});references.push({...reference,fileId,quote,sourceHash:document.sourceHash,textHash:document.textHash,start:item.start,end:item.end})}await this.assert(id)
+    })}return references
+  }
+  async readEvidence(id:number,fileId:number,identity:string){return this.read(id,async()=>{
+    if(!/^[a-f0-9]{64}$/.test(identity)||!Number.isSafeInteger(fileId)||fileId<1)throw Error('Invalid knowledge reference');const data=await this.data(id),file=data.files.find(file=>file.id===fileId);if(!file)throw Error('Knowledge document not found');const raw=await this.json.get(prefix(id)+'.chatbox/knowledge/evidence/'+fileId+'/'+identity+'.json'),record=KnowledgeEvidenceSchema.parse(raw);if(record.id!==identity||record.collectionId!==id||record.fileId!==fileId||await knowledgeEvidenceId(record)!==identity)throw Error('This knowledge reference is no longer available');const bytes=await this.source(id,file.path);let stale;try{stale=await ragHash(bytes)!==record.sourceHash}finally{bytes.fill(0)}await this.assert(id);return {...record,stale}
   })}
   /** Recreate collections from an authenticated library backup, with fresh identities.
    * Only source files are restored. Derived vectors are rebuilt after device-local consent. */

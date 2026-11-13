@@ -1,3 +1,4 @@
+import {parseKnowledgeEvidenceUrl} from '@shared/knowledge-evidence'
 import { sanitizeUrl } from '@braintree/sanitize-url'
 import { useTheme } from '@mui/material'
 import type { Code, Root } from 'mdast'
@@ -207,6 +208,9 @@ function Markdown(props: {
               // Models sometimes hand-write sandbox "download links" (sandbox:/mnt/data/...)
               // instead of calling create_download. Those hrefs are dead — render a file
               // chip that rescues the file from the session sandbox instead.
+              const knowledgeReference=parseKnowledgeEvidenceUrl(href)
+              if(knowledgeReference)return <a href={href} onClick={event=>{event.preventDefault();event.stopPropagation();void import('@/components/knowledge-base/KnowledgeEvidence').then(({openKnowledgeEvidence})=>openKnowledgeEvidence(knowledgeReference)).catch(()=>{})}}>{linkChildren}</a>
+              if(/^https?:\/\/(?:[^/]*@)?chatbox\.invalid(?:[/:]|$)/i.test(href||''))return <span>{linkChildren}</span>
               const chatReference=/^chatbox:chat\/([a-zA-Z0-9_-]{1,100})$/.exec(href||'')
               if(chatReference)return <a href="#" onClick={event=>{event.preventDefault();event.stopPropagation();void import('@/router').then(({router})=>router.navigate({to:'/session/$sessionId',params:{sessionId:chatReference[1]}}))}}>{linkChildren}</a>
               const sandboxTarget = parseSandboxLinkHref(href)

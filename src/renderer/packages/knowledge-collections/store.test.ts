@@ -100,3 +100,18 @@ it('deletes only one document from vector and graph generations without re-embed
  const f=await fixture({analyze:extractRelations});await f.add('alpha.md','Project Alpha has client Acme.');await f.add('beta.md','Project Beta has client Nova.');await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,undefined,advanced());await f.store.index(f.id);const [first]=(await f.store.data(f.id)).files;f.embed.mockClear();await f.store.removeFile(f.id,first.id)
  expect((await f.store.indexStatus(f.id))?.files).toHaveLength(1);expect((await f.store.metadata(f.id,{type:'client'})).results.flatMap(row=>row.entities.map(entity=>entity.name))).toEqual(['Nova']);expect(f.embed).not.toHaveBeenCalled()
 })
+
+it('stores stable encrypted citation receipts with context, detects changed sources and removes receipts with their file',async()=>{
+ const f=await fixture(),fileId=await f.add('manual.txt','Confidential payment instructions.'),other=await f.add('other.txt','Another document.');await f.store.index(f.id)
+ const chunks=await f.store.chunks(f.id,[{fileId,chunkIndex:0}]),refs=await f.store.citeChunks(f.id,chunks),again=await f.store.citeChunks(f.id,chunks)
+ expect(refs).toEqual(again);const evidence=await f.store.readEvidence(f.id,fileId,refs[0].id);expect(evidence).toMatchObject({quote:'Confidential payment instructions.',stale:false,name:'manual.txt'})
+ expect(JSON.stringify([...f.blobs])).not.toContain('Confidential');expect((await f.db.aliases()).filter(alias=>alias.includes('/evidence/'))).toHaveLength(1)
+ await expect(f.store.readEvidence(f.id,other,refs[0].id)).rejects.toThrow();await f.store.protect(f.id,'dedicated',{pin:'123456'});await f.store.lock(f.id);await expect(f.store.readEvidence(f.id,fileId,refs[0].id)).rejects.toThrow('Unlock');await f.store.authorize(f.id)
+ const bytes=new TextEncoder().encode('Changed document.');await f.store.replaceFile(f.id,fileId,{name:'manual.txt',type:'text/plain',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File)
+ expect(await f.store.readEvidence(f.id,fileId,refs[0].id)).toMatchObject({quote:'Confidential payment instructions.',stale:true});await expect(f.store.citeChunks(f.id,chunks)).rejects.toThrow('changed')
+ await f.store.removeFile(f.id,fileId);expect((await f.db.aliases()).filter(alias=>alias.includes('/evidence/'))).toHaveLength(0);await expect(f.store.readEvidence(f.id,fileId,refs[0].id)).rejects.toThrow('not found')
+})
+it('creates metadata source references only for matching source and text revisions, without provider calls on preview',async()=>{
+ const f=await fixture(),fileId=await f.add('source.txt','Project Aurora has client Acme.'),document=await f.store.documentText(f.id,fileId),input={fileId,sourceHash:document.sourceHash,textHash:document.textHash,start:0,end:31}
+ const refs=await f.store.citeAnchors(f.id,[input]);expect(refs[0].quote).toBe('Project Aurora has client Acme.');expect(f.embed).not.toHaveBeenCalled();await expect(f.store.citeAnchors(f.id,[{...input,textHash:'a'.repeat(64)}])).rejects.toThrow('changed');await expect(f.store.citeAnchors(f.id,[{...input,end:9000}])).rejects.toThrow('range')
+})

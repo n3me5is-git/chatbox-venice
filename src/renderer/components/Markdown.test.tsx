@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+const knowledgeOpen=vi.hoisted(()=>vi.fn())
+vi.mock('@/components/knowledge-base/KnowledgeEvidence',()=>({openKnowledgeEvidence:knowledgeOpen}))
 
 import { MantineProvider } from '@mantine/core'
 import type { ReactNode } from 'react'
@@ -376,4 +378,8 @@ describe('Markdown sandbox file links', () => {
     expect(screen.queryByText(/Save dialog cancelled/)).toBeNull()
     expect(screen.queryByText(/File no longer available/)).toBeNull()
   })
+})
+
+it('opens canonical knowledge citations locally and does not navigate reserved invalid links',async()=>{
+ const url='https://chatbox.invalid/knowledge/-1/10/'+'a'.repeat(64);render(<Markdown>{'[source]('+url+') [invalid](https://chatbox.invalid/knowledge/bad)'}</Markdown>);fireEvent.click(screen.getByRole('link',{name:'source'}));await waitFor(()=>expect(knowledgeOpen).toHaveBeenCalledWith({collectionId:-1,fileId:10,id:'a'.repeat(64)}));expect(screen.queryByRole('link',{name:'invalid'})).toBeNull()
 })
