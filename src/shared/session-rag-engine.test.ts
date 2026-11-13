@@ -54,3 +54,9 @@ it('does not destroy a committed index when deleting an obsolete shard fails',as
 it('stops at the first storage failure instead of paying to embed the remaining files',async()=>{
  const f=fixture();f.port.put=async()=>{throw Error('Storage full')};await expect(f.engine.index(f.settings,f.signal.signal)).rejects.toThrow('Storage full');expect(f.embed).toHaveBeenCalledOnce();expect(f.db.size).toBe(0)
 })
+
+it('explicitly rebuilds unchanged documents while default indexing keeps its incremental behavior',async()=>{
+ const f=fixture();const first=await f.engine.index(f.settings,f.signal.signal);await f.engine.index(f.settings,f.signal.signal);expect(f.embed).toHaveBeenCalledTimes(2)
+ await f.engine.index(f.settings,f.signal.signal,()=>{},true);expect(f.embed).toHaveBeenCalledTimes(4)
+ expect(first.files.flatMap(file=>file.shards).every(shard=>!f.db.has(shard))).toBe(true)
+})

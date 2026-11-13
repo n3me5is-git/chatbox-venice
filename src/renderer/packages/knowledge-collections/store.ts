@@ -79,10 +79,10 @@ export class KnowledgeCollections {
     remove:async path=>{if(!/^\.chatbox\/rag\/data\/[a-f0-9-]+\.json$/.test(path))throw Error('Invalid RAG index');await this.json.remove(prefix(id)+path)},
     extract:this.adapters.extract,embed:async(inputs,query,cfg,sig)=>{await check();const result=await this.adapters.embed(inputs,query,cfg,sig);await check();return result},
   };return new SessionRagEngine(port)}
-  async index(id:number,progress:(path:string)=>void=()=>{}){
+  async index(id:number,progress:(path:string)=>void=()=>{},rebuild=false){
     if(this.jobs.has(id))throw Error('RAG indexing is already running');await this.assert(id);const data=await this.data(id);if(!data.consented)throw Error('Save provider consent on this device before using this collection');const {settings}=data;this.adapters.validate(settings);const controller=new AbortController();this.jobs.set(id,controller)
     const cancel=()=>controller.abort(),unsubscribe=this.vault.keys.subscribe(cancel),hidden=()=>{if(document.hidden)cancel()};if(typeof document!=='undefined')document.addEventListener('visibilitychange',hidden)
-    try{return await this.serial(async()=>await(await this.engine(id,settings,controller.signal)).index(settings,controller.signal,progress))}
+    try{return await this.serial(async()=>await(await this.engine(id,settings,controller.signal)).index(settings,controller.signal,progress,rebuild))}
     finally{unsubscribe();this.jobs.delete(id);if(typeof document!=='undefined')document.removeEventListener('visibilitychange',hidden)}
   }
   async search(id:number,query:string,signal=new AbortController().signal){await this.assert(id);const data=await this.data(id);if(!data.consented)throw Error('Save provider consent on this device before using this collection');const found=await(await this.engine(id,data.settings,signal)).search(query,data.settings,signal,20)

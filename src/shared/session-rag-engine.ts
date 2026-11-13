@@ -12,16 +12,16 @@ export const ragHash=async(bytes:Uint8Array)=>Array.from(new Uint8Array(await cr
 export const ragFingerprint=(settings:RagSettings)=>JSON.stringify([settings.provider,settings.model,settings.dimensions,settings.images,settings.audio,settings.ocr,settings.ocrProvider,settings.ocrModel,RAG_CHUNKER_VERSION])
 export class SessionRagEngine {
   constructor(private port:RagEnginePort){}
-  async index(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void=()=>{}){
+  async index(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void=()=>{},rebuild=false){
     const stored=await this.port.get(RAG_ROOT+'index.json'),previous=stored?RagIndexSchema.parse(stored):null,fingerprint=ragFingerprint(settings),files:RagFile[]=[],errors:RagIndex['errors']=[],created:string[]=[]
     try{
-      let dimensions:number|undefined;if(previous?.fingerprint===fingerprint&&previous.files[0]?.shards[0])dimensions=(await this.shard(previous.files[0].shards[0]))[0]?.vector.length
+      let dimensions:number|undefined;if(!rebuild&&previous?.fingerprint===fingerprint&&previous.files[0]?.shards[0])dimensions=(await this.shard(previous.files[0].shards[0]))[0]?.vector.length
       const sources=await this.port.list();if(sources.length>2000)throw Error('Session file count limit reached')
       for(const source of sources){if(ragExcluded(source.path,settings))continue;signal.throwIfAborted();await this.port.check();progress(source.path)
         let bytes:Uint8Array|undefined
         try{
           if((source.bytes||0)>10*1024*1024)throw Error('Session files must not exceed 10 MB')
-          bytes=await this.port.read(source.path);const hash=await ragHash(bytes),old=previous?.fingerprint===fingerprint?previous.files.find(file=>file.path===source.path&&file.hash===hash):undefined
+          bytes=await this.port.read(source.path);const hash=await ragHash(bytes),old=!rebuild&&previous?.fingerprint===fingerprint?previous.files.find(file=>file.path===source.path&&file.hash===hash):undefined
           if(old){files.push(old);continue}
           const extracted=await this.port.extract(source,bytes,settings,signal)
           const parts=extracted.media?[{text:'',line:1,endLine:1}]:chunkRagText(extracted.text||'')

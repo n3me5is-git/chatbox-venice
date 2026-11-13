@@ -1,10 +1,11 @@
 import {expect,it,vi} from 'vitest'
+import {mkdir,writeFile} from 'node:fs/promises'
 import {KnowledgeAugmentationSchema,knowledgeWindows,fuseKnowledgeRanks} from './knowledge-augmentation'
 import {KnowledgeAugmentationEngine,type KnowledgeDocument} from './knowledge-augmentation-engine'
 import {ragHash} from './session-rag-engine'
 const settings=KnowledgeAugmentationSchema.parse({enabled:true,model:{provider:'private',model:'small'}})
 async function doc(fileId:string,text:string):Promise<KnowledgeDocument>{return {fileId,text,sourceHash:await ragHash(new TextEncoder().encode(text))}}
-function fixture(){const data=new Map<string,unknown>(),revisions=new Map<string,string>(),get=vi.fn(async<T>(key:string)=>data.get(key) as T||null),extract=vi.fn(async(text:string)=>({summary:'Project source summary',entities:[{name:'Acme',type:'client',quote:text},{name:'Apollo',type:'project',quote:text}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:text}],tags:[{key:'domain',value:'business',quote:text}]})),port={get,put:async(key:string,value:unknown)=>{data.set(key,value)},remove:async(key:string)=>{data.delete(key)},check:async()=>{},revision:async(id:string)=>revisions.get(id)||null,extract};return {data,revisions,get,extract,port,engine:new KnowledgeAugmentationEngine(port)}}
+function fixture(){const data=new Map<string,unknown>(),revisions=new Map<string,string>(),get=vi.fn(async(key:string)=>data.get(key)??null),extract=vi.fn(async(text:string)=>({summary:'Project source summary',entities:[{name:'Acme',type:'client',quote:text},{name:'Apollo',type:'project',quote:text}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:text}],tags:[{key:'domain',value:'business',quote:text}]})),port={get:async<T>(key:string):Promise<T|null>=>await get(key) as T|null,put:async(key:string,value:unknown)=>{data.set(key,value)},remove:async(key:string)=>{data.delete(key)},check:async()=>{},revision:async(id:string)=>revisions.get(id)||null,extract};return {data,revisions,get,extract,port,engine:new KnowledgeAugmentationEngine(port)}}
 it('extracts open-schema relations with exact provenance and caches unchanged revisions',async()=>{
  const f=fixture(),source=await doc('one','Apollo has client Acme.');f.revisions.set('one',source.sourceHash)
  const first=await f.engine.index([source],settings,new AbortController().signal);await f.engine.index([source],settings,new AbortController().signal);expect(f.extract).toHaveBeenCalledOnce()
@@ -41,10 +42,10 @@ it('fuses independent collection ranks without comparing their raw scores or dou
 })
 it('measures a 2,000-document synthetic corpus with bounded query I/O and zero unchanged model work',async()=>{
  const f=fixture(),sources:KnowledgeDocument[]=[];for(let n=0;n<2000;n++){const source=await doc(String(n),'Apollo has client Acme. Record '+n);sources.push(source);f.revisions.set(source.fileId,source.sourceHash)}
- const started=performance.now();await f.engine.index(sources,settings,new AbortController().signal);const indexedMs=performance.now()-started;f.extract.mockClear();await f.engine.index(sources,settings,new AbortController().signal);expect(f.extract).not.toHaveBeenCalled()
+ const started=performance.now();await f.engine.index(sources,settings,new AbortController().signal);const indexedMs=performance.now()-started;f.extract.mockClear();const unchangedStart=performance.now();await f.engine.index(sources,settings,new AbortController().signal);const unchangedMs=performance.now()-unchangedStart;expect(f.extract).not.toHaveBeenCalled()
  f.get.mockClear();const queryStart=performance.now(),result=await f.engine.query({type:'client',limit:20},new AbortController().signal),queryMs=performance.now()-queryStart
  expect(result.results).toHaveLength(20);expect(result.nextOffset).toBe(20);expect(f.get).toHaveBeenCalledTimes(21)
- console.info('KNOWLEDGE_SYNTHETIC_BENCHMARK',JSON.stringify({documents:2000,indexedMs,queryMs,metadataReads:f.get.mock.calls.length,queryPage:20,maxModelInput:Math.max(...sources.map(source=>source.text.length)),provider:'deterministic fixture; in-memory storage; no network or device performance claim'}))
+ const report={documents:2000,indexedMs,unchangedMs,queryMs,metadataReads:f.get.mock.calls.length,queryPage:20,unchangedModelCalls:0,maxModelInput:Math.max(...sources.map(source=>source.text.length)),node:process.version,platform:process.platform,provider:'deterministic fixture; in-memory storage; no network or device performance claim'};await mkdir('test-results/knowledge-benchmarks',{recursive:true});await writeFile('test-results/knowledge-benchmarks/synthetic-2000.json',JSON.stringify(report,null,2)+'\n')
 },30000)
 
 it('rejects invalid manifest pointers before any deletion or arbitrary storage access',async()=>{
@@ -56,4 +57,9 @@ it('retains published records when storage reports an ambiguous error after mani
  const f=fixture(),source=await doc('a','Apollo has client Acme.');f.revisions.set('a',source.sourceHash);const put=f.port.put;f.port.put=async(key,value)=>{await put(key,value);if(key.endsWith('index.json'))throw Error('Ambiguous disk failure')}
  await expect(f.engine.index([source],settings,new AbortController().signal)).rejects.toThrow('Ambiguous')
  const manifest=f.data.get('.chatbox/knowledge/index.json') as {files:{alias:string}[]};expect(f.data.has(manifest.files[0].alias)).toBe(true)
+})
+
+it('does not silently resolve same-name entities with conflicting types to one relation endpoint',async()=>{
+ const f=fixture();f.extract.mockResolvedValue({summary:'',entities:[{name:'Acme',type:'client',quote:'Apollo has client Acme.'},{name:'Acme',type:'company',quote:'Apollo has client Acme.'},{name:'Apollo',type:'project',quote:'Apollo has client Acme.'}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:'Apollo has client Acme.'}],tags:[]})
+ await expect(f.engine.index([await doc('a','Apollo has client Acme.')],settings,new AbortController().signal)).rejects.toThrow('ungrounded')
 })
