@@ -1,6 +1,6 @@
 import {KnowledgeAugmentationSchema,KnowledgeExtractionSchema,KnowledgeAnalysisSchema,KnowledgeAnalysisManifestSchema,KNOWLEDGE_ANALYSIS_VERSION,anchorKnowledgeQuote,knowledgeTerms,knowledgeWindows,type KnowledgeAnalysis,type KnowledgeAugmentation,type KnowledgeEntity} from './knowledge-augmentation'
 import {ragHash} from './session-rag-engine'
-export type KnowledgeDocument={fileId:string;sourceHash:string;text:string;retainText?:boolean}
+export type KnowledgeDocument={fileId:string;sourceHash:string;text:string;retainText?:boolean;cachedOnly?:boolean}
 export type KnowledgeAnalysisRef={fileId:string;sourceHash:string;textHash:string;fingerprint:string;alias:string;terms:string[];warningCount?:number}
 export type KnowledgeAnalysisManifest={version:1;updated:number;files:KnowledgeAnalysisRef[];stats?:{extractedWindows:number;reusedWindows:number;unchangedDocuments:number;reboundDocuments:number}}
 export interface KnowledgeAnalysisPort{
@@ -20,7 +20,9 @@ export class KnowledgeAugmentationEngine{
   const fingerprint=await hashText(JSON.stringify([KNOWLEDGE_ANALYSIS_VERSION,settings])),stored=await this.port.get<KnowledgeAnalysisManifest>(MANIFEST),old=stored?KnowledgeAnalysisManifestSchema.parse(stored):null,previous=new Map((old?.files||[]).map(file=>[file.fileId,file])),files:KnowledgeAnalysisRef[]=[],created:string[]=[],seen=new Set<string>(),stats={extractedWindows:0,reusedWindows:0,unchangedDocuments:0,reboundDocuments:0}
   try{for await(const document of documents){signal.throwIfAborted();await this.port.check()
     if(files.length>=10000||!document.fileId||document.fileId.length>128||seen.has(document.fileId)||!/^[a-f0-9]{64}$/.test(document.sourceHash))throw Error('Invalid knowledge document identity');seen.add(document.fileId)
-    const documentFingerprint=await hashText(fingerprint+'|'+!!document.retainText),textHash=await hashText(document.text),cached=previous.get(document.fileId)
+    const documentFingerprint=await hashText(fingerprint+'|'+!!document.retainText),cached=previous.get(document.fileId)
+    if(document.cachedOnly){if(!cached||cached.sourceHash!==document.sourceHash||cached.fingerprint!==documentFingerprint)throw Error('Knowledge cache binding changed; retry indexing');files.push(cached);stats.unchangedDocuments++;continue}
+    const textHash=await hashText(document.text)
     if(cached?.sourceHash===document.sourceHash&&cached.textHash===textHash&&cached.fingerprint===documentFingerprint){files.push(cached);stats.unchangedDocuments++;continue}
     let previousRecord:KnowledgeAnalysis|null=null
     if(cached?.fingerprint===documentFingerprint){const raw=await this.port.get<KnowledgeAnalysis>(cached.alias);previousRecord=KnowledgeAnalysisSchema.parse(raw);if(previousRecord.fileId!==document.fileId||previousRecord.sourceHash!==cached.sourceHash||previousRecord.textHash!==cached.textHash||previousRecord.fingerprint!==cached.fingerprint)throw Error('Invalid knowledge cache revision')}

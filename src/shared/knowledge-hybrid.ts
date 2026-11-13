@@ -26,7 +26,7 @@ export async function hybridRagSearch(port:RagEnginePort,query:string,settings:R
  lexical.sort((a,b)=>b.score-a.score);lexical.length=Math.min(lexical.length,overfetch)
  const byId=new Map([...lexical,...semantic].map(item=>[item.id,item])),lanes=lexicalOnly?[lexical]:[lexical,semantic],fused=fuseKnowledgeRanks(lanes,overfetch),hashes=new Map<string,string|null>(),seen=new Set<string>(),matches=[]
  for(const item of fused){signal.throwIfAborted();await port.check();const candidate=byId.get(item.id)!
-  if(!hashes.has(candidate.path)){try{const bytes=await port.read(candidate.path);try{hashes.set(candidate.path,await ragHash(bytes))}finally{bytes.fill(0)}}catch{hashes.set(candidate.path,null)}}
+  if(!hashes.has(candidate.path)){try{if(port.revision)hashes.set(candidate.path,await port.revision(candidate.path));else{const bytes=await port.read(candidate.path);try{hashes.set(candidate.path,await ragHash(bytes))}finally{bytes.fill(0)}}}catch{hashes.set(candidate.path,null)}}
   if(hashes.get(candidate.path)!==candidate.sourceHash)continue
   let text=candidate.text;if(!text){const rows=await port.get(candidate.shard);if(!Array.isArray(rows))throw Error('Invalid RAG index');const parsed=rows.map(row=>RagChunkSchema.parse(row)).find(row=>row.id===candidate.id&&row.sourceHash===candidate.sourceHash);if(!parsed)throw Error('Knowledge passage changed; retry the search');text=parsed.text}
   const duplicate=candidate.path+'\0'+text.replace(/\s+/g,' ').trim();if(text&&seen.has(duplicate))continue;seen.add(duplicate)

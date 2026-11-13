@@ -41,7 +41,7 @@ export default function CollectionsPage({service=defaultStore}:{service?:Knowled
  useEffect(()=>{let active=true;setDetail(undefined);setPreview('');setResults(undefined);setProtection(false);setGraph(false);void store.list().then(items=>{if(active)setEntries(items)}).catch(error=>{if(active)setError((error as Error).message)});if(selected)void store.data(selected).then(async data=>{const index=await store.indexStatus(selected);if(active){setDetail(data);setName(data.name);setSettings(data.settings);setIndex(index)}}).catch(()=>{});return()=>{active=false}},[selected,revision])
  const run=async(work:()=>Promise<void>)=>{setBusy(true);setError('');try{await work();await refresh()}catch(error){setError((error as Error).message)}finally{setBusy(false);setProgress('')}}
  const select=(id:number)=>void run(async()=>{await store.authorize(id);setSelected(id);await load(id)})
- const addFiles=(files:FileList|null)=>{if(!files||!selected)return;const copied=Array.from(files);void run(async()=>{for(const file of copied)await store.add(selected,file);await load(selected)})}
+ const addFiles=(files:FileList|null)=>{if(!files||!selected)return;const copied=Array.from(files);void run(async()=>{await store.addMany(selected,copied);await load(selected)})}
  const openCreate=()=>{setName('');setSettings(defaultRagSettings());setAck(false);setCreating(true)}
  const migrate=(kb:KnowledgeBase)=>void run(async()=>{
    const parsed=parseKnowledgeBaseModelString(kb.embeddingModel);if(!parsed)throw Error('Choose an embedding model')

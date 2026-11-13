@@ -5,13 +5,13 @@ export type LocalMCPApplication=z.infer<typeof LocalMCPApplicationSchema>
 export const LocalMCPStartSchema=z.object({sessionId:z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),port:z.number().int().refine(port=>port===0||port>=1024&&port<=65535),permissions:LocalMCPPermissionsSchema,endpointId:z.string().uuid().optional(),application:LocalMCPApplicationSchema.optional()}).strict()
 export type LocalMCPPermissions=z.infer<typeof LocalMCPPermissionsSchema>
 export type LocalMCPStart=z.infer<typeof LocalMCPStartSchema>
-export const defaultLocalMCPPermissions:LocalMCPPermissions={readFiles:true,writeFiles:false,execute:false,models:false,automaticModels:false,venice:false,search:false,forwardMCP:false,multiAgent:false,knowledge:false}
+export const defaultLocalMCPPermissions:LocalMCPPermissions={readFiles:true,writeFiles:false,execute:false,models:false,automaticModels:false,venice:false,search:false,forwardMCP:false,multiAgent:false}
 export type LocalMCPState={running:false}|{running:true;sessionId:string;url:string;token:string;permissions:LocalMCPPermissions;startedAt:number;endpointId?:string;application?:LocalMCPApplication}
 export type LocalMCPGrant=Extract<LocalMCPState,{running:true}>
 export type LocalMCPRequest={id:string;operation:'list_tools'|'call_tool'|'list_resources'|'read_resource'|'cancel'|'revoke';grant:LocalMCPGrant;name?:string;arguments?:Record<string,unknown>;uri?:string;callId?:string}
 export type LocalMCPTool={name:string;description?:string;inputSchema:{type:'object';[key:string]:unknown}}
 export function localMCPAllows(permissions:LocalMCPPermissions,name:string,args:Record<string,unknown>={}){
-  if(/^knowledge_(?:base|metadata|sources|collections|document|evidence)(?:_\d+)?$/.test(name))return permissions.knowledge===true
+  if(/^knowledge_(?:base|metadata|sources|collections|document|evidence|verify)(?:_\d+)?$/.test(name))return permissions.knowledge===true
   if(['agent_catalog','agent_tree','agent_spawn','agent_status','agent_message','agent_wait','agent_result','agent_files','agent_file','agent_stop'].includes(name))return permissions.multiAgent&&(name!=='agent_files'||permissions.readFiles)&&(name!=='agent_file'||permissions.readFiles&&permissions.writeFiles)
   if(['session_rag_search','session_rag_read'].includes(name))return permissions.readFiles&&permissions.search
   if(name==='session_file')return ['list','read','search','preview'].includes(String(args.action))?permissions.readFiles:permissions.writeFiles&&(['write','delete','deliver'].includes(String(args.action))||args.action==='import'&&permissions.readFiles)
@@ -35,6 +35,7 @@ export function parseSessionResourceURI(sessionId:string,uri:string){const prefi
 export function localMCPGrantAllows(grant:LocalMCPGrant,name:string,args:Record<string,unknown>={}){
   const app=grant.application
   if(!app)return localMCPAllows(grant.permissions,name,args)
+  if(name==='knowledge_verify'&&!grant.permissions.models)return false
   if(/^knowledge_/.test(name))return app.mode!=='router'&&grant.permissions.knowledge===true&&(app.knowledgeCollectionIds?.length||0)>0&&localMCPAllows(grant.permissions,name,args)
   if(name==='app_contexts')return app.mode!=='router'
   if(name==='app_conversation')return app.mode!=='router'&&app.conversations&&(args.action!=='send'||grant.permissions.models)

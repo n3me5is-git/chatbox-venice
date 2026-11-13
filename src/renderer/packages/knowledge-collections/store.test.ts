@@ -127,3 +127,14 @@ it('forces Venice media settings to text while preserving independently opted-in
  const f=await fixture();await f.store.configure(f.id,'Text embeddings',{...f.cfg,images:true,audio:true,ocr:true,ocrProvider:'vision',ocrModel:'private-ocr',stt:true,sttProvider:'venice',sttModel:'whisper'})
  expect((await f.store.data(f.id)).settings).toMatchObject({images:false,audio:false,ocr:true,stt:true,ocrModel:'private-ocr',sttModel:'whisper'})
 })
+
+it('binds verified source hashes to immutable encrypted assets and avoids repeated source-body reads',async()=>{
+ const analyze=vi.fn(async()=>({summary:'Project',entities:[{name:'Acme',type:'client',quote:'Apollo has client Acme.'},{name:'Apollo',type:'project',quote:'Apollo has client Acme.'}],relations:[],tags:[]})),f=await fixture({analyze}),fileId=await f.add('source.txt','Apollo has client Acme.');await f.store.configure(f.id,'Project',f.cfg,undefined,undefined,'api',{augmentation:{enabled:true,model:{provider:'private',model:'extract'},keepMarkdown:false,mediaText:false,windowChars:8000},retrievalMode:'hybrid'});await f.store.index(f.id);const data=await f.store.data(f.id),file=data.files[0],read=vi.spyOn(f.store.vault.assets,'read');expect(file.hash).toMatch(/^[a-f0-9]{64}$/);expect(file.assetId).toBeTruthy();analyze.mockClear();f.embed.mockClear()
+ await f.store.index(f.id);await f.store.metadata(f.id,{});expect(read.mock.calls.filter(call=>call[0]===file.alias)).toHaveLength(0);expect(analyze).not.toHaveBeenCalled();expect(f.embed).not.toHaveBeenCalled()
+ const bytes=new TextEncoder().encode('Changed outside the bound manifest.');await f.store.vault.assets.put((async function*(){yield bytes})(),{name:'source.txt',mime:'text/plain',kind:'document',hidden:true,sourceId:file.alias},'public',file.alias)
+ expect(await f.store.sourceRevision(f.id,file.path)).not.toBe(file.hash);expect((await f.store.metadata(f.id,{})).stale).toEqual([String(fileId)])
+})
+it('publishes a batch of source files with one manifest write and authenticates each bound digest',async()=>{
+ const f=await fixture(),put=vi.spyOn(f.store.vault.assets,'put'),files=Array.from({length:12},(_,n)=>{const bytes=new TextEncoder().encode('Document '+n);return {name:'doc-'+n+'.txt',type:'text/plain',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File}),ids=await f.store.addMany(f.id,files)
+ expect(new Set(ids).size).toBe(12);expect(put.mock.calls.filter(call=>call[3]==='knowledge-collection:'+f.id+':manifest')).toHaveLength(1);expect((await f.store.data(f.id)).files.every(file=>file.assetId&&file.hash)).toBe(true)
+})
