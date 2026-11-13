@@ -34,6 +34,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Concise user-facing release notes
         run: node --test scripts/release-notes-policy.test.mjs
+      - name: Optional LLM reranking and incremental knowledge metadata
+        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        run: pnpm exec vitest run src/shared/knowledge-augmentation-engine.test.ts src/renderer/packages/knowledge-collections/llm-rerank.test.ts src/renderer/packages/knowledge-collections/store.test.ts src/renderer/components/knowledge-base/KnowledgeModelDefaults.test.tsx src/renderer/components/knowledge-base/CollectionsPage.test.tsx
       - name: Independent desktop MCP endpoints and global router boundaries
         run: pnpm exec vitest run src/renderer/packages/multi-agent/storage.test.ts src/shared/local-mcp-model-policy.test.ts src/renderer/packages/local-mcp/conversation.test.ts src/renderer/packages/local-mcp/studio.test.ts src/renderer/packages/local-mcp/transfer.test.ts src/main/local-mcp/registry.test.ts src/renderer/packages/local-mcp/application.test.ts src/renderer/packages/local-mcp/model-input.test.ts src/renderer/components/session-resources/ApplicationMCPSettings.test.tsx
       - name: Fork tool reliability, navigation and model-aware Studio controls

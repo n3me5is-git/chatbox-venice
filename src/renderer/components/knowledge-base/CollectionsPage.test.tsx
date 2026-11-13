@@ -5,6 +5,7 @@ import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {RagSettingsSchema} from '@shared/session-rag'
 const state=vi.hoisted(()=>({list:vi.fn(),create:vi.fn(),data:vi.fn(),authorize:vi.fn(),configure:vi.fn(),index:vi.fn(),lock:vi.fn(),status:vi.fn(),locked:false,revision:0,notify:()=>{}}))
+vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultVirtualRerankModel:{provider:'private',model:'small-ranker'}})})}}))
 vi.mock('@/platform',()=>({default:{type:'mobile'}}))
 vi.mock('@/packages/session-rag/defaults',()=>({defaultRagSettings:()=>RagSettingsSchema.parse({provider:'venice',model:'private-embedding'})}))
 vi.mock('@/packages/session-rag/embeddings',()=>({multimodalEmbedding:(provider:string)=>provider==='gemini'}))
@@ -29,4 +30,12 @@ it('keeps native photos/audio independent from OCR and never enables them for te
 })
 it('requests owner authentication before loading a protected collection',async()=>{
  state.locked=true;state.list.mockResolvedValue([{id:-1,scope:'knowledge:-1',name:'Protected collection',locked:true}]);state.authorize.mockRejectedValue(Error('Knowledge collection access was declined'));mount();fireEvent.click(await screen.findByRole('button',{name:'Unlock'}));await screen.findByRole('alert');expect(state.authorize).toHaveBeenCalledWith(-1);expect(state.data).not.toHaveBeenCalled();expect(state.index).not.toHaveBeenCalled()
+})
+
+it('enables virtual reranking per collection with an explicit default model and renewed consent',async()=>{
+ state.list.mockResolvedValue([{id:-1,scope:'public',name:'Manuals',locked:false}]);mount();fireEvent.click(await screen.findByRole('button',{name:'Open collection'}))
+ const mode=await screen.findByRole('switch',{name:'Virtual reranking with LLM'});expect((mode as HTMLInputElement).checked).toBe(false)
+ fireEvent.click(mode);expect(await screen.findByRole('button',{name:'small-ranker'})).toBeTruthy();expect((screen.getByRole('button',{name:'Save settings'}) as HTMLButtonElement).disabled).toBe(true)
+ fireEvent.click(screen.getByRole('checkbox',{name:/I allow/}));fireEvent.click(screen.getByRole('button',{name:'Save settings'}))
+ await waitFor(()=>expect(state.configure).toHaveBeenCalledWith(-1,'Manuals',expect.anything(),'private','small-ranker','llm'));expect(state.index).not.toHaveBeenCalled()
 })

@@ -1,3 +1,4 @@
+import {KnowledgeModelDefaults} from '@/components/knowledge-base/KnowledgeModelDefaults'
 /** biome-ignore-all lint/style/noNonNullAssertion: auto-text fallbacks are always defined for these selectors */
 
 import NiceModal from '@ebay/nice-modal-react'
@@ -393,6 +394,8 @@ export function RouteComponent() {
           })}
         </Stack>
       ))}
+      <KnowledgeModelDefaults/>
+
       <Button
         variant="subtle"
         color="gray"

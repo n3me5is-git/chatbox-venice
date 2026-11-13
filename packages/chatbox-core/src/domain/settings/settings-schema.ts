@@ -588,6 +588,7 @@ export const SettingsSchema = GlobalSessionSettingsSchema.extend({
     .catch(undefined),
   defaultEmbeddingModel: DefaultModelSelectionSchema,
   defaultRerankModel: DefaultModelSelectionSchema,
+  defaultVirtualRerankModel: DefaultModelSelectionSchema,
   defaultASRModel: DefaultModelSelectionSchema,
   defaultTTSModel: DefaultModelSelectionSchema,
   speechOptions: z.object({ voice:z.string().max(256).optional(), speed:z.number().min(0.25).max(4).optional(), language:z.string().max(32).optional() }).optional().catch(undefined),

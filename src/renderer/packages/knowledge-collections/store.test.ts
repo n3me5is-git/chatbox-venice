@@ -5,14 +5,14 @@ import {VaultKeys} from '@/packages/vault/keys'
 import {EncryptedChunkStore} from '@/packages/vault/chunk-store'
 import type {VaultRuntime} from '@/packages/vault/runtime'
 import {RagSettingsSchema} from '@shared/session-rag'
-import {KnowledgeCollections} from './store'
+import {KnowledgeCollections,type CollectionAdapters} from './store'
 import {exportVault,importVault} from '@/packages/vault/backup'
 
-async function fixture(){
+async function fixture(adapters:Partial<CollectionAdapters>={}){
  const blobs=new Map<string,string>(),envelopes=new Map<string,string>(),db=new VaultDatabase('kb-'+crypto.randomUUID()),device={capabilities:async()=>({encryption:true,biometric:true,name:'Test device'}),protect:async(value:string)=>{const id=crypto.randomUUID();envelopes.set(id,value);return id},unprotect:async(id:string)=>{const value=envelopes.get(id);if(!value)throw Error('Missing device key');return value}},keys=new VaultKeys(db,device)
  const assets=new EncryptedChunkStore({get:async key=>blobs.get(key)||null,set:async(key,value)=>{blobs.set(key,value)},remove:async key=>{blobs.delete(key)},keys:async()=>[...blobs.keys()]},db,scope=>keys.key(scope))
  const vault={db,keys,assets,projects:{assertApp:async()=>{}},available:async()=>{await keys.key('public');return true}} as unknown as VaultRuntime
- const embed=vi.fn(async(inputs:{text?:string}[])=>inputs.map(input=>input.text?.includes('cat')?[0,1]:[1,0])),unlock=vi.fn(async(scope:string)=>{await keys.unlock(scope,'pin','123456');return true}),store=new KnowledgeCollections(vault,{extract:async(_source,bytes)=>({text:new TextDecoder().decode(bytes)}),embed,validate:()=>{},unlock})
+ const embed=vi.fn(async(inputs:{text?:string}[])=>inputs.map(input=>input.text?.includes('cat')?[0,1]:[1,0])),unlock=vi.fn(async(scope:string)=>{await keys.unlock(scope,'pin','123456');return true}),store=new KnowledgeCollections(vault,{extract:async(_source,bytes)=>({text:new TextDecoder().decode(bytes)}),embed,validate:()=>{},unlock,...adapters})
  const cfg=RagSettingsSchema.parse({provider:'venice',model:'embedding',enabled:true}),id=await store.create('Company secrets',cfg)
  const add=async(name='manual.txt',text='Confidential payment instructions.')=>{const bytes=new TextEncoder().encode(text);return store.add(id,{name,type:'text/plain',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File)}
  return {blobs,db,keys,store,embed,unlock,cfg,id,add}
@@ -59,4 +59,15 @@ it('removes staged vector shards after cancellation while retaining the last com
 it('keeps a published index valid if cancellation arrives after its manifest is committed',async()=>{
  const f=await fixture();await f.add();const original=f.store.vault.assets.put.bind(f.store.vault.assets);vi.spyOn(f.store.vault.assets,'put').mockImplementation(async(source,info,scope,alias,signal)=>{const ref=await original(source,info,scope,alias,signal);if(alias?.endsWith('/index.json'))f.store.cancel(f.id);return ref})
  await f.store.index(f.id);expect((await f.store.search(f.id,'payment')).matches).toHaveLength(1)
+})
+
+it('uses the optional LLM reranker only after collection opt-in, preserving protected access and source identities',async()=>{
+ const llmRerank=vi.fn(async()=>[{index:1,score:0.9},{index:0,score:0.1}]),rerank=vi.fn(),f=await fixture({llmRerank,rerank})
+ await f.add('project.md','Project contract and billing');await f.add('cat.md','cat news');await f.store.index(f.id)
+ await f.store.search(f.id,'project');expect(llmRerank).not.toHaveBeenCalled()
+ await f.store.configure(f.id,'Company secrets',f.cfg,'test','small','llm')
+ const ranked=await f.store.search(f.id,'project'),rows=await f.store.chunks(f.id,new Set(ranked.matches.map(hit=>hit.id)))
+ expect(rows.find(row=>row.chunk.id===ranked.matches[0].id)?.filename).toBe('cat.md');expect(llmRerank).toHaveBeenCalledOnce();expect(rerank).not.toHaveBeenCalled()
+ await f.store.protect(f.id,'dedicated',{pin:'123456'});await f.store.lock(f.id);llmRerank.mockClear()
+ await expect(f.store.search(f.id,'project')).rejects.toThrow();expect(llmRerank).not.toHaveBeenCalled()
 })

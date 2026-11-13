@@ -128,6 +128,7 @@ export function applyAllPresetsSettings(): Pick<
   | 'ocrModel'
   | 'defaultEmbeddingModel'
   | 'defaultRerankModel'
+  | 'defaultVirtualRerankModel'
   | 'defaultASRModel'
   | 'defaultTTSModel'
 > {
@@ -138,6 +139,7 @@ export function applyAllPresetsSettings(): Pick<
     ocrModel: undefined,
     defaultEmbeddingModel: undefined,
     defaultRerankModel: undefined,
+    defaultVirtualRerankModel: undefined,
     defaultASRModel: undefined,
     defaultTTSModel: undefined,
   }

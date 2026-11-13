@@ -6,9 +6,9 @@ import {resourceMime} from '@shared/session-resources'
 
 export type CollectionEntry={id:number;scope:string;createdAt:number;pendingScopes?:string[]}
 export type CollectionFile={id:number;path:string;name:string;mime:string;bytes:number;alias:string;createdAt:number}
-export type CollectionData={version:1;name:string;settings:RagSettings;files:CollectionFile[];consented?:boolean;rerankProvider?:string;rerankModel?:string}
+export type CollectionData={version:1;name:string;settings:RagSettings;files:CollectionFile[];consented?:boolean;rerankProvider?:string;rerankModel?:string;rerankMode?:'api'|'llm'}
 export type CollectionSummary=CollectionEntry&{name:string;locked:boolean;settings?:RagSettings}
-export interface CollectionAdapters {extract:RagEnginePort['extract'];embed:RagEnginePort['embed'];validate(settings:RagSettings):void;unlock(scope:string):Promise<boolean>;authority?(settings:RagSettings):string;rerank?(query:string,documents:string[],provider:string,model:string,signal:AbortSignal):Promise<{index:number;score:number}[]>}
+export interface CollectionAdapters {extract:RagEnginePort['extract'];embed:RagEnginePort['embed'];validate(settings:RagSettings):void;unlock(scope:string):Promise<boolean>;authority?(settings:RagSettings):string;rerank?(query:string,documents:string[],provider:string,model:string,signal:AbortSignal):Promise<{index:number;score:number}[]>;llmRerank?:CollectionAdapters['rerank']}
 const REGISTRY='knowledge-collections:v1',prefix=(id:number)=>'knowledge-collection:'+id+':'
 export const isPortableCollection=(id:number)=>Number.isSafeInteger(id)&&id<0
 const identity=()=>Math.floor(Date.now()*1000+Math.random()*1000)
@@ -39,9 +39,9 @@ export class KnowledgeCollections {
     await this.json.set(prefix(id)+'manifest',{version:1,name:name.trim(),settings:cfg,files:[],consented:true} satisfies CollectionData,'public')
     try{await this.vault.db.setSetting(REGISTRY,[...entries,{id,scope:'public',createdAt:Date.now()}])}catch(error){await this.json.remove(prefix(id)+'manifest');throw error}return id
   })}
-  async configure(id:number,name:string,settings:RagSettings,rerankProvider?:string,rerankModel?:string){return this.serial(async()=>{
+  async configure(id:number,name:string,settings:RagSettings,rerankProvider?:string,rerankModel?:string,rerankMode?:'api'|'llm'){return this.serial(async()=>{
     if(this.jobs.has(id))throw Error('Stop indexing before changing this collection');const data=await this.data(id);if(!name.trim()||name.length>200)throw Error('Enter a collection name')
-    const cfg=RagSettingsSchema.parse({...settings,enabled:true});this.adapters.validate(cfg);await this.save(id,{...data,name:name.trim(),settings:cfg,rerankProvider,rerankModel,consented:true})
+    if(rerankMode==='llm'&&(!rerankProvider||!rerankModel))throw Error('Choose a reranking LLM');if(rerankMode&&rerankMode!=='llm'&&rerankMode!=='api')throw Error('Invalid reranking mode');const cfg=RagSettingsSchema.parse({...settings,enabled:true});this.adapters.validate(cfg);await this.save(id,{...data,name:name.trim(),settings:cfg,rerankProvider,rerankModel,rerankMode,consented:true})
   })}
   async add(id:number,file:File){return this.serial(async()=>{
     if(this.jobs.has(id))throw Error('Stop indexing before changing this collection');if(file.size<1||file.size>10*1024*1024)throw Error('Session files must not exceed 10 MB')
@@ -86,7 +86,7 @@ export class KnowledgeCollections {
     finally{unsubscribe();this.jobs.delete(id);if(typeof document!=='undefined')document.removeEventListener('visibilitychange',hidden)}
   }
   async search(id:number,query:string,signal=new AbortController().signal){await this.assert(id);const data=await this.data(id);if(!data.consented)throw Error('Save provider consent on this device before using this collection');const found=await(await this.engine(id,data.settings,signal)).search(query,data.settings,signal,20)
-    if(data.rerankProvider&&data.rerankModel&&this.adapters.rerank&&found.matches.length){const chunks=await this.chunks(id,new Set(found.matches.map(hit=>hit.id))),documents=found.matches.map(hit=>chunks.find(row=>row.chunk.id===hit.id)?.text||hit.modality||'');await this.assert(id);const ranked=await this.adapters.rerank(query,documents,data.rerankProvider,data.rerankModel,signal);await this.assert(id);found.matches=ranked.map(item=>({...found.matches[item.index],score:item.score}))}return found}
+    const rerank=data.rerankMode==='llm'?this.adapters.llmRerank:this.adapters.rerank;if(data.rerankProvider&&data.rerankModel&&!rerank)throw Error('The selected reranker is unavailable');if(data.rerankProvider&&data.rerankModel&&rerank&&found.matches.length){const chunks=await this.chunks(id,new Set(found.matches.map(hit=>hit.id))),documents=found.matches.map(hit=>chunks.find(row=>row.chunk.id===hit.id)?.text||hit.modality||'');await this.assert(id);const ranked=await rerank(query,documents,data.rerankProvider,data.rerankModel,signal);await this.assert(id);found.matches=ranked.map(item=>({...found.matches[item.index],score:item.score}))}return found}
   async indexStatus(id:number){await this.assert(id);const raw=await this.json.get(prefix(id)+RAG_ROOT+'index.json');return raw?RagIndexSchema.parse(raw):null}
   async chunks(id:number,requested:{fileId:number;chunkIndex:number}[]|Set<string>){await this.assert(id);if(requested instanceof Set?requested.size>20:requested.length>20)throw Error('Request at most 20 passages');const data=await this.data(id),index=await this.indexStatus(id);if(!index)return [];const result:{fileId:number;filename:string;chunkIndex:number;text:string;chunk:RagChunk}[]=[]
     for(const file of data.files){if(!(requested instanceof Set)&&!requested.some(item=>item.fileId===file.id))continue;const indexed=index.files.find(item=>item.path===file.path);let at=0
