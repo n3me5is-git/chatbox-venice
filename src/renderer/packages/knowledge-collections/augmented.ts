@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {RAG_ROOT,RagIndexSchema,type RagSettings} from '@shared/session-rag'
 import {SessionRagEngine,ragHash,type RagEnginePort,type RagSource} from '@shared/session-rag-engine'
-import {KnowledgeAugmentationSchema,KnowledgeAnalysisManifestSchema,type KnowledgeAugmentation,type KnowledgeAnalysis} from '@shared/knowledge-augmentation'
+import {KnowledgeAugmentationSchema,KnowledgeAnalysisManifestSchema,KNOWLEDGE_ANALYSIS_VERSION,type KnowledgeAugmentation,type KnowledgeAnalysis} from '@shared/knowledge-augmentation'
 import {KnowledgeAugmentationEngine,type KnowledgeAnalysisManifest,type KnowledgeDocument} from '@shared/knowledge-augmentation-engine'
 const ROOT='.chatbox/knowledge/',CURRENT=ROOT+'state.json',INDEX=RAG_ROOT+'index.json',META=ROOT+'index.json'
 const digest=z.string().regex(/^[a-f0-9]{64}$/)
@@ -10,7 +10,7 @@ export const KnowledgeStateSchema=z.object({version:z.literal(1),revision:z.stri
 export type KnowledgeState=z.infer<typeof KnowledgeStateSchema>
 const TextSchema=z.object({version:z.literal(1),text:z.string().max(512000),kind:z.enum(['parsed','ocr','transcript']),sourceHash:digest,textHash:digest,fingerprint:digest,warning:z.string().max(500).optional()}).strict()
 export interface AugmentedPort{get<T>(path:string):Promise<T|null>;put(path:string,value:unknown):Promise<void>;remove(path:string):Promise<void>;check():Promise<void>;publish(work:()=>Promise<void>):Promise<void>}
-export const knowledgeAnalysisFingerprint=async(settings:KnowledgeAugmentation)=>ragHash(new TextEncoder().encode(JSON.stringify(KnowledgeAugmentationSchema.parse(settings))))
+export const knowledgeAnalysisFingerprint=async(settings:KnowledgeAugmentation)=>ragHash(new TextEncoder().encode(JSON.stringify([KNOWLEDGE_ANALYSIS_VERSION,KnowledgeAugmentationSchema.parse(settings)])))
 const parsingFingerprint=async(settings:RagSettings)=>ragHash(new TextEncoder().encode(JSON.stringify(['parser-v2',settings.ocr,settings.ocrProvider,settings.ocrModel,settings.stt,settings.sttProvider,settings.sttModel])))
 /** A single encrypted publication record links vectors, evidence and metadata.
  * Existing immutable shards are reused; old data is removed only after commit. */

@@ -61,7 +61,7 @@ it('retains published records when storage reports an ambiguous error after mani
 
 it('does not silently resolve same-name entities with conflicting types to one relation endpoint',async()=>{
  const f=fixture();f.extract.mockResolvedValue({summary:'',entities:[{name:'Acme',type:'client',quote:'Apollo has client Acme.'},{name:'Acme',type:'company',quote:'Apollo has client Acme.'},{name:'Apollo',type:'project',quote:'Apollo has client Acme.'}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:'Apollo has client Acme.'}],tags:[]})
- await expect(f.engine.index([await doc('a','Apollo has client Acme.')],settings,new AbortController().signal)).rejects.toThrow('ungrounded')
+ const source=await doc('a','Apollo has client Acme.');f.revisions.set('a',source.sourceHash);await f.engine.index([source],settings,new AbortController().signal);const result=await f.engine.query({},new AbortController().signal);expect(result.results[0].relations).toEqual([]);expect(result.results[0].omittedRelations).toBe(1)
 })
 
 it('paginates document details rather than returning every entity in a long document',async()=>{
@@ -70,4 +70,10 @@ it('paginates document details rather than returning every entity in a long docu
  await f.engine.index([source],settings,new AbortController().signal)
  const first=await f.engine.query({fileId:'long'},new AbortController().signal);expect(first.results[0].entities).toHaveLength(10);expect(first.results[0].nextDetailOffset).toBe(10);expect(first.responseBytes).toBeLessThan(256*1024)
  const second=await f.engine.query({fileId:'long',rowOffset:10},new AbortController().signal);expect(second.results[0].entities).toHaveLength(10)
+})
+
+it('retains supported relations while explicitly excluding a pronoun-only citation',async()=>{
+ const f=fixture(),source=await doc('a','Apollo has client Acme. Its delivery is tomorrow.');f.revisions.set('a',source.sourceHash)
+ f.extract.mockResolvedValue({summary:'',entities:[{name:'Apollo',type:'project',quote:'Apollo has client Acme.'},{name:'Acme',type:'client',quote:'Apollo has client Acme.'}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:'Apollo has client Acme.'},{subject:'Apollo',predicate:'IS_LINKED_TO',object:'Acme',quote:'Its delivery is tomorrow.'}],tags:[]})
+ await f.engine.index([source],settings,new AbortController().signal);const result=await f.engine.query({},new AbortController().signal);expect(result.results[0].relations).toHaveLength(1);expect(result.results[0].omittedRelations).toBe(1)
 })

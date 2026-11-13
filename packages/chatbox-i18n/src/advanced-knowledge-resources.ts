@@ -1,4 +1,5 @@
 export const advancedKnowledgeItalian:Record<string,string>={
+ 'Some extracted relations were excluded because their evidence was insufficient':'Alcune relazioni estratte sono state escluse perché gli estratti citati non erano sufficienti',
  "Knowledge intelligence":"Funzioni avanzate della conoscenza",
  "Hybrid search: meaning and exact words":"Ricerca ibrida: significato e parole esatte",
  "Combines vector similarity and BM25 ranks. Useful for names, identifiers and source code. No extra LLM request for this search mode.":"Combina similarità vettoriale e ricerca BM25. Utile per nomi, identificativi e codice sorgente. Questa modalità non richiede chiamate LLM aggiuntive.",
