@@ -150,6 +150,8 @@ jobs:
       - name: Measure authenticated storage, retrieval and one-file updates
         env:
           CHATBOX_KNOWLEDGE_BENCHMARK: '1'
+          CHATBOX_KNOWLEDGE_BENCHMARK_SIZE: '200'
+          CHATBOX_KNOWLEDGE_PROFILE: '1'
         run: pnpm exec vitest run src/renderer/packages/knowledge-collections/store.test.ts -t encrypted1000-document
       - name: Save complete measurements or last completed phase
         if: always()
