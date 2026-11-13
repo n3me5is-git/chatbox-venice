@@ -41,7 +41,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Knowledge-Synthetic-Benchmark
+          name: Knowledge-Analysis-Benchmark
           path: test-results/knowledge-benchmarks/
           if-no-files-found: warn
           retention-days: 14
@@ -133,6 +133,33 @@ jobs:
       - name: Verify generated Android audio permissions
         run: node --test scripts/configure-fork-android.test.mjs scripts/collaboration-test/vendor.test.mjs
 
+
+  knowledge_benchmark:
+    name: Encrypted knowledge scale benchmark
+    if: inputs.test_scope != 'ui'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Measure authenticated storage, retrieval and one-file updates
+        env:
+          CHATBOX_KNOWLEDGE_BENCHMARK: '1'
+        run: pnpm exec vitest run src/renderer/packages/knowledge-collections/store.test.ts -t encrypted1000-document
+      - name: Save complete measurements or last completed phase
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Knowledge-Encrypted-Benchmark
+          path: test-results/knowledge-benchmarks/
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
 
   ui:
     name: Simulated UI and browser checks
