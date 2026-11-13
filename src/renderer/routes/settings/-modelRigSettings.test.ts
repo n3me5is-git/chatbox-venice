@@ -130,6 +130,8 @@ describe('model rig slot settings', () => {
       defaultEmbeddingModel: undefined,
       defaultRerankModel: undefined,
       defaultVirtualRerankModel: undefined,
+      defaultKnowledgeExtractionModel: undefined,
+      defaultKnowledgeVerifierModel: undefined,
       defaultASRModel: undefined,
       defaultTTSModel: undefined,
     })

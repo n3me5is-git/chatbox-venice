@@ -77,3 +77,26 @@ it('keeps native multimodal retrieval instead of asking a text-only LLM to rank 
  await f.store.configure(f.id,'Photos',{...f.cfg,images:true},'test','small','llm');const bytes=new Uint8Array([1,2,3]);await f.store.add(f.id,{name:'photo.png',type:'image/png',size:3,arrayBuffer:async()=>bytes.buffer} as File);await f.store.index(f.id)
  const found=await f.store.search(f.id,'photo');expect(found.matches).toHaveLength(1);expect(found).toHaveProperty('rerankWarning');expect(llmRerank).not.toHaveBeenCalled()
 })
+
+const extractRelations=vi.fn(async(text:string)=>{const match=/Project (\w+) has client (\w+)\./.exec(text);if(!match)throw Error('Synthetic source missing');const [,project,client]=match;return {summary:text,entities:[{name:project,type:'project',quote:match[0]},{name:client,type:'client',quote:match[0]}],relations:[{subject:project,predicate:'HAS_CLIENT',object:client,quote:match[0]}],tags:[{key:'client',value:client,quote:match[0]}]}})
+const advanced=()=>({augmentation:{enabled:true,model:{provider:'private',model:'small'},keepMarkdown:true,mediaText:false,windowChars:8000},retrievalMode:'hybrid' as const})
+it('publishes encrypted vectors, derivatives and source-grounded metadata together and reuses unchanged work',async()=>{
+ extractRelations.mockClear();const f=await fixture({analyze:extractRelations});await f.add('alpha.md','Project Alpha has client Acme.');await f.add('beta.md','Project Beta has client Nova.');await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,undefined,advanced());await f.store.index(f.id)
+ expect(extractRelations).toHaveBeenCalledTimes(2);expect((await f.store.metadata(f.id,{type:'client'})).results.flatMap(row=>row.entities.map(entity=>entity.name))).toEqual(['Acme','Nova']);expect(JSON.stringify([...f.blobs])).not.toContain('Acme')
+ const file=(await f.store.data(f.id)).files[0];expect((await f.store.documentText(f.id,file.id)).text).toContain('Acme');await f.store.index(f.id);expect(extractRelations).toHaveBeenCalledTimes(2);expect(f.embed).toHaveBeenCalledTimes(2)
+ const next=new TextEncoder().encode('Project Alpha has client Oscar.');await f.store.replaceFile(f.id,file.id,{name:file.name,type:file.mime,size:next.length,arrayBuffer:async()=>next.buffer} as File);expect((await f.store.metadata(f.id,{type:'client'})).results.flatMap(row=>row.entities.map(entity=>entity.name))).not.toContain('Acme');await f.store.index(f.id);expect(extractRelations).toHaveBeenCalledTimes(3);expect(f.embed).toHaveBeenCalledTimes(3)
+ expect((await f.store.metadata(f.id,{type:'client'})).results.flatMap(row=>row.entities.map(entity=>entity.name))).toEqual(['Oscar','Nova'])
+})
+it('keeps the last complete generation after invalid extraction and removes only the failed staging assets',async()=>{
+ const analyze=vi.fn(extractRelations),f=await fixture({analyze});await f.add('alpha.md','Project Alpha has client Acme.');await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,undefined,advanced());await f.store.index(f.id);const before=await f.store.indexStatus(f.id)
+ analyze.mockRejectedValueOnce(Error('Extraction unavailable'));await expect(f.store.index(f.id,()=>{},true)).rejects.toThrow('unavailable');expect(await f.store.indexStatus(f.id)).toEqual(before);expect((await f.store.search(f.id,'Acme')).matches).toHaveLength(1)
+})
+it('retains OCR alongside native image vectors only after the separate media-text opt-in and never OCRs during preview',async()=>{
+ const extract=vi.fn(async(_source:any,_bytes:any,cfg:any)=>cfg.images?{media:true}:{text:'Project Alpha has client Acme.',kind:'ocr' as const}),f=await fixture({extract,analyze:extractRelations}),cfg={...f.cfg,images:true,ocr:true,ocrProvider:'vision',ocrModel:'vision'},bytes=new Uint8Array([1,2,3]);await f.store.add(f.id,{name:'source.png',type:'image/png',size:3,arrayBuffer:async()=>bytes.buffer} as File)
+ await f.store.configure(f.id,'Photos',cfg,undefined,undefined,undefined,{...advanced(),augmentation:{...advanced().augmentation,mediaText:true}});await f.store.index(f.id);expect(extract).toHaveBeenCalledTimes(2);const file=(await f.store.data(f.id)).files[0],parsed=await f.store.documentText(f.id,file.id);expect(parsed).toMatchObject({kind:'ocr',text:'Project Alpha has client Acme.'});expect(extract).toHaveBeenCalledTimes(2)
+ await f.store.index(f.id);expect(extract).toHaveBeenCalledTimes(2)
+})
+it('deletes only one document from vector and graph generations without re-embedding other sources',async()=>{
+ const f=await fixture({analyze:extractRelations});await f.add('alpha.md','Project Alpha has client Acme.');await f.add('beta.md','Project Beta has client Nova.');await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,undefined,advanced());await f.store.index(f.id);const [first]=(await f.store.data(f.id)).files;f.embed.mockClear();await f.store.removeFile(f.id,first.id)
+ expect((await f.store.indexStatus(f.id))?.files).toHaveLength(1);expect((await f.store.metadata(f.id,{type:'client'})).results.flatMap(row=>row.entities.map(entity=>entity.name))).toEqual(['Nova']);expect(f.embed).not.toHaveBeenCalled()
+})

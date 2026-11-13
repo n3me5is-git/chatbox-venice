@@ -9,6 +9,6 @@ import {KnowledgeModelDefaults} from './KnowledgeModelDefaults'
 beforeEach(()=>{vi.clearAllMocks();Object.defineProperty(window,'matchMedia',{configurable:true,value:()=>({matches:false,addListener(){},removeListener(){},addEventListener(){},removeEventListener(){}})});vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})})
 afterEach(()=>{cleanup();vi.unstubAllGlobals()})
 it('saves a global text model without enabling any collection or making provider calls',()=>{
- render(<MantineProvider><KnowledgeModelDefaults/></MantineProvider>);fireEvent.click(screen.getByRole('button',{name:'Choose text model'}));expect(state.save).toHaveBeenCalledWith({defaultVirtualRerankModel:{provider:'private',model:'small'}})
- fireEvent.click(screen.getByRole('button',{name:'Clear'}));expect(state.save).toHaveBeenCalledWith({defaultVirtualRerankModel:undefined})
+ render(<MantineProvider><KnowledgeModelDefaults/></MantineProvider>);fireEvent.click(screen.getAllByRole('button',{name:'Choose text model'})[0]);expect(state.save).toHaveBeenCalledWith({defaultVirtualRerankModel:{provider:'private',model:'small'}})
+ fireEvent.click(screen.getByRole('button',{name:'Clear Virtual reranking with LLM'}));expect(state.save).toHaveBeenCalledWith({defaultVirtualRerankModel:undefined})
 })

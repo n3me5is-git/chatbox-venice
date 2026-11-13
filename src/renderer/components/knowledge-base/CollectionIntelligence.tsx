@@ -1,0 +1,15 @@
+import {Button,Group,Stack,Switch,Text} from '@mantine/core'
+import {ModelSelectorV2} from '@/components/ModelSelectorV2'
+import {settingsStore} from '@/stores/settingsStore'
+import {KnowledgeAugmentationSchema,type KnowledgeAugmentation} from '@shared/knowledge-augmentation'
+import {forkT as ft} from '@/i18n/fork'
+export type CollectionIntelligenceValue={augmentation:KnowledgeAugmentation;retrievalMode:'semantic'|'hybrid'}
+export const collectionIntelligence=(data:{augmentation?:KnowledgeAugmentation;retrievalMode?:'semantic'|'hybrid'}):CollectionIntelligenceValue=>({augmentation:KnowledgeAugmentationSchema.parse(data.augmentation||{}),retrievalMode:data.retrievalMode||'semantic'})
+export function CollectionIntelligence({value,onChange}:{value:CollectionIntelligenceValue;onChange:(value:CollectionIntelligenceValue)=>void}){
+ const cfg=value.augmentation,update=(patch:Partial<KnowledgeAugmentation>)=>onChange({...value,augmentation:{...cfg,...patch}})
+ return <Stack gap="sm"><Text fw={600}>{ft('Knowledge intelligence')}</Text><Switch label={ft('Hybrid search: meaning and exact words')} checked={value.retrievalMode==='hybrid'} onChange={event=>onChange({...value,retrievalMode:event.currentTarget.checked?'hybrid':'semantic'})}/><Text size="xs" c="dimmed">{ft('Combines vector similarity and BM25 ranks. Useful for names, identifiers and source code. No extra LLM request for this search mode.')}</Text>
+ <Switch label={ft('Extract relations, metadata and summaries')} checked={cfg.enabled} onChange={event=>{const global=settingsStore.getState().getSettings();update({enabled:event.currentTarget.checked,...(!cfg.model&&global.defaultKnowledgeExtractionModel?{model:global.defaultKnowledgeExtractionModel}:{})})}}/>
+ {cfg.enabled&&<><ModelSelectorV2 withinPortal={false} selectedProviderId={cfg.model?.provider} selectedModelId={cfg.model?.model} modelFilter={model=>!model.type||model.type==='chat'} onSelect={(provider,model)=>update({model:{provider,model}})}><Button variant="default" fullWidth style={{height:'auto',minHeight:44,whiteSpace:'normal'}}>{cfg.model?.model||ft('Choose a knowledge extraction model first')}</Button></ModelSelectorV2><Text size="xs" c="dimmed">{ft('The selected model receives parsed text during indexing. Unchanged source revisions are cached. Extracted relations are interpretations with source quotes, not independent proof.')}</Text>
+ <Switch label={ft('Also extract text from native image/audio embeddings')} checked={cfg.mediaText} onChange={event=>update({mediaText:event.currentTarget.checked})}/><Text size="xs" c="dimmed">{ft('Enable OCR/STT separately to create metadata while keeping native multimodal embeddings. Otherwise those media keep native search only.')}</Text></>}
+ <Switch label={ft('Keep normalized Markdown for text documents')} checked={cfg.keepMarkdown} onChange={event=>update({keepMarkdown:event.currentTarget.checked})}/><Text size="xs" c="dimmed">{ft('OCR and transcripts used by advanced indexing are retained encrypted with their sources. Text-document copies are optional.')}</Text></Stack>
+}

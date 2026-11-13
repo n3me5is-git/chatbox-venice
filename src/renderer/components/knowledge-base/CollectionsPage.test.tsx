@@ -37,5 +37,5 @@ it('enables virtual reranking per collection with an explicit default model and 
  const mode=await screen.findByRole('switch',{name:'Virtual reranking with LLM'});expect((mode as HTMLInputElement).checked).toBe(false)
  fireEvent.click(mode);expect(await screen.findByRole('button',{name:'small-ranker'})).toBeTruthy();expect((screen.getByRole('button',{name:'Save settings'}) as HTMLButtonElement).disabled).toBe(true)
  fireEvent.click(screen.getByRole('checkbox',{name:/I allow/}));fireEvent.click(screen.getByRole('button',{name:'Save settings'}))
- await waitFor(()=>expect(state.configure).toHaveBeenCalledWith(-1,'Manuals',expect.anything(),'private','small-ranker','llm'));expect(state.index).not.toHaveBeenCalled()
+ await waitFor(()=>expect(state.configure).toHaveBeenCalledWith(-1,'Manuals',expect.anything(),'private','small-ranker','llm',expect.objectContaining({retrievalMode:'semantic'})));expect(state.index).not.toHaveBeenCalled()
 })

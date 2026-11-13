@@ -60,3 +60,7 @@ it('explicitly rebuilds unchanged documents while default indexing keeps its inc
  await f.engine.index(f.settings,f.signal.signal,()=>{},true);expect(f.embed).toHaveBeenCalledTimes(4)
  expect(first.files.flatMap(file=>file.shards).every(shard=>!f.db.has(shard))).toBe(true)
 })
+
+it('preserves existing index fingerprints until transcription is explicitly enabled',async()=>{
+ const f=fixture();await f.engine.index(f.settings,f.signal.signal);await expect(f.engine.search('cat',{...f.settings,stt:false},f.signal.signal)).resolves.toBeTruthy();await expect(f.engine.search('cat',{...f.settings,stt:true,sttProvider:'speech',sttModel:'asr'},f.signal.signal)).rejects.toThrow('selected model')
+})

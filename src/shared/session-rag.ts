@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { recursiveRagChunks } from './rag-chunker'
 export const RAG_ROOT='.chatbox/rag/'
-export const RagSettingsSchema=z.object({version:z.literal(1).default(1),enabled:z.boolean().default(false),provider:z.string().default(''),model:z.string().default(''),auto:z.boolean().default(false),images:z.boolean().default(false),audio:z.boolean().default(false),ocr:z.boolean().default(false),ocrProvider:z.string().default(''),ocrModel:z.string().default(''),exclude:z.array(z.string().max(240)).max(100).default(['node_modules','.git','.venv','venv','dist','build','.env']),dimensions:z.number().int().min(128).max(8192).optional()})
+export const RagSettingsSchema=z.object({version:z.literal(1).default(1),enabled:z.boolean().default(false),provider:z.string().default(''),model:z.string().default(''),auto:z.boolean().default(false),images:z.boolean().default(false),audio:z.boolean().default(false),ocr:z.boolean().default(false),ocrProvider:z.string().default(''),ocrModel:z.string().default(''),stt:z.boolean().default(false),sttProvider:z.string().default(''),sttModel:z.string().default(''),exclude:z.array(z.string().max(240)).max(100).default(['node_modules','.git','.venv','venv','dist','build','.env']),dimensions:z.number().int().min(128).max(8192).optional()})
 export type RagSettings=z.infer<typeof RagSettingsSchema>
 export interface RagChunk {id:string;path:string;sourceHash:string;text:string;line:number;endLine:number;page?:number;vector:number[];modality?:string}
 export interface RagFile {path:string;hash:string;shards:string[];chunks:number;warning?:string}

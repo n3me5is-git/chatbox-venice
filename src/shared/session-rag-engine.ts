@@ -2,14 +2,15 @@ import { RAG_ROOT, RagIndexSchema, RagChunkSchema, chunkRagText, cosine, normali
 import { RAG_CHUNKER_VERSION } from './rag-chunker'
 export interface RagSource {path:string;mime:string;bytes?:number}
 export interface RagInput {text?:string;data?:Uint8Array;mime?:string}
+export interface RagExtracted{text?:string;media?:boolean;warning?:string;kind?:'parsed'|'ocr'|'transcript'}
 export interface RagEnginePort {
   list():Promise<RagSource[]>;read(path:string):Promise<Uint8Array>;get(path:string):Promise<unknown|null>;put(path:string,value:unknown):Promise<void>;remove(path:string):Promise<void>
-  extract(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal):Promise<{text?:string;media?:boolean;warning?:string}>
+  extract(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal):Promise<RagExtracted>
   embed(input:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal):Promise<number[][]>
   check():Promise<void>
 }
 export const ragHash=async(bytes:Uint8Array)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',Uint8Array.from(bytes)))).map(n=>n.toString(16).padStart(2,'0')).join('')
-export const ragFingerprint=(settings:RagSettings)=>JSON.stringify([settings.provider,settings.model,settings.dimensions,settings.images,settings.audio,settings.ocr,settings.ocrProvider,settings.ocrModel,RAG_CHUNKER_VERSION])
+export const ragFingerprint=(settings:RagSettings)=>JSON.stringify([settings.provider,settings.model,settings.dimensions,settings.images,settings.audio,settings.ocr,settings.ocrProvider,settings.ocrModel,RAG_CHUNKER_VERSION,...(settings.stt?[settings.stt,settings.sttProvider,settings.sttModel]:[])])
 export class SessionRagEngine {
   constructor(private port:RagEnginePort){}
   async index(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void=()=>{},rebuild=false){
