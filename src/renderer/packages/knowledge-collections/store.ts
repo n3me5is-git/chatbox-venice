@@ -36,11 +36,11 @@ export class KnowledgeCollections {
   private async entry(id:number){if(!isPortableCollection(id))throw Error('Invalid knowledge collection');const entry=(await this.registry()).find(item=>item.id===id);if(!entry)throw Error('Knowledge collection not found');return entry}
   async assert(id:number){await this.vault.projects.assertApp();const entry=await this.entry(id);for(const scope of [entry.scope,...entry.pendingScopes||[]])await this.vault.keys.key(scope);return entry}
   async authorize(id:number){await this.vault.projects.assertApp();const entry=await this.entry(id);for(const scope of [entry.scope,...entry.pendingScopes||[]])if(scope!=='public'&&!this.vault.keys.isUnlocked(scope)){if(!await this.adapters.unlock(scope))throw Error('Knowledge collection access was declined')}await this.assert(id)}
-  async list():Promise<CollectionSummary[]>{await this.vault.projects.assertApp();const result:CollectionSummary[]=[];for(const item of await this.registry()){
+  async list(retry=0):Promise<CollectionSummary[]>{await this.vault.projects.assertApp();const revision=this.vault.keys.snapshot(),result:CollectionSummary[]=[];for(const item of await this.registry()){
     const locked=[item.scope,...item.pendingScopes||[]].some(scope=>!this.vault.keys.isUnlocked(scope))
     if(locked){result.push({...item,name:'Protected collection',locked:true});continue}
     const data=await this.data(item.id);result.push({...item,name:data.name,settings:data.settings,locked:false})
-  }return result}
+  }await this.vault.projects.assertApp();if(this.vault.keys.snapshot()!==revision){if(retry===0)return this.list(1);throw Error('Collection access changed; repeat discovery')}return result}
   async data(id:number){await this.assert(id);const data=await this.json.get<CollectionData>(prefix(id)+'manifest');if(!data||data.version!==1||!Array.isArray(data.files))throw Error('Invalid knowledge collection');data.settings=RagSettingsSchema.parse(data.settings);if(data.augmentation)data.augmentation=KnowledgeAugmentationSchema.parse(data.augmentation);return data}
   private async save(id:number,data:CollectionData){const entry=await this.assert(id);await this.json.set(prefix(id)+'manifest',data,entry.scope);await this.assert(id)}
   async create(name:string,settings:RagSettings){return this.serial(async()=>{

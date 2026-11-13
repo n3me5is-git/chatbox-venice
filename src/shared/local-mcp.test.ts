@@ -52,3 +52,8 @@ it('copies distinct portable client names for same-name endpoints without export
  const a=Object.keys(first.mcpServers)[0],b=Object.keys(second.mcpServers)[0];expect(a).toMatch(/^[a-z0-9_-]+$/);expect(a).not.toBe(b)
  expect(Object.values(first.mcpServers)[0]).toEqual({url:base.url,headers:{Authorization:'Bearer private-local-token'}});expect(JSON.stringify(first)).not.toContain('permissions')
 })
+
+it('grants knowledge tools independently, only for selected app collections and never in model-only router mode',async()=>{
+ const {localMCPGrantAllows,LocalMCPApplicationSchema}=await import('./local-mcp'),grant={running:true as const,sessionId:'application',url:'http://localhost',token:'x',startedAt:1,permissions:{...defaultLocalMCPPermissions,knowledge:true},application:LocalMCPApplicationSchema.parse({mode:'full',name:'KB',knowledgeCollectionIds:[-1]})}
+ expect(localMCPGrantAllows(grant,'knowledge_base')).toBe(true);expect(localMCPGrantAllows(grant,'knowledge_sources_1')).toBe(true);expect(localMCPGrantAllows(grant,'knowledge_delete')).toBe(false);grant.application.mode='router';expect(localMCPGrantAllows(grant,'knowledge_base')).toBe(false);grant.application.mode='full';grant.application.knowledgeCollectionIds=[];expect(localMCPGrantAllows(grant,'knowledge_base')).toBe(false)
+})

@@ -193,6 +193,7 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
   if(request.operation==='list_resources')return [] // No automatic enumeration of app data.
   if(request.operation==='read_resource')throw Error('Use app_resources with an authorized context')
   let definitions=appTools(grant,signal)
+  if(grant.permissions.knowledge&&grant.application?.mode!=='router'&&grant.application?.knowledgeCollectionIds?.length)Object.assign(definitions,await(await import('./knowledge')).applicationKnowledgeTools(grant,signal,()=>live(grant,signal)))
   if(grant.application!.mode==='router'){
     const modelRoute=request.operation==='list_tools'||['app_models','app_model','venice_image','venice_media'].includes(request.name||'')
     const id=modelRoute?await defaultContext(grant,signal):'',scoped=bound(grant,id),listed=modelRoute?await localMCPTools(scoped):[]

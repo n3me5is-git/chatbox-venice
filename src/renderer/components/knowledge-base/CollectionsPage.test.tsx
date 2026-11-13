@@ -25,8 +25,8 @@ it('creates an encrypted collection on mobile only after explicit remote-process
  expect(state.index).not.toHaveBeenCalled()
 })
 it('keeps native photos/audio independent from OCR and never enables them for text-only APIs',async()=>{
- mount();fireEvent.click(screen.getByRole('button',{name:'New collection'}));expect((screen.getByRole('checkbox',{name:'Index photos directly (no OCR)'}) as HTMLInputElement).disabled).toBe(true)
- fireEvent.click(screen.getByRole('button',{name:'Use native multimodal'}));fireEvent.click(screen.getByRole('switch',{name:'Index photos directly (no OCR)'}));expect((screen.getByRole('checkbox',{name:'Index audio directly (no transcription)'}) as HTMLInputElement).checked).toBe(false);expect((screen.getByRole('switch',{name:'Optional OCR for images and scanned PDFs'}) as HTMLInputElement).checked).toBe(false)
+ mount();fireEvent.click(screen.getByRole('button',{name:'New collection'}));expect((screen.getByRole('switch',{name:'Use text embeddings for media'}) as HTMLInputElement).disabled).toBe(true);expect(screen.queryByRole('checkbox',{name:'Index photos directly (no OCR)'})).toBeNull()
+ fireEvent.click(screen.getByRole('button',{name:'Use native multimodal'}));fireEvent.click(screen.getByRole('checkbox',{name:'Index photos directly (no OCR)'}));expect((screen.getByRole('checkbox',{name:'Index audio directly (no transcription)'}) as HTMLInputElement).checked).toBe(false);expect((screen.getByRole('switch',{name:'Optional OCR for images and scanned PDFs'}) as HTMLInputElement).checked).toBe(false)
 })
 it('requests owner authentication before loading a protected collection',async()=>{
  state.locked=true;state.list.mockResolvedValue([{id:-1,scope:'knowledge:-1',name:'Protected collection',locked:true}]);state.authorize.mockRejectedValue(Error('Knowledge collection access was declined'));mount();fireEvent.click(await screen.findByRole('button',{name:'Unlock'}));await screen.findByRole('alert');expect(state.authorize).toHaveBeenCalledWith(-1);expect(state.data).not.toHaveBeenCalled();expect(state.index).not.toHaveBeenCalled()

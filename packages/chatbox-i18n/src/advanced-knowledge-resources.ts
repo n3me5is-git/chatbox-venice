@@ -1,4 +1,10 @@
 export const advancedKnowledgeItalian:Record<string,string>={
+"Select at least one knowledge collection for this endpoint":"Seleziona almeno una raccolta di conoscenza per questo endpoint",
+"Search explicitly granted knowledge collections (provider charges may apply)":"Cerca nelle raccolte di conoscenza autorizzate (possono esserci costi del provider)",
+"Knowledge collections granted to this endpoint":"Raccolte di conoscenza autorizzate per questo endpoint",
+"Only selected collections can be searched or read. Embedding and extraction providers follow each collection’s configuration, independently of the text-model privacy policy. Protected collections require owner unlock. Source files cannot be changed through this grant.":"Possono essere cercate o lette solo le raccolte selezionate. I provider di embedding ed estrazione seguono la configurazione di ogni raccolta, indipendentemente dalla privacy del modello testuale. Le raccolte protette richiedono lo sblocco del proprietario. Questo permesso non consente di modificare le fonti.",
+"This collection is outside the endpoint knowledge permissions":"Questa raccolta non rientra nei permessi di conoscenza dell’endpoint",
+"Collection access changed; repeat discovery":"L’accesso alla raccolta è cambiato; ripeti la ricerca delle raccolte",
 "Use text embeddings for media":"Usa embedding testuali per i contenuti multimediali",
 "Venice currently accepts text embeddings only. Images use OCR and audio uses transcription when enabled below. Without extraction, those media are not indexed; they are never sent as base64 text.":"Venice attualmente accetta solo embedding testuali. Se abilitate qui sotto, le immagini passano da OCR e l’audio da trascrizione. Senza estrazione questi contenuti non vengono indicizzati e non sono mai inviati come testo base64.",
 "Venice embeddings require text. Enable OCR or transcription for media.":"Gli embedding Venice richiedono testo. Abilita OCR o trascrizione per i contenuti multimediali.",
