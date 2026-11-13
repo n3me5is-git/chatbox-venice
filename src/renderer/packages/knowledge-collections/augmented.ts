@@ -26,7 +26,7 @@ export class AugmentedCollectionIndex{
    if(source.mime.startsWith('image/')&&options.images||source.mime.startsWith('audio/')&&options.audio)return {media:true}
    const file=this.files.find(file=>file.path===source.path);if(!file)throw Error('Knowledge document not found');const fileId=String(file.id),sourceHash=await ragHash(bytes),old=texts.get(fileId)||previousText.get(fileId)
    if((texts.has(fileId)||!rebuild)&&old?.sourceHash===sourceHash&&old.fingerprint===parseFingerprint){const cached=TextSchema.parse(await this.storage.get(old.alias));if(cached.fingerprint!==old.fingerprint||cached.kind!==old.kind||cached.textHash!==old.textHash||cached.sourceHash!==sourceHash||await ragHash(new TextEncoder().encode(cached.text))!==cached.textHash)throw Error('Invalid knowledge text revision');const ref={...old,retain:cfg.keepMarkdown||old.kind!=='parsed'};texts.set(fileId,ref);return {text:cached.text,warning:cached.warning,kind:cached.kind}}
-   const result=await this.base.extract(source,bytes,options,signal);signal.throwIfAborted();await this.storage.check()
+   const extracted=await this.base.extract(source,bytes,options,signal),result={...extracted,...(extracted.text!==undefined?{text:extracted.text.replace(/\r\n?/g,'\n')}:{})};signal.throwIfAborted();await this.storage.check()
    if(result.text!==undefined){if(result.text.length>512000)throw Error('Knowledge text exceeds the analysis limit');const kind=result.kind||'parsed',retain=cfg.keepMarkdown||kind!=='parsed',textHash=await ragHash(new TextEncoder().encode(result.text))
     // Plain UTF-8 sources can be reparsed cheaply. Other parsers get a temporary
     // encrypted derivative, reused in this generation and discarded if not kept.
@@ -49,13 +49,13 @@ export class AugmentedCollectionIndex{
    // Unchanged vectors may bypass extraction; retain their matching old derivatives.
    for(const ref of previous?.derivatives||[])if(!texts.has(ref.fileId)&&vector.files.some(file=>file.path===ref.path&&file.hash===ref.sourceHash)&&(cfg.keepMarkdown||ref.kind!=='parsed'))retainedTexts.push(ref)
    const state:KnowledgeState={version:1,revision:crypto.randomUUID(),vector,metadata,analysisFingerprint,derivatives:retainedTexts}
-   const references=(value:KnowledgeState|null)=>new Set(value?[...value.vector.files.flatMap(file=>file.shards),...value.metadata?.files.map(file=>file.alias)||[],...value.derivatives.map(ref=>ref.alias)]:[]),retained=references(state)
+   const references=(value:KnowledgeState|null)=>new Set(value?[...value.vector.files.flatMap(file=>file.shards),...(value.metadata?.files.map(file=>file.alias)||[]),...value.derivatives.map(ref=>ref.alias)]:[]),retained=references(state)
    for(const alias of [...references(previous),...created])if(!retained.has(alias))garbage.add(alias)
    signal.throwIfAborted();await this.storage.check();await this.storage.publish(async()=>{signal.throwIfAborted();await this.storage.check();await this.storage.put(CURRENT,state);for(const alias of garbage)if(!retained.has(alias))await this.storage.remove(alias).catch(()=>{})})
-   return state.vector
+   signal.throwIfAborted();await this.storage.check();return state.vector
   }catch(error){
    // Never delete committed files if publication reported an ambiguous I/O error.
-   try{const current=await this.state(),retained=new Set(current?[...current.vector.files.flatMap(file=>file.shards),...current.metadata?.files.map(file=>file.alias)||[],...current.derivatives.map(ref=>ref.alias)]:[]);for(const alias of created)if(!retained.has(alias))await this.storage.remove(alias).catch(()=>{})}catch{/* retain owned orphans until storage is available */}
+   try{const current=await this.state(),retained=new Set(current?[...current.vector.files.flatMap(file=>file.shards),...(current.metadata?.files.map(file=>file.alias)||[]),...current.derivatives.map(ref=>ref.alias)]:[]);for(const alias of created)if(!retained.has(alias))await this.storage.remove(alias).catch(()=>{})}catch{/* retain owned orphans until storage is available */}
    throw error
   }
  }

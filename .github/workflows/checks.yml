@@ -83,6 +83,16 @@ jobs:
       - name: Media wait and chat artifact boundaries
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/shared/providers/definitions/models/venice/media-wait.test.ts src/shared/providers/definitions/models/venice/tools.test.ts src/renderer/packages/venice/media-artifacts.test.ts src/renderer/components/venice/VeniceMediaArtifacts.test.tsx
+      - name: Build optional knowledge live-test driver without credentials
+        if: ${{ !cancelled() }}
+        run: node scripts/build-knowledge-live.mjs
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: Knowledge-Live-Driver
+          path: test-results/knowledge-live/
+          retention-days: 7
+          overwrite: true
       - name: Build optional live-test driver without credentials
         run: node scripts/build-venice-live-smoke.mjs
       - uses: actions/upload-artifact@v4

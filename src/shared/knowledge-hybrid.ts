@@ -11,7 +11,7 @@ export async function hybridRagSearch(port:RagEnginePort,query:string,settings:R
  if(!query.trim()||query.length>8000)throw Error('Enter a knowledge search query up to 8000 characters')
  const {ragFingerprint}=await import('./session-rag-engine');await port.check();const index=RagIndexSchema.parse(await port.get(RAG_ROOT+'index.json'));if(index.fingerprint!==ragFingerprint(settings))throw Error('Build the RAG index for the selected model first')
  const terms=[...new Set(retrievalTokens(query))].slice(0,16),df=terms.map(()=>0),semantic:Candidate[]=[],lexical:Candidate[]=[];let count=0,totalLength=0
- const vectors=lexicalOnly?undefined:await port.embed([{text:query}],true,settings,signal),vector=vectors?normalizedVector(vectors[0]):undefined,overfetch=Math.min(96,Math.max(1,limit)*3)
+ const vectors=lexicalOnly?undefined:await port.embed([{text:query}],true,settings,signal),vector=vectors?normalizedVector(vectors[0]):undefined,overfetch=Math.min(96,Math.max(32,limit*3))
  for(const file of index.files)for(const shard of file.shards){signal.throwIfAborted();await port.check();const raw=await port.get(shard);if(!Array.isArray(raw)||raw.length>32)throw Error('Invalid RAG index')
   for(const value of raw){const chunk=RagChunkSchema.parse(value);if(chunk.path!==file.path||chunk.sourceHash!==file.hash)throw Error('Invalid RAG index')
    const {vector:embedding,...source}=chunk
@@ -24,7 +24,7 @@ export async function hybridRagSearch(port:RagEnginePort,query:string,settings:R
  }
  for(const item of lexical)item.score=bm25Score(item.tf!,df,count,item.length!,totalLength/Math.max(1,count))
  lexical.sort((a,b)=>b.score-a.score);lexical.length=Math.min(lexical.length,overfetch)
- const byId=new Map([...lexical,...semantic].map(item=>[item.id,item])),lanes=lexicalOnly?[lexical]:[semantic,lexical],fused=fuseKnowledgeRanks(lanes,overfetch),hashes=new Map<string,string|null>(),seen=new Set<string>(),matches=[]
+ const byId=new Map([...lexical,...semantic].map(item=>[item.id,item])),lanes=lexicalOnly?[lexical]:[lexical,semantic],fused=fuseKnowledgeRanks(lanes,overfetch),hashes=new Map<string,string|null>(),seen=new Set<string>(),matches=[]
  for(const item of fused){signal.throwIfAborted();await port.check();const candidate=byId.get(item.id)!
   if(!hashes.has(candidate.path)){try{const bytes=await port.read(candidate.path);try{hashes.set(candidate.path,await ragHash(bytes))}finally{bytes.fill(0)}}catch{hashes.set(candidate.path,null)}}
   if(hashes.get(candidate.path)!==candidate.sourceHash)continue
