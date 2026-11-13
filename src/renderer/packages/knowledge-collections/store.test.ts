@@ -71,3 +71,9 @@ it('uses the optional LLM reranker only after collection opt-in, preserving prot
  await f.store.protect(f.id,'dedicated',{pin:'123456'});await f.store.lock(f.id);llmRerank.mockClear()
  await expect(f.store.search(f.id,'project')).rejects.toThrow();expect(llmRerank).not.toHaveBeenCalled()
 })
+
+it('keeps native multimodal retrieval instead of asking a text-only LLM to rank MIME placeholders',async()=>{
+ const llmRerank=vi.fn(),f=await fixture({llmRerank,extract:async()=>({media:true})})
+ await f.store.configure(f.id,'Photos',{...f.cfg,images:true},'test','small','llm');const bytes=new Uint8Array([1,2,3]);await f.store.add(f.id,{name:'photo.png',type:'image/png',size:3,arrayBuffer:async()=>bytes.buffer} as File);await f.store.index(f.id)
+ const found=await f.store.search(f.id,'photo');expect(found.matches).toHaveLength(1);expect(found).toHaveProperty('rerankWarning');expect(llmRerank).not.toHaveBeenCalled()
+})

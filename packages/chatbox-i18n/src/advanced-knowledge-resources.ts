@@ -1,6 +1,7 @@
 export const advancedKnowledgeItalian:Record<string,string>={
  'Reindex collection':'Reindicizza collezione',
  'Rebuild all vectors with the saved settings? This sends documents to the selected providers again.':'Ricreare tutti i vettori con le impostazioni salvate? I documenti verranno inviati nuovamente ai provider selezionati.',
+ 'Native media has no extracted text; the original embedding ranking was preserved':'I contenuti multimediali nativi non hanno testo estratto; è stato mantenuto l’ordine della ricerca vettoriale',
  'Virtual reranking with LLM':'Reranking virtuale tramite LLM',
  'Default text model for optional collection reranking. Each collection must enable it and approve processing its query and passages.':'Modello testuale predefinito per il reranking opzionale delle collezioni. Ogni collezione deve abilitarlo e autorizzare il trattamento della domanda e degli estratti.',
  'Choose a reranking LLM':'Scegli un LLM per il reranking',
