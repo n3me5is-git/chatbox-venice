@@ -15,7 +15,7 @@ const LIST_PAGE_SIZE = 50
 const DEFAULT_READ_CHUNKS = 5
 const MAX_READ_CHUNKS = 20
 
-interface KnowledgeBaseToolInput {
+export interface KnowledgeBaseToolInput {
   command: KnowledgeBaseCommand
   query?: string
   fileId?: number
@@ -118,7 +118,7 @@ function formatList(output: KnowledgeBaseListOutput): string {
   return lines.join('\n')
 }
 
-function formatOutput(command: KnowledgeBaseCommand | undefined, output: unknown): string {
+export function formatKnowledgeBaseOutput(command: KnowledgeBaseCommand | undefined, output: unknown): string {
   const record = asRecord(output)
   if (!record || typeof record.error === 'string') return contentOrErrorText(output)
   if (command === 'read') return formatRead(record as unknown as KnowledgeBaseReadOutput)
@@ -200,6 +200,8 @@ Commands:
 Search when the user's question relates to these documents; answer greetings, small talk and unrelated questions directly. For follow-ups on the same topic, reuse earlier results, and search again when the topic shifts or they no longer cover the question.`
 }
 
+export async function runKnowledgeBaseCommand(id:number,input:KnowledgeBaseToolInput){if(input.command==='read')return read(id,input);if(input.command==='list')return list(id,input.page);return search(id,input.query)}
+
 export async function getToolSet(knowledgeBaseId: number, knowledgeBaseName: string): Promise<{ tools: ToolSet }> {
   const tool: ToolSet[string] = {
     // Never enumerate protected filenames while constructing tools. Authentication belongs
@@ -228,7 +230,7 @@ export async function getToolSet(knowledgeBaseId: number, knowledgeBaseName: str
       return search(knowledgeBaseId, input.query)
     },
     toModelOutput: (options: { toolCallId: string; input: unknown; output: unknown }) =>
-      toTextModelOutput((output) => formatOutput(knowledgeBaseCommandOf(options.input), output))(options),
+      toTextModelOutput((output) => formatKnowledgeBaseOutput(knowledgeBaseCommandOf(options.input), output))(options),
   }
   return { tools: { [KNOWLEDGE_BASE_TOOL_NAME]: tool, ...await getAdvancedKnowledgeTools(knowledgeBaseId) } }
 }

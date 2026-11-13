@@ -1,3 +1,5 @@
+import {getFederatedKnowledgeToolSet} from '@/packages/model-calls/toolsets/knowledge-federation'
+import {selectedKnowledgeCollections} from '@shared/knowledge-federation'
 import type { PausedMemoryContext } from '@chatbox/core/application/memory'
 import type { ModelInterface } from '@shared/models/types'
 import type { SandboxSeedAttachment } from '@shared/sandbox/attachment-path'
@@ -359,15 +361,16 @@ export async function buildToolsForSession(
   const needFileToolSet =
     (hasInlineFileOrLink || hasStoredToolResults || options.fileResourceKeys) && model.isSupportToolUse('read-file')
   const needSessionAttachmentRagToolSet = sessionAttachmentIds.length > 0 && model.isSupportToolUse('read-file')
-  const kbSupported = Boolean(knowledgeBase) && model.isSupportToolUse('knowledge-base')
+  const knowledgeIds=selectedKnowledgeCollections(knowledgeBase?.id,options.sessionSettings?.knowledgeCollectionIds)
+  const kbSupported = knowledgeIds.length>0 && model.isSupportToolUse('knowledge-base')
   const webSupported = !model.usesNativeWebSearch && webBrowsing && model.isSupportToolUse('web-browsing')
   const searchProvider = settingActions.getExtensionSettings().webSearch.provider
   const includeParseLinkTool = webSupported && PROVIDERS_WITH_PARSE_LINK.has(searchProvider)
 
   let kbToolSet: Awaited<ReturnType<typeof getKBToolSet>> | null = null
-  if (knowledgeBase && kbSupported) {
+  if (kbSupported) {
     try {
-      kbToolSet = await getKBToolSet(knowledgeBase.id, knowledgeBase.name)
+      kbToolSet = knowledgeIds.length===1&&knowledgeBase?await getKBToolSet(knowledgeBase.id,knowledgeBase.name):await getFederatedKnowledgeToolSet(knowledgeIds)
     } catch (err) {
       console.error('Failed to load knowledge base toolset:', err)
     }

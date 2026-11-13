@@ -1,3 +1,4 @@
+import {ChatKnowledgeCollections} from '@/components/knowledge-base/ChatKnowledgeCollections'
 import { VeniceSessionApprovalButton } from '@/components/venice/VeniceSessionApprovalButton'
 import { VeniceSessionPrivacySettings } from '@/components/venice/VeniceSessionPrivacySettings'
 import { MultiAgentSettings } from '@/components/multi-agent/MultiAgentSettings'
@@ -307,6 +308,7 @@ export function SessionSettingsContent({
           </Text>
         ))}
 
+      {isChat&&<SettingsSection title={t('Knowledge Base')}><ChatKnowledgeCollections value={settings?.knowledgeCollectionIds} onChange={knowledgeCollectionIds=>setParam({knowledgeCollectionIds})}/></SettingsSection>}
       {isChat && mode === 'work' && !session.settings?.multiAgentRun && <SettingsSection title={t('Multi-agent work')}><MultiAgentSettings value={settings?.multiAgent} onChange={multiAgent => setParam({ multiAgent })}/></SettingsSection>}
       {isChat && (
         <SettingsSection

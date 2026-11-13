@@ -1,4 +1,11 @@
 export const advancedKnowledgeItalian:Record<string,string>={
+"Additional knowledge collections":"Raccolte di conoscenza aggiuntive",
+"Add up to seven encrypted collections alongside the primary knowledge base in the composer. Each keeps its own embedding model and index. The query is sent to the providers configured for every selected collection; protected collections request owner access when used.":"Aggiungi fino a sette raccolte cifrate oltre alla KB principale nel campo messaggio. Ognuna mantiene il proprio modello di embedding e indice. La domanda viene inviata ai provider configurati per tutte le raccolte selezionate; quelle protette richiedono lo sblocco quando vengono usate.",
+"Choose collections":"Scegli le raccolte",
+"Clear selection":"Cancella selezione",
+"No encrypted knowledge collections available":"Nessuna raccolta di conoscenza cifrata disponibile",
+"Collections selected":"Raccolte selezionate",
+"Select at most eight knowledge collections":"Seleziona al massimo otto raccolte di conoscenza",
 "Knowledge source":"Fonte della raccolta",
 "Loading source":"Caricamento della fonte",
 "Source excerpt":"Estratto della fonte",
