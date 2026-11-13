@@ -77,3 +77,11 @@ it('retains supported relations while explicitly excluding a pronoun-only citati
  f.extract.mockResolvedValue({summary:'',entities:[{name:'Apollo',type:'project',quote:'Apollo has client Acme.'},{name:'Acme',type:'client',quote:'Apollo has client Acme.'}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:'Apollo has client Acme.'},{subject:'Apollo',predicate:'IS_LINKED_TO',object:'Acme',quote:'Its delivery is tomorrow.'}],tags:[]})
  await f.engine.index([source],settings,new AbortController().signal);const result=await f.engine.query({},new AbortController().signal);expect(result.results[0].relations).toHaveLength(1);expect(result.results[0].omittedRelations).toBe(1)
 })
+
+it('reuses unchanged extraction windows and reanchors their exact quotes after an insertion',async()=>{
+ const f=fixture(),cfg={...settings,windowChars:2000},text=Array.from({length:3},(_,n)=>'Apollo has client Acme.\n'+String(n).repeat(1500)+'\n').join(''),source=await doc('a',text)
+ f.extract.mockImplementation(async window=>({summary:'Project/client evidence',entities:[{name:'Apollo',type:'project',quote:'Apollo has client Acme.'},{name:'Acme',type:'client',quote:'Apollo has client Acme.'}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:'Apollo has client Acme.'}],tags:[]}))
+ const first=await f.engine.index([source],cfg,new AbortController().signal);expect(first.stats!.extractedWindows).toBe(3);f.extract.mockClear();const changed=await doc('a','NOTE\n'+text);f.revisions.set('a',changed.sourceHash);const next=await f.engine.index([changed],cfg,new AbortController().signal)
+ expect(f.extract).toHaveBeenCalledOnce();expect(next.stats).toMatchObject({extractedWindows:1,reusedWindows:2});const record=await f.port.get<any>(next.files[0].alias);expect(record.relations).toHaveLength(3);for(const edge of record.relations)expect(changed.text.slice(edge.anchor.start,edge.anchor.end)).toBe(edge.anchor.quote)
+ f.extract.mockClear();const rebound=await f.engine.index([{...changed,sourceHash:'f'.repeat(64)}],cfg,new AbortController().signal);expect(f.extract).not.toHaveBeenCalled();expect(rebound.stats).toMatchObject({extractedWindows:0,reusedWindows:3,reboundDocuments:1});expect((await f.port.get<any>(rebound.files[0].alias)).sourceHash).toBe('f'.repeat(64))
+})

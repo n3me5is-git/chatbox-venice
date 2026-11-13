@@ -20,6 +20,6 @@ export async function getFederatedKnowledgeToolSet(ids:readonly number[]):Promis
   signal?.throwIfAborted();for(const id of selected)if(id<0)await store.assert(id)
   return {results:fuseCollectionCandidates(input.query,lanes),collections:selected,ranking:'Per-collection retrieval ranks plus candidate BM25, fused by RRF. Raw vector scores from different embedding spaces are never compared.'}
  },toModelOutput:toTextModelOutput(output=>{const value=output as {collectionId?:number;command?:KnowledgeBaseToolInput['command'];output?:unknown;results?:((KnowledgeBaseSearchOutput['results'][number])&{collectionId:number})[]};if(value.output)return 'Collection ID: '+value.collectionId+'\n'+formatKnowledgeBaseOutput(value.command,value.output);if(!value.results)return JSON.stringify(output);return value.results.map(row=>'Collection ID: '+row.collectionId+'\n'+formatKnowledgeBaseOutput('search',{results:[row]})).join('\n\n')})}}
- for(const [index,id]of selected.entries()){if(id>=0)continue;const advanced=await getAdvancedKnowledgeTools(id);for(const [name,tool]of Object.entries(advanced))tools[name+'_'+(index+1)]={...tool,description:'Collection ID '+id+'. '+tool.description}}
+ for(const [index,id]of selected.entries()){if(id>=0)continue;const advanced=await getAdvancedKnowledgeTools(id);for(const [name,tool]of Object.entries(advanced))tools[name+'_'+(index+1)]={...tool,description:'Collection ID '+id+'. '+tool.description} as ToolSet[string]}
  return {tools}
 }

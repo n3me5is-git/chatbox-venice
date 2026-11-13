@@ -1,7 +1,7 @@
 import {RAG_ROOT,RagIndexSchema,RagChunkSchema,normalizedVector,cosine,ragCitation,type RagChunk,type RagSettings} from './session-rag'
 import {ragHash,type RagEnginePort} from './session-rag-engine'
 import {fuseKnowledgeRanks} from './knowledge-augmentation'
-export function retrievalTokens(text:string){return text.normalize('NFKC').toLocaleLowerCase('und').match(/[\p{L}\p{N}_-]{2,64}/gu)||[]}
+export function retrievalTokens(text:string):string[]{return text.normalize('NFKC').toLocaleLowerCase('und').match(/[\p{L}\p{N}_-]{2,64}/gu)||[]}
 export function bm25Score(tf:readonly number[],df:readonly number[],documents:number,length:number,average:number){let score=0;for(let n=0;n<tf.length;n++)if(tf[n])score+=Math.log(1+(documents-df[n]+0.5)/(df[n]+0.5))*tf[n]*2.2/(tf[n]+1.2*(0.25+0.75*length/Math.max(1,average)));return score}
 type Candidate=Omit<RagChunk,'vector'>&{score:number;shard:string;tf?:number[];length?:number}
 /** Exact query-term BM25 statistics collected during the existing vector scan.

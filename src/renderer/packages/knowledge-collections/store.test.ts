@@ -115,3 +115,10 @@ it('creates metadata source references only for matching source and text revisio
  const f=await fixture(),fileId=await f.add('source.txt','Project Aurora has client Acme.'),document=await f.store.documentText(f.id,fileId),input={fileId,sourceHash:document.sourceHash,textHash:document.textHash,start:0,end:31}
  const refs=await f.store.citeAnchors(f.id,[input]);expect(refs[0].quote).toBe('Project Aurora has client Acme.');expect(f.embed).not.toHaveBeenCalled();await expect(f.store.citeAnchors(f.id,[{...input,textHash:'a'.repeat(64)}])).rejects.toThrow('changed');await expect(f.store.citeAnchors(f.id,[{...input,end:9000}])).rejects.toThrow('range')
 })
+
+it('does not pay embeddings or metadata extraction after removal or metadata-only source replacement',async()=>{
+ const analyze=vi.fn(async()=>({summary:'Project',entities:[{name:'Acme',type:'client',quote:'Apollo has client Acme.'},{name:'Apollo',type:'project',quote:'Apollo has client Acme.'}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:'Apollo has client Acme.'}],tags:[]})),extract=vi.fn(async()=>({text:'Apollo has client Acme.'})),f=await fixture({analyze,extract}),fileId=await f.add('one.txt','raw-v1'),other=await f.add('two.txt','other-source')
+ await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,'api',{augmentation:{enabled:true,model:{provider:'private',model:'extract'},keepMarkdown:true,mediaText:false,windowChars:8000},retrievalMode:'hybrid'});await f.store.index(f.id);f.embed.mockClear();analyze.mockClear()
+ const bytes=new TextEncoder().encode('raw-v2');await f.store.replaceFile(f.id,fileId,{name:'one.txt',type:'text/plain',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File);const index=await f.store.index(f.id);expect(f.embed).not.toHaveBeenCalled();expect(analyze).not.toHaveBeenCalled();expect('metadata'in index&&index.metadata?.stats).toMatchObject({reboundDocuments:1})
+ await f.store.removeFile(f.id,other);expect(f.embed).not.toHaveBeenCalled();expect(analyze).not.toHaveBeenCalled();expect((await f.store.metadata(f.id,{})).results).toHaveLength(1)
+})

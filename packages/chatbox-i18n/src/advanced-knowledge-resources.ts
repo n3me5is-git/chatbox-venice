@@ -1,4 +1,11 @@
 export const advancedKnowledgeItalian:Record<string,string>={
+"Last index update":"Ultimo aggiornamento dell’indice",
+"new embeddings":"nuovi embedding",
+"reused passages":"passaggi riutilizzati",
+"unchanged documents":"documenti invariati",
+"Invalid reusable embedding":"Embedding riutilizzabile non valido",
+"Invalid knowledge cache revision":"Versione della cache della conoscenza non valida",
+"Invalid cached knowledge quote":"Citazione della conoscenza in cache non valida",
 "Additional knowledge collections":"Raccolte di conoscenza aggiuntive",
 "Add up to seven encrypted collections alongside the primary knowledge base in the composer. Each keeps its own embedding model and index. The query is sent to the providers configured for every selected collection; protected collections request owner access when used.":"Aggiungi fino a sette raccolte cifrate oltre alla KB principale nel campo messaggio. Ognuna mantiene il proprio modello di embedding e indice. La domanda viene inviata ai provider configurati per tutte le raccolte selezionate; quelle protette richiedono lo sblocco quando vengono usate.",
 "Choose collections":"Scegli le raccolte",

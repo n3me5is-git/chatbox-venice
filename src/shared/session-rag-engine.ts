@@ -14,7 +14,7 @@ export const ragFingerprint=(settings:RagSettings)=>JSON.stringify([settings.pro
 export class SessionRagEngine {
   constructor(private port:RagEnginePort){}
   async index(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void=()=>{},rebuild=false){
-    const stored=await this.port.get(RAG_ROOT+'index.json'),previous=stored?RagIndexSchema.parse(stored):null,fingerprint=ragFingerprint(settings),files:RagFile[]=[],errors:RagIndex['errors']=[],created:string[]=[]
+    const stored=await this.port.get(RAG_ROOT+'index.json'),previous=stored?RagIndexSchema.parse(stored):null,fingerprint=ragFingerprint(settings),files:RagFile[]=[],errors:RagIndex['errors']=[],created:string[]=[],stats={embeddedChunks:0,reusedChunks:0,unchangedFiles:0}
     try{
       let dimensions:number|undefined;if(!rebuild&&previous?.fingerprint===fingerprint&&previous.files[0]?.shards[0])dimensions=(await this.shard(previous.files[0].shards[0]))[0]?.vector.length
       const sources=await this.port.list();if(sources.length>2000)throw Error('Session file count limit reached')
@@ -22,23 +22,40 @@ export class SessionRagEngine {
         let bytes:Uint8Array|undefined
         try{
           if((source.bytes||0)>10*1024*1024)throw Error('Session files must not exceed 10 MB')
-          bytes=await this.port.read(source.path);const hash=await ragHash(bytes),old=!rebuild&&previous?.fingerprint===fingerprint?previous.files.find(file=>file.path===source.path&&file.hash===hash):undefined
-          if(old){files.push(old);continue}
+          bytes=await this.port.read(source.path);const hash=await ragHash(bytes),prior=!rebuild&&previous?.fingerprint===fingerprint?previous.files.find(file=>file.path===source.path):undefined
+          if(prior?.hash===hash){files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
           const extracted=await this.port.extract(source,bytes,settings,signal)
           const parts=extracted.media?[{text:'',line:1,endLine:1}]:chunkRagText(extracted.text||'')
           if(!parts.length)continue
           if(files.reduce((n,file)=>n+file.chunks,0)+parts.length>20000)throw Error('RAG index chunk limit reached')
           const entry:RagFile={path:source.path,hash,shards:[],chunks:parts.length,warning:extracted.warning}
-          for(let start=0;start<parts.length;start+=32){signal.throwIfAborted();await this.port.check();const batch=parts.slice(start,start+32),vectors=await this.port.embed(batch.map(part=>extracted.media?{data:bytes,mime:source.mime}:{text:part.text}),false,settings,signal)
-            if(vectors.length!==batch.length)throw Error('Incomplete embedding response')
+          // Cache only hashes and shard locations. Old vectors are loaded one shard at
+          // a time; a large collection is never duplicated in RAM to save API calls.
+          const reusable=new Map<string,{shard:string;id:string;sourceHash:string}>()
+          if(!extracted.media&&prior)for(const shard of prior.shards){signal.throwIfAborted();await this.port.check();for(const chunk of await this.shard(shard)){
+            if(chunk.path!==source.path||chunk.sourceHash!==prior.hash)throw Error('Invalid RAG index')
+            if(!chunk.modality&&chunk.text){const digest=await ragHash(new TextEncoder().encode(chunk.text));if(!reusable.has(digest))reusable.set(digest,{shard,id:chunk.id,sourceHash:prior.hash})}
+          }}
+          for(let start=0;start<parts.length;start+=32){
+            signal.throwIfAborted();await this.port.check()
+            const batch=parts.slice(start,start+32),digests=await Promise.all(batch.map(part=>extracted.media?Promise.resolve(''):ragHash(new TextEncoder().encode(part.text)))),vectors:(number[]|undefined)[]=batch.map(()=>undefined),byShard=new Map<string,number[]>()
+            digests.forEach((digest,index)=>{const ref=reusable.get(digest);if(ref){const indices=byShard.get(ref.shard)||[];indices.push(index);byShard.set(ref.shard,indices)}})
+            for(const [path,indices]of byShard){signal.throwIfAborted();await this.port.check();const old=await this.shard(path);for(const index of indices){const ref=reusable.get(digests[index])!,chunk=old.find(row=>row.id===ref.id);if(!chunk||chunk.sourceHash!==ref.sourceHash||chunk.path!==source.path||chunk.text!==batch[index].text||chunk.modality)throw Error('Invalid reusable embedding');vectors[index]=normalizedVector(chunk.vector);stats.reusedChunks++}}
+            const missing=new Map<string,number[]>();batch.forEach((_part,index)=>{if(vectors[index])return;const key=extracted.media?'media:'+index:digests[index],indices=missing.get(key)||[];indices.push(index);missing.set(key,indices)})
+            if(missing.size){
+              const groups=[...missing.values()],fresh=await this.port.embed(groups.map(indices=>extracted.media?{data:bytes!,mime:source.mime}:{text:batch[indices[0]].text}),false,settings,signal)
+              signal.throwIfAborted();await this.port.check();if(fresh.length!==groups.length)throw Error('Incomplete embedding response')
+              groups.forEach((indices,index)=>{const vector=normalizedVector(fresh[index]);vectors[indices[0]]=vector;for(const at of indices.slice(1)){vectors[at]=vector;stats.reusedChunks++}});stats.embeddedChunks+=groups.length
+            }
             for(const vector of vectors){const current=normalizedVector(vector).length;if(dimensions!==undefined&&dimensions!==current)throw Object.assign(Error('Embedding dimensions changed; rebuild the index'),{fatal:true});dimensions=current}
-            const chunks:RagChunk[]=batch.map((part,n)=>({...part,path:source.path,sourceHash:hash,id:crypto.randomUUID(),vector:normalizedVector(vectors[n]),modality:extracted.media?source.mime:undefined}))
+            const chunks:RagChunk[]=batch.map((part,n)=>({...part,path:source.path,sourceHash:hash,id:crypto.randomUUID(),vector:vectors[n]!,modality:extracted.media?source.mime:undefined}))
             const shard=RAG_ROOT+'data/'+crypto.randomUUID()+'.json';await this.port.check();signal.throwIfAborted();await this.port.put(shard,chunks).catch(error=>{throw Object.assign(error instanceof Error?error:Error(String(error)),{fatal:true})});created.push(shard);entry.shards.push(shard)
+            if(!extracted.media)digests.forEach((digest,index)=>{if(!reusable.has(digest))reusable.set(digest,{shard,id:chunks[index].id,sourceHash:hash})})
           }
           files.push(entry)
         }catch(error){if(signal.aborted||(error as {fatal?:boolean})?.fatal)throw error;errors.push({path:source.path,error:String((error as Error).message).slice(0,500)})}finally{bytes?.fill(0)}
       }
-      signal.throwIfAborted();await this.port.check();const index:RagIndex={version:1,fingerprint,updated:Date.now(),files,errors};await this.port.put(RAG_ROOT+'index.json',index)
+      signal.throwIfAborted();await this.port.check();const index:RagIndex={version:1,fingerprint,updated:Date.now(),files,errors,stats};await this.port.put(RAG_ROOT+'index.json',index)
       const retained=new Set(files.flatMap(file=>file.shards));for(const shard of [...(previous?.files||[]).flatMap(file=>file.shards),...created])if(!retained.has(shard)&&shard.startsWith(RAG_ROOT+'data/'))await this.port.remove(shard).catch(()=>{})
       return index
     }catch(error){for(const shard of created)await this.port.remove(shard).catch(()=>{});throw error}
