@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {RAG_ROOT,RagIndexSchema,type RagSettings} from '@shared/session-rag'
-import {SessionRagEngine,ragHash,type RagEnginePort,type RagSource} from '@shared/session-rag-engine'
+import {ragFingerprint,SessionRagEngine,ragHash,type RagEnginePort,type RagSource} from '@shared/session-rag-engine'
 import {KnowledgeAugmentationSchema,KnowledgeAnalysisManifestSchema,KNOWLEDGE_ANALYSIS_VERSION,type KnowledgeAugmentation,type KnowledgeAnalysis} from '@shared/knowledge-augmentation'
 import {KnowledgeAugmentationEngine,type KnowledgeAnalysisManifest,type KnowledgeDocument} from '@shared/knowledge-augmentation-engine'
 const ROOT='.chatbox/knowledge/',CURRENT=ROOT+'state.json',INDEX=RAG_ROOT+'index.json',META=ROOT+'index.json'
@@ -37,7 +37,7 @@ export class AugmentedCollectionIndex{
   try{
    vector=await new SessionRagEngine(wrapped).index(settings,signal,progress,rebuild);if(vector.errors.length)throw Error('Advanced indexing was not published: '+vector.errors[0].error)
    if(cfg.enabled){if(!cfg.model)throw Error('Choose a knowledge extraction model first')
-    const sources=this.files,indexed=vector.files,base=this.base,storage=this.storage,canReuse=!rebuild&&previous?.vector.fingerprint===ragFingerprint(settings)&&previous.analysisFingerprint===analysisFingerprint,cachedMetadata=new Map((metadata?.files||[]).map(file=>[file.fileId,file]))
+    const sources=this.files,indexed=vector.files,base=this.base,storage=this.storage,canReuse=!!previous&&!rebuild&&previous.vector.fingerprint===ragFingerprint(settings)&&previous.analysisFingerprint===analysisFingerprint,cachedMetadata=new Map((metadata?.files||[]).map(file=>[file.fileId,file]))
     async function* documents():AsyncGenerator<KnowledgeDocument>{for(const file of indexed){signal.throwIfAborted();await storage.check();const source=sources.find(source=>source.path===file.path);if(!source)continue;const native=source.mime.startsWith('image/')&&settings.images||source.mime.startsWith('audio/')&&settings.audio;if(native&&!cfg.mediaText)continue
      if(canReuse&&base.revision&&cachedMetadata.get(String(source.id))?.sourceHash===file.hash){if(await base.revision(file.path)!==file.hash)throw Error('Knowledge source changed during indexing');yield {fileId:String(source.id),sourceHash:file.hash,text:'',cachedOnly:true,retainText:false};continue}
      const bytes=await base.read(file.path);try{if(await ragHash(bytes)!==file.hash)throw Error('Knowledge source changed during indexing');const options=native?{...settings,images:false,audio:false}:settings,result=await parsed(source,bytes,options);if(result.media||!result.text?.trim())continue;yield {fileId:String(source.id),sourceHash:file.hash,text:result.text,retainText:false}}finally{bytes.fill(0)}

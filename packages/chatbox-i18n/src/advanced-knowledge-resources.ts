@@ -1,4 +1,10 @@
 export const advancedKnowledgeItalian:Record<string,string>={
+"Rebuild RAG index":"Ricostruisci indice RAG",
+"The embedding endpoint or index binding changed. Use Reindex to rebuild vectors; no provider calls were made.":"L’endpoint di embedding o il legame dell’indice è cambiato. Usa Reindicizza per ricostruire i vettori; non è stata effettuata alcuna chiamata al provider.",
+"Knowledge source changed during verification":"La fonte è cambiata durante la verifica",
+"Choose a knowledge verifier model first":"Scegli prima un modello per la verifica della conoscenza",
+"Knowledge collection changed; retry explicitly":"La raccolta è cambiata; riprova esplicitamente",
+"Knowledge cache binding changed; retry indexing":"Il legame della cache è cambiato; ripeti l’indicizzazione",
 "Select at least one knowledge collection for this endpoint":"Seleziona almeno una raccolta di conoscenza per questo endpoint",
 "Search explicitly granted knowledge collections (provider charges may apply)":"Cerca nelle raccolte di conoscenza autorizzate (possono esserci costi del provider)",
 "Knowledge collections granted to this endpoint":"Raccolte di conoscenza autorizzate per questo endpoint",

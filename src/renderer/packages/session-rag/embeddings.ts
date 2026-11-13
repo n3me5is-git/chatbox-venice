@@ -2,7 +2,7 @@ import { SystemProviders } from '@shared/defaults'
 import { ModelProviderType } from '@shared/types'
 import { normalizeOpenAIApiHostAndPath } from '@shared/utils/llm_utils'
 import type { RagSettings } from '@shared/session-rag'
-import type { RagInput } from '@shared/session-rag-engine'
+import {ragHash,type RagInput} from '@shared/session-rag-engine'
 import { settingsStore } from '@/stores/settingsStore'
 import { apiRequest } from '@/utils/request'
 import {requireModelPrivacy} from '@shared/providers/definitions/models/venice/privacy'
@@ -25,7 +25,14 @@ export function embeddingMediaSupport(provider:string,model:string){
  return {image:google,audio:google}
 }
 export function multimodalEmbedding(provider:string,model:string){const support=embeddingMediaSupport(provider,model);return support.image||support.audio}
-export function ragProvider(settings:RagSettings){const global=settingsStore.getState().getSettings(),definition=[...SystemProviders(),...(global.customProviders||[])].find(p=>p.id===settings.provider),saved=global.providers?.[settings.provider];if(!definition||!saved?.apiKey||!settings.model||settings.provider==='venice'&&saved.venice?.enabled===false)throw Error('Configure the selected embedding provider first');if(![ModelProviderType.OpenAI,ModelProviderType.Gemini].includes(definition.type)&&!adapterFor(settings.provider,settings.model,definition.type))throw Error('Choose an OpenAI-compatible or Gemini embedding provider');if(settings.provider==='venice')requireModelPrivacy(saved.models?.find(model=>model.modelId===settings.model)?.vendorMetadata,saved.venice?.privacyFilter);return {definition,saved,host:saved.apiHost||definition.defaultSettings?.apiHost||''}}
+export function ragProvider(settings:RagSettings){const global=settingsStore.getState().getSettings(),definition=[...SystemProviders(),...(global.customProviders||[])].find(p=>p.id===settings.provider),saved=global.providers?.[settings.provider];if(!definition||!saved?.apiKey||!settings.model||settings.provider==='venice'&&saved.venice?.enabled===false)throw Error('Configure the selected embedding provider first');if(![ModelProviderType.OpenAI,ModelProviderType.Gemini].includes(definition.type)&&!adapterFor(settings.provider,settings.model,definition.type))throw Error('Choose an OpenAI-compatible or Gemini embedding provider');if(settings.provider==='venice')requireModelPrivacy([...(saved.catalogModels||[]),...(saved.models||[])].find(model=>model.modelId===settings.model)?.vendorMetadata,saved.venice?.privacyFilter);return {definition,saved,host:saved.apiHost||definition.defaultSettings?.apiHost||''}}
+/** A non-secret persisted space binding. Rotating credentials does not invalidate
+ * vectors; changing the endpoint, transport or declared model revision does. */
+export function embeddingSpaceDescriptor(settings:RagSettings){
+ const {definition,saved,host}=ragProvider(settings),url=new URL(host),endpoint=url.origin+url.pathname.replace(/\/+$/,''),adapter=adapterFor(settings.provider,settings.model,definition.type),revision=[...(saved.catalogModels||[]),...(saved.models||[])].find(model=>model.modelId===settings.model)?.vendorMetadata?.embeddingRevision
+ return JSON.stringify([settings.provider,definition.type,endpoint,settings.model,settings.dimensions,adapter?.id||(definition.type===ModelProviderType.Gemini?'google-embedContent-v1':'openai-embeddings-v1'),typeof revision==='string'?revision:null])
+}
+export const embeddingSpaceIdentity=(settings:RagSettings)=>ragHash(new TextEncoder().encode(embeddingSpaceDescriptor(settings)))
 const encode=(data:Uint8Array)=>{let value='';for(const byte of data)value+=String.fromCharCode(byte);return btoa(value)}
 async function mediaPart(input:RagInput,signal:AbortSignal){
   if(!input.data||!input.mime)throw Error('Invalid embedding input')

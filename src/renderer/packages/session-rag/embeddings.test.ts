@@ -5,7 +5,7 @@ import { RagSettingsSchema } from '@shared/session-rag'
 const state=vi.hoisted(()=>({post:vi.fn(),settings:{providers:{venice:{apiKey:'test-only',apiHost:'https://api.venice.ai/api/v1'},gemini:{apiKey:'test-google',apiHost:'https://generativelanguage.googleapis.com'}}} as any}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>state.settings})}}))
 vi.mock('@/utils/request',()=>({apiRequest:{post:state.post}}))
-import { requestRagEmbeddings,multimodalEmbedding,embeddingMediaSupport,registerRagEmbeddingAdapter } from './embeddings'
+import { requestRagEmbeddings,multimodalEmbedding,embeddingMediaSupport,registerRagEmbeddingAdapter,embeddingSpaceIdentity } from './embeddings'
 beforeEach(()=>{vi.clearAllMocks();defineProvider({id:'venice',name:'Venice',type:ModelProviderType.OpenAI} as any);defineProvider({id:'gemini',name:'Gemini',type:ModelProviderType.Gemini} as any)})
 it('uses the configured Venice embedding endpoint, batch order and cancellation without a fallback',async()=>{
  state.post.mockResolvedValue({json:async()=>({data:[{index:1,embedding:[0,1]},{index:0,embedding:[1,0]}]})})
@@ -36,4 +36,8 @@ it('supports explicitly registered future provider transports by modality withou
 it('never advertises or sends native Venice images even if an extension claims them',async()=>{
  const request=vi.fn(async()=>[[1,0]]),unregister=registerRagEmbeddingAdapter({id:'test-venice-native',supports:provider=>provider==='venice',modalities:['image','text'],request})
  try{expect(embeddingMediaSupport('venice','gemini-embedding-2-preview')).toEqual({image:false,audio:false});await expect(requestRagEmbeddings([{data:new Uint8Array([1]),mime:'image/png'}],false,RagSettingsSchema.parse({provider:'venice',model:'gemini-embedding-2-preview'}),new AbortController().signal)).rejects.toThrow('Venice embeddings require text');expect(request).not.toHaveBeenCalled();expect(state.post).not.toHaveBeenCalled()}finally{unregister()}
+})
+
+it('binds endpoint/model/transport identity without embedding credentials into the cache identity',async()=>{
+ const cfg=RagSettingsSchema.parse({provider:'venice',model:'embed'}),before=await embeddingSpaceIdentity(cfg),saved=state.settings.providers.venice.apiKey;state.settings.providers.venice.apiKey='rotated-fixture';expect(await embeddingSpaceIdentity(cfg)).toBe(before);state.settings.providers.venice.apiHost='https://other.fixture.invalid/v1';expect(await embeddingSpaceIdentity(cfg)).not.toBe(before);state.settings.providers.venice.apiHost='https://api.venice.ai/api/v1';state.settings.providers.venice.apiKey=saved
 })

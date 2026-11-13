@@ -76,3 +76,8 @@ it('updates source provenance without embedding when only parsed-container bytes
  const f=fixture();f.sources.clear();f.sources.set('document.pdf','container-v1');f.port.extract=async()=>({text:'Exactly the same parsed document.'});await f.engine.index(f.settings,f.signal.signal);f.embed.mockClear();f.sources.set('document.pdf','container-v2');const next=await f.engine.index(f.settings,f.signal.signal)
  expect(f.embed).not.toHaveBeenCalled();expect(next.stats).toEqual({embeddedChunks:0,reusedChunks:1,unchangedFiles:0})
 })
+
+it('refuses incompatible endpoint spaces before charging provider calls, and rebuilds only on explicit request',async()=>{
+ const f=fixture();f.port.embeddingSpace='a'.repeat(64);await f.engine.index(f.settings,f.signal.signal);f.embed.mockClear();f.port.embeddingSpace='b'.repeat(64)
+ await expect(f.engine.search('cat',f.settings,f.signal.signal)).rejects.toThrow('Reindex');await expect(f.engine.index(f.settings,f.signal.signal)).rejects.toThrow('Reindex');expect(f.embed).not.toHaveBeenCalled();const rebuilt=await f.engine.index(f.settings,f.signal.signal,()=>{},true);expect(rebuilt.embeddingSpace).toBe('b'.repeat(64));expect(f.embed).toHaveBeenCalled()
+})
