@@ -31,3 +31,7 @@ Encrypted library backups in Data & Backup include accessible collection origina
 ## Validation
 
 Actions run collection encryption/unlock/lock-during-query tests, EPUB/RTF/OpenDocument parser fixtures, recursive chunk/reference tests, mobile collection UI tests, existing RAG regression suites and full TypeScript checks. Small authorized live Venice probes validate private BGE-M3, private Qwen3 and Gemini text embedding responses, plus rejection of multimodal input on the Venice endpoint. Native device fingerprint behavior still depends on the platform's configured biometric enrollment and must not be inferred solely from simulated device-protector tests.
+
+## Optional hybrid retrieval and source review
+
+The [hybrid knowledge guide](advanced-knowledge-guide.md) covers optional semantic/BM25 retrieval, LLM reranking, source-anchored metadata and relations, retained OCR/transcripts, federation, read-only linked folders, graph inspection and source-support review. These features require explicit settings and provider consent. Existing collection protection, legacy desktop behavior and the native path when optional features are disabled remain available. Android Work registers selected collection tools on initial and resumed requests.
