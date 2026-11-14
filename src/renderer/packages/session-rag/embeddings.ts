@@ -1,3 +1,4 @@
+import {stripImageMetadata} from '@shared/rag-file-metadata'
 import { SystemProviders } from '@shared/defaults'
 import { ModelProviderType } from '@shared/types'
 import { normalizeOpenAIApiHostAndPath } from '@shared/utils/llm_utils'
@@ -25,7 +26,7 @@ export function embeddingMediaSupport(provider:string,model:string){
  return {image:google,audio:google}
 }
 export function multimodalEmbedding(provider:string,model:string){const support=embeddingMediaSupport(provider,model);return support.image||support.audio}
-export function ragProvider(settings:RagSettings){const global=settingsStore.getState().getSettings(),definition=[...SystemProviders(),...(global.customProviders||[])].find(p=>p.id===settings.provider),saved=global.providers?.[settings.provider];if(!definition||!saved?.apiKey||!settings.model||settings.provider==='venice'&&saved.venice?.enabled===false)throw Error('Configure the selected embedding provider first');if(![ModelProviderType.OpenAI,ModelProviderType.Gemini].includes(definition.type)&&!adapterFor(settings.provider,settings.model,definition.type))throw Error('Choose an OpenAI-compatible or Gemini embedding provider');if(settings.provider==='venice')requireModelPrivacy([...(saved.catalogModels||[]),...(saved.models||[])].find(model=>model.modelId===settings.model)?.vendorMetadata,saved.venice?.privacyFilter);return {definition,saved,host:saved.apiHost||definition.defaultSettings?.apiHost||''}}
+export function ragProvider(settings:RagSettings){const global=settingsStore.getState().getSettings(),definition=[...SystemProviders(),...(global.customProviders||[])].find(p=>p.id===settings.provider),saved=global.providers?.[settings.provider];let local=false;try{const url=new URL(saved?.apiHost||'');local=definition?.type===ModelProviderType.OpenAI&&!!global.customProviders?.some(p=>p.id===settings.provider)&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)&&['http:','https:'].includes(url.protocol)}catch{}if(!definition||!saved||(!saved.apiKey&&!local)||!settings.model||settings.provider==='venice'&&saved.venice?.enabled===false)throw Error('Configure the selected embedding provider first');if(![ModelProviderType.OpenAI,ModelProviderType.Gemini].includes(definition.type)&&!adapterFor(settings.provider,settings.model,definition.type))throw Error('Choose an OpenAI-compatible or Gemini embedding provider');if(settings.provider==='venice')requireModelPrivacy([...(saved.catalogModels||[]),...(saved.models||[])].find(model=>model.modelId===settings.model)?.vendorMetadata,saved.venice?.privacyFilter);return {definition,saved,host:saved.apiHost||definition.defaultSettings?.apiHost||''}}
 /** A non-secret persisted space binding. Rotating credentials does not invalidate
  * vectors; changing the endpoint, transport or declared model revision does. */
 export function embeddingSpaceDescriptor(settings:RagSettings){
@@ -44,6 +45,7 @@ async function mediaPart(input:RagInput,signal:AbortSignal){
 export async function requestRagEmbeddings(inputs:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal){
   const {definition,saved,host}=ragProvider(settings)
   try{
+    inputs=inputs.map(input=>input.data&&input.mime?.startsWith('image/')?{...input,data:stripImageMetadata(input.data,input.mime)}:input)
     if(settings.provider==='venice'&&inputs.some(input=>input.text===undefined))throw Error('Venice embeddings require text. Enable OCR or transcription for media.')
     const extension=adapterFor(settings.provider,settings.model,definition.type)
     if(extension){for(const input of inputs){const modality:EmbeddingModality=input.text!==undefined?'text':input.mime?.startsWith('image/')?'image':input.mime?.startsWith('audio/')?'audio':input.mime?.startsWith('video/')?'video':'document';if(!extension.modalities.includes(modality))throw Error('This embedding transport does not support the selected modality')}signal.throwIfAborted();const result=await extension.request(inputs,query,settings,signal,{apiHost:host,apiKey:saved.apiKey!,providerType:definition.type});signal.throwIfAborted();return result}
@@ -61,7 +63,7 @@ export async function requestRagEmbeddings(inputs:RagInput[],query:boolean,setti
     }
     if(inputs.some(input=>input.text===undefined))throw Error('This embedding model accepts text only')
     const {apiHost,apiPath}=normalizeOpenAIApiHostAndPath({apiHost:host,apiPath:'/embeddings'},{apiPath:'/embeddings'})
-    const response=await apiRequest.post(apiHost+apiPath,{Authorization:'Bearer '+saved.apiKey,'Content-Type':'application/json'},JSON.stringify({model:settings.model,input:inputs.map(input=>input.text),encoding_format:'float',...(settings.dimensions?{dimensions:settings.dimensions}:{})}),{signal,retry:0})
+    const response=await apiRequest.post(apiHost+apiPath,{...(saved.apiKey?{Authorization:'Bearer '+saved.apiKey}:{}),'Content-Type':'application/json'},JSON.stringify({model:settings.model,input:inputs.map(input=>input.text),encoding_format:'float',...(settings.dimensions?{dimensions:settings.dimensions}:{})}),{signal,retry:0})
     const result=await response.json();if(!Array.isArray(result.data)||result.data.length!==inputs.length)throw Error('Incomplete embedding response')
     const rows=[...result.data].sort((a,b)=>a.index-b.index);if(rows.some((row,index)=>row.index!==index))throw Error('Invalid embedding response order');return rows.map(row=>row.embedding as number[])
   }catch(error){throw Object.assign(error instanceof Error?error:Error(String(error)),{fatal:true})}

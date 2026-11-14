@@ -116,5 +116,14 @@ export const portableKnowledgeItalian = {
 "Invalid plaintext asset metadata":"Metadati della risorsa in chiaro non validi",
 "Media exceeds the collection size limit":"Il contenuto supera il limite di dimensione della collezione",
 "This collection does not use a passphrase":"Questa collezione non utilizza una passphrase",
+"Describe images and PDF pages for search":"Descrivi immagini e pagine PDF per la ricerca",
+"Adds a brief AI-generated description beside OCR text. Descriptions are inferred and labelled separately. This may send each enabled image/page to the selected vision model.":"Aggiunge una breve descrizione generata dall’AI accanto al testo OCR, distinguendola come inferenza. Può inviare ogni immagine o pagina abilitata al modello visivo selezionato.",
+"Index file metadata":"Indicizza i metadati dei file",
+"Includes filenames, PDF properties and supported image metadata such as author, camera and capture date. File metadata can be edited and is not independently authenticated.":"Include nomi dei file, proprietà PDF e metadati delle immagini supportati, come autore, fotocamera e data di scatto. Questi dati possono essere modificati e non sono autenticati in modo indipendente.",
+"Include photo GPS coordinates":"Includi le coordinate GPS delle foto",
+"Location is excluded by default. Enable only if you want it stored in the index and sent to the selected processing providers.":"La posizione è esclusa per impostazione predefinita. Abilitala solo se vuoi salvarla nell’indice e inviarla ai provider di elaborazione selezionati.",
+"Use concise source review":"Usa una verifica delle fonti concisa",
+"Uses the lowest supported thinking mode to leave room for the verification result. Turn off to use the model’s default reasoning.":"Usa il livello di ragionamento più basso supportato per lasciare spazio al risultato della verifica. Disattiva per usare il ragionamento predefinito del modello.",
+"Invalid image metadata structure":"Struttura dei metadati dell’immagine non valida",
 } as const
 export const portableKnowledgeEnglish = Object.fromEntries(Object.keys(portableKnowledgeItalian).map(key=>[key,key]))
