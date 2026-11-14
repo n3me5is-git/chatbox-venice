@@ -127,5 +127,6 @@ export const portableKnowledgeItalian = {
 "Invalid image metadata structure":"Struttura dei metadati dell’immagine non valida",
 "Use concise OCR and image descriptions":"Usa OCR e descrizioni delle immagini concisi",
 "Uses the lowest supported thinking mode for faster extraction. Turn off to keep the model’s default reasoning.":"Usa il livello di ragionamento più basso supportato per estrarre più rapidamente. Disattiva per mantenere il ragionamento predefinito del modello.",
+"The assessment lacks matching source evidence.":"La valutazione non contiene prove corrispondenti nelle fonti.",
 } as const
 export const portableKnowledgeEnglish = Object.fromEntries(Object.keys(portableKnowledgeItalian).map(key=>[key,key]))
