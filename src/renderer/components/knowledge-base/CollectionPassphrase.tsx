@@ -1,0 +1,9 @@
+import NiceModal,{useModal} from '@ebay/nice-modal-react'
+import {Alert,Button,PasswordInput,Stack,Text} from '@mantine/core'
+import {useState} from 'react'
+import {useTranslation} from 'react-i18next'
+import {AdaptiveModal} from '@/components/common/AdaptiveModal'
+import {usePrivacyDismiss} from '@/components/security/usePrivacyDismiss'
+import {forkT as ft} from '@/i18n/fork'
+const Dialog=NiceModal.create(({creating=false}:{creating?:boolean})=>{const modal=useModal();useTranslation();usePrivacyDismiss(modal,false);const [value,setValue]=useState(''),[repeat,setRepeat]=useState('');return <AdaptiveModal opened={modal.visible} onClose={()=>{modal.resolve(null);void modal.hide()}} title={ft(creating?'Protect portable collection':'Unlock portable collection')}><Stack><Text size="sm">{ft('This passphrase opens the collection on another device. App PIN and biometrics do not replace it. Keep it separately from the folder.')}</Text><PasswordInput autoComplete={creating?'new-password':'current-password'} label={ft('Collection passphrase')} value={value} onChange={event=>setValue(event.currentTarget.value)} maxLength={1024}/>{creating&&<><PasswordInput label={ft('Repeat passphrase')} value={repeat} onChange={event=>setRepeat(event.currentTarget.value)} maxLength={1024}/><Alert color="yellow">{ft('Use at least 12 characters. A lost passphrase cannot be recovered. Original documents outside the database keep their existing protection.')}</Alert></>}<Button disabled={creating?value.length<12||value!==repeat:!value} onClick={()=>{modal.resolve(value);setValue('');setRepeat('');void modal.hide()}}>{ft(creating?'Create encrypted database':'Unlock')}</Button></Stack></AdaptiveModal>})
+export const requestCollectionPassphrase=(creating=false)=>NiceModal.show(Dialog,{creating}) as Promise<string|null>

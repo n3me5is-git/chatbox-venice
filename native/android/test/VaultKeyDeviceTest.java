@@ -37,4 +37,9 @@ public class VaultKeyDeviceTest extends EmulatorDeviceFixture {
             try {tampered.doFinal(encrypted);fail("Modified ciphertext was accepted");}catch(javax.crypto.AEADBadTagException expected){}
         } finally {store.deleteEntry(alias);}
     }
+    @Test public void collectionDatabasePathsRejectSourcesAndTraversal() throws Exception {
+        SessionFolderPlugin plugin=new SessionFolderPlugin();Method method=SessionFolderPlugin.class.getDeclaredMethod("databasePath",String.class);method.setAccessible(true);String hash=new String(new char[64]).replace('\0','a');
+        for(String value:new String[]{".rag-collection",".rag-collection/collection.json",".rag-collection/v1/records/headers/"+hash,".rag-collection/v1/records/chunks/"+hash+"/000000000001_12345678-1234-4123-8123-123456789012.commit"})assertEquals(value,method.invoke(plugin,value));
+        for(String value:new String[]{"source.pdf","../source.pdf",".rag-collection/../source.pdf",".rag-collection/v1/records/headers/"+hash+"/../../source.pdf",".rag-collection/collection.json/other"})try{method.invoke(plugin,value);fail("Invalid collection path accepted: "+value);}catch(java.lang.reflect.InvocationTargetException expected){assertTrue(expected.getCause().getMessage().contains("database path"));}
+    }
 }
