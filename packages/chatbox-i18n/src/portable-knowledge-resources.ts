@@ -125,5 +125,7 @@ export const portableKnowledgeItalian = {
 "Use concise source review":"Usa una verifica delle fonti concisa",
 "Uses the lowest supported thinking mode to leave room for the verification result. Turn off to use the model’s default reasoning.":"Usa il livello di ragionamento più basso supportato per lasciare spazio al risultato della verifica. Disattiva per usare il ragionamento predefinito del modello.",
 "Invalid image metadata structure":"Struttura dei metadati dell’immagine non valida",
+"Use concise OCR and image descriptions":"Usa OCR e descrizioni delle immagini concisi",
+"Uses the lowest supported thinking mode for faster extraction. Turn off to keep the model’s default reasoning.":"Usa il livello di ragionamento più basso supportato per estrarre più rapidamente. Disattiva per mantenere il ragionamento predefinito del modello.",
 } as const
 export const portableKnowledgeEnglish = Object.fromEntries(Object.keys(portableKnowledgeItalian).map(key=>[key,key]))

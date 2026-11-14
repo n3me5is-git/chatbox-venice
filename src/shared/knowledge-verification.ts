@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {KnowledgeModelSchema} from './knowledge-json'
 import {ragHash} from './session-rag-engine'
 export const KNOWLEDGE_VERIFICATION_INFO='local:knowledge-verification'
-export const KnowledgeVerificationSettingsSchema=z.object({enabled:z.boolean().default(false),model:KnowledgeModelSchema.optional(),consented:z.boolean().default(false),correctConflicts:z.boolean().default(true),reasoning:z.enum(['auto','concise']).default('auto')}).strict()
+export const KnowledgeVerificationSettingsSchema=z.object({enabled:z.boolean().default(false),model:KnowledgeModelSchema.optional(),consented:z.boolean().default(false),correctConflicts:z.boolean().default(true),reasoning:z.enum(['auto','concise']).optional()}).strict()
 export type KnowledgeVerificationSettings=z.infer<typeof KnowledgeVerificationSettingsSchema>
 export const KnowledgeCheckSourceSchema=z.object({id:z.string().min(1).max(128),origin:z.enum(['knowledge','external']),name:z.string().max(512),url:z.string().url().max(4096),content:z.string().max(8000),truncated:z.boolean().optional()}).strict()
 export type KnowledgeCheckSource=z.infer<typeof KnowledgeCheckSourceSchema>
