@@ -82,3 +82,5 @@ Read-only is the default. To modify source copies or indices, reopen with writin
 See [Portable Knowledge Directory v1](portable-knowledge-v1.md), its [JSON Schema](portable-knowledge-v1.schema.json) and the [independent reader](../scripts/portable-knowledge/reader.mjs) for integration details and precise limits.
 
 A writable folder collection also provides **Clean database storage** for orphan chunks and interrupted/stale record objects. Deleting a document prunes its older payload records; cleanup does not overwrite flash sectors or erase independent backups.
+
+Source review measures coverage of visible content using Markdown structure. Citation destinations and recognized source labels are excluded; factual link labels remain reviewable. New reports require complete visible-content coverage for the overall checked state. Historical reports retain their original assessment policy. Coverage and source quotes are evidence checks, not proof that a source or a model is correct.
