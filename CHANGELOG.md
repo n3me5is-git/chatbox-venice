@@ -1,5 +1,11 @@
 # Changelog — Chatbox Venice
 
+## 1.46.0
+
+- Optional public folder collections and automatic existing-folder setup.
+- Searchable visual descriptions, source metadata and filename retrieval.
+- Role-local concise OCR/source review and custom local embeddings without dummy credentials.
+
 ## 1.45.0
 
 See [release notes](docs/releases/v1.45.0.md). Adds self-contained encrypted folder collections, transferable indexed data, federated graph exploration, query embedding reuse and a documented integration format.

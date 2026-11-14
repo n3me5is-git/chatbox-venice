@@ -30,6 +30,14 @@ The source scan is recursive, hashes actual bytes, rejects symlinks and excludes
 
 A nested collection's database is excluded. Ordinary documents beneath a nested root are still part of a recursive parent scan unless that subtree is explicitly excluded. Mounting both can intentionally produce overlapping evidence; this is not automatic deduplication across distinct collections.
 
+## Optional public, unencrypted collections
+
+Encryption is enabled by default. Creation and migration can explicitly select an unencrypted folder database. Its descriptor declares `cipher:"none"` and `integrity:"sha256-v1"`, and contains no key or KDF fields. Existing encrypted databases are never silently converted by this choice. Opening an existing collection detects its actual format: encrypted collections require their passphrase, public collections do not. Both retain separate device-local provider consent and read-only mounts by default.
+
+In public mode record-object files contain the UTF-8 JSON value directly; immutable commit markers still hash the exact object bytes. Assets use `plain-chunks-v1`: key marker `{iv:"none",data:""}`, UTF-8 JSON info `{iv:"utf8-json-v1",data:<JSON>}`, manifest `{iv:"sha256-v1",data:<JSON {bytes,chunks,hashes}>}`, and chunk records `{encoding:"base64-v1",data:<base64 bytes>}`. Each chunk hash is SHA-256 of its decoded bytes. Source asset UUIDs and aliases are preserved when streaming existing encrypted content into a public database. No model calls or re-embedding are needed.
+
+Anyone with the folder can read all public collection content. Checksums detect accidental damage; an adversary can change plaintext and recompute hashes. Local PIN/biometric controls only gate access inside the application. Credentials and local policies are not exported, and imported text/metadata remain untrusted. Public-mode migration is a new destination operation, not an in-place encryption toggle or secure erasure of previous copies.
+
 ## Bootstrap descriptor and keys
 
 `collection.json` is UTF-8 JSON with `format: "portable-knowledge-directory"`, `version: 1`, an RFC 4122 version-4 `id`, ISO-8601 `created`, `writer: "single"`, `cipher: "AES-256-GCM"`, `kdf: {name:"PBKDF2-SHA256",iterations:600000,salt:<base64 16 bytes>}` and `key: {iv,data}`. The collection master key is 32 independently random bytes, wrapped with the passphrase-derived AES-256 key. Wrapping AAD is UTF-8 `portable-collection:<uuid>:key:v1`. AES-GCM uses random 12-byte nonces and 128-bit tags; the tag is appended to ciphertext before standard padded base64 encoding. Passphrases are 12–1024 characters when created; no plaintext passphrase is persisted.

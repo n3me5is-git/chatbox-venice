@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
+vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({providers:{venice:{models:[{modelId:'qwen3-5-35b-a3b',capabilities:['reasoning'],vendorMetadata:{capabilities:{supportsReasoning:true,supportsReasoningEffort:true,reasoningEffortOptions:['none','low']}}}]}}})})}}))
 import {beforeEach,expect,it,vi} from 'vitest'
 import {RagSettingsSchema} from '@shared/session-rag'
-const state=vi.hoisted(()=>({text:'',chat:vi.fn(),render:vi.fn(),stt:vi.fn()}))
-vi.mock('@/adapters',()=>({createModel:async()=>({isSupportVision:()=>true,chat:state.chat})}))
+const state=vi.hoisted(()=>({text:'',create:vi.fn(),chat:vi.fn(),render:vi.fn(),stt:vi.fn()}))
+vi.mock('@/adapters',()=>({createModel:async(settings:unknown)=>{state.create(settings);return {isSupportVision:()=>true,chat:state.chat}}}))
 vi.mock('@/packages/pdf-parser',()=>({parsePdfFileLocally:async()=>state.text,pdfPagesForOcr:async function*(_file:any,_signal:any,pages?:Set<number>){state.render(pages);for(const page of [1,2])if(!pages||pages.has(page))yield {page,dataUrl:'data:image/png;base64,AQID'}}}))
 vi.mock('@/packages/mobile-work-mode/execution-service',()=>({capacitorExecution:{parseDocument:vi.fn()}}))
 vi.mock('@/packages/knowledge-collections/stt',()=>({transcribeKnowledgeAudio:state.stt}))
 import {extractRagSource} from './extract'
+import {jpegMetadataFixture} from '@shared/__fixtures__/rag-image-metadata'
+import {imageFileMetadata} from '@shared/rag-file-metadata'
 const source={path:'document.pdf',mime:'application/pdf'},signal=new AbortController().signal
 const cfg=()=>RagSettingsSchema.parse({ocr:true,ocrProvider:'vision',ocrModel:'vision-model'})
 beforeEach(()=>{vi.clearAllMocks();state.text='';state.chat.mockResolvedValue({contentParts:[{type:'text',text:'Scanned page text'}]})})
@@ -30,3 +33,11 @@ it('uses explicit STT for audio text while native audio embeddings retain preced
  expect(await extractRagSource(source,new Uint8Array([1]),settings,signal)).toMatchObject({kind:'transcript',text:'Transcript for indexing'});expect(state.stt).toHaveBeenCalledOnce();state.stt.mockClear()
  expect(await extractRagSource(source,new Uint8Array([1]),{...settings,audio:true},signal)).toEqual({media:true});expect(state.stt).not.toHaveBeenCalled()
 })
+
+it('extracts OCR text and a separately labelled visual description with one explicit vision request',async()=>{state.chat.mockResolvedValue({contentParts:[{type:'text',text:JSON.stringify({text:'Revenue 20 EUR',description:'A blue bar chart with one labelled column.'})}]});const result=await extractRagSource({path:'chart.png',mime:'image/png'},new Uint8Array([1,2,3]),{...cfg(),describeImages:true},signal);expect(result.text).toContain('Revenue 20 EUR');expect(result.text).toContain('AI-generated visual description (inferred)');expect(result.text).toContain('blue bar chart');expect(state.chat).toHaveBeenCalledOnce()})
+it('adds opt-in filename/metadata without uploading an image to an OCR model',async()=>{const result=await extractRagSource({path:'photos/diagram.png',mime:'image/png'},new Uint8Array([1,2,3]),RagSettingsSchema.parse({fileMetadata:true}),signal);expect(result.kind).toBe('metadata');expect(result.text).toContain('diagram.png');expect(result.text).toContain('file-provided');expect(state.chat).not.toHaveBeenCalled()})
+it('keeps native image embeddings while optionally producing a searchable visual description',async()=>{state.chat.mockResolvedValue({contentParts:[{type:'text',text:JSON.stringify({text:'',description:'A flowchart with three stages.'})}]});const result=await extractRagSource({path:'flow.png',mime:'image/png'},new Uint8Array([1,2,3]),{...cfg(),images:true,ocr:false,describeImages:true},signal);expect(result.media).toBe(true);expect(result.kind).toBe('description');expect(result.text).toContain('three stages');expect(state.chat).toHaveBeenCalledOnce()})
+
+it('uses explicitly concise OCR with no search and only a supported per-model thinking option',async()=>{await extractRagSource({path:'plain.png',mime:'image/png'},new Uint8Array([1,2,3]),RagSettingsSchema.parse({ocr:true,ocrProvider:'venice',ocrModel:'qwen3-5-35b-a3b',ocrReasoning:'concise'}),signal);expect(state.create).toHaveBeenCalledWith(expect.objectContaining({temperature:0,maxTokens:4096,veniceProfile:expect.objectContaining({webSearch:'off'}),providerOptionsByModel:{'venice:qwen3-5-35b-a3b':{openaiCompatible:{reasoningEffort:'none'}}}}))})
+
+it('uploads image pixels with orientation while keeping EXIF author and GPS out of the vision request',async()=>{const original=jpegMetadataFixture();await extractRagSource({path:'photo.jpg',mime:'image/jpeg'},original,{...cfg(),fileMetadata:true,locationMetadata:true},signal);const dataUrl=state.chat.mock.calls[0][0][1].content[0].image,uploaded=Uint8Array.from(atob(dataUrl.split(',')[1]),c=>c.charCodeAt(0));expect(imageFileMetadata(uploaded,true)).toEqual({Orientation:'6'});expect(imageFileMetadata(original,true).Author).toBe('Ada Test')})

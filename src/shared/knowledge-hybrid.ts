@@ -18,8 +18,8 @@ export async function hybridRagSearch(port:RagEnginePort,query:string,settings:R
   for(const [ordinal,value]of raw.entries()){const chunk=value;if(chunk.path!==file.path||chunk.sourceHash!==file.hash)throw Error('Invalid RAG index')
    const {vector:embedding,...fields}=chunk,source={...fields,chunkIndex:shardOffset+ordinal}
    if(vector){semantic.push({...source,score:cosine(vector,normalizedVector(embedding)),shard});semantic.sort((a,b)=>b.score-a.score);if(semantic.length>overfetch)semantic.length=overfetch}
-   if(!chunk.text)continue
-   const tokens=retrievalTokens(chunk.text),frequencies=new Map<string,number>();for(const token of tokens)frequencies.set(token,(frequencies.get(token)||0)+1)
+   if(!chunk.text&&!chunk.path)continue
+   const tokens=retrievalTokens(chunk.text+' '+chunk.path+' '+chunk.path.replace(/[._/\\-]/g,' ')),frequencies=new Map<string,number>();for(const token of tokens)frequencies.set(token,(frequencies.get(token)||0)+1)
    count++;totalLength+=tokens.length;const tf=terms.map((term,n)=>{const frequency=frequencies.get(term)||0;if(frequency)df[n]++;return frequency})
    if(tf.some(Boolean))lexical.push({...source,text:'',score:0,shard,tf,length:tokens.length})
   }

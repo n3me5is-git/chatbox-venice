@@ -10,9 +10,7 @@
     "id",
     "created",
     "writer",
-    "cipher",
-    "kdf",
-    "key"
+    "cipher"
   ],
   "properties": {
     "format": {
@@ -32,7 +30,10 @@
       "const": "single"
     },
     "cipher": {
-      "const": "AES-256-GCM"
+      "enum": [
+        "AES-256-GCM",
+        "none"
+      ]
     },
     "kdf": {
       "type": "object",
@@ -59,6 +60,9 @@
     },
     "key": {
       "$ref": "#/$defs/sealed"
+    },
+    "integrity": {
+      "const": "sha256-v1"
     }
   },
   "additionalProperties": false,
@@ -353,7 +357,10 @@
           ],
           "properties": {
             "assetFormat": {
-              "const": "vault-chunks-v1"
+              "enum": [
+                "vault-chunks-v1",
+                "plain-chunks-v1"
+              ]
             },
             "sourceManifest": {
               "type": "string"
@@ -619,7 +626,9 @@
           "enum": [
             "parsed",
             "ocr",
-            "transcript"
+            "transcript",
+            "description",
+            "metadata"
           ]
         },
         "sourceHash": {
@@ -783,6 +792,203 @@
           }
         }
       }
+    },
+    "plainChunk": {
+      "type": "object",
+      "required": [
+        "encoding",
+        "data"
+      ],
+      "properties": {
+        "encoding": {
+          "const": "base64-v1"
+        },
+        "data": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "minLength": 4,
+          "maxLength": 1398104
+        }
+      },
+      "additionalProperties": false
+    },
+    "plainAssetManifest": {
+      "type": "object",
+      "required": [
+        "bytes",
+        "chunks",
+        "hashes"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 134217728
+        },
+        "chunks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128
+        },
+        "hashes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "plainAssetHeader": {
+      "type": "object",
+      "required": [
+        "version",
+        "id",
+        "scope",
+        "createdAt",
+        "bytes",
+        "chunks",
+        "status",
+        "key",
+        "info"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "alias": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "scope": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 134217728
+        },
+        "chunks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 128
+        },
+        "status": {
+          "enum": [
+            "writing",
+            "ready"
+          ]
+        },
+        "key": {
+          "const": {
+            "iv": "none",
+            "data": ""
+          }
+        },
+        "info": {
+          "type": "object",
+          "required": [
+            "iv",
+            "data"
+          ],
+          "properties": {
+            "iv": {
+              "const": "utf8-json-v1"
+            },
+            "data": {
+              "type": "string",
+              "contentMediaType": "application/json"
+            }
+          },
+          "additionalProperties": false
+        },
+        "manifest": {
+          "type": "object",
+          "required": [
+            "iv",
+            "data"
+          ],
+          "properties": {
+            "iv": {
+              "const": "sha256-v1"
+            },
+            "data": {
+              "type": "string",
+              "contentMediaType": "application/json",
+              "contentSchema": {
+                "$ref": "#/$defs/plainAssetManifest"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "ready"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "manifest"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "cipher": {
+            "const": "none"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "integrity"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "key"
+              ]
+            },
+            {
+              "required": [
+                "kdf"
+              ]
+            }
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "kdf",
+          "key"
+        ],
+        "not": {
+          "required": [
+            "integrity"
+          ]
+        }
+      }
+    }
+  ]
 }

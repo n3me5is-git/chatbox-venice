@@ -5,5 +5,5 @@ import {knowledgeJson} from './llm'
 export async function checkKnowledgeAnswer(answer:string,sources:readonly KnowledgeCheckSource[],settings:KnowledgeVerificationSettings,signal:AbortSignal,check:()=>Promise<void>,security?:SessionSettings['veniceSecurity']){
  if(!settings.model)throw Error('Choose a knowledge verifier model first')
  const model=settings.model
- return verifyKnowledgeAnswer(answer,sources,settings,{check,judge:(text,sources,sig)=>knowledgeJson(model,knowledgeJudgeInstruction,{answer:text,sources},sig,security),revise:(text,claims,sources,sig)=>knowledgeJson(model,knowledgeRevisionInstruction,{answer:text,assessment:claims,sources},sig,security)},signal)
+ return verifyKnowledgeAnswer(answer,sources,settings,{check,judge:(text,sources,sig)=>knowledgeJson(model,knowledgeJudgeInstruction,{answer:text,sources},sig,security,settings.reasoning),revise:(text,claims,sources,sig)=>knowledgeJson(model,knowledgeRevisionInstruction,{answer:text,assessment:claims,sources},sig,security,settings.reasoning)},signal)
 }

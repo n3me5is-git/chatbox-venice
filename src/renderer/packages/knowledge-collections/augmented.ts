@@ -5,13 +5,13 @@ import {KnowledgeAugmentationSchema,KnowledgeAnalysisManifestSchema,KNOWLEDGE_AN
 import {KnowledgeAugmentationEngine,type KnowledgeAnalysisManifest,type KnowledgeDocument} from '@shared/knowledge-augmentation-engine'
 const ROOT='.chatbox/knowledge/',CURRENT=ROOT+'state.json',INDEX=RAG_ROOT+'index.json',META=ROOT+'index.json'
 const digest=z.string().regex(/^[a-f0-9]{64}$/)
-const TextRef=z.object({fileId:z.string().max(128),path:z.string().max(240),sourceHash:digest,textHash:digest,fingerprint:digest,alias:z.string().regex(/^\.chatbox\/knowledge\/text\/[a-f0-9-]{36}\.json$/),kind:z.enum(['parsed','ocr','transcript']),retain:z.boolean()}).strict()
+const TextRef=z.object({fileId:z.string().max(128),path:z.string().max(240),sourceHash:digest,textHash:digest,fingerprint:digest,alias:z.string().regex(/^\.chatbox\/knowledge\/text\/[a-f0-9-]{36}\.json$/),kind:z.enum(['parsed','ocr','transcript','description','metadata']),retain:z.boolean()}).strict()
 export const KnowledgeStateSchema=z.object({version:z.literal(1),revision:z.string().uuid(),vector:RagIndexSchema,metadata:KnowledgeAnalysisManifestSchema.nullable(),analysisFingerprint:digest,derivatives:z.array(TextRef).max(RAG_MAX_FILES)}).strict()
 export type KnowledgeState=z.infer<typeof KnowledgeStateSchema>
-const TextSchema=z.object({version:z.literal(1),text:z.string().max(512000),kind:z.enum(['parsed','ocr','transcript']),sourceHash:digest,textHash:digest,fingerprint:digest,warning:z.string().max(500).optional()}).strict()
+const TextSchema=z.object({version:z.literal(1),text:z.string().max(512000),kind:z.enum(['parsed','ocr','transcript','description','metadata']),sourceHash:digest,textHash:digest,fingerprint:digest,warning:z.string().max(500).optional()}).strict()
 export interface AugmentedPort{get<T>(path:string):Promise<T|null>;put(path:string,value:unknown):Promise<void>;remove(path:string):Promise<void>;check():Promise<void>;publish(work:()=>Promise<void>):Promise<void>}
 export const knowledgeAnalysisFingerprint=async(settings:KnowledgeAugmentation)=>ragHash(new TextEncoder().encode(JSON.stringify([KNOWLEDGE_ANALYSIS_VERSION,KnowledgeAugmentationSchema.parse(settings)])))
-const parsingFingerprint=async(settings:RagSettings)=>ragHash(new TextEncoder().encode(JSON.stringify(['parser-v2',settings.ocr,settings.ocrProvider,settings.ocrModel,settings.stt,settings.sttProvider,settings.sttModel])))
+const parsingFingerprint=async(settings:RagSettings)=>ragHash(new TextEncoder().encode(JSON.stringify(['parser-v2',settings.ocr,settings.ocrProvider,settings.ocrModel,settings.stt,settings.sttProvider,settings.sttModel,...(settings.describeImages||settings.fileMetadata||settings.locationMetadata||settings.ocrReasoning==='concise'?['source-enrichment-v1',settings.describeImages,settings.fileMetadata,settings.locationMetadata,settings.ocrReasoning]:[])])))
 /** A single encrypted publication record links vectors, evidence and metadata.
  * Existing immutable shards are reused; old data is removed only after commit. */
 export class AugmentedCollectionIndex{
@@ -23,14 +23,15 @@ export class AugmentedCollectionIndex{
   let vector=previous?.vector||null,metadata:KnowledgeAnalysisManifest|null=rebuild?null:previous?.metadata||null
   const put=async(path:string,value:unknown)=>{await this.storage.check();await this.storage.put(path,value);created.add(path)}
   const parsed=async(source:RagSource,bytes:Uint8Array,options:RagSettings):ReturnType<RagEnginePort['extract']>=>{
-   if(source.mime.startsWith('image/')&&options.images||source.mime.startsWith('audio/')&&options.audio)return {media:true}
+   const native=source.mime.startsWith('image/')&&options.images||source.mime.startsWith('audio/')&&options.audio;if(native&&!options.describeImages&&!options.fileMetadata)return {media:true}
+   const incompleteNative=native&&(source.mime.startsWith('image/')?options.ocr&&!options.describeImages:options.stt),representationFingerprint=incompleteNative?await ragHash(new TextEncoder().encode(JSON.stringify([parseFingerprint,'metadata-only-native-v1']))):parseFingerprint
    const file=this.files.find(file=>file.path===source.path);if(!file)throw Error('Knowledge document not found');const fileId=String(file.id),sourceHash=await ragHash(bytes),old=texts.get(fileId)||previousText.get(fileId)
-   if((texts.has(fileId)||!rebuild)&&old?.sourceHash===sourceHash&&old.fingerprint===parseFingerprint){const cached=TextSchema.parse(await this.storage.get(old.alias));if(cached.fingerprint!==old.fingerprint||cached.kind!==old.kind||cached.textHash!==old.textHash||cached.sourceHash!==sourceHash||await ragHash(new TextEncoder().encode(cached.text))!==cached.textHash)throw Error('Invalid knowledge text revision');const ref={...old,retain:cfg.keepMarkdown||old.kind!=='parsed'};texts.set(fileId,ref);return {text:cached.text,warning:cached.warning,kind:cached.kind}}
+   if((texts.has(fileId)||!rebuild)&&old?.sourceHash===sourceHash&&old.fingerprint===representationFingerprint){const cached=TextSchema.parse(await this.storage.get(old.alias));if(cached.fingerprint!==old.fingerprint||cached.kind!==old.kind||cached.textHash!==old.textHash||cached.sourceHash!==sourceHash||await ragHash(new TextEncoder().encode(cached.text))!==cached.textHash)throw Error('Invalid knowledge text revision');const ref={...old,retain:cfg.keepMarkdown||old.kind!=='parsed'};texts.set(fileId,ref);return {text:cached.text,warning:cached.warning,kind:cached.kind,...(native?{media:true}:{})}}
    const extracted=await this.base.extract(source,bytes,options,signal),result={...extracted,...(extracted.text!==undefined?{text:extracted.text.replace(/\r\n?/g,'\n')}:{})};signal.throwIfAborted();await this.storage.check()
    if(result.text!==undefined){if(result.text.length>512000)throw Error('Knowledge text exceeds the analysis limit');const kind=result.kind||'parsed',retain=cfg.keepMarkdown||kind!=='parsed',textHash=await ragHash(new TextEncoder().encode(result.text))
     // Plain UTF-8 sources can be reparsed cheaply. Other parsers get a temporary
     // encrypted derivative, reused in this generation and discarded if not kept.
-    if(retain||!source.mime.startsWith('text/')){const alias=ROOT+'text/'+crypto.randomUUID()+'.json';await put(alias,{version:1,text:result.text,sourceHash,textHash,fingerprint:parseFingerprint,kind,warning:result.warning});texts.set(fileId,{fileId,path:source.path,sourceHash,textHash,fingerprint:parseFingerprint,alias,kind,retain})}
+    if(retain||!source.mime.startsWith('text/')){const alias=ROOT+'text/'+crypto.randomUUID()+'.json';await put(alias,{version:1,text:result.text,sourceHash,textHash,fingerprint:representationFingerprint,kind,warning:result.warning});texts.set(fileId,{fileId,path:source.path,sourceHash,textHash,fingerprint:representationFingerprint,alias,kind,retain})}
    }return result
   }
   const wrapped:RagEnginePort={...this.base,get:async path=>path===INDEX?vector||await this.base.get(path):this.base.get(path),put:async(path,value)=>{if(path===INDEX)vector=RagIndexSchema.parse(value);else await put(path,value)},remove:async path=>{garbage.add(path)},extract:parsed}
