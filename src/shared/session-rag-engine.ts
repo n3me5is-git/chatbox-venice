@@ -7,6 +7,7 @@ export interface RagExtracted{text?:string;media?:boolean;warning?:string;kind?:
 export interface RagEnginePort {
   embeddingSpace?:string
   portableSpace?:string
+  portableDescriptor?:Record<string,unknown>
   list():Promise<RagSource[]>;read(path:string):Promise<Uint8Array>;get(path:string):Promise<unknown|null>;put(path:string,value:unknown):Promise<void>;remove(path:string):Promise<void>
   extract(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal):Promise<RagExtracted>
   embed(input:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal):Promise<number[][]>
@@ -62,7 +63,7 @@ export class SessionRagEngine {
           files.push(entry)
         }catch(error){if(signal.aborted||(error as {fatal?:boolean})?.fatal)throw error;errors.push({path:source.path,error:String((error as Error).message).slice(0,500)})}finally{bytes?.fill(0)}
       }
-      signal.throwIfAborted();await this.port.check();const index:RagIndex={version:1,fingerprint,embeddingSpace:this.port.embeddingSpace,...(this.port.portableSpace?{portableSpace:this.port.portableSpace}:{}),updated:Date.now(),files,errors,stats};await this.port.put(RAG_ROOT+'index.json',index)
+      signal.throwIfAborted();await this.port.check();const index:RagIndex={version:1,fingerprint,embeddingSpace:this.port.embeddingSpace,...(this.port.portableSpace?{portableSpace:this.port.portableSpace,...(this.port.portableDescriptor?{portableDescriptor:this.port.portableDescriptor}:{})}:{}),updated:Date.now(),files,errors,stats};await this.port.put(RAG_ROOT+'index.json',index)
       const retained=new Set(files.flatMap(file=>file.shards));for(const shard of [...(previous?.files||[]).flatMap(file=>file.shards),...created])if(!retained.has(shard)&&shard.startsWith(RAG_ROOT+'data/'))await this.port.remove(shard).catch(()=>{})
       return index
     }catch(error){for(const shard of created)await this.port.remove(shard).catch(()=>{});throw error}

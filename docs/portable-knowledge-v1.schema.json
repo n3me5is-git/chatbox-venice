@@ -1,0 +1,465 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/n3me5is-git/chatbox-venice/main/docs/portable-knowledge-v1.schema.json",
+  "title": "Portable Knowledge Directory v1",
+  "description": "Bootstrap descriptor. Additional record contracts are available under $defs.",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "id",
+    "created",
+    "writer",
+    "cipher",
+    "kdf",
+    "key"
+  ],
+  "properties": {
+    "format": {
+      "const": "portable-knowledge-directory"
+    },
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "writer": {
+      "const": "single"
+    },
+    "cipher": {
+      "const": "AES-256-GCM"
+    },
+    "kdf": {
+      "type": "object",
+      "required": [
+        "name",
+        "iterations",
+        "salt"
+      ],
+      "properties": {
+        "name": {
+          "const": "PBKDF2-SHA256"
+        },
+        "iterations": {
+          "const": 600000
+        },
+        "salt": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "minLength": 24,
+          "maxLength": 24
+        }
+      },
+      "additionalProperties": false
+    },
+    "key": {
+      "$ref": "#/$defs/sealed"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sealed": {
+      "type": "object",
+      "required": [
+        "iv",
+        "data"
+      ],
+      "properties": {
+        "iv": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "minLength": 16,
+          "maxLength": 16
+        },
+        "data": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "minLength": 24
+        }
+      },
+      "additionalProperties": false
+    },
+    "commit": {
+      "type": "object",
+      "required": [
+        "version",
+        "id",
+        "sequence",
+        "parent",
+        "hash"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999999999999
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "version",
+        "id",
+        "sequence",
+        "parent",
+        "key",
+        "value"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999999999999
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "embedding": {
+      "type": "object",
+      "required": [
+        "version",
+        "providerType",
+        "endpoint",
+        "model",
+        "dimensions",
+        "transport",
+        "revision",
+        "metric",
+        "normalization",
+        "query",
+        "document"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "providerType": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string",
+          "format": "uri"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimensions": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 8192
+        },
+        "transport": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metric": {
+          "const": "cosine"
+        },
+        "normalization": {
+          "const": "l2"
+        },
+        "query": {
+          "$ref": "#/$defs/task"
+        },
+        "document": {
+          "$ref": "#/$defs/task"
+        }
+      },
+      "additionalProperties": false
+    },
+    "task": {
+      "type": "object",
+      "required": [
+        "prefix",
+        "taskType"
+      ],
+      "properties": {
+        "prefix": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "taskType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "configuration": {
+      "type": "object",
+      "required": [
+        "version",
+        "id",
+        "storageId",
+        "embedding",
+        "processing",
+        "records"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "storageId": {
+          "type": "integer",
+          "maximum": -1
+        },
+        "embedding": {
+          "type": "object",
+          "required": [
+            "descriptor",
+            "dtype",
+            "metric",
+            "normalization",
+            "contract"
+          ],
+          "properties": {
+            "descriptor": {
+              "$ref": "#/$defs/embedding"
+            },
+            "sourceSpace": {
+              "$ref": "#/$defs/sha256"
+            },
+            "dtype": {
+              "const": "float32-le"
+            },
+            "metric": {
+              "const": "cosine"
+            },
+            "normalization": {
+              "const": "l2"
+            },
+            "contract": {
+              "const": "portable-embedding-space-v1"
+            }
+          }
+        },
+        "processing": {
+          "type": "object",
+          "properties": {
+            "chunker": {
+              "const": 2
+            },
+            "chunking": {
+              "type": "object",
+              "properties": {
+                "unit": {
+                  "const": "utf16-code-units"
+                },
+                "target": {
+                  "const": 1200
+                },
+                "overlap": {
+                  "const": 150
+                }
+              }
+            },
+            "settings": {
+              "type": "object"
+            },
+            "augmentation": {
+              "type": "object"
+            },
+            "roles": {
+              "type": "object"
+            }
+          }
+        },
+        "records": {
+          "type": "object",
+          "required": [
+            "assetFormat",
+            "sourceManifest",
+            "vectorState",
+            "vectorIndex",
+            "vectors"
+          ],
+          "properties": {
+            "assetFormat": {
+              "const": "vault-chunks-v1"
+            },
+            "sourceManifest": {
+              "type": "string"
+            },
+            "vectorState": {
+              "const": ".chatbox/knowledge/state.json"
+            },
+            "vectorIndex": {
+              "const": ".chatbox/rag/index.json"
+            },
+            "vectors": {
+              "const": "rag-vector-storage-v1"
+            }
+          }
+        }
+      }
+    },
+    "packedVector": {
+      "type": "object",
+      "required": [
+        "encoding",
+        "dimensions",
+        "data"
+      ],
+      "properties": {
+        "encoding": {
+          "const": "float32-le-v1"
+        },
+        "dimensions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        },
+        "data": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "maxLength": 43692
+        }
+      },
+      "additionalProperties": false
+    },
+    "vectorGeneration": {
+      "type": "object",
+      "required": [
+        "version",
+        "fingerprint",
+        "updated",
+        "files",
+        "errors"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "embeddingSpace": {
+          "$ref": "#/$defs/sha256"
+        },
+        "portableSpace": {
+          "$ref": "#/$defs/sha256"
+        },
+        "updated": {
+          "type": "number"
+        },
+        "files": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "hash",
+              "shards",
+              "chunks"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "hash": {
+                "$ref": "#/$defs/sha256"
+              },
+              "shards": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "chunks": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              }
+            }
+          }
+        },
+        "errors": {
+          "type": "array"
+        },
+        "portableDescriptor": {
+          "$ref": "#/$defs/embedding"
+        }
+      }
+    }
+  }
+}
