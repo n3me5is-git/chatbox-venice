@@ -1,10 +1,11 @@
+import {unpackRagShard} from '@shared/rag-vector-storage'
 import {KnowledgeEvidenceSchema,knowledgeEvidenceId,knowledgeEvidenceUrl,type KnowledgeEvidence} from '@shared/knowledge-evidence'
 import {KnowledgeAccessGate} from './access-gate'
 import {AugmentedCollectionIndex,KnowledgeStateSchema,type KnowledgeState} from './augmented'
 import {KnowledgeAugmentationSchema,type KnowledgeAugmentation} from '@shared/knowledge-augmentation'
 import {hybridRagSearch} from '@shared/knowledge-hybrid'
 import {ragHash} from '@shared/session-rag-engine'
-import { RagSettingsSchema, RAG_ROOT, RagChunkSchema, RagIndexSchema, type RagSettings, type RagChunk } from '@shared/session-rag'
+import { RagSettingsSchema, RAG_ROOT, RagIndexSchema, type RagSettings, type RagChunk } from '@shared/session-rag'
 import { SessionRagEngine, type RagEnginePort } from '@shared/session-rag-engine'
 import type { VaultRuntime } from '@/packages/vault/runtime'
 import { VaultJsonRecords } from '@/packages/vault/json-records'
@@ -140,7 +141,7 @@ export class KnowledgeCollections {
   private async readChunks(id:number,data:CollectionData,index:Awaited<ReturnType<KnowledgeCollections['indexStatus']>>,requested:{fileId:number;chunkIndex:number}[]|Set<string>,maximum=20){
     await this.assert(id);if(requested instanceof Set?requested.size>maximum:requested.length>maximum)throw Error('Request at most 20 passages');if(!index)return [];const result:{fileId:number;filename:string;chunkIndex:number;text:string;chunk:RagChunk}[]=[]
     for(const file of data.files){if(!(requested instanceof Set)&&!requested.some(item=>item.fileId===file.id))continue;const indexed=index.files.find(item=>item.path===file.path);let at=0
-      for(const [shardIndex,path] of (indexed?.shards||[]).entries()){at=shardIndex*32;if(!(requested instanceof Set)&&!requested.some(item=>item.fileId===file.id&&item.chunkIndex>=at&&item.chunkIndex<at+32))continue;await this.assert(id);const raw=await this.json.get<unknown[]>(prefix(id)+path);if(!Array.isArray(raw)||raw.length>32)throw Error('Invalid RAG index');for(const value of raw){const chunk=RagChunkSchema.parse(value),chunkIndex=at++;if(chunk.path!==file.path||chunk.sourceHash!==indexed?.hash)throw Error('Invalid RAG index');if(requested instanceof Set?requested.has(chunk.id):requested.some(item=>item.fileId===file.id&&item.chunkIndex===chunkIndex))result.push({fileId:file.id,filename:file.name,chunkIndex,text:chunk.text,chunk})}}
+      for(const [shardIndex,path] of (indexed?.shards||[]).entries()){at=shardIndex*32;if(!(requested instanceof Set)&&!requested.some(item=>item.fileId===file.id&&item.chunkIndex>=at&&item.chunkIndex<at+32))continue;await this.assert(id);const raw=unpackRagShard(await this.json.get(prefix(id)+path));for(const chunk of raw){const chunkIndex=at++;if(chunk.path!==file.path||chunk.sourceHash!==indexed?.hash)throw Error('Invalid RAG index');if(requested instanceof Set?requested.has(chunk.id):requested.some(item=>item.fileId===file.id&&item.chunkIndex===chunkIndex))result.push({fileId:file.id,filename:file.name,chunkIndex,text:chunk.text,chunk})}}
     }await this.assert(id);return result
   }
   private matchRequests(data:CollectionData,matches:readonly {id:string;path:string;chunkIndex?:number}[]){if(matches.some(hit=>hit.chunkIndex===undefined))return new Set(matches.map(hit=>hit.id));const files=new Map(data.files.map(file=>[file.path,file.id]));return matches.map(hit=>{const fileId=files.get(hit.path);if(fileId===undefined||!Number.isSafeInteger(hit.chunkIndex)||hit.chunkIndex!<0)throw Error('Knowledge index changed; repeat the search');return {fileId,chunkIndex:hit.chunkIndex!}})}
