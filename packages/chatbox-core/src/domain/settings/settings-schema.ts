@@ -1,3 +1,4 @@
+import {KnowledgeVerificationSettingsSchema} from '@shared/knowledge-verification'
 import { LOCAL_WORK_CAPABILITY_IDS } from '@shared/mobile-work/capabilities'
 import { MultiAgentPolicySchema } from '@shared/multi-agent'
 import { z } from 'zod'
@@ -268,6 +269,7 @@ export const GlobalSessionSettingsSchema = z.object({
 })
 
 export const SessionSettingsSchema = GlobalSessionSettingsSchema.extend({
+  knowledgeVerification: KnowledgeVerificationSettingsSchema.optional().catch(undefined),
   sessionRagEnabled: z.boolean().optional().catch(undefined),
   knowledgeCollectionIds: z.array(z.number().int().negative()).max(7).optional().catch(undefined),
   veniceToolsEnabled: z.boolean().optional().catch(undefined),

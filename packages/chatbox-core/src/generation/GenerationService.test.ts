@@ -1,3 +1,5 @@
+import {createKnowledgePublication,knowledgeAnswerText} from '@shared/knowledge-publication'
+import {KnowledgeCheckReportSchema,knowledgeAnswerHash} from '@shared/knowledge-verification'
 import { decodeSessionTree } from '../session/session-tree/decode'
 import type { AttachmentPolicy } from '@shared/context/attachments'
 import type { ChatStreamOptions, ModelInterface, ModelStreamPart } from '@shared/models/types'
@@ -115,6 +117,7 @@ interface Harness {
   failInsertion(error: Error, options?: { commit?: boolean }): void
   enableAgentModeSuggestion(result: Message['contentParts']): void
   setNow(value: number): void
+  setPublication(port:GenerationServiceDependencies<ModelContext>['publication']):void
   setCompaction(port: GenerationCompactionPort): void
 }
 
@@ -496,6 +499,7 @@ function createHarness(): Harness {
     setNow(value) {
       now = value
     },
+    setPublication(port){dependencies.publication=port},
     setCompaction(port) {
       dependencies.compaction = port
     },
@@ -3366,5 +3370,20 @@ describe('GenerationService', () => {
         }),
       ],
     })
+  })
+})
+
+
+describe('knowledge answer publication boundary',()=>{
+  it('keeps streamed draft checkpoints private until source review completes',async()=>{
+    const h=createHarness();let entered!:()=>void,release!:()=>void;const waiting=new Promise<void>(resolve=>{entered=resolve}),resume=new Promise<void>(resolve=>{release=resolve})
+    h.setStreamFactory(()=>stream([{type:'text-delta',id:'text',text:'Original draft'},{type:'finish',finishReason:'stop',totalUsage:{inputTokens:1,outputTokens:1,totalTokens:2}}] as ModelStreamPart<ToolSet>[]))
+    h.setPublication({create:async()=>createKnowledgePublication(async parts=>{entered();await resume;const draft=knowledgeAnswerText(parts);return {answer:draft,report:KnowledgeCheckReportSchema.parse({version:1,id:crypto.randomUUID(),draftHash:await knowledgeAnswerHash(draft),answerHash:await knowledgeAnswerHash(draft),created:Date.now(),status:'unverified',reason:'no_sources',revised:false,calls:0,coverage:0,claims:[],sources:[],omittedEvidence:0})}})})
+    const generation=h.service.orchestrate('session-1',targetMessage());await waiting
+    expect([...h.persisted.map(row=>row.message),...h.cached].some(message=>knowledgeAnswerText(message.contentParts).includes('Original draft'))).toBe(false)
+    release();await generation;expect(knowledgeAnswerText(h.persisted.at(-1)!.message.contentParts)).toBe('Original draft');expect(h.persisted.at(-1)!.message.generating).toBe(false)
+  })
+  it('does not persist a late draft when source access is revoked during review',async()=>{
+    const h=createHarness();h.setStreamFactory(()=>stream([{type:'text-delta',id:'text',text:'Private draft'}] as ModelStreamPart<ToolSet>[]));h.setPublication({create:async()=>createKnowledgePublication(async()=>{throw Error('Source access revoked')})});await h.service.orchestrate('session-1',targetMessage());expect(h.persisted.some(row=>knowledgeAnswerText(row.message.contentParts).includes('Private draft'))).toBe(false)
   })
 })

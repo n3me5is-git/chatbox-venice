@@ -319,6 +319,7 @@ export const ModelProviderSchema = z.union([z.nativeEnum(ModelProviderEnum), z.s
 
 // Message status schemas
 export const MessageStatusSchema = z.discriminatedUnion('type', [
+  z.object({type:z.literal('checking_sources')}),
   z.object({
     type: z.literal('sending_file'),
     mode: z.enum(['local', 'advanced']).optional(),

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+vi.mock('@/components/knowledge-base/ChatKnowledgeReview',()=>({ChatKnowledgeReview:()=>null}))
 
 import { MantineProvider } from '@mantine/core'
 import { type SessionHeader } from '@shared/types'

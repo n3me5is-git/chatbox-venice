@@ -1,3 +1,4 @@
+import {chatWithKnowledgeReview} from '@/packages/knowledge-collections/chat'
 import {localMCPModelSettings} from '@shared/local-mcp-model-policy'
 import { veniceToolsVisible } from '@shared/providers/definitions/models/venice/tool-policy'
 import { settingsStore } from '@/stores/settingsStore'
@@ -136,7 +137,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
       const { createWorkerContext } = await import('./worker-context')
       const context = await createWorkerContext(settings,tools,signal,async()=>{await multiAgentRuntime.check(caller)})
       await multiAgentRuntime.check(caller); signal.throwIfAborted()
-      const output = await model.chat(messages, { sessionId: run.sessionId, agentMode: true, tools, signal, maxSteps: 30,
+      const output = await chatWithKnowledgeReview(model,messages,settings, { sessionId: run.sessionId, agentMode: true, tools, signal, maxSteps: 30,
         prepareStep: async step => {
           const updates = await multiAgentRuntime.takeMessages(caller, signal)
           for (const text of updates) { const message = createMessage('user', text); await rendererApplication.sessions.insertMessage(run.sessionId, message); steering.push(message) }

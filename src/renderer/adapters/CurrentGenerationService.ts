@@ -187,6 +187,7 @@ async function buildToolsForPausedToolCall(
 
 const dependencies: GenerationServiceDependencies<ModelDependencies> = {
   sessions,
+  publication:{create:async(id,settings,signal)=>settings.knowledgeVerification?.enabled?(await import('@/packages/knowledge-collections/publication')).createChatKnowledgePublication(id,settings,signal):undefined},
   settings: settingsService,
   models: {
     createModel(settings) {
