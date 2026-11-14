@@ -1,3 +1,4 @@
+import type {KnowledgePublicationPort} from '@shared/knowledge-publication'
 import { type AttachmentPolicy, withRequestAttachmentState } from '@shared/context/attachments'
 import { veniceSessionTextPrivacy } from '../domain/settings/venice-privacy'
 import type { ChatStreamOptions, ModelInterface, ModelStreamPart } from '@shared/models/types'
@@ -349,6 +350,7 @@ export interface GenerationServiceDependencies<TContext> {
   sessions: GenerationSessionPort
   settings: Pick<SettingsRepositoryPort, 'getSettings' | 'updateSettings'>
   models: GenerationModelFactoryPort<TContext>
+  publication?: {create(sessionId:string,settings:SessionSettings,signal:AbortSignal):Promise<KnowledgePublicationPort|undefined>}
   preparation: GenerationPreparationPort<TContext>
   tools: GenerationToolExecutionPort
   coordination: GenerationCoordinationPort
@@ -451,7 +453,15 @@ export class GenerationService<TContext> {
     initialTargetMessage: Message,
     options?: GenerationOptions
   ): Promise<void> {
-    const { sessions, settings: settingsRepository, host, analytics } = this.dependencies
+    const { sessions: backendSessions, settings: settingsRepository, host, analytics } = this.dependencies
+    let publication:KnowledgePublicationPort|undefined
+    const project=(message:Message)=>publication?.project(message)||message
+    const sessions:GenerationSessionPort={...backendSessions,
+      persistStreamingMessage:(id,message,options)=>backendSessions.persistStreamingMessage(id,project(message),options),
+      updateStreamingCache:(id,message)=>backendSessions.updateStreamingCache(id,project(message)),
+      modifyMessage:(id,message,refresh,cache)=>backendSessions.modifyMessage(id,project(message),refresh,cache),
+      ...(backendSessions.splitStreamingMessage?{splitStreamingMessage:async(id,request,...args)=>backendSessions.splitStreamingMessage!(id,{...request,prefix:project(request.prefix),continuation:project(request.continuation)},...args)}:{})
+    }
     const generationStartedAt = host.now()
     let generationMessageId = initialTargetMessage.id
     const runtimeState = this.dependencies.runtime.start(sessionId, generationMessageId)
@@ -575,6 +585,7 @@ export class GenerationService<TContext> {
         return
       }
 
+      publication=await this.dependencies.publication?.create(sessionId,settings,controller.signal)
       targetMessage = await sessions.initializeTargetMessage(
         initialTargetMessage,
         settings,
@@ -790,7 +801,7 @@ export class GenerationService<TContext> {
         }
         const completedParts = prefixParts.map((part) => ({ ...part }))
         this.finalizePartDurations(completedParts)
-        const finalizedSegment: Message = {
+        let finalizedSegment: Message = {
           ...targetMessage,
           generating: false,
           contentParts: completedParts,
@@ -801,6 +812,7 @@ export class GenerationService<TContext> {
         }
         return segmentTransitions.run(
           async () => {
+            if(publication){finalizedSegment=await publication.finish(finalizedSegment);controller.signal.throwIfAborted()}
             try {
               return await splitWriter(
                 sessionId,
@@ -1048,7 +1060,7 @@ export class GenerationService<TContext> {
             host.now() - lastPersistTimestamp,
             STREAM_PERSIST_INTERVAL_MS
           )
-          this.dependencies.runtime.setLiveMessage(sessionId, targetMessage)
+          this.dependencies.runtime.setLiveMessage(sessionId, project(targetMessage))
           if (shouldPersist) {
             void sessions
               .persistStreamingMessage(sessionId, targetMessage, { checkpoint: true })
@@ -1123,6 +1135,7 @@ export class GenerationService<TContext> {
         usage: processorState.usage,
         generationDuration: host.now() - segmentStartedAt,
       }
+      if(publication){sessions.updateStreamingCache(sessionId,{...targetMessage,generating:true,status:[{type:'checking_sources'}]});targetMessage=await publication.finish(targetMessage);controller.signal.throwIfAborted()}
       await sessions.persistStreamingMessage(sessionId, targetMessage, { refreshCounting: true })
       if (options?.operationType === 'send_message') {
         host.markFirstSuccessfulChatCompleted()

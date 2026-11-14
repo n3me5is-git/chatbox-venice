@@ -8,6 +8,7 @@ vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings
 vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({db:{aliases:async()=>state.aliases,getSetting:async(key:string)=>state.settings.get(key),setSettingIfUnchanged:async(key:string,old:unknown,next:unknown)=>{if(state.settings.get(key)!==old)return false;state.settings.set(key,next);return true}},projects:{assertApp:async()=>{},assertSession:async(id:string)=>{if(state.locked.has(id))throw Error('Locked')}},assets:{remove:(key:string)=>state.remove(key)}})}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{repository:{meta:{getAllIncludingHidden:async()=>[...state.headers.values()]}},getSessionHeader:async(id:string)=>state.headers.has(id)?{header:state.headers.get(id)}:null,createSession:async(input:any)=>{const header={...input,id:'created-'+(++state.count)};state.headers.set(header.id,header);return header},updateSessionHeader:async(id:string,patch:any)=>state.headers.set(id,{...state.headers.get(id),...patch}),setSessionSystemPrompt:vi.fn(),deleteSession:vi.fn(async(id:string)=>state.headers.delete(id))}}}))
 vi.mock('./backend',()=>({localMCPTools:async()=>[{name:'app_model',inputSchema:{type:'object',properties:{provider:{type:'string'}},required:['provider'],additionalProperties:false}},{name:'session_file',inputSchema:{type:'object'}}],handleSessionLocalMCP:(...args:any[])=>state.call(...args)}))
+vi.mock('./knowledge',()=>({applicationKnowledgeTools:async()=>({knowledge_document:tool({inputSchema:z.object({collectionId:z.number(),fileId:z.number()}).strict(),execute:async()=>({text:'Scoped knowledge source'})})})}))
 vi.mock('./conversation',()=>({applicationConversationTool:()=>tool({inputSchema:z.object({}),execute:async()=>({sent:true})})}))
 vi.mock('./studio',()=>({applicationStudioTool:()=>tool({inputSchema:z.object({}),execute:async()=>({studio:true})})}))
 vi.mock('./uploads',()=>({mcpUploadSchema:z.object({}),uploadMCPFile:vi.fn(),cleanupMCPUploads:vi.fn(async()=>{})}))
@@ -98,4 +99,11 @@ it('keeps a partially stopped context pending, blocks new paid work and allows c
  await expect(call(g,'app_cleanup',{sessionId})).rejects.toThrow('Still stopping')
  await expect(call(g,'app_call',{sessionId,name:'app_model',arguments:{provider:'venice'},request_id:'must-not-pay'})).rejects.toThrow('awaiting cleanup')
  expect(state.call).not.toHaveBeenCalled();expect(await call(g,'app_cleanup',{sessionId})).toMatchObject({deleted:1})
+})
+
+it('routes explicitly granted knowledge without creating a workspace or granting other app data',async()=>{
+ const endpoint=grant('shadow');endpoint.permissions.knowledge=true;endpoint.application!.knowledgeCollectionIds=[-1];state.live=[endpoint]
+ const definitions=await handleApplicationMCP({id:'list',operation:'list_tools',grant:endpoint},new AbortController().signal) as any[];expect(definitions.some(row=>row.name==='knowledge_document')).toBe(true);expect(state.headers.size).toBe(0)
+ expect(await call(endpoint,'knowledge_document',{collectionId:-1,fileId:10})).toEqual({text:'Scoped knowledge source'});expect(state.headers.size).toBe(0)
+ endpoint.permissions.knowledge=false;await expect(call(endpoint,'knowledge_document',{collectionId:-1,fileId:10})).rejects.toThrow('permissions')
 })

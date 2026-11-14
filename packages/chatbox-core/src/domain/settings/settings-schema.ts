@@ -1,3 +1,4 @@
+import {KnowledgeVerificationSettingsSchema} from '@shared/knowledge-verification'
 import { LOCAL_WORK_CAPABILITY_IDS } from '@shared/mobile-work/capabilities'
 import { MultiAgentPolicySchema } from '@shared/multi-agent'
 import { z } from 'zod'
@@ -268,7 +269,9 @@ export const GlobalSessionSettingsSchema = z.object({
 })
 
 export const SessionSettingsSchema = GlobalSessionSettingsSchema.extend({
+  knowledgeVerification: KnowledgeVerificationSettingsSchema.optional().catch(undefined),
   sessionRagEnabled: z.boolean().optional().catch(undefined),
+  knowledgeCollectionIds: z.array(z.number().int().negative()).max(7).optional().catch(undefined),
   veniceToolsEnabled: z.boolean().optional().catch(undefined),
   contextTokenLimit: z.number().finite().int().min(1024).max(10_000_000).optional().catch(undefined),
   subscriptionWebSearch: z.boolean().optional().catch(undefined),
@@ -588,6 +591,9 @@ export const SettingsSchema = GlobalSessionSettingsSchema.extend({
     .catch(undefined),
   defaultEmbeddingModel: DefaultModelSelectionSchema,
   defaultRerankModel: DefaultModelSelectionSchema,
+  defaultVirtualRerankModel: DefaultModelSelectionSchema,
+  defaultKnowledgeExtractionModel: DefaultModelSelectionSchema,
+  defaultKnowledgeVerifierModel: DefaultModelSelectionSchema,
   defaultASRModel: DefaultModelSelectionSchema,
   defaultTTSModel: DefaultModelSelectionSchema,
   speechOptions: z.object({ voice:z.string().max(256).optional(), speed:z.number().min(0.25).max(4).optional(), language:z.string().max(32).optional() }).optional().catch(undefined),

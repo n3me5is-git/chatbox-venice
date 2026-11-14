@@ -129,6 +129,9 @@ describe('model rig slot settings', () => {
       ocrModel: undefined,
       defaultEmbeddingModel: undefined,
       defaultRerankModel: undefined,
+      defaultVirtualRerankModel: undefined,
+      defaultKnowledgeExtractionModel: undefined,
+      defaultKnowledgeVerifierModel: undefined,
       defaultASRModel: undefined,
       defaultTTSModel: undefined,
     })

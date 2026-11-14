@@ -1,3 +1,4 @@
+import {forkT as ft} from '@/i18n/fork'
 import { Group, Text } from '@mantine/core'
 import { Typography } from '@mui/material'
 import type { Message } from '@shared/types'
@@ -94,6 +95,7 @@ function MessageStatus(props: { status: NonNullable<Message['status']>[number] }
       </div>
     )
   }
+  if(status.type==='checking_sources')return <LoadingBubble>{ft('Checking sources')}</LoadingBubble>
   if (status.type === 'retrying') {
     return <RetryingIndicator status={status} />
   }

@@ -5,5 +5,5 @@ import {privacyAllowed} from '@shared/providers/definitions/models/venice/privac
 export function defaultRagSettings(){
   const global=settingsStore.getState().getSettings(),venice=global.providers?.venice
   const privateModel=venice?.apiKey&&venice.venice?.enabled!==false?venice.models?.find(model=>model.type==='embedding'&&model.vendorMetadata?.privacy==='private'&&privacyAllowed(model.vendorMetadata,venice.venice?.privacyFilter)):undefined
-  return RagSettingsSchema.parse({provider:privateModel?'venice':global.defaultEmbeddingModel?.provider,model:privateModel?.modelId||global.defaultEmbeddingModel?.model,ocrProvider:global.ocrModel?.provider,ocrModel:global.ocrModel?.model})
+  return RagSettingsSchema.parse({provider:privateModel?'venice':global.defaultEmbeddingModel?.provider,model:privateModel?.modelId||global.defaultEmbeddingModel?.model,ocrProvider:global.ocrModel?.provider,ocrModel:global.ocrModel?.model,sttProvider:global.defaultASRModel?.provider,sttModel:global.defaultASRModel?.model})
 }

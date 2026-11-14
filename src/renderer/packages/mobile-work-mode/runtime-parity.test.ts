@@ -50,6 +50,7 @@ vi.mock('@/packages/multi-agent/runtime', async () => {
   const { tool } = await import('ai'); const { z } = await import('zod')
   return { buildMultiAgentTools: async (...args: any[]) => { state.agents(...args); return { tools: { agent_spawn: tool({ inputSchema: z.object({ task: z.string() }), execute: state.spawn }) }, instructions: 'Delegation enabled' } } }
 })
+vi.mock('@/packages/model-calls/toolsets/knowledge-federation',()=>({getFederatedKnowledgeToolSet:vi.fn(async(ids:number[])=>({tools:{knowledge_base:{description:'Selected '+ids.join(',')}}}))}))
 import { prepareCapacitorSessionTools, prepareCapacitorWorkMode, buildMobileWebTools } from './runtime'
 
 const model = { apiStyle: 'openai-responses', modelId: 'text', name: 'OpenAI Sub Unofficial', isSupportSystemMessage: () => true, isSupportVision: () => false, isSupportToolUse: () => true } as unknown as ModelInterface
@@ -118,3 +119,5 @@ it('wires encrypted image previews and owner-only conversation mentions, and gua
   expect(() => guest.tools.ask_user.execute?.({ questions: [] }, options)).toThrow('Revoked')
   expect(state.mcp).not.toHaveBeenCalled()
 })
+
+it.each([false,true])('activates the selected global KB and federated collections in Android Work; resumed=%s',async restored=>{const input={...request(),knowledgeBase:{id:-1,name:'Manuals'}};input.settings.knowledgeCollectionIds=[-2];const prepared=await prepareCapacitorSessionTools(input,{},restored);expect(prepared.tools.knowledge_base.description).toBe('Selected -1,-2');expect(prepared.active.has('knowledge_base')).toBe(true)})

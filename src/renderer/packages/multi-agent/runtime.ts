@@ -1,3 +1,4 @@
+import {chatWithKnowledgeReview} from '@/packages/knowledge-collections/chat'
 import {localMCPModelSettings} from '@shared/local-mcp-model-policy'
 import { veniceToolsVisible } from '@shared/providers/definitions/models/venice/tool-policy'
 import { settingsStore } from '@/stores/settingsStore'
@@ -121,6 +122,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
     const caller = multiAgentRuntime.caller(run), grant = grants.get(run.rootId)
     if (!grant) throw Error('The parent Work request is unavailable')
     const settings = endpointModelSettings(run.rootId,await getSessionSettings(run.sessionId))
+    if(grant.external&&settings.knowledgeVerification?.enabled)throw Error('Use the separately permitted knowledge_verify tool for externally spawned worker reviews')
     const model = await createModel(settings)
     if (!model.isSupportToolUse('agent')) throw Error('Choose a model that supports agent tools')
     const history = await agentTranscript(run.sessionId), user = createMessage('user', task), assistant = { ...createMessage('assistant', ''), generating: true }
@@ -136,7 +138,7 @@ export const multiAgentRuntime = new MultiAgentRuntime({
       const { createWorkerContext } = await import('./worker-context')
       const context = await createWorkerContext(settings,tools,signal,async()=>{await multiAgentRuntime.check(caller)})
       await multiAgentRuntime.check(caller); signal.throwIfAborted()
-      const output = await model.chat(messages, { sessionId: run.sessionId, agentMode: true, tools, signal, maxSteps: 30,
+      const output = await chatWithKnowledgeReview(model,messages,settings, { sessionId: run.sessionId, agentMode: true, tools, signal, maxSteps: 30,
         prepareStep: async step => {
           const updates = await multiAgentRuntime.takeMessages(caller, signal)
           for (const text of updates) { const message = createMessage('user', text); await rendererApplication.sessions.insertMessage(run.sessionId, message); steering.push(message) }

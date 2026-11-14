@@ -1,3 +1,6 @@
+import {localMCPModelSettings} from '@shared/local-mcp-model-policy'
+import type {KnowledgeReviewBoundary} from '@/packages/knowledge-collections/publication'
+import {chatWithKnowledgeReview} from '@/packages/knowledge-collections/chat'
 import {settingsStore} from '@/stores/settingsStore'
 import {buildContext} from '@shared/context'
 import {currentBlobStorage} from '@/adapters/CurrentBlobStorage'
@@ -28,6 +31,12 @@ export function applicationConversationTool(grant:LocalMCPGrant,signal:AbortSign
       await assert(input.sessionId)
       const scoped={...grant,sessionId:input.sessionId},settings=await localMCPSettings(scoped),configuration=settingsStore.getState().getSettings().providers?.[settings.provider||'']
       if(!(await localMCPModelCatalog(scoped)).some(model=>model.provider===settings.provider&&model.modelId===settings.modelId))throw Error('This chat model is not available to the endpoint')
+      let reviewBoundary:KnowledgeReviewBoundary|undefined
+      if(settings.knowledgeVerification?.enabled){
+        if(!grant.permissions.knowledge||!grant.permissions.models||!settings.knowledgeVerification.model)throw Error('Source review requires knowledge and model permissions for this endpoint')
+        const ref=settings.knowledgeVerification.model,global=settingsStore.getState().getSettings(),reviewSettings=localMCPModelSettings(grant.application!,{provider:ref.provider,modelId:ref.model},global.providers)
+        reviewBoundary={check:async()=>{await assert(input.sessionId);localMCPModelSettings(grant.application!,{provider:ref.provider,modelId:ref.model},settingsStore.getState().getSettings().providers)},collectionIds:grant.application?.knowledgeCollectionIds||[],security:reviewSettings.veniceSecurity,approve:async(_model,answer,sources,correct)=>{if(!grant.permissions.automaticModels&&!await requestExternalModelApproval(scoped,{provider:ref.provider,modelId:ref.model,maxOutputTokens:correct?12288:4096,messages:[{role:'system',content:'Source review: at most '+(correct?3:1)+' calls,4096 output tokens each; no tools or search.'},{role:'user',content:JSON.stringify({answer,sources})}]},signal))throw Error('External source review was not approved')}}
+      }
       const contextSource=await rendererApplication.sessions.getSessionContextSource({sessionId:input.sessionId,maxContextMessageCount:51,reserveCurrentInput:true})
       if(!contextSource)throw Error('This chat is unavailable')
       if(contextSource.candidateMessages.length>50||JSON.stringify(contextSource.candidateMessages).length>1024*1024)throw Error('This conversation exceeds the external chat context limit. Compact it in the app or use a new workspace.')
@@ -50,7 +59,7 @@ export function applicationConversationTool(grant:LocalMCPGrant,signal:AbortSign
         const messages=await convertToModelMessages(prepared,{modelSupportVision:grant.permissions.readFiles&&model.isSupportVision()})
         const {createWorkerContext}=await import('@/packages/multi-agent/worker-context'),context=await createWorkerContext(settings,tools,signal,async()=>{await assert(input.sessionId)})
         await rendererApplication.sessions.insertMessages(input.sessionId,[user,assistant]);inserted=true
-        const result=await model.chat(messages,{sessionId:input.sessionId,signal,tools,maxSteps:input.maxSteps,agentMode:settings.agentMode?.value==='on',prepareStep:async step=>{await assert(input.sessionId);return {messages:await context.prepare([...step.initialMessages,...step.responseMessages])}},onRequestResolved:async()=>{await assert(input.sessionId)},onResultChange:async value=>{if(value.contentParts&&Date.now()-last>1000){last=Date.now();writer.push(structuredClone(value.contentParts))}}})
+        const result=await chatWithKnowledgeReview(model,messages,settings,{sessionId:input.sessionId,signal,tools,maxSteps:input.maxSteps,agentMode:settings.agentMode?.value==='on',prepareStep:async step=>{await assert(input.sessionId);return {messages:await context.prepare([...step.initialMessages,...step.responseMessages])}},onRequestResolved:async()=>{await assert(input.sessionId)},onResultChange:async value=>{if(value.contentParts&&Date.now()-last>1000){last=Date.now();writer.push(structuredClone(value.contentParts))}}},reviewBoundary)
         await writer.flush();await assert(input.sessionId)
         await rendererApplication.sessions.updateMessage(input.sessionId,assistant.id,current=>({...current!,...result,generating:false,aiProvider:settings.provider,modelId:settings.modelId}))
         return {messageId:assistant.id,contentParts:result.contentParts,usage:result.usage,finishReason:result.finishReason}

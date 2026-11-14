@@ -121,7 +121,7 @@ async function buildToolsForPausedToolCall(
   if (platform.type === 'mobile' && storedAgentModeValue === 'on' && model.isSupportToolUse('agent')) {
     const { prepareCapacitorSessionTools } = await import('@/packages/mobile-work-mode/runtime')
     const memory=buildPausedAgentMemoryTools({targetMessage,languageName:languageNameMap[settingsService.getSettings().language]})
-    const common=await prepareCapacitorSessionTools({sessionId:session.id,settings,globalSettings:settingsService.getSettings(),model,messages:messagesBeforeTarget,signal,webBrowsing:getSessionWebBrowsing(session.id,settings.provider)},memory.tools,true)
+    const common=await prepareCapacitorSessionTools({sessionId:session.id,settings,globalSettings:settingsService.getSettings(),model,messages:messagesBeforeTarget,signal,knowledgeBase:uiStore.getState().sessionKnowledgeBaseMap[session.id],webBrowsing:getSessionWebBrowsing(session.id,settings.provider)},memory.tools,true)
     return common.tools
   }
 
@@ -187,6 +187,7 @@ async function buildToolsForPausedToolCall(
 
 const dependencies: GenerationServiceDependencies<ModelDependencies> = {
   sessions,
+  publication:{create:async(id,settings,signal)=>settings.knowledgeVerification?.enabled?(await import('@/packages/knowledge-collections/publication')).createChatKnowledgePublication(id,settings,signal):undefined},
   settings: settingsService,
   models: {
     createModel(settings) {

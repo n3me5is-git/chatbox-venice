@@ -1,3 +1,6 @@
+import {KnowledgeReviewScope,KnowledgeReviewStatus} from '@/components/knowledge-base/KnowledgeReviewStatus'
+import {KNOWLEDGE_VERIFICATION_INFO} from '@shared/knowledge-verification'
+import {knowledgeAnswerText} from '@shared/knowledge-publication'
 import { isRetryableToolCallStep } from '@chatbox/core/generation'
 import {
   getSessionActionGate,
@@ -935,6 +938,8 @@ const _Message: FC<Props> = (props) => {
                         />
                       )}
                     </div>
+                  ) : item.type === 'info' && item.text === KNOWLEDGE_VERIFICATION_INFO ? (
+                    <KnowledgeReviewStatus key={'review-'+index} value={item.values?.report} answer={knowledgeAnswerText(msg.contentParts)}/>
                   ) : item.type === 'info' && item.text === SECURITY_INFO ? (
                     <Flex key={`security-${index}`} className="my-2"><VerifiedResponseStatus value={item.values}/></Flex>
                   ) : item.type === 'info' ? (
@@ -1469,7 +1474,7 @@ const _Message: FC<Props> = (props) => {
   )
 }
 
-export default memo(_Message)
+export default memo((props:Props)=><KnowledgeReviewScope parts={props.msg.contentParts}><_Message {...props}/></KnowledgeReviewScope>)
 
 export const MessageActionIcon = forwardRef<
   HTMLButtonElement,

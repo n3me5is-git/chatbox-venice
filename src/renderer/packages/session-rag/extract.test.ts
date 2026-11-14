@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import {beforeEach,expect,it,vi} from 'vitest'
 import {RagSettingsSchema} from '@shared/session-rag'
-const state=vi.hoisted(()=>({text:'',chat:vi.fn(),render:vi.fn()}))
+const state=vi.hoisted(()=>({text:'',chat:vi.fn(),render:vi.fn(),stt:vi.fn()}))
 vi.mock('@/adapters',()=>({createModel:async()=>({isSupportVision:()=>true,chat:state.chat})}))
 vi.mock('@/packages/pdf-parser',()=>({parsePdfFileLocally:async()=>state.text,pdfPagesForOcr:async function*(_file:any,_signal:any,pages?:Set<number>){state.render(pages);for(const page of [1,2])if(!pages||pages.has(page))yield {page,dataUrl:'data:image/png;base64,AQID'}}}))
 vi.mock('@/packages/mobile-work-mode/execution-service',()=>({capacitorExecution:{parseDocument:vi.fn()}}))
+vi.mock('@/packages/knowledge-collections/stt',()=>({transcribeKnowledgeAudio:state.stt}))
 import {extractRagSource} from './extract'
 const source={path:'document.pdf',mime:'application/pdf'},signal=new AbortController().signal
 const cfg=()=>RagSettingsSchema.parse({ocr:true,ocrProvider:'vision',ocrModel:'vision-model'})
@@ -22,4 +23,10 @@ it('does not silently upload a scanned PDF, photo or audio without its separate 
 it('uses selected photo embeddings in preference to OCR and stops on remote OCR errors',async()=>{
  expect(await extractRagSource({path:'image.png',mime:'image/png'},new Uint8Array(),{...cfg(),images:true},signal)).toEqual({media:true});expect(state.chat).not.toHaveBeenCalled()
  state.chat.mockRejectedValue(Error('OCR provider unavailable'));await expect(extractRagSource(source,new Uint8Array(),cfg(),signal)).rejects.toMatchObject({fatal:true,message:'OCR provider unavailable'})
+})
+
+it('uses explicit STT for audio text while native audio embeddings retain precedence',async()=>{
+ state.stt.mockResolvedValue('Transcript for indexing');const source={path:'voice.wav',mime:'audio/wav'},settings={...cfg(),stt:true,sttProvider:'venice',sttModel:'asr',audio:false}
+ expect(await extractRagSource(source,new Uint8Array([1]),settings,signal)).toMatchObject({kind:'transcript',text:'Transcript for indexing'});expect(state.stt).toHaveBeenCalledOnce();state.stt.mockClear()
+ expect(await extractRagSource(source,new Uint8Array([1]),{...settings,audio:true},signal)).toEqual({media:true});expect(state.stt).not.toHaveBeenCalled()
 })

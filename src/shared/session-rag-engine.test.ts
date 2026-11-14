@@ -54,3 +54,30 @@ it('does not destroy a committed index when deleting an obsolete shard fails',as
 it('stops at the first storage failure instead of paying to embed the remaining files',async()=>{
  const f=fixture();f.port.put=async()=>{throw Error('Storage full')};await expect(f.engine.index(f.settings,f.signal.signal)).rejects.toThrow('Storage full');expect(f.embed).toHaveBeenCalledOnce();expect(f.db.size).toBe(0)
 })
+
+it('explicitly rebuilds unchanged documents while default indexing keeps its incremental behavior',async()=>{
+ const f=fixture();const first=await f.engine.index(f.settings,f.signal.signal);await f.engine.index(f.settings,f.signal.signal);expect(f.embed).toHaveBeenCalledTimes(2)
+ await f.engine.index(f.settings,f.signal.signal,()=>{},true);expect(f.embed).toHaveBeenCalledTimes(4)
+ expect(first.files.flatMap(file=>file.shards).every(shard=>!f.db.has(shard))).toBe(true)
+})
+
+it('preserves existing index fingerprints until transcription is explicitly enabled',async()=>{
+ const f=fixture();await f.engine.index(f.settings,f.signal.signal);await expect(f.engine.search('cat',{...f.settings,stt:false},f.signal.signal)).resolves.toBeTruthy();await expect(f.engine.search('cat',{...f.settings,stt:true,sttProvider:'speech',sttModel:'asr'},f.signal.signal)).rejects.toThrow('selected model')
+})
+
+it('reuses unchanged text chunks within a modified source and embeds only novel passage inputs',async()=>{
+ const f=fixture();f.sources.clear();const text=Array.from({length:12},(_,n)=>'Section '+n+'\n'+('cats-'+n+' ').repeat(125)).join('\n\n');f.sources.set('long.md',text);const first=await f.engine.index(f.settings,f.signal.signal),oldTexts=new Set([...f.db.values()].filter(Array.isArray).flat().map(chunk=>chunk.text));f.embed.mockClear()
+ f.sources.set('long.md',text.replace('Section 5','Updated 5'));const next=await f.engine.index(f.settings,f.signal.signal),inputs=f.embed.mock.calls.flatMap(call=>call[0])
+ expect(next.stats!.embeddedChunks).toBe(inputs.length);expect(next.stats!.reusedChunks).toBeGreaterThan(0);expect(inputs.length).toBeGreaterThan(0);expect(inputs.length).toBeLessThan(first.files[0].chunks);expect(inputs.every(input=>!oldTexts.has(input.text))).toBe(true)
+ const rows=next.files[0].shards.flatMap(path=>f.db.get(path));expect(rows.every(chunk=>chunk.sourceHash===next.files[0].hash)).toBe(true);expect(next.files[0].hash).not.toBe(first.files[0].hash)
+ f.embed.mockClear();const rebuilt=await f.engine.index(f.settings,f.signal.signal,()=>{},true);expect(rebuilt.stats!.embeddedChunks).toBeGreaterThan(inputs.length)
+})
+it('updates source provenance without embedding when only parsed-container bytes change',async()=>{
+ const f=fixture();f.sources.clear();f.sources.set('document.pdf','container-v1');f.port.extract=async()=>({text:'Exactly the same parsed document.'});await f.engine.index(f.settings,f.signal.signal);f.embed.mockClear();f.sources.set('document.pdf','container-v2');const next=await f.engine.index(f.settings,f.signal.signal)
+ expect(f.embed).not.toHaveBeenCalled();expect(next.stats).toEqual({embeddedChunks:0,reusedChunks:1,unchangedFiles:0})
+})
+
+it('refuses incompatible endpoint spaces before charging provider calls, and rebuilds only on explicit request',async()=>{
+ const f=fixture();f.port.embeddingSpace='a'.repeat(64);await f.engine.index(f.settings,f.signal.signal);f.embed.mockClear();f.port.embeddingSpace='b'.repeat(64)
+ await expect(f.engine.search('cat',f.settings,f.signal.signal)).rejects.toThrow('Reindex');await expect(f.engine.index(f.settings,f.signal.signal)).rejects.toThrow('Reindex');expect(f.embed).not.toHaveBeenCalled();const rebuilt=await f.engine.index(f.settings,f.signal.signal,()=>{},true);expect(rebuilt.embeddingSpace).toBe('b'.repeat(64));expect(f.embed).toHaveBeenCalled()
+})

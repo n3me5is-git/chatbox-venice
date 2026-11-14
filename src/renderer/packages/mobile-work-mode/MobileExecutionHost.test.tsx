@@ -11,6 +11,7 @@ const native = vi.hoisted(() => ({
   remove: vi.fn(),
 }))
 
+vi.mock('@capacitor/core',()=>({Capacitor:{isNativePlatform:()=>true}}))
 vi.mock('@capacitor/app', () => ({
   App: {
     getState: native.getState,

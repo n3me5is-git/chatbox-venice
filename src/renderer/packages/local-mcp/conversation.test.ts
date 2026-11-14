@@ -32,3 +32,5 @@ it('does not send after denial or a conversation revision change during approval
  state.approve.mockResolvedValue(false);await expect(run()).rejects.toThrow('not approved');expect(state.chat).not.toHaveBeenCalled()
  state.approve.mockImplementation(async()=>{state.revision=2;return true});await expect(run()).rejects.toThrow('changed');expect(state.insert).not.toHaveBeenCalled()
 })
+
+it('denies implicit verifier calls unless both knowledge and paid-model permissions are granted',async()=>{state.settings.knowledgeVerification={enabled:true,consented:true,model:{provider:'venice',model:'judge'},correctConflicts:true};await expect(run()).rejects.toThrow('knowledge and model permissions');expect(state.chat).not.toHaveBeenCalled();expect(state.insert).not.toHaveBeenCalled();expect(state.approve).not.toHaveBeenCalled()})

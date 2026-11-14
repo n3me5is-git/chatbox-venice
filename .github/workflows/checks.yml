@@ -34,6 +34,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Concise user-facing release notes
         run: node --test scripts/release-notes-policy.test.mjs
+      - name: Optional LLM reranking and incremental knowledge metadata
+        if: ${{ !cancelled() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui' }}
+        run: pnpm exec vitest run src/renderer/packages/model-calls/toolsets/knowledge-verifier.test.ts src/renderer/components/knowledge-base/KnowledgeReviewStatus.test.tsx src/shared/knowledge-publication.test.ts src/shared/knowledge-ledger.test.ts src/renderer/packages/knowledge-collections/publication.test.ts src/renderer/components/knowledge-base/ChatKnowledgeReview.test.tsx src/shared/rag-vector-storage.test.ts src/shared/knowledge-verification.test.ts src/renderer/packages/local-mcp/knowledge-verification.test.ts src/renderer/packages/local-mcp/knowledge.test.ts src/shared/local-mcp.test.ts src/shared/session-rag-engine.test.ts src/shared/knowledge-federation.test.ts src/renderer/packages/model-calls/toolsets/knowledge-federation.test.ts src/renderer/components/knowledge-base/ChatKnowledgeCollections.test.tsx src/shared/knowledge-evidence.test.ts src/shared/knowledge-graph.test.ts src/renderer/packages/model-calls/toolsets/knowledge-intelligence.test.ts src/renderer/components/knowledge-base/KnowledgeEvidence.test.tsx src/renderer/components/knowledge-base/KnowledgeGraph.test.tsx src/shared/knowledge-hybrid.test.ts src/renderer/packages/knowledge-collections/access-gate.test.ts src/shared/knowledge-augmentation-engine.test.ts src/renderer/packages/knowledge-collections/llm-rerank.test.ts src/renderer/packages/knowledge-collections/store.test.ts src/renderer/components/knowledge-base/KnowledgeModelDefaults.test.tsx src/renderer/components/knowledge-base/CollectionsPage.test.tsx
+      - name: Save synthetic knowledge benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Knowledge-Analysis-Benchmark
+          path: test-results/knowledge-benchmarks/
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
       - name: Independent desktop MCP endpoints and global router boundaries
         run: pnpm exec vitest run src/renderer/packages/multi-agent/storage.test.ts src/shared/local-mcp-model-policy.test.ts src/renderer/packages/local-mcp/conversation.test.ts src/renderer/packages/local-mcp/studio.test.ts src/renderer/packages/local-mcp/transfer.test.ts src/main/local-mcp/registry.test.ts src/renderer/packages/local-mcp/application.test.ts src/renderer/packages/local-mcp/model-input.test.ts src/renderer/components/session-resources/ApplicationMCPSettings.test.tsx
       - name: Fork tool reliability, navigation and model-aware Studio controls
@@ -46,6 +58,8 @@ jobs:
         run: pnpm exec vitest run src/shared/session-rag-policy.test.ts src/renderer/packages/session-resources/linked-folder.test.ts src/shared/session-rag-engine.test.ts src/main/sandbox/linked-folder.test.ts src/renderer/packages/session-rag src/renderer/components/session-resources/SessionRag.test.tsx
       - name: Portable encrypted knowledge collections and document parsing
         run: pnpm exec vitest run src/shared/rag-chunker.test.ts src/shared/mobile-work/worker/extended-documents.test.ts src/renderer/packages/knowledge-collections src/renderer/components/knowledge-base/CollectionsPage.test.tsx
+      - name: Fork contracts, replay and native lifecycle regressions
+        run: pnpm exec vitest run src/shared/defaults.test.ts src/shared/providers/index.contract.test.ts src/shared/providers/definitions/models/gemini-base.test.ts src/renderer/packages/web-search/constants.test.ts src/shared/mobile-work/worker/document-parser.test.ts src/renderer/packages/chatbox-cli/image-task-follow-up.test.ts src/renderer/components/Markdown.test.tsx src/renderer/stores/session/agent-harness.test.ts src/renderer/packages/mobile-work-mode/MobileExecutionHost.test.tsx src/renderer/modals/VibedropPublish.test.tsx src/renderer/components/InputBox/AgentModeButton.test.tsx src/shared/services/model-message-converter.test.ts
       - name: Validate Windows packaging configuration
         run: node scripts/package-fork.cjs --check-config
       - run: pnpm check
@@ -71,6 +85,16 @@ jobs:
       - name: Media wait and chat artifact boundaries
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run src/shared/providers/definitions/models/venice/media-wait.test.ts src/shared/providers/definitions/models/venice/tools.test.ts src/renderer/packages/venice/media-artifacts.test.ts src/renderer/components/venice/VeniceMediaArtifacts.test.tsx
+      - name: Build optional knowledge live-test driver without credentials
+        if: ${{ !cancelled() }}
+        run: node scripts/build-knowledge-live.mjs
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: Knowledge-Live-Driver
+          path: test-results/knowledge-live/
+          retention-days: 7
+          overwrite: true
       - name: Build optional live-test driver without credentials
         run: node scripts/build-venice-live-smoke.mjs
       - uses: actions/upload-artifact@v4
@@ -80,37 +104,78 @@ jobs:
           retention-days: 7
           overwrite: true
       - name: Test vendor options, Venice, references and privacy
-        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        if: ${{ !cancelled() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui' }}
         run: pnpm exec vitest run src/shared/local-mcp-redaction.test.ts src/shared/local-mcp.test.ts src/main/local-mcp/server.test.ts src/main/local-mcp/ipc.test.ts src/renderer/packages/local-mcp/backend.test.ts src/shared/python-runtime.test.ts src/renderer/packages/session-resources/backup.test.ts src/shared/session-workspace-execution.test.ts src/renderer/packages/mobile-work-mode/runtime-memory.test.ts src/renderer/stores/session/__tests__/tools-builder.test.ts src/renderer/presentation/session/session-ui-effects.test.ts src/shared/session-resources.test.ts src/shared/session-file-store.test.ts src/main/sandbox/session-files.test.ts packages/chatbox-core/src/domain/settings/venice-privacy.test.ts packages/chatbox-core/src/application/session/SessionNamingService.test.ts packages/chatbox-core/src/generation/GenerationService.test.ts src/shared/providers/definitions/models/venice/near-gateway.test.ts src/shared/providers/definitions/models/venice/image-processing.test.ts src/renderer/packages/venice/reference-crop.test.ts src/shared/providers/definitions/models/venice/pricing.test.ts src/shared/providers/definitions/models/venice/search-policy.test.ts src/shared/providers/definitions/models/venice/encrypted-tools.test.ts src/shared/providers/definitions/models/venice/secure-tool-roundtrip.test.ts src/shared/providers/definitions/models/venice/balance.test.ts src/renderer/packages/overlay-back.test.ts src/renderer/packages/local-text.test.ts src/renderer/packages/venice/image-edit.test.ts src/renderer/packages/vault/project-library.test.ts src/renderer/packages/vault/runtime.test.ts src/renderer/packages/voice-file.test.ts src/renderer/packages/video-file.test.ts src/renderer/packages/image-thumbnail.test.ts src/renderer/packages/vault/media-records.test.ts src/renderer/packages/vault/project-access.test.ts src/renderer/adapters/backup-resources.test.ts src/main/vault-key.test.ts src/renderer/packages/vault/image-records.test.ts src/renderer/packages/vault/backup.test.ts src/renderer/packages/vault/chunk-store.test.ts src/renderer/packages/vault/database.test.ts src/renderer/packages/vault/keys.test.ts src/shared/providers/definitions/models/venice/voice.test.ts src/shared/providers/definitions/models/venice/crypto-signature.test.ts src/shared/providers/definitions/models/venice/tee-policy.test.ts src/shared/providers/definitions/models/venice/tee-quote.test.ts src/shared/providers/definitions/models/venice/secure-chat.test.ts src/shared/providers/definitions/models/venice/privacy.test.ts src/shared/providers/definitions/models/venice/privacy-auto.test.ts src/shared/providers/definitions/models/venice/sound-effects.test.ts src/renderer/packages/venice/session-approvals.test.ts packages/chatbox-i18n/src/resources.test.ts src/renderer/packages/web-search/venice.test.ts src/renderer/packages/venice/image-model-choice.test.ts src/shared/providers/definitions/models/venice/media-capabilities.test.ts src/shared/providers/definitions/models/venice/music-catalog.test.ts src/shared/providers/definitions/models/venice/reasoning.test.ts src/shared/providers/definitions/models/venice/image-tools.test.ts src/shared/providers/definitions/models/venice/internal-mcp.test.ts src/shared/utils/reasoning-control.test.ts src/renderer/utils/request.test.ts src/renderer/packages/image-model-catalog.test.ts src/renderer/hooks/useImageModelGroups.test.tsx src/shared/providers/definitions/models/venice/catalog.test.ts src/shared/providers/definitions/models/venice/media.test.ts src/shared/providers/definitions/models/venice/options.test.ts src/shared/providers/definitions/models/venice/tools.test.ts src/shared/models/utils/extra-body.test.ts src/shared/providers/definitions/models/venice.test.ts packages/chatbox-core/src/application/image-generation/catalog.test.ts packages/chatbox-core/src/application/image-generation/ImageGenerationService.test.ts packages/chatbox-core/src/domain/settings/fork-privacy-defaults.test.ts src/renderer/packages/context-management/summary-generator.test.ts src/renderer/components/Markdown.ssr.test.tsx src/renderer/components/message-parts/ToolCallPartUI.search-results.test.tsx packages/chatbox-core/src/domain/settings/settings-migrations.test.ts packages/chatbox-core/src/application/settings/SettingsService.test.ts packages/chatbox-core/src/backup-host/settings.test.ts src/renderer/stores/settingsStore.persist.test.ts src/renderer/adapters/RendererSettingsStorage.test.ts
       - name: Session resource pagination, branches and deletion
-        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        if: ${{ !cancelled() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui' }}
         run: pnpm exec vitest run src/shared/preview-images.test.ts src/renderer/packages/session-resources/service.test.ts
       - name: Markdown exports and global speech privacy
-        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        if: ${{ !cancelled() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui' }}
         run: pnpm exec vitest run src/main/markdown-pdf.test.ts src/shared/speech.test.ts src/shared/speech-client.test.ts src/renderer/packages/markdown-export/standalone.test.ts src/renderer/routes/settings/-modelRigSettings.test.ts src/renderer/routes/settings/-default-models.test.ts src/renderer/components/speech/SpeechControls.test.tsx
       - name: Full unit test suite (optional)
-        if: inputs.test_scope == 'unit'
+        if: (inputs.test_scope == 'unit' || contains(github.event.pull_request.labels.*.name, 'full-tests'))
         run: pnpm test:unit
       - name: Global search engine tools and new-chat speech
-        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        if: ${{ !cancelled() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui' }}
         run: pnpm exec vitest run src/renderer/packages/web-search/index.test.ts src/renderer/packages/model-calls/toolsets/web-search.test.ts src/renderer/packages/tools/index.test.ts src/renderer/packages/speech/service.test.ts
       - name: Agent questions, failed generation decisions and session image previews
-        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        if: ${{ !cancelled() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui' }}
         run: pnpm exec vitest run src/shared/user-questions.test.ts src/shared/generation-retry.test.ts src/renderer/packages/session-resources/tools.test.ts src/renderer/packages/model-calls/toolsets/view-image.test.ts
       - name: Collaboration identity, encryption and HITL permissions
-        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        if: ${{ !cancelled() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui' }}
         run: pnpm exec vitest run src/shared/collaboration.test.ts src/shared/image-dimensions.test.ts src/renderer/packages/collaboration/bridge.test.ts src/renderer/packages/collaboration/crypto.test.ts src/renderer/packages/collaboration/hub.test.ts src/renderer/packages/collaboration/network.test.ts src/renderer/components/collaboration/PairingScanner.test.tsx src/renderer/components/collaboration/HitlCard.test.tsx
       - name: Full Venice catalog classification, pricing and failure reasons
-        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        if: ${{ !cancelled() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui' }}
         run: pnpm exec vitest run src/shared/providers/definitions/models/venice/catalog-audit.test.ts src/shared/providers/definitions/models/venice/model-variant.test.ts src/shared/providers/definitions/models/venice/failure-reason.test.ts src/renderer/components/venice/VeniceModelCost.test.tsx src/shared/providers/definitions/models/venice/comparison-price.test.ts src/renderer/components/venice/VeniceModelInfo.test.tsx src/renderer/components/venice/VenicePrivacyStatus.test.tsx
       - name: Multi-agent permissions, guardians and subscription transport
-        if: always() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui'
+        if: ${{ !cancelled() && inputs.test_scope != 'unit' && inputs.test_scope != 'ui' }}
         run: pnpm exec vitest run packages/chatbox-core/src/generation/stream-chunk-processor.test.ts src/renderer/components/ModelSelectorV2/SelectedModel.test.tsx src/shared/agent-output.test.ts src/shared/multi-agent-runtime.test.ts src/shared/multi-agent-description.test.ts src/shared/local-mcp-agents.test.ts src/renderer/packages/multi-agent/external.test.ts src/shared/oauth/chatgpt-subscription.test.ts src/shared/session-file-store.test.ts
       - name: Check private Android signing backup logic
         run: node --test scripts/fork-icon.test.mjs scripts/refresh-venice-media-reference.test.mjs scripts/android-signing.test.mjs scripts/android-signing-migration.test.mjs
       - name: Verify generated Android audio permissions
         run: node --test scripts/configure-fork-android.test.mjs scripts/collaboration-test/vendor.test.mjs
 
+
+  knowledge_benchmark:
+    name: Encrypted knowledge scale benchmark
+    if: inputs.test_scope != 'ui'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Measure 1000 documents with 1024-dimensional vectors
+        env:
+          KNOWLEDGE_BENCHMARK_DIMENSIONS: '1024'
+        run: node scripts/knowledge-benchmark/run.mjs
+      - name: Measure 1000 documents with 4096-dimensional vectors
+        env:
+          KNOWLEDGE_BENCHMARK_DIMENSIONS: '4096'
+        run: node scripts/knowledge-benchmark/run.mjs
+      - name: Paired number-array writer control at 1024 dimensions
+        env:
+          KNOWLEDGE_BENCHMARK_DIMENSIONS: '1024'
+          KNOWLEDGE_BENCHMARK_STORAGE: legacy-control
+        run: node scripts/knowledge-benchmark/run.mjs
+      - name: Paired number-array writer control at 4096 dimensions
+        env:
+          KNOWLEDGE_BENCHMARK_DIMENSIONS: '4096'
+          KNOWLEDGE_BENCHMARK_STORAGE: legacy-control
+        run: node scripts/knowledge-benchmark/run.mjs
+      - name: Save complete measurements or last completed phase
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Knowledge-Encrypted-Benchmark
+          path: test-results/knowledge-benchmarks/
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
 
   ui:
     name: Simulated UI and browser checks
@@ -131,16 +196,16 @@ jobs:
       - name: Global web search settings
         run: pnpm exec vitest run src/renderer/components/settings/VeniceWebSearchSettings.test.tsx src/renderer/components/agent/UserQuestion.test.tsx
       - name: Browser simulation with desktop and phone screenshots
-        if: always() && steps.ui_dependencies.outcome == 'success'
+        if: ${{ !cancelled() && steps.ui_dependencies.outcome == 'success' }}
         run: |
           node scripts/build-mobile-work-worker.cjs
           node scripts/prepare-python-test-assets.mjs
           node scripts/ui-simulation/run.mjs
       - name: Install local TURN fixture
-        if: always() && steps.ui_dependencies.outcome == 'success'
+        if: ${{ !cancelled() && steps.ui_dependencies.outcome == 'success' }}
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends coturn
       - name: Real WebRTC collaboration, permissions and shared HITL
-        if: always() && steps.ui_dependencies.outcome == 'success'
+        if: ${{ !cancelled() && steps.ui_dependencies.outcome == 'success' }}
         run: node scripts/collaboration-test/run.mjs
       - name: Save UI evidence
         if: always()

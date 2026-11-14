@@ -5,14 +5,14 @@ import {VaultKeys} from '@/packages/vault/keys'
 import {EncryptedChunkStore} from '@/packages/vault/chunk-store'
 import type {VaultRuntime} from '@/packages/vault/runtime'
 import {RagSettingsSchema} from '@shared/session-rag'
-import {KnowledgeCollections} from './store'
+import {KnowledgeCollections,type CollectionAdapters} from './store'
 import {exportVault,importVault} from '@/packages/vault/backup'
 
-async function fixture(){
+async function fixture(adapters:Partial<CollectionAdapters>={}){
  const blobs=new Map<string,string>(),envelopes=new Map<string,string>(),db=new VaultDatabase('kb-'+crypto.randomUUID()),device={capabilities:async()=>({encryption:true,biometric:true,name:'Test device'}),protect:async(value:string)=>{const id=crypto.randomUUID();envelopes.set(id,value);return id},unprotect:async(id:string)=>{const value=envelopes.get(id);if(!value)throw Error('Missing device key');return value}},keys=new VaultKeys(db,device)
  const assets=new EncryptedChunkStore({get:async key=>blobs.get(key)||null,set:async(key,value)=>{blobs.set(key,value)},remove:async key=>{blobs.delete(key)},keys:async()=>[...blobs.keys()]},db,scope=>keys.key(scope))
  const vault={db,keys,assets,projects:{assertApp:async()=>{}},available:async()=>{await keys.key('public');return true}} as unknown as VaultRuntime
- const embed=vi.fn(async(inputs:{text?:string}[])=>inputs.map(input=>input.text?.includes('cat')?[0,1]:[1,0])),unlock=vi.fn(async(scope:string)=>{await keys.unlock(scope,'pin','123456');return true}),store=new KnowledgeCollections(vault,{extract:async(_source,bytes)=>({text:new TextDecoder().decode(bytes)}),embed,validate:()=>{},unlock})
+ const embed=vi.fn(async(inputs:{text?:string}[])=>inputs.map(input=>input.text?.includes('cat')?[0,1]:[1,0])),unlock=vi.fn(async(scope:string)=>{await keys.unlock(scope,'pin','123456');return true}),store=new KnowledgeCollections(vault,{extract:async(_source,bytes)=>({text:new TextDecoder().decode(bytes)}),embed,validate:()=>{},unlock,...adapters})
  const cfg=RagSettingsSchema.parse({provider:'venice',model:'embedding',enabled:true}),id=await store.create('Company secrets',cfg)
  const add=async(name='manual.txt',text='Confidential payment instructions.')=>{const bytes=new TextEncoder().encode(text);return store.add(id,{name,type:'text/plain',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File)}
  return {blobs,db,keys,store,embed,unlock,cfg,id,add}
@@ -59,4 +59,105 @@ it('removes staged vector shards after cancellation while retaining the last com
 it('keeps a published index valid if cancellation arrives after its manifest is committed',async()=>{
  const f=await fixture();await f.add();const original=f.store.vault.assets.put.bind(f.store.vault.assets);vi.spyOn(f.store.vault.assets,'put').mockImplementation(async(source,info,scope,alias,signal)=>{const ref=await original(source,info,scope,alias,signal);if(alias?.endsWith('/index.json'))f.store.cancel(f.id);return ref})
  await f.store.index(f.id);expect((await f.store.search(f.id,'payment')).matches).toHaveLength(1)
+})
+
+it('uses the optional LLM reranker only after collection opt-in, preserving protected access and source identities',async()=>{
+ const llmRerank=vi.fn(async()=>[{index:1,score:0.9},{index:0,score:0.1}]),rerank=vi.fn(),f=await fixture({llmRerank,rerank})
+ await f.add('project.md','Project contract and billing');await f.add('cat.md','cat news');await f.store.index(f.id)
+ await f.store.search(f.id,'project');expect(llmRerank).not.toHaveBeenCalled()
+ await f.store.configure(f.id,'Company secrets',f.cfg,'test','small','llm')
+ const ranked=await f.store.search(f.id,'project'),rows=await f.store.chunks(f.id,new Set(ranked.matches.map(hit=>hit.id)))
+ expect(rows.find(row=>row.chunk.id===ranked.matches[0].id)?.filename).toBe('cat.md');expect(llmRerank).toHaveBeenCalledOnce();expect(rerank).not.toHaveBeenCalled()
+ await f.store.protect(f.id,'dedicated',{pin:'123456'});await f.store.lock(f.id);llmRerank.mockClear()
+ await expect(f.store.search(f.id,'project')).rejects.toThrow();expect(llmRerank).not.toHaveBeenCalled()
+})
+
+it('keeps native multimodal retrieval instead of asking a text-only LLM to rank MIME placeholders',async()=>{
+ const llmRerank=vi.fn(),f=await fixture({llmRerank,extract:async()=>({media:true})})
+ await f.store.configure(f.id,'Photos',{...f.cfg,provider:'gemini',images:true},'test','small','llm');const bytes=new Uint8Array([1,2,3]);await f.store.add(f.id,{name:'photo.png',type:'image/png',size:3,arrayBuffer:async()=>bytes.buffer} as File);await f.store.index(f.id)
+ const found=await f.store.search(f.id,'photo');expect(found.matches).toHaveLength(1);expect(found).toHaveProperty('rerankWarning');expect(llmRerank).not.toHaveBeenCalled()
+})
+
+const extractRelations=vi.fn(async(text:string)=>{const match=/Project (\w+) has client (\w+)\./.exec(text);if(!match)throw Error('Synthetic source missing');const [,project,client]=match;return {summary:text,entities:[{name:project,type:'project',quote:match[0]},{name:client,type:'client',quote:match[0]}],relations:[{subject:project,predicate:'HAS_CLIENT',object:client,quote:match[0]}],tags:[{key:'client',value:client,quote:match[0]}]}})
+const advanced=()=>({augmentation:{enabled:true,model:{provider:'private',model:'small'},keepMarkdown:true,mediaText:false,windowChars:8000},retrievalMode:'hybrid' as const})
+it('publishes encrypted vectors, derivatives and source-grounded metadata together and reuses unchanged work',async()=>{
+ extractRelations.mockClear();const f=await fixture({analyze:extractRelations});await f.add('alpha.md','Project Alpha has client Acme.');await f.add('beta.md','Project Beta has client Nova.');await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,undefined,advanced());await f.store.index(f.id)
+ expect(extractRelations).toHaveBeenCalledTimes(2);expect((await f.store.metadata(f.id,{type:'client'})).results.flatMap(row=>row.entities.map(entity=>entity.name))).toEqual(['Acme','Nova']);expect(JSON.stringify([...f.blobs])).not.toContain('Acme')
+ const file=(await f.store.data(f.id)).files[0];expect((await f.store.documentText(f.id,file.id)).text).toContain('Acme');await f.store.index(f.id);expect(extractRelations).toHaveBeenCalledTimes(2);expect(f.embed).toHaveBeenCalledTimes(2)
+ const next=new TextEncoder().encode('Project Alpha has client Oscar.');await f.store.replaceFile(f.id,file.id,{name:file.name,type:file.mime,size:next.length,arrayBuffer:async()=>next.buffer} as File);expect((await f.store.metadata(f.id,{type:'client'})).results.flatMap(row=>row.entities.map(entity=>entity.name))).not.toContain('Acme');await f.store.index(f.id);expect(extractRelations).toHaveBeenCalledTimes(3);expect(f.embed).toHaveBeenCalledTimes(3)
+ expect((await f.store.metadata(f.id,{type:'client'})).results.flatMap(row=>row.entities.map(entity=>entity.name))).toEqual(['Oscar','Nova'])
+})
+it('keeps the last complete generation after invalid extraction and removes only the failed staging assets',async()=>{
+ const analyze=vi.fn(extractRelations),f=await fixture({analyze});await f.add('alpha.md','Project Alpha has client Acme.');await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,undefined,advanced());await f.store.index(f.id);const before=await f.store.indexStatus(f.id)
+ analyze.mockRejectedValueOnce(Error('Extraction unavailable'));await expect(f.store.index(f.id,()=>{},true)).rejects.toThrow('unavailable');expect(await f.store.indexStatus(f.id)).toEqual(before);expect((await f.store.search(f.id,'Acme')).matches).toHaveLength(1)
+})
+it('retains OCR alongside native image vectors only after the separate media-text opt-in and never OCRs during preview',async()=>{
+ const extract=vi.fn(async(_source:any,_bytes:any,cfg:any)=>cfg.images?{media:true}:{text:'Project Alpha has client Acme.',kind:'ocr' as const}),f=await fixture({extract,analyze:extractRelations}),cfg={...f.cfg,provider:'gemini',images:true,ocr:true,ocrProvider:'vision',ocrModel:'vision'},bytes=new Uint8Array([1,2,3]);await f.store.add(f.id,{name:'source.png',type:'image/png',size:3,arrayBuffer:async()=>bytes.buffer} as File)
+ await f.store.configure(f.id,'Photos',cfg,undefined,undefined,undefined,{...advanced(),augmentation:{...advanced().augmentation,mediaText:true}});await f.store.index(f.id);expect(extract).toHaveBeenCalledTimes(1);const file=(await f.store.data(f.id)).files[0],parsed=await f.store.documentText(f.id,file.id);expect(parsed).toMatchObject({kind:'ocr',text:'Project Alpha has client Acme.'});expect(extract).toHaveBeenCalledTimes(1)
+ await f.store.index(f.id);expect(extract).toHaveBeenCalledTimes(1)
+})
+it('deletes only one document from vector and graph generations without re-embedding other sources',async()=>{
+ const f=await fixture({analyze:extractRelations});await f.add('alpha.md','Project Alpha has client Acme.');await f.add('beta.md','Project Beta has client Nova.');await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,undefined,advanced());await f.store.index(f.id);const [first]=(await f.store.data(f.id)).files;f.embed.mockClear();await f.store.removeFile(f.id,first.id)
+ expect((await f.store.indexStatus(f.id))?.files).toHaveLength(1);expect((await f.store.metadata(f.id,{type:'client'})).results.flatMap(row=>row.entities.map(entity=>entity.name))).toEqual(['Nova']);expect(f.embed).not.toHaveBeenCalled()
+})
+
+it('stores stable encrypted citation receipts with context, detects changed sources and removes receipts with their file',async()=>{
+ const f=await fixture(),fileId=await f.add('manual.txt','Confidential payment instructions.'),other=await f.add('other.txt','Another document.');await f.store.index(f.id)
+ const chunks=await f.store.chunks(f.id,[{fileId,chunkIndex:0}]),refs=await f.store.citeChunks(f.id,chunks),again=await f.store.citeChunks(f.id,chunks)
+ expect(refs).toEqual(again);const evidence=await f.store.readEvidence(f.id,fileId,refs[0].id);expect(evidence).toMatchObject({quote:'Confidential payment instructions.',stale:false,name:'manual.txt'})
+ expect(JSON.stringify([...f.blobs])).not.toContain('Confidential');expect((await f.db.aliases()).filter(alias=>alias.includes('/evidence/'))).toHaveLength(1)
+ await expect(f.store.readEvidence(f.id,other,refs[0].id)).rejects.toThrow();await f.store.protect(f.id,'dedicated',{pin:'123456'});await f.store.lock(f.id);await expect(f.store.readEvidence(f.id,fileId,refs[0].id)).rejects.toThrow('Unlock');await f.store.authorize(f.id)
+ const bytes=new TextEncoder().encode('Changed document.');await f.store.replaceFile(f.id,fileId,{name:'manual.txt',type:'text/plain',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File)
+ expect(await f.store.readEvidence(f.id,fileId,refs[0].id)).toMatchObject({quote:'Confidential payment instructions.',stale:true});await expect(f.store.citeChunks(f.id,chunks)).rejects.toThrow('changed')
+ await f.store.removeFile(f.id,fileId);expect((await f.db.aliases()).filter(alias=>alias.includes('/evidence/'))).toHaveLength(0);await expect(f.store.readEvidence(f.id,fileId,refs[0].id)).rejects.toThrow('not found')
+})
+it('creates metadata source references only for matching source and text revisions, without provider calls on preview',async()=>{
+ const f=await fixture(),fileId=await f.add('source.txt','Project Aurora has client Acme.'),document=await f.store.documentText(f.id,fileId),input={fileId,sourceHash:document.sourceHash,textHash:document.textHash,start:0,end:31}
+ const refs=await f.store.citeAnchors(f.id,[input]);expect(refs[0].quote).toBe('Project Aurora has client Acme.');expect(f.embed).not.toHaveBeenCalled();await expect(f.store.citeAnchors(f.id,[{...input,textHash:'a'.repeat(64)}])).rejects.toThrow('changed');await expect(f.store.citeAnchors(f.id,[{...input,end:9000}])).rejects.toThrow('range')
+})
+
+it('does not pay embeddings or metadata extraction after removal or metadata-only source replacement',async()=>{
+ const analyze=vi.fn(async()=>({summary:'Project',entities:[{name:'Acme',type:'client',quote:'Apollo has client Acme.'},{name:'Apollo',type:'project',quote:'Apollo has client Acme.'}],relations:[{subject:'Apollo',predicate:'HAS_CLIENT',object:'Acme',quote:'Apollo has client Acme.'}],tags:[]})),extract=vi.fn(async()=>({text:'Apollo has client Acme.'})),f=await fixture({analyze,extract}),fileId=await f.add('one.txt','raw-v1'),other=await f.add('two.txt','other-source')
+ await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,'api',{augmentation:{enabled:true,model:{provider:'private',model:'extract'},keepMarkdown:true,mediaText:false,windowChars:8000},retrievalMode:'hybrid'});await f.store.index(f.id);f.embed.mockClear();analyze.mockClear()
+ const bytes=new TextEncoder().encode('raw-v2');await f.store.replaceFile(f.id,fileId,{name:'one.txt',type:'text/plain',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File);const index=await f.store.index(f.id);expect(f.embed).not.toHaveBeenCalled();expect(analyze).not.toHaveBeenCalled();expect((await f.store.metadata(f.id,{})).indexingStats).toMatchObject({reboundDocuments:1})
+ await f.store.removeFile(f.id,other);expect(f.embed).not.toHaveBeenCalled();expect(analyze).not.toHaveBeenCalled();expect((await f.store.metadata(f.id,{})).results).toHaveLength(1)
+})
+
+it('forces Venice media settings to text while preserving independently opted-in OCR/STT',async()=>{
+ const f=await fixture();await f.store.configure(f.id,'Text embeddings',{...f.cfg,images:true,audio:true,ocr:true,ocrProvider:'vision',ocrModel:'private-ocr',stt:true,sttProvider:'venice',sttModel:'whisper'})
+ expect((await f.store.data(f.id)).settings).toMatchObject({images:false,audio:false,ocr:true,stt:true,ocrModel:'private-ocr',sttModel:'whisper'})
+})
+
+it('binds verified source hashes to immutable encrypted assets and avoids repeated source-body reads',async()=>{
+ const analyze=vi.fn(async()=>({summary:'Project',entities:[{name:'Acme',type:'client',quote:'Apollo has client Acme.'},{name:'Apollo',type:'project',quote:'Apollo has client Acme.'}],relations:[],tags:[]})),f=await fixture({analyze}),fileId=await f.add('source.txt','Apollo has client Acme.');await f.store.configure(f.id,'Project',f.cfg,undefined,undefined,'api',{augmentation:{enabled:true,model:{provider:'private',model:'extract'},keepMarkdown:false,mediaText:false,windowChars:8000},retrievalMode:'hybrid'});await f.store.index(f.id);const data=await f.store.data(f.id),file=data.files[0],read=vi.spyOn(f.store.vault.assets,'read');expect(file.hash).toMatch(/^[a-f0-9]{64}$/);expect(file.assetId).toBeTruthy();analyze.mockClear();f.embed.mockClear()
+ await f.store.index(f.id);await f.store.metadata(f.id,{});expect(read.mock.calls.filter(call=>call[0]===file.alias)).toHaveLength(0);expect(analyze).not.toHaveBeenCalled();expect(f.embed).not.toHaveBeenCalled()
+ const bytes=new TextEncoder().encode('Changed outside the bound manifest.');await f.store.vault.assets.put((async function*(){yield bytes})(),{name:'source.txt',mime:'text/plain',kind:'document',hidden:true,sourceId:file.alias},'public',file.alias)
+ expect(await f.store.sourceRevision(f.id,file.path)).not.toBe(file.hash);expect((await f.store.metadata(f.id,{})).stale).toEqual([String(fileId)])
+})
+it('publishes a batch of source files with one manifest write and authenticates each bound digest',async()=>{
+ const f=await fixture(),put=vi.spyOn(f.store.vault.assets,'put'),files=Array.from({length:12},(_,n)=>{const bytes=new TextEncoder().encode('Document '+n);return {name:'doc-'+n+'.txt',type:'text/plain',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File}),ids=await f.store.addMany(f.id,files)
+ expect(new Set(ids).size).toBe(12);expect(put.mock.calls.filter(call=>call[3]==='knowledge-collection:'+f.id+':manifest')).toHaveLength(1);expect((await f.store.data(f.id)).files.every(file=>file.assetId&&file.hash)).toBe(true)
+})
+
+it.skipIf(process.env.CHATBOX_KNOWLEDGE_BENCHMARK!=='1')('measures encrypted1000-document ingestion, hybrid retrieval and a one-document incremental update',async()=>{
+ const count=Number(process.env.CHATBOX_KNOWLEDGE_BENCHMARK_SIZE||1000);if(!Number.isSafeInteger(count)||count<2||count>2000)throw Error('Invalid benchmark size');const target=Math.min(431,count-1),targetCode='ZX-'+String(target).padStart(4,'0');const {mkdir,writeFile}=await import('node:fs/promises'),phases:{phase:string;elapsedMs:number}[]=[],runStarted=performance.now();await mkdir('test-results/knowledge-benchmarks',{recursive:true});const checkpoint=async(phase:string)=>{phases.push({phase,elapsedMs:performance.now()-runStarted});await writeFile('test-results/knowledge-benchmarks/encrypted-1000-progress.json',JSON.stringify({documents:count,phases},null,2));process.stdout.write('KNOWLEDGE_BENCHMARK_PHASE '+JSON.stringify(phases.at(-1))+'\n')};await checkpoint('start')
+ let profileDone:Promise<void>|undefined;if(process.env.CHATBOX_KNOWLEDGE_PROFILE==='1'){const {Session}=await import('node:inspector'),inspector=new Session();inspector.connect();const post=(method:string)=>new Promise<any>((resolve,reject)=>inspector.post(method,(error:Error|null,value:unknown)=>error?reject(error):resolve(value)));await post('Profiler.enable');await post('Profiler.start');profileDone=new Promise(resolve=>setTimeout(()=>{void post('Profiler.stop').then(value=>writeFile('test-results/knowledge-benchmarks/encrypted-cpu-profile.json',JSON.stringify(value.profile))).catch(error=>process.stdout.write('PROFILE_ERROR '+error.name+'\n')).finally(()=>{inspector.disconnect();resolve()})},10000))}
+ const dimensions=256,analyze=vi.fn(async(text:string)=>{const quote=text.split('\n')[0],project=/Project-([0-9]+)/.exec(quote)![0];return {summary:quote,entities:[{name:project,type:'project',quote},{name:'Acme',type:'client',quote}],relations:[{subject:project,predicate:'HAS_CLIENT',object:'Acme',quote}],tags:[]}}),f=await fixture({analyze}),cfg={...f.cfg,dimensions};f.embed.mockImplementation(async inputs=>inputs.map(input=>Array.from({length:dimensions},(_,n)=>Math.sin(n*.79+(input.text?.length||1)))))
+ const files=Array.from({length:count},(_,n)=>{const text='Project-'+n+' has client Acme. Code ZX-'+String(n).padStart(4,'0')+'.\n'+('Project source context. ').repeat(8),bytes=new TextEncoder().encode(text);return {name:'doc-'+n+'.md',type:'text/markdown',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File})
+ await f.store.configure(f.id,'Benchmark',cfg,undefined,undefined,'api',{retrievalMode:'hybrid',augmentation:{enabled:true,model:{provider:'fixture',model:'deterministic'},keepMarkdown:true,mediaText:false,windowChars:8000}})
+ const started=performance.now(),ids=await f.store.addMany(f.id,files),ingestMs=performance.now()-started;await checkpoint('ingested');const indexStart=performance.now();let indexedSources=0;await f.store.index(f.id,()=>{if(++indexedSources%100===0)process.stdout.write('KNOWLEDGE_VECTOR_PROGRESS '+indexedSources+'\n')});const indexMs=performance.now()-indexStart;await checkpoint('indexed');const read=vi.spyOn(f.store.vault.assets,'read'),sourceAliases=new Set((await f.store.data(f.id)).files.map(file=>file.alias));f.embed.mockClear();analyze.mockClear()
+ const unchangedStart=performance.now();await f.store.index(f.id);const unchangedMs=performance.now()-unchangedStart;await checkpoint('unchanged-index');expect(f.embed).not.toHaveBeenCalled();expect(analyze).not.toHaveBeenCalled()
+ const queryStart=performance.now(),found=await f.store.search(f.id,targetCode);const queryMs=performance.now()-queryStart;await checkpoint('hybrid-search');expect(found.matches[0].path).toContain(String(ids[target]));read.mockClear();const materializeStart=performance.now(),rows=await f.store.chunksForMatches(f.id,found.matches),materializeMs=performance.now()-materializeStart,materializeVectorReads=read.mock.calls.filter(call=>String(call[0]).includes('/rag/data/')).length;expect(rows.length).toBe(found.matches.length);expect(materializeVectorReads).toBeLessThanOrEqual(20);await checkpoint('materialized')
+ read.mockClear();const metaStart=performance.now();await f.store.metadata(f.id,{type:'client',limit:20});const metadataMs=performance.now()-metaStart,sourceBodyReads=read.mock.calls.filter(call=>sourceAliases.has(call[0])).length;expect(sourceBodyReads).toBe(0);await checkpoint('metadata-page')
+ f.embed.mockClear();analyze.mockClear();const text='Project-'+target+' has client Acme. Code '+targetCode+'. Updated schedule.',bytes=new TextEncoder().encode(text),updateStart=performance.now();await f.store.replaceFile(f.id,ids[target],{name:'doc-'+target+'.md',type:'text/markdown',size:bytes.length,arrayBuffer:async()=>bytes.buffer} as File);await f.store.index(f.id);const updateMs=performance.now()-updateStart,updateEmbeddingInputs=f.embed.mock.calls.reduce((sum,call)=>sum+call[0].length,0);expect(updateEmbeddingInputs).toBe(1);expect(analyze).toHaveBeenCalledOnce();await checkpoint('single-document-update')
+ const report={documents:count,dimensions,ingestMs,indexMs,unchangedMs,queryMs,materializeMs,metadataMs,updateMs,materializeVectorReads,metadataSourceBodyReads:sourceBodyReads,updateEmbeddingInputs,updateModelCalls:analyze.mock.calls.length,cipherBlobBytesExcludesIndexMetadata:[...f.blobs.values()].reduce((sum,value)=>sum+Buffer.byteLength(value,'base64'),0),heapUsedAtEnd:process.memoryUsage().heapUsed,provider:'Deterministic dense vector/extraction fixtures; no network or paid calls',storage:'Real authenticated encryption with fake-indexeddb and in-memory cipher blobs; not physical disk/Android timing'}
+ await writeFile('test-results/knowledge-benchmarks/encrypted-1000.json',JSON.stringify(report,null,2));process.stdout.write('KNOWLEDGE_ENCRYPTED_BENCHMARK '+JSON.stringify(report)+'\n');await profileDone
+},360000)
+
+it('refreshes linked documents by hash, reuses unchanged vectors, prunes deletions and keeps originals on failed scans',async()=>{
+ const f=await fixture();await f.store.linkFolder(f.id,{bindingId:'bound',name:'Docs',automatic:false});const documents=new Map([['one.md','Payment for project one.'],['two.md','cat project two.']]),read=vi.fn(async(path:string)=>new TextEncoder().encode(documents.get(path)!)),check=vi.fn(),rows=async()=>Promise.all([...documents].map(async([path,text])=>({path,bytes:text.length,version:await (await import('@shared/session-rag-engine')).ragHash(new TextEncoder().encode(text))})))
+ expect(await f.store.syncFolder(f.id,'bound',await rows(),{read,check})).toMatchObject({added:2,changed:0});await f.store.index(f.id);read.mockClear();f.embed.mockClear();await f.store.syncFolder(f.id,'bound',await rows(),{read,check});await f.store.index(f.id);expect(read).not.toHaveBeenCalled();expect(f.embed).not.toHaveBeenCalled()
+ documents.set('one.md','Updated payment for project one.');documents.delete('two.md');expect(await f.store.syncFolder(f.id,'bound',await rows(),{read,check})).toMatchObject({changed:1,removed:1,unchanged:0});await f.store.index(f.id);expect(f.embed).toHaveBeenCalledTimes(1);expect((await f.store.data(f.id)).files).toHaveLength(1)
+ const before=await f.store.data(f.id);documents.set('new.md','New project.');await expect(f.store.syncFolder(f.id,'bound',await rows(),{read:async()=>{throw Error('Access revoked')},check})).rejects.toThrow('revoked');expect((await f.store.data(f.id)).files).toEqual(before.files)
+ await f.store.linkFolder(f.id,undefined);expect((await f.store.data(f.id)).files[0].linkedPath).toBeUndefined();expect(documents.has('one.md')).toBe(true)
 })

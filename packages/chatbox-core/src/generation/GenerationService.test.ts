@@ -1,3 +1,5 @@
+import {createKnowledgePublication,knowledgeAnswerText} from '@shared/knowledge-publication'
+import {KnowledgeCheckReportSchema,knowledgeAnswerHash} from '@shared/knowledge-verification'
 import { decodeSessionTree } from '../session/session-tree/decode'
 import type { AttachmentPolicy } from '@shared/context/attachments'
 import type { ChatStreamOptions, ModelInterface, ModelStreamPart } from '@shared/models/types'
@@ -115,6 +117,7 @@ interface Harness {
   failInsertion(error: Error, options?: { commit?: boolean }): void
   enableAgentModeSuggestion(result: Message['contentParts']): void
   setNow(value: number): void
+  setPublication(port:GenerationServiceDependencies<ModelContext>['publication']):void
   setCompaction(port: GenerationCompactionPort): void
 }
 
@@ -496,6 +499,7 @@ function createHarness(): Harness {
     setNow(value) {
       now = value
     },
+    setPublication(port){dependencies.publication=port},
     setCompaction(port) {
       dependencies.compaction = port
     },
@@ -3367,4 +3371,32 @@ describe('GenerationService', () => {
       ],
     })
   })
+})
+
+
+describe('knowledge answer publication boundary',()=>{
+  it('keeps streamed draft checkpoints private until source review completes',async()=>{
+    const h=createHarness();let entered!:()=>void,release!:()=>void;const waiting=new Promise<void>(resolve=>{entered=resolve}),resume=new Promise<void>(resolve=>{release=resolve})
+    h.setStreamFactory(()=>stream([{type:'text-delta',id:'text',text:'Original draft'},{type:'finish',finishReason:'stop',totalUsage:{inputTokens:1,outputTokens:1,totalTokens:2}}] as ModelStreamPart<ToolSet>[]))
+    h.setPublication({create:async()=>createKnowledgePublication(async parts=>{entered();await resume;const draft=knowledgeAnswerText(parts);return {answer:draft,report:KnowledgeCheckReportSchema.parse({version:1,id:crypto.randomUUID(),draftHash:await knowledgeAnswerHash(draft),answerHash:await knowledgeAnswerHash(draft),created:Date.now(),status:'unverified',reason:'no_sources',revised:false,calls:0,coverage:0,claims:[],sources:[],omittedEvidence:0})}})})
+    const generation=h.service.orchestrate('session-1',targetMessage());await waiting
+    expect([...h.persisted.map(row=>row.message),...h.cached].some(message=>knowledgeAnswerText(message.contentParts).includes('Original draft'))).toBe(false)
+    release();await generation;expect(knowledgeAnswerText(h.persisted.at(-1)!.message.contentParts)).toBe('Original draft');expect(h.persisted.at(-1)!.message.generating).toBe(false)
+  })
+  it('does not persist a late draft when source access is revoked during review',async()=>{
+    const h=createHarness();h.setStreamFactory(()=>stream([{type:'text-delta',id:'text',text:'Private draft'}] as ModelStreamPart<ToolSet>[]));h.setPublication({create:async()=>createKnowledgePublication(async()=>{throw Error('Source access revoked')})});await h.service.orchestrate('session-1',targetMessage());expect(h.persisted.some(row=>knowledgeAnswerText(row.message.contentParts).includes('Private draft'))).toBe(false)
+  })
+})
+
+describe('source review with tool pauses and steering',()=>{
+ const enable=(h:ReturnType<typeof createHarness>,seen:string[])=>h.setPublication({create:async()=>createKnowledgePublication(async parts=>{const answer=knowledgeAnswerText(parts);seen.push(answer);const hash=await knowledgeAnswerHash(answer);return {answer,report:KnowledgeCheckReportSchema.parse({version:1,id:crypto.randomUUID(),draftHash:hash,answerHash:hash,created:1,status:'unverified',reason:'no_sources',revised:false,calls:0,coverage:0,claims:[],sources:[],omittedEvidence:0})}})})
+ it('keeps the real HITL pause visible without publishing the preceding unchecked draft',async()=>{
+  const h=createHarness(),seen:string[]=[];enable(h,seen);h.setStreamFactory(()=>stream([{type:'text-delta',text:'Unchecked draft'},{type:'tool-call',toolCallId:'tool-1',toolName:'user_exec',input:{command:'pwd'}}] as ModelStreamPart<ToolSet>[],{name:'UserExecApprovalPausedError',toolCallId:'tool-1',command:'pwd'}));await h.service.orchestrate('session-1',targetMessage());expect(lastPersisted(h)).toMatchObject({generating:false,finishReason:'tool-call-paused',contentParts:[expect.objectContaining({type:'tool-call',state:'paused',toolCallId:'tool-1'})]});expect(seen).toEqual([])
+ })
+ it('reviews each finalized segment and continues steering with intact internal stream state',async()=>{
+  const h=createHarness(),seen:string[]=[];enable(h,seen);const user:Message={id:'steered-user',role:'user',steered:true,contentParts:[{type:'text',text:'New instruction'}]}
+  h.steeringInject.mockResolvedValueOnce({messages:undefined,consumed:[]}).mockImplementationOnce((messages:ModelMessage[],anchor:string)=>{h.session.messages.splice(h.session.messages.findIndex(message=>message.id===anchor)+1,0,user);return Promise.resolve({messages:[...messages,{role:'user',content:'New instruction'}],consumed:[user]})})
+  h.setChatStreamFactory((_messages,options)=>(async function*(){yield {type:'text-delta',text:'First segment'} as ModelStreamPart<ToolSet>;yield {type:'finish-step'} as ModelStreamPart<ToolSet>;await options.prepareStep?.({steps:[],stepNumber:1,model:{},messages:[{role:'user',content:'Hello'}],initialMessages:[{role:'user',content:'Hello'}],responseMessages:[],toolsContext:{},runtimeContext:{}} as any);yield {type:'text-delta',text:'Second segment'} as ModelStreamPart<ToolSet>;yield {type:'finish',finishReason:'stop'} as ModelStreamPart<ToolSet>})())
+  await h.service.orchestrate('session-1',targetMessage());expect(seen).toEqual(['First segment','Second segment']);expect(knowledgeAnswerText(h.persisted.find(row=>row.message.finishReason==='steered')!.message.contentParts)).toBe('First segment');expect(knowledgeAnswerText(lastPersisted(h).contentParts)).toBe('Second segment');expect(h.inserted).toHaveLength(1)
+ })
 })

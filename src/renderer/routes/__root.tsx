@@ -187,6 +187,7 @@ function SettingsModalErrorFallback({ retry }: { error: Error; retry: () => void
 }
 
 function Root() {
+  useEffect(()=>{let cancelled=false,stop:undefined|(()=>void);if(process.env.NODE_ENV!=='test')void import('@/packages/knowledge-collections/linked-folder').then(module=>{if(!cancelled)stop=module.startKnowledgeFolderMonitoring()});return()=>{cancelled=true;stop?.()}},[])
   useEffect(()=>{if(process.env.NODE_ENV!=='test')void import('@/packages/session-rag/service').then(module=>module.startRagMonitoring())},[])
   useEffect(()=>{const vault=installedVaultFor(platform);if(!vault)return;let unlocked=JSON.stringify(vault.keys.unlockedScopes());return vault.keys.subscribe(()=>{const next=JSON.stringify(vault.keys.unlockedScopes());if(next===unlocked)return;unlocked=next;void rendererApplication.queryClient.resetQueries().catch(()=>{})})},[])
   useScreenChange()

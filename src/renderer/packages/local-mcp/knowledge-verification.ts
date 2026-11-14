@@ -1,0 +1,24 @@
+import {tool} from 'ai'
+import {z} from 'zod'
+import type {LocalMCPGrant} from '@shared/local-mcp'
+import {localMCPModelSettings} from '@shared/local-mcp-model-policy'
+import {KnowledgeModelSchema} from '@shared/knowledge-json'
+import {knowledgeEvidenceUrl} from '@shared/knowledge-evidence'
+import type {KnowledgeCheckSource} from '@shared/knowledge-verification'
+import {knowledgeCollections} from '@/packages/knowledge-collections/service'
+import {checkKnowledgeAnswer} from '@/packages/knowledge-collections/verify'
+import {settingsStore} from '@/stores/settingsStore'
+export function applicationKnowledgeVerifier(grant:LocalMCPGrant,signal:AbortSignal,live:()=>Promise<void>){
+ return tool({description:'Assess an answer against at most 8 actual citation receipts from explicitly granted collections. Uses the manually configured global verifier model, with endpoint provider/privacy restrictions and model-call approval. Sources require owner unlock and current revisions. Optional correction performs at most one rewrite and checks the actual final answer again, at most 3 model calls total. Returns source-support judgments, not independent real-world truth. Without model-call permission this tool is unavailable.',inputSchema:z.object({answer:z.string().min(1).max(24000),sources:z.array(z.object({collectionId:z.number().int().negative(),fileId:z.number().int().positive(),id:z.string().regex(/^[a-f0-9]{64}$/)}).strict()).min(1).max(8),correctConflicts:z.boolean().default(false)}).strict(),execute:async input=>{
+  if(!grant.permissions.knowledge||!grant.permissions.models||!grant.application||grant.application.mode==='router')throw Error('Knowledge verification is outside the endpoint permissions')
+  const allowed=grant.application.knowledgeCollectionIds||[];if(input.sources.some(source=>!allowed.includes(source.collectionId)))throw Error('This collection is outside the endpoint knowledge permissions')
+  await live();signal.throwIfAborted();const global=settingsStore.getState().getSettings();if(!global.defaultKnowledgeVerifierModel)throw Error('Choose a knowledge verifier model first');const model=KnowledgeModelSchema.parse(global.defaultKnowledgeVerifierModel),binding=JSON.stringify(global.providers?.[model.provider]),ids=[...new Set(input.sources.map(source=>source.collectionId))],security=localMCPModelSettings(grant.application,{provider:model.provider,modelId:model.model},global.providers).veniceSecurity
+  const bindings:{collectionId:number;path:string;sourceHash:string}[]=[]
+  const check=async()=>{signal.throwIfAborted();await live();for(const id of ids)await knowledgeCollections.assert(id);for(const binding of bindings)if(await knowledgeCollections.sourceRevision(binding.collectionId,binding.path)!==binding.sourceHash)throw Error('Knowledge source changed during verification');if(JSON.stringify(settingsStore.getState().getSettings().providers?.[model.provider])!==binding)throw Error('Knowledge model settings changed; retry explicitly')}
+  for(const id of ids){await live();signal.throwIfAborted();await knowledgeCollections.authorize(id)}
+  const sources:KnowledgeCheckSource[]=[];for(const reference of input.sources){await check();const receipt=await knowledgeCollections.readEvidence(reference.collectionId,reference.fileId,reference.id),file=(await knowledgeCollections.data(reference.collectionId)).files.find(file=>file.id===reference.fileId);if(!file)throw Error('Knowledge document not found');bindings.push({collectionId:reference.collectionId,path:file.path,sourceHash:receipt.sourceHash});if(receipt.stale)throw Error('Knowledge source changed; reindex this collection');const spare=Math.max(0,7998-receipt.quote.length),before=receipt.before.slice(-Math.floor(spare/2)),after=receipt.after.slice(0,Math.ceil(spare/2));sources.push({id:receipt.id,origin:'knowledge',url:knowledgeEvidenceUrl(reference.collectionId,reference.fileId,receipt.id),name:receipt.name,content:receipt.quote.length>=7998?receipt.quote:before+'\n'+receipt.quote+'\n'+after})}
+  if(new Set(sources.map(source=>source.id)).size!==sources.length)throw Error('Do not repeat a knowledge source receipt')
+  if(!grant.permissions.automaticModels){const {requestExternalModelApproval}=await import('./model-approval');if(!await requestExternalModelApproval(grant,{provider:model.provider,modelId:model.model,maxOutputTokens:input.correctConflicts?12288:4096,messages:[{role:'system',content:'Source-support review: at most '+(input.correctConflicts?3:1)+' model calls,4096 output tokens each. No tools or search. The source and draft data below will be sent to the selected verifier.'},{role:'user',content:JSON.stringify({answer:input.answer,sources})}]},signal))throw Error('External model call was not approved')}
+  await check();const result=await checkKnowledgeAnswer(input.answer,sources,{enabled:true,consented:true,model,correctConflicts:input.correctConflicts},signal,check,security);await check();return result
+ }})
+}

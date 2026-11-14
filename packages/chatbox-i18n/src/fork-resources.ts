@@ -1,3 +1,4 @@
+import {advancedKnowledgeEnglish,advancedKnowledgeItalian} from './advanced-knowledge-resources'
 import {mcpEnglish,mcpItalian} from './mcp-resources'
 import {ragEnglish,ragItalian} from './rag-resources'
 import {knowledgeEnglish,knowledgeItalian} from './knowledge-resources'
@@ -12,6 +13,7 @@ export const forkEnglish = {
   ...archiveEnglish,
   ...ragEnglish,
   ...knowledgeEnglish,
+  ...advancedKnowledgeEnglish,
   ...transferEnglish,
   ...agentsEnglish,
   ...collaborationEnglish,
@@ -679,6 +681,7 @@ export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT'
   ...archiveItalian,
   ...ragItalian,
   ...knowledgeItalian,
+  ...advancedKnowledgeItalian,
   ...agentsItalian,
   ...transferItalian,
   ...collaborationItalian,

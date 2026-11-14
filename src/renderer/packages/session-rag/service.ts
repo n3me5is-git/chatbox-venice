@@ -7,7 +7,7 @@ import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import { settingsStore } from '@/stores/settingsStore'
 import platform from '@/platform'
 import { extractRagSource } from './extract'
-import { multimodalEmbedding, ragProvider, requestRagEmbeddings } from './embeddings'
+import { multimodalEmbedding, ragProvider, requestRagEmbeddings,embeddingSpaceIdentity,embeddingSpaceDescriptor } from './embeddings'
 import { defaultRagSettings } from './defaults'
 const vault=()=>vaultRuntimeFor(platform)
 const failures=new Map<string,{key:string;error:string}>()
@@ -26,8 +26,8 @@ const consent=(settings:RagSettings)=>JSON.stringify(settings)
 export async function ragAuthorized(id:string,settings:RagSettings){return settings.enabled&&await vault().db.getSetting('rag:consent:'+id)===consent(settings)}
 async function put(id:string,path:string,value:unknown){const bytes=new TextEncoder().encode(JSON.stringify(value));try{await sessionFiles.write(id,path,bytes,{mime:'application/json',deliverable:false,managed:true})}finally{bytes.fill(0)}}
 export async function configureRag(id:string,input:RagSettings){
-  await vault().projects.assertSession(id);const settings=RagSettingsSchema.parse(input)
-  if(settings.enabled){ragProvider(settings);if((settings.images||settings.audio)&&!multimodalEmbedding(settings.provider,settings.model))throw Error('This embedding model accepts text only');if(settings.ocr&&(!settings.ocrProvider||!settings.ocrModel))throw Error('Choose an OCR model first')}
+  await vault().projects.assertSession(id);const settings=RagSettingsSchema.parse({...input,...(input.provider==='venice'?{images:false,audio:false}:{})})
+  if(settings.enabled){ragProvider(settings);if((settings.images||settings.audio)&&!multimodalEmbedding(settings.provider,settings.model))throw Error('This embedding model accepts text only');if(settings.ocr&&(!settings.ocrProvider||!settings.ocrModel))throw Error('Choose an OCR model first');if(settings.stt&&(!settings.sttProvider||!settings.sttModel))throw Error('Choose a global STT model before enabling transcription')}
   jobs.get(id)?.controller.abort();failures.delete(id);await put(id,RAG_ROOT+'settings.json',settings);await sessionFiles.rag(id,settings.enabled);const {rendererApplication}=await import('@/app/renderer-application');await rendererApplication.sessions.updateSessionHeader(id,header=>{if(!header)throw Error('Chat is unavailable');return {...header,settings:{...header.settings,sessionRagEnabled:settings.enabled}}})
   await vault().db.setSetting('rag:consent:'+id,consent(settings))
   const auto=await vault().db.getSetting<string[]>('rag:auto-sessions')||[];await vault().db.setSetting('rag:auto-sessions',[...auto.filter(value=>value!==id),...(settings.enabled&&settings.auto?[id]:[])])
@@ -40,11 +40,11 @@ export async function assertRagIndexSources(id:string){
 }
 export async function ragStatus(id:string){const settings=await loadRagSettings(id),parsed=RagIndexSchema.nullable().safeParse(await get(id,RAG_ROOT+'index.json'));return {settings,authorized:await ragAuthorized(id,settings),index:parsed.success?parsed.data:null,running:jobs.has(id),error:parsed.success?failures.get(id)?.error:'Invalid RAG index'}}
 async function engine(id:string,settings:RagSettings){
-  const saved=ragProvider(settings),authority=JSON.stringify([saved.host,saved.saved.apiKey,settings.ocr?settingsStore.getState().getSettings().providers?.[settings.ocrProvider]:null])
-  const check=async()=>{await vault().projects.assertSession(id);const current=await loadRagSettings(id),provider=ragProvider(current);if(!await ragAuthorized(id,current)||consent(current)!==consent(settings)||JSON.stringify([provider.host,provider.saved.apiKey,current.ocr?settingsStore.getState().getSettings().providers?.[current.ocrProvider]:null])!==authority)throw Error('RAG settings changed; start the operation again')}
+  const saved=ragProvider(settings),authority=JSON.stringify([embeddingSpaceDescriptor(settings),saved.host,saved.saved.apiKey,settings.ocr?settingsStore.getState().getSettings().providers?.[settings.ocrProvider]:null,settings.stt?settingsStore.getState().getSettings().providers?.[settings.sttProvider]:null,settings.stt?settingsStore.getState().getSettings().speechCatalog:null])
+  const check=async()=>{await vault().projects.assertSession(id);const current=await loadRagSettings(id),provider=ragProvider(current);if(!await ragAuthorized(id,current)||consent(current)!==consent(settings)||JSON.stringify([embeddingSpaceDescriptor(current),provider.host,provider.saved.apiKey,current.ocr?settingsStore.getState().getSettings().providers?.[current.ocrProvider]:null,current.stt?settingsStore.getState().getSettings().providers?.[current.sttProvider]:null,current.stt?settingsStore.getState().getSettings().speechCatalog:null])!==authority)throw Error('RAG settings changed; start the operation again')}
   let snapshot:Awaited<ReturnType<typeof listSessionResources>>['items']|undefined
   const port:RagEnginePort={
-    check,
+    embeddingSpace:await embeddingSpaceIdentity(settings),check,
     list:async()=>{const result=await listSessionResources(id);snapshot=result.items;if(result.truncated)throw Error('File listing is incomplete; reduce the session tree before indexing');return result.items},
     read:async path=>{await check();const file=(snapshot||(await listSessionResources(id)).items).find(file=>file.path===path);if(!file)throw Error('Session file not found');const header=file.key&&!file.key.startsWith('linked:')?await vault().assets.header(file.key):null;if(!canIndexRagScope(await vault().projects.sessionScope(id)||undefined,header?.scope))throw Error('This protected source belongs to another privacy scope and is excluded from RAG');if(file.key?.startsWith('linked:'))return (await (await import('@/packages/session-resources/linked-folder')).readMounted(file.key))!;return (await readSessionResource(id,file)).bytes},
     get:path=>get(id,path),put:(path,value)=>put(id,path,value),
@@ -54,13 +54,13 @@ async function engine(id:string,settings:RagSettings){
   }
   await check();return new SessionRagEngine(port)
 }
-export async function indexSessionRag(id:string){
+export async function indexSessionRag(id:string,rebuild=false){
   if(jobs.has(id))throw Error('RAG indexing is already running')
   const settings=await loadRagSettings(id);if(!await ragAuthorized(id,settings))throw Error('Enable RAG on this device before indexing')
   failures.delete(id);const job={controller:new AbortController(),path:''};jobs.set(id,job);notify()
   const unsubscribe=vault().keys.subscribe(()=>job.controller.abort())
   const locked=()=>job.controller.abort(),hidden=()=>{if(document.hidden)locked()};window.addEventListener('chatbox:privacy-lock',locked);document.addEventListener('visibilitychange',hidden)
-  try{return await (await engine(id,settings)).index(settings,job.controller.signal,path=>{job.path=path;notify()})}
+  try{return await (await engine(id,settings)).index(settings,job.controller.signal,path=>{job.path=path;notify()},rebuild)}
   finally{unsubscribe();jobs.delete(id);window.removeEventListener('chatbox:privacy-lock',locked);document.removeEventListener('visibilitychange',hidden);resourcesChanged(id);notify()}
 }
 export function cancelSessionRag(id:string){jobs.get(id)?.controller.abort()}
