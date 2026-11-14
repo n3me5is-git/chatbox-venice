@@ -163,6 +163,7 @@ export const advancedKnowledgeItalian:Record<string,string>={
 "Previous page":"Pagina precedente",
 "Next page":"Pagina successiva",
 "Claims linked to this source":"Affermazioni collegate a questa fonte",
-"Show all statements":"Mostra tutte le affermazioni"
+"Show all statements":"Mostra tutte le affermazioni",
+"The selected verifier receives the draft answer and retrieved source excerpts. Its privacy may differ from the chat model. Each review may charge up to three model calls. Explicit intermediate reviews and separate response segments can add charges. Review is an assessment, not a guarantee of truth.":"Il verifier selezionato riceve la bozza della risposta e gli estratti delle fonti. La sua privacy può differire dal modello della chat. Ogni verifica può comportare fino a tre chiamate al modello. Le verifiche intermedie esplicite e i segmenti separati della risposta possono aggiungere costi. La verifica è una valutazione, non una garanzia di verità."
 }
 export const advancedKnowledgeEnglish=Object.fromEntries(Object.keys(advancedKnowledgeItalian).map(key=>[key,key]))

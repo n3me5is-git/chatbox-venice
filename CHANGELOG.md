@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.44.0
+
+See [release notes](docs/releases/v1.44.0.md). Adds optional encrypted hybrid knowledge retrieval, source review, collection federation, linked source folders and scoped MCP access; restores Android Work knowledge tools and preserves reasoning replay during approvals.
+
 ## 1.43.4
 
 See [release notes](docs/releases/v1.43.4.md). Adds independent desktop MCP permission profiles and local routing, improves agent completion and resumption, surfaces Venice privacy verification and model details, and preserves advanced generation options.

@@ -30,7 +30,7 @@ export async function runKnowledgeCollections({click,evaluate,wait,byText,fill,c
  await click(`document.querySelector('button[aria-label="View source review"]')`);await wait(()=>evaluate(`document.body.textContent.includes('The exact source states the deadline.')`),'Source review modal did not open')
  assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true,'Source review overflowed phone screen')
  await writeFile(path.join(output,'knowledge-source-review-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
- await evaluate(`window.__simulationSetLanguage('it')`);await wait(()=>evaluate(`document.body.textContent.includes('Verifica delle fonti')`),'Italian source review missing')
+ await evaluate(`window.__simulationSetLanguage('it-IT')`);await wait(()=>evaluate(`document.body.textContent.includes('Verifica delle fonti')`),'Italian source review missing')
  await click(`[...document.querySelectorAll('[role="dialog"]')].at(-1).querySelector('button[aria-label="Close" i]')`)
  await click(`[...document.querySelectorAll('[role="dialog"]')].at(-1).querySelector('button[aria-label="Close" i]')`)
  await evaluate(`window.__simulationSetLanguage('en')`)
