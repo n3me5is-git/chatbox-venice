@@ -10,9 +10,7 @@
     "id",
     "created",
     "writer",
-    "cipher",
-    "kdf",
-    "key"
+    "cipher"
   ],
   "properties": {
     "format": {
@@ -32,7 +30,10 @@
       "const": "single"
     },
     "cipher": {
-      "const": "AES-256-GCM"
+      "enum": [
+        "AES-256-GCM",
+        "none"
+      ]
     },
     "kdf": {
       "type": "object",
@@ -59,6 +60,9 @@
     },
     "key": {
       "$ref": "#/$defs/sealed"
+    },
+    "integrity": {
+      "const": "sha256-v1"
     }
   },
   "additionalProperties": false,
@@ -784,5 +788,46 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "cipher": {
+            "const": "none"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "integrity"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "key"
+              ]
+            },
+            {
+              "required": [
+                "kdf"
+              ]
+            }
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "kdf",
+          "key"
+        ],
+        "not": {
+          "required": [
+            "integrity"
+          ]
+        }
+      }
+    }
+  ]
 }

@@ -1,3 +1,4 @@
+import {PlainCollectionAssets} from './directory-plain-assets'
 import {CollectionManifestSchema} from './manifest'
 import {canonicalCollectionJson} from './directory-database'
 import {fuseKnowledgeRanks} from '@shared/knowledge-augmentation'
@@ -16,7 +17,7 @@ import { VaultJsonRecords } from '@/packages/vault/json-records'
 import {linkedPath} from '@shared/linked-folder'
 import {resourceMime} from '@shared/session-resources'
 
-export type CollectionEntry={id:number;scope:string;createdAt:number;pendingScopes?:string[];directory?:{uuid:string;bindingId:string;name:string;writable:boolean;consented:boolean;automatic?:boolean;cleanupPending?:boolean}}
+export type CollectionEntry={id:number;scope:string;createdAt:number;pendingScopes?:string[];directory?:{uuid:string;bindingId:string;name:string;writable:boolean;consented:boolean;automatic?:boolean;cleanupPending?:boolean;encryption?:'none'|'AES-256-GCM'}}
 export type CollectionFile={id:number;path:string;name:string;mime:string;bytes:number;alias:string;createdAt:number;hash?:string;assetId?:string;linkedPath?:string}
 export type CollectionData={version:1;name:string;settings:RagSettings;files:CollectionFile[];consented?:boolean;rerankProvider?:string;rerankModel?:string;rerankMode?:'api'|'llm';augmentation?:KnowledgeAugmentation;retrievalMode?:'semantic'|'hybrid';folder?:{bindingId:string;name:string;automatic:boolean;lastRefresh?:number}}
 export type CollectionSummary=CollectionEntry&{name:string;locked:boolean;settings?:RagSettings}
@@ -51,7 +52,7 @@ export class KnowledgeCollections {
   async embeddingDescriptor(id:number){const data=await this.data(id);return this.adapters.embeddingDescriptor?.(data.settings)||null}
   /** Copies encrypted source and index assets one at a time, with no model calls.
    * The original app copy is retired only after the external manifest authenticates. */
-  async copyToDirectory(id:number,target:EncryptedChunkStore,targetKey:CryptoKey){return this.serial(async()=>{if(this.jobs.has(id))throw Error('Stop indexing before changing this collection');const entry=await this.assert(id);if(entry.directory)throw Error('This collection already has its own folder database');const aliases=await this.assetAliases(id),manifest=prefix(id)+'manifest';for(const alias of [...aliases.filter(alias=>alias!==manifest),manifest]){await this.assert(id);const header=await this.vault.assets.header(alias);if(!header)throw Error('Knowledge document is unavailable');await target.index.put(header);for(let n=0;n<header.chunks;n++){const key='vault-v1-'+header.id+'-chunk-'+n,value=await this.vault.assets.blobs.get(key);if(value===null)throw Error('Encrypted content is incomplete');await target.blobs.set(key,value)}
+  async copyToDirectory(id:number,target:EncryptedChunkStore,targetKey:CryptoKey|null){return this.serial(async()=>{if(this.jobs.has(id))throw Error('Stop indexing before changing this collection');const entry=await this.assert(id);if(entry.directory)throw Error('This collection already has its own folder database');const aliases=await this.assetAliases(id),manifest=prefix(id)+'manifest';for(const alias of [...aliases.filter(alias=>alias!==manifest),manifest]){await this.assert(id);const header=await this.vault.assets.header(alias);if(!header)throw Error('Knowledge document is unavailable');if(target instanceof PlainCollectionAssets){await target.importEncrypted(header,this.vault.assets);continue}if(!targetKey)throw Error('Collection encryption key is unavailable');await target.index.put(header);for(let n=0;n<header.chunks;n++){const key='vault-v1-'+header.id+'-chunk-'+n,value=await this.vault.assets.blobs.get(key);if(value===null)throw Error('Encrypted content is incomplete');await target.blobs.set(key,value)}
       // Rewrap only the data-key envelope to the transferable master key.
       const oldKey=await this.vault.keys.key(header.scope),{open,seal}=await import('@/packages/vault/crypto'),raw=await open(oldKey,header.key,header.id+':key:'+header.scope+':'+(header.alias||''));try{await target.index.put({...header,key:await seal(targetKey,raw,header.id+':key:'+header.scope+':'+(header.alias||''))})}finally{raw.fill(0)}
       for await(const bytes of target.read(alias))bytes.fill(0)
