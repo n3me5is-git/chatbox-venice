@@ -1,0 +1,43 @@
+import {aesKey,decode64,encode64,open,pinKey,seal,type SealedBytes} from '@/packages/vault/crypto'
+
+export const COLLECTION_DIRECTORY='.rag-collection'
+export const COLLECTION_FORMAT='portable-knowledge-directory'
+export interface DirectoryPort {
+  read(path:string):Promise<string|null>
+  /** Immediate children only. Missing directories are empty; inaccessible roots throw. */
+  list(path:string):Promise<string[]>
+  /** Exclusive create, never overwrite. Returns only after the bytes are read back. */
+  create(path:string,value:string):Promise<void>
+  remove(path:string):Promise<void>
+  check():Promise<void>
+}
+export type CollectionDescriptor={format:typeof COLLECTION_FORMAT;version:1;id:string;created:string;writer:'single';cipher:'AES-256-GCM';kdf:{name:'PBKDF2-SHA256';iterations:600000;salt:string};key:SealedBytes}
+const utf8=new TextEncoder(),text=new TextDecoder('utf-8',{fatal:true})
+export async function collectionDigest(value:Uint8Array|string){const bytes=typeof value==='string'?utf8.encode(value):value;return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',Uint8Array.from(bytes))),b=>b.toString(16).padStart(2,'0')).join('')}
+const uuid=(value:unknown):value is string=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value)
+export function parseCollectionDescriptor(raw:string):CollectionDescriptor{if(raw.length>8192)throw Error('Invalid portable collection');const v=JSON.parse(raw);if(v.format!==COLLECTION_FORMAT||v.version!==1||!uuid(v.id)||v.writer!=='single'||v.cipher!=='AES-256-GCM'||v.kdf?.name!=='PBKDF2-SHA256'||v.kdf.iterations!==600000||typeof v.kdf.salt!=='string'||decode64(v.kdf.salt).length!==16||typeof v.key?.data!=='string'||decode64(v.key.data).length!==48||typeof v.key.iv!=='string'||decode64(v.key.iv).length!==12||typeof v.created!=='string'||!Number.isFinite(Date.parse(v.created)))throw Error('Invalid portable collection');return v}
+export async function createCollectionDescriptor(passphrase:string){if(passphrase.length<12||passphrase.length>1024)throw Error('Use a collection passphrase of at least 12 characters');const id=crypto.randomUUID(),salt=crypto.getRandomValues(new Uint8Array(16)),raw=crypto.getRandomValues(new Uint8Array(32));try{const descriptor:CollectionDescriptor={format:COLLECTION_FORMAT,version:1,id,created:new Date().toISOString(),writer:'single',cipher:'AES-256-GCM',kdf:{name:'PBKDF2-SHA256',iterations:600000,salt:encode64(salt)},key:await seal(await pinKey(passphrase,salt),raw,'portable-collection:'+id+':key:v1')};return {descriptor,key:await aesKey(raw)}}finally{raw.fill(0)}}
+export async function unlockCollectionDescriptor(descriptor:CollectionDescriptor,passphrase:string){parseCollectionDescriptor(JSON.stringify(descriptor));if(passphrase.length>1024)throw Error('Invalid collection passphrase');const raw=await open(await pinKey(passphrase,decode64(descriptor.kdf.salt)),descriptor.key,'portable-collection:'+descriptor.id+':key:v1');try{if(raw.length!==32)throw Error('Invalid portable collection key');return await aesKey(raw)}finally{raw.fill(0)}}
+
+type Commit={version:1;id:string;sequence:number;parent:string|null;hash:string}
+type Value={version:1;id:string;sequence:number;parent:string|null;key:string;value:string|null}
+/** Single-writer directory KV database. Values are immutable authenticated objects.
+ * A commit marker is published only after read-back; incomplete objects are inert.
+ * Branching heads fail closed. There is no cross-device concurrent-write guarantee.
+ * Each key is independent: the RAG engine publishes its generation manifest last. */
+export class DirectoryDatabase {
+ private tails=new Map<string,Promise<unknown>>()
+ constructor(readonly descriptor:CollectionDescriptor,private key:()=>Promise<CryptoKey>,readonly port:DirectoryPort,readonly writable=false){}
+ private async check(){await this.port.check();await this.key()}
+ private async location(key:string){if(!key||key.length>2000)throw Error('Invalid collection record key');const namespace=/^(headers|aliases|chunks)\//.exec(key)?.[1]||'values';return COLLECTION_DIRECTORY+'/v1/records/'+namespace+'/'+await collectionDigest(key)}
+ private async head(location:string){await this.check();const names=await this.port.list(location);if(names.length>4096)throw Error('Portable collection record needs maintenance');const commits:Commit[]=[];for(const name of names.filter(n=>/^\d{12}_[a-f0-9-]{36}\.commit$/.test(n))){const raw=await this.port.read(location+'/'+name);if(raw===null||raw.length>2048)throw Error('Incomplete portable collection commit');const c=JSON.parse(raw);if(c.version!==1||!uuid(c.id)||!Number.isSafeInteger(c.sequence)||c.sequence<1||c.sequence>999999999999||c.parent!==null&&!uuid(c.parent)||!/^[a-f0-9]{64}$/.test(c.hash)||name!==String(c.sequence).padStart(12,'0')+'_'+c.id+'.commit')throw Error('Invalid portable collection commit');commits.push(c)}commits.sort((a,b)=>a.sequence-b.sequence);for(let i=1;i<commits.length;i++)if(commits[i].sequence===commits[i-1].sequence||commits[i].sequence!==commits[i-1].sequence+1||commits[i].parent!==commits[i-1].id)throw Error('Portable collection has conflicting revisions; open one writer only');await this.check();return commits.at(-1)||null}
+ private async readAt(location:string,head:Commit,key:string|undefined){const raw=await this.port.read(location+'/'+head.id+'.json');if(raw===null||raw.length>16*1024*1024||await collectionDigest(raw)!==head.hash)throw Error('Portable collection record is incomplete or damaged');const bytes=await open(await this.key(),JSON.parse(raw),this.descriptor.id+':record:'+location.split('/').at(-1)+':v1');try{const value=JSON.parse(text.decode(bytes)) as Value;if(value.version!==1||value.id!==head.id||value.sequence!==head.sequence||value.parent!==head.parent||key!==undefined&&value.key!==key||value.value!==null&&typeof value.value!=='string')throw Error('Invalid portable collection record');await this.check();return value}finally{bytes.fill(0)}}
+ async get(key:string){const location=await this.location(key),head=await this.head(location);return head?(await this.readAt(location,head,key)).value:null}
+ async set(key:string,value:string|null){if(!this.writable)throw Error('Portable collection is mounted read-only');const previous=this.tails.get(key)||Promise.resolve(),work=previous.then(async()=>{await this.check();const location=await this.location(key),before=await this.head(location);if(before&&(await this.readAt(location,before,key)).value===value)return;const id=crypto.randomUUID(),sequence=(before?.sequence||0)+1,parent=before?.id||null,bytes=utf8.encode(JSON.stringify({version:1,id,sequence,parent,key,value} satisfies Value));let payload:string;try{payload=JSON.stringify(await seal(await this.key(),bytes,this.descriptor.id+':record:'+location.split('/').at(-1)+':v1'))}finally{bytes.fill(0)}await this.port.create(location+'/'+id+'.json',payload);await this.check();if((await this.head(location))?.id!==before?.id)throw Error('Portable collection changed during publication');const commit={version:1 as const,id,sequence,parent,hash:await collectionDigest(payload)};await this.port.create(location+'/'+String(sequence).padStart(12,'0')+'_'+id+'.commit',JSON.stringify(commit));if((await this.head(location))?.id!==id)throw Error('Portable collection has conflicting revisions; open one writer only');await this.readAt(location,commit,key);
+ // Keep two committed versions for bounded crash recovery; uncommitted objects
+ // are deliberately left for an explicit maintenance pass, never guessed live.
+ const names=await this.port.list(location);for(const name of names){const match=/^(\d{12})_([a-f0-9-]{36})\.commit$/.exec(name);if(match&&Number(match[1])<sequence-1){await this.port.remove(location+'/'+name).catch(()=>{});await this.port.remove(location+'/'+match[2]+'.json').catch(()=>{})}}
+ });const tail=work.catch(()=>{});this.tails.set(key,tail);try{await work}finally{if(this.tails.get(key)===tail)this.tails.delete(key)}}
+ async *scan(namespace:'headers'|'aliases'|'chunks'|'values') {const base=COLLECTION_DIRECTORY+'/v1/records/'+namespace;await this.check();for(const hash of await this.port.list(base)){if(!/^[a-f0-9]{64}$/.test(hash))throw Error('Invalid collection record folder');const location=base+'/'+hash,head=await this.head(location);if(head){const record=await this.readAt(location,head,undefined);if(await this.location(record.key)!==location)throw Error('Invalid collection record identity');if(record.value!==null)yield {key:record.key,value:record.value}}}}
+ async remove(key:string){await this.set(key,null)}
+}
