@@ -100,13 +100,14 @@ describe('image task follow-up', () => {
       { sessionId: 'session-1', toolCallId: 'tool-1' }
     )
 
+    expect(queueBackgroundTaskNotificationMock.mock.calls.at(-1)?.[2].summary).toContain('Do not start another generation unless the user explicitly requests a retry')
     expect(queueBackgroundTaskNotificationMock).toHaveBeenCalledWith(
       'session-1',
       'tool-1',
       expect.objectContaining({
         id: 'image-generation:record-1:error',
         status: 'failed',
-        summary: 'Image generation failed: provider failed',
+        summary: expect.stringContaining('Image generation failed: provider failed. Tell the user that it failed'),
       })
     )
   })

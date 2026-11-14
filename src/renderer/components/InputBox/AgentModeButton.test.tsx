@@ -71,6 +71,7 @@ vi.mock('./MobileAgentModePanel', () => ({
 }))
 
 import AgentModeButton from './AgentModeButton'
+import {closeTopSurface} from '@/packages/overlay-back'
 
 function renderButton({
   modelSupportsAgentMode = true,
@@ -178,28 +179,9 @@ describe('AgentModeButton', () => {
     input.remove()
   })
 
-  test('removes an Android back listener that resolves after the touch sheet closes', async () => {
-    mocks.platform.type = 'mobile'
-    mocks.platform.isDesktopLike = false
-    const remove = vi.fn(async () => undefined)
-    let resolveListener: ((handle: { remove: () => Promise<void> }) => void) | undefined
-    mocks.addBackButtonListener.mockReturnValue(
-      new Promise((resolve) => {
-        resolveListener = resolve
-      })
-    )
-    renderButton({ layout: 'touch' })
-
-    const trigger = screen.getByRole('button', { name: 'Work Mode' })
-    fireEvent.click(trigger)
-    await waitFor(() => expect(mocks.addBackButtonListener).toHaveBeenCalledOnce())
-    fireEvent.click(trigger)
-    await act(async () => {
-      resolveListener?.({ remove })
-      await Promise.resolve()
-    })
-
-    expect(remove).toHaveBeenCalledOnce()
+  test('uses the central Android back surface and unregisters it when the touch sheet closes', async () => {
+    mocks.platform.type='mobile';mocks.platform.isDesktopLike=false
+    const view=renderButton({layout:'touch'});fireEvent.click(screen.getByRole('button',{name:'Work Mode'}));expect(screen.getByText('Agent mode menu')).toBeTruthy();await act(async()=>{expect(closeTopSurface()).toBe(true)});await waitFor(()=>expect(screen.queryByText('Agent mode menu')).toBeNull());view.unmount();expect(closeTopSurface()).toBe(false)
   })
 
   test.each([

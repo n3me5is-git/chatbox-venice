@@ -8,6 +8,7 @@ describe('provider control-plane contracts', () => {
     expect(getAllProviders().map((provider) => provider.id)).toEqual([
       'chatbox-ai',
       'openai',
+      'openai-sub-unofficial',
       'openai-responses',
       'gemini',
       'claude',
@@ -20,6 +21,7 @@ describe('provider control-plane contracts', () => {
       'moonshot-cn',
       'siliconflow',
       'openrouter',
+      'venice',
       'ollama',
       'lm-studio',
       'azure',

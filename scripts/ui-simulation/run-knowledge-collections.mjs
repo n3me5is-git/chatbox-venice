@@ -22,4 +22,17 @@ export async function runKnowledgeCollections({click,evaluate,wait,byText,fill,c
  await fill('PIN or passphrase','000000');await click(byText('Unlock'));await wait(()=>evaluate(`document.body.textContent.includes('The PIN or device key could not unlock this area')`),'Wrong PIN did not fail')
  await fill('PIN or passphrase','123456');await click(byText('Unlock'));await wait(()=>evaluate(`window.__knowledgeAuthorized===1`),'Tool did not resume after owner authentication')
  await click(`[...document.querySelectorAll('[role="dialog"]')].at(-1).querySelector('button[aria-label="Close" i]')`)
+ await click(byText('Test source review'))
+ await click(`[...document.querySelectorAll('.mantine-Switch-root')].find(e=>e.textContent.includes('Check answers against sources')).querySelector('.mantine-Switch-track')`)
+ assert.equal(await evaluate(`[...document.querySelectorAll('button')].find(e=>e.textContent==='Enable source review').disabled`),true,'Review enabled without consent')
+ await click(`[...document.querySelectorAll('label')].findLast(e=>e.textContent==='I allow this verifier to process the answer and source excerpts')`);await click(byText('Enable source review'))
+ await wait(()=>evaluate(`!!document.querySelector('button[aria-label="View source review"]')`),'Source verdict missing')
+ await click(`document.querySelector('button[aria-label="View source review"]')`);await wait(()=>evaluate(`document.body.textContent.includes('The exact source states the deadline.')`),'Source review modal did not open')
+ assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true,'Source review overflowed phone screen')
+ await writeFile(path.join(output,'knowledge-source-review-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+ await evaluate(`window.__simulationSetLanguage('it')`);await wait(()=>evaluate(`document.body.textContent.includes('Verifica delle fonti')`),'Italian source review missing')
+ await click(`[...document.querySelectorAll('[role="dialog"]')].at(-1).querySelector('button[aria-label="Close" i]')`)
+ await click(`[...document.querySelectorAll('[role="dialog"]')].at(-1).querySelector('button[aria-label="Close" i]')`)
+ await evaluate(`window.__simulationSetLanguage('en')`)
+
 }

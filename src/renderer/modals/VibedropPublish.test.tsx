@@ -129,7 +129,7 @@ describe('VibedropPublish', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Publish' }))
     expect(await screen.findByDisplayValue('https://first-site.vibedrop.site')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close' }).find(button=>button.textContent==='Close')!)
     await waitFor(() => {
       expect(screen.queryByDisplayValue('https://first-site.vibedrop.site')).toBeNull()
     })

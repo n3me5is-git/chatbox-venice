@@ -59,10 +59,10 @@ describe('Gemini model listing', () => {
       )
     )
     expect(await factories[kind](dependencies(apiRequest)).listModels()).toEqual(
-      ['gemini-a', 'gemini-z'].map((id) => ({
+      ['gemini-a', 'gemini-embedding', 'gemini-z'].map((id) => ({
         modelId: id,
         nickname: id,
-        type: 'chat',
+        type: id==='gemini-embedding'?'embedding':'chat',
         contextWindow: 123_456,
         maxOutput: 8_192,
       }))

@@ -157,6 +157,10 @@ export const advancedKnowledgeItalian:Record<string,string>={
 "Invalid linked folder snapshot":"Elenco dei file della cartella collegata non valido",
 "Invalid linked document":"Documento collegato non valido",
 "Knowledge review does not match the published answer":"La verifica delle fonti non corrisponde alla risposta pubblicata",
-"Source review requires knowledge and model permissions for this endpoint":"La verifica delle fonti richiede i permessi per raccolte e modelli di questo endpoint"
+"Source review requires knowledge and model permissions for this endpoint":"La verifica delle fonti richiede i permessi per raccolte e modelli di questo endpoint",
+"Filter collection documents":"Filtra i documenti della raccolta",
+"Matching documents":"Documenti corrispondenti",
+"Previous page":"Pagina precedente",
+"Next page":"Pagina successiva"
 }
 export const advancedKnowledgeEnglish=Object.fromEntries(Object.keys(advancedKnowledgeItalian).map(key=>[key,key]))

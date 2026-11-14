@@ -30,7 +30,7 @@ export function createKnowledgePublication(verify:(parts:MessageContentParts)=>P
  return {
   project(message){
    if(approved.get(message.id)===message.contentParts)return message
-   return {...message,contentParts:message.contentParts.filter(part=>part.type!=='text'&&part.type!=='reasoning'&&!(part.type==='info'&&(part.text===SECURITY_INFO||part.text===KNOWLEDGE_VERIFICATION_INFO)))}
+   return {...message,contentParts:message.contentParts.flatMap((part):MessageContentParts=>{if(part.type==='text'||part.type==='reasoning')return part.type==='reasoning'||part.providerMetadata?[{...part,protocolOnly:true as const}]:[];if(part.type==='info'&&(part.text===SECURITY_INFO||part.text===KNOWLEDGE_VERIFICATION_INFO))return [];return [part]})}
   },
   async finish(message){
    const draft=knowledgeAnswerText(message.contentParts),result=await verify(message.contentParts),report=KnowledgeCheckReportSchema.parse(result.report)

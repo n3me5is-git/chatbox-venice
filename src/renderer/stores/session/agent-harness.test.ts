@@ -1,3 +1,4 @@
+vi.mock('@/packages/session-resources/tools',()=>({buildSessionWorkspaceTools:async()=>({}),sessionWorkspaceInstructions:''}))
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 const { discoverSkillsMock, getSettingsMock, mcpToolsMock, sandboxProviderMock, skillsChangedListeners } = vi.hoisted(

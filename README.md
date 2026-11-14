@@ -28,6 +28,10 @@ Use **Session RAG and workspace** in the chat header to index session files with
 
 Desktop and Android can optionally link a real device folder as the workspace. Dedicated agents receive separate subfolders. External files keep their device storage protection; Chatbox does not encrypt that folder. See [setup, privacy and limits](docs/session-rag-and-linked-workspaces.md).
 
+## Hybrid knowledge collections
+
+Portable encrypted collections add optional hybrid semantic/BM25 retrieval, source-grounded metadata and relations, LLM reranking, retained OCR/transcripts, source excerpts and a bounded graph explorer. Link a read-only device folder and update only changed document hashes. Attach multiple collections to a chat and optionally review source support before publishing an answer, with clickable assessments and explicit model consent. Desktop MCP can expose selected collections and verification under separate permissions. See the [knowledge guide](docs/advanced-knowledge-guide.md) for setup, privacy and limitations.
+
 ## Collaborative chats
 
 Use the people icon in a saved chat to share it, or **Collaborative chats** in the sidebar to join by QR/code. The owner admits participant IDs and grants write, AI/tools and clone permissions. Agent questions and Venice approvals can go to the owner, everyone (first valid answer), or only the requester. Traffic between devices is encrypted; files transfer on demand, and sharing stops on lock/exit. Individually protected creations are excluded from public-chat shares. See [collaboration, privacy and limits](docs/collaboration.md).

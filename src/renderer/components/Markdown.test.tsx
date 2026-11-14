@@ -43,6 +43,7 @@ vi.mock('@/platform', () => ({
   },
 }))
 
+vi.mock('@/components/session-resources/FilePreview',()=>({tryOpenSessionFile:vi.fn(async()=>false)}))
 vi.mock('@/utils/track', () => ({ trackEvent: vi.fn() }))
 
 vi.mock('../packages/shiki', () => ({

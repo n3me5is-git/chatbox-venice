@@ -54,7 +54,7 @@ describe('local document parsing', () => {
     expect(presentation.text.startsWith('Slide 1\n')).toBe(true)
   })
   it('rejects unsupported and malformed documents without network fallback', async () => {
-    await expect(parseLocalDocument('data.pdf', new Uint8Array())).rejects.toThrow('DOCX')
+    await expect(parseLocalDocument('data.pdf', new Uint8Array())).rejects.toThrow('Unsupported local document format')
     await expect(parseLocalDocument('data.docx', new Uint8Array([0]))).rejects.toThrow('archive')
     await expect(parseLocalDocument('data.docx', new Uint8Array(10 * 1024 * 1024 + 1))).rejects.toThrow('10 MB')
   })

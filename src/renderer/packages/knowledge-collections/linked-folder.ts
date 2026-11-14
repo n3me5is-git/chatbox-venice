@@ -25,8 +25,9 @@ export async function refreshCollectionFolder(id:number,index=false,signal=new A
 }
 let stop:undefined|(()=>void)
 export function startKnowledgeFolderMonitoring(){
- if(stop)return stop;if(!knowledgeFolderAvailable())return()=>{};let running=false,closed=false
- const tick=async()=>{if(closed||running||document.visibilityState==='hidden')return;running=true;try{for(const entry of await store.list()){if(closed)break;if(entry.locked||store.running(entry.id)||issues.has(entry.id))continue;try{const data=await store.data(entry.id);if(data.folder?.automatic&&data.consented){const result=await refreshCollectionFolder(entry.id);if(result.added+result.changed+result.removed){await store.index(entry.id);changed(entry.id)}}}catch(error){issues.set(entry.id,error instanceof Error?error.message:String(error));changed(entry.id)}}}catch{/* Application lock pauses discovery without inference. */}finally{running=false}}
-
- const timer=setInterval(()=>void tick(),60000);stop=()=>{closed=true;clearInterval(timer);stop=undefined};return stop
+ if(stop)return stop;if(!knowledgeFolderAvailable())return()=>{};let running=false,closed=false,owned:number|undefined,controller:AbortController|undefined
+ const pause=()=>{controller?.abort();if(owned!==undefined)store.cancel(owned)}
+ const visibility=()=>{if(document.visibilityState==='hidden')pause()}
+ const tick=async()=>{if(closed||running||document.visibilityState==='hidden')return;running=true;controller=new AbortController();try{for(const entry of await store.list()){if(closed||controller.signal.aborted)break;if(entry.locked||store.running(entry.id)||issues.has(entry.id))continue;try{const data=await store.data(entry.id);if(data.folder?.automatic&&data.consented){const result=await refreshCollectionFolder(entry.id,false,controller.signal);controller.signal.throwIfAborted();if(result.added+result.changed+result.removed){owned=entry.id;await store.index(entry.id);changed(entry.id)}}}catch(error){issues.set(entry.id,error instanceof Error?error.message:String(error));changed(entry.id)}finally{owned=undefined}}}catch{/* Application lock pauses discovery without inference. */}finally{controller=undefined;running=false}}
+ const timer=setInterval(()=>void tick(),60000);document.addEventListener('visibilitychange',visibility);stop=()=>{closed=true;pause();clearInterval(timer);document.removeEventListener('visibilitychange',visibility);stop=undefined};return stop
 }

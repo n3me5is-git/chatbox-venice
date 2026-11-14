@@ -317,7 +317,7 @@ async function convertAssistantContentParts(
         // empty text blocks outright, and no other protocol needs them. Blocks kept
         // only for structure (`protocolOnly`) are equally invisible to providers
         // until a route that requires them (Bedrock Converse) opts in explicitly.
-        if (!c.text || c.protocolOnly) return null
+        if (!c.text) return null
         // Text parts carry replay metadata too: Gemini signs the last text part of
         // a response that has no function call. Same namespace filter as reasoning —
         // only the target route's metadata may go out.
@@ -325,6 +325,9 @@ async function convertAssistantContentParts(
           c.providerMetadata,
           options?.replayNamespaces?.includes('google') ? ['google'] : []
         )
+        // A hidden reviewed-draft block may still carry a required Google
+        // signature. Replay it only to that explicitly selected namespace.
+        if(c.protocolOnly&&!textReplayMetadata)return null
         return {
           type: 'text',
           text: c.text,
