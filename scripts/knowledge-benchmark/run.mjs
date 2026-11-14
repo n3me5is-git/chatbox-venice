@@ -5,10 +5,11 @@ import {mkdir,mkdtemp,writeFile} from 'node:fs/promises'
 import {tmpdir,cpus,totalmem} from 'node:os'
 import path from 'node:path'
 import assert from 'node:assert/strict'
-const output=path.resolve('test-results/knowledge-benchmarks'),count=Number(process.env.KNOWLEDGE_BENCHMARK_DOCUMENTS||1000),dimensions=Number(process.env.KNOWLEDGE_BENCHMARK_DIMENSIONS||1024)
+const output=path.resolve('test-results/knowledge-benchmarks'),count=Number(process.env.KNOWLEDGE_BENCHMARK_DOCUMENTS||1000),dimensions=Number(process.env.KNOWLEDGE_BENCHMARK_DIMENSIONS||1024),storageFormat=process.env.KNOWLEDGE_BENCHMARK_STORAGE||'compact'
 assert(Number.isSafeInteger(count)&&count>=2&&count<=2000,'Invalid synthetic corpus size');assert(Number.isSafeInteger(dimensions)&&dimensions>=128&&dimensions<=8192,'Invalid embedding dimensions')
+assert(['compact','legacy-control'].includes(storageFormat),'Invalid benchmark writer control')
 await mkdir(output,{recursive:true})
-const bundle=await build({entryPoints:['scripts/knowledge-benchmark/browser.ts'],bundle:true,write:false,platform:'browser',format:'esm',target:'chrome120',sourcemap:false})
+const bundle=await build({entryPoints:['scripts/knowledge-benchmark/browser.ts'],bundle:true,write:false,platform:'browser',format:'esm',target:'chrome120',sourcemap:false,plugins:storageFormat==='legacy-control'?[{name:'benchmark-only-number-array-writer',setup(builder){builder.onResolve({filter:/rag-vector-storage$/},args=>args.importer.replaceAll(String.fromCharCode(92),'/').endsWith('/session-rag-engine.ts')?{path:path.resolve('scripts/knowledge-benchmark/legacy-vector-control.ts')}:undefined)}}]:[]})
 const server=createServer((req,res)=>{res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; connect-src 'none'");if(req.url==='/driver.js'){res.setHeader('Content-Type','text/javascript');res.end(bundle.outputFiles[0].contents)}else if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><title>Encrypted knowledge benchmark</title><script type="module" src="/driver.js"></script>')}else{res.statusCode=404;res.end()}})
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port,profile=await mkdtemp(path.join(tmpdir(),'knowledge-browser-'))
 const chrome=spawn(process.env.CHROME_PATH||'/usr/bin/google-chrome',['--headless=new','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--disable-extensions','--remote-debugging-port=9333','--remote-allow-origins=*','--user-data-dir='+profile,'about:blank'],{stdio:['ignore','ignore','pipe']})
@@ -28,12 +29,12 @@ try{
  let lastPhase;const deadline=Date.now()+300000
  while(Date.now()<deadline){
   const state=await evaluate('({result:window.knowledgeBenchmarkResult,error:window.knowledgeBenchmarkError,progress:window.knowledgeBenchmarkPhase})')
-  if(state.progress&&JSON.stringify(state.progress)!==lastPhase){lastPhase=JSON.stringify(state.progress);await writeFile(path.join(output,'chromium-progress-d'+dimensions+'.json'),JSON.stringify(state.progress,null,2));console.log('KNOWLEDGE_BROWSER_PHASE '+JSON.stringify(state.progress.phases.at(-1)))}
+  if(state.progress&&JSON.stringify(state.progress)!==lastPhase){lastPhase=JSON.stringify(state.progress);await writeFile(path.join(output,'chromium-progress-d'+dimensions+'-'+storageFormat+'.json'),JSON.stringify(state.progress,null,2));console.log('KNOWLEDGE_BROWSER_PHASE '+JSON.stringify(state.progress.phases.at(-1)))}
   if(state.error)throw Error(state.error)
   if(state.result){
    assert.deepEqual(exceptions,[],'Browser exceptions');assert.deepEqual(requests.filter(url=>!url.startsWith(origin+'/')),[],'Benchmark requested an external service')
-   const report={...state.result,commit:process.env.GITHUB_SHA,browser:await cdp('Browser.getVersion'),runner:{platform:process.platform,arch:process.arch,node:process.version,logicalCpus:cpus().length,cpu:cpus()[0]?.model,totalMemoryBytes:totalmem(),virtualizedCI:!!process.env.CI},externalRequests:0}
-   await writeFile(path.join(output,'encrypted-chromium-'+count+'-d'+dimensions+'.json'),JSON.stringify(report,null,2));console.log('KNOWLEDGE_ENCRYPTED_BROWSER_BENCHMARK '+JSON.stringify(report));process.exitCode=0;break
+   const report={...state.result,storageFormat,commit:process.env.GITHUB_SHA,browser:await cdp('Browser.getVersion'),runner:{platform:process.platform,arch:process.arch,node:process.version,logicalCpus:cpus().length,cpu:cpus()[0]?.model,totalMemoryBytes:totalmem(),virtualizedCI:!!process.env.CI},externalRequests:0}
+   await writeFile(path.join(output,'encrypted-chromium-'+count+'-d'+dimensions+'-'+storageFormat+'.json'),JSON.stringify(report,null,2));console.log('KNOWLEDGE_ENCRYPTED_BROWSER_BENCHMARK '+JSON.stringify(report));process.exitCode=0;break
   }
   await delay(500)
  }

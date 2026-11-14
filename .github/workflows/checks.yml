@@ -155,6 +155,16 @@ jobs:
         env:
           KNOWLEDGE_BENCHMARK_DIMENSIONS: '4096'
         run: node scripts/knowledge-benchmark/run.mjs
+      - name: Paired number-array writer control at 1024 dimensions
+        env:
+          KNOWLEDGE_BENCHMARK_DIMENSIONS: '1024'
+          KNOWLEDGE_BENCHMARK_STORAGE: legacy-control
+        run: node scripts/knowledge-benchmark/run.mjs
+      - name: Paired number-array writer control at 4096 dimensions
+        env:
+          KNOWLEDGE_BENCHMARK_DIMENSIONS: '4096'
+          KNOWLEDGE_BENCHMARK_STORAGE: legacy-control
+        run: node scripts/knowledge-benchmark/run.mjs
       - name: Save complete measurements or last completed phase
         if: always()
         uses: actions/upload-artifact@v4
