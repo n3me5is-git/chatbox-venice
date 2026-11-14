@@ -11,7 +11,7 @@ import {AdaptiveModal} from '@/components/common/AdaptiveModal'
 import {usePrivacyDismiss} from '@/components/security/usePrivacyDismiss'
 import {forkT as ft} from '@/i18n/fork'
 export const KnowledgeReviewContext=createContext<KnowledgeCheckReport|undefined>(undefined)
-export function KnowledgeReviewScope({parts,children}:{parts:MessageContentParts;children:ReactNode}){
+export function KnowledgeReviewScope({parts=[],children}:{parts:MessageContentParts;children:ReactNode}){
  const part=parts.find(part=>part.type==='info'&&part.text===KNOWLEDGE_VERIFICATION_INFO),value=part?.type==='info'?part.values?.report:undefined,parsed=KnowledgeCheckReportSchema.safeParse(value),answer=knowledgeAnswerText(parts),report=parsed.success?parsed.data:undefined
  const [verified,setVerified]=useState<{answer:string;report:KnowledgeCheckReport}>()
  useEffect(()=>{let active=true;if(report)void knowledgeAnswerHash(answer).then(hash=>{if(active)setVerified(hash===report.answerHash?{answer,report}:undefined)});else setVerified(undefined);return()=>{active=false}},[answer,report?.id,report?.answerHash])
@@ -26,9 +26,10 @@ function ReviewDetails({report,focus}:{report:KnowledgeCheckReport;focus?:string
 const createReviewModal=()=>NiceModal.create((props:{report:KnowledgeCheckReport;focus?:string})=>{const modal=useModal();usePrivacyDismiss(modal,null);const close=()=>{modal.resolve(null);modal.remove()};return <AdaptiveModal opened={modal.visible} onClose={close} title={ft('Source review')} size="xl"><ReviewDetails {...props}/></AdaptiveModal>})
 export const openKnowledgeReview=(report:KnowledgeCheckReport,focus?:string)=>NiceModal.show(createReviewModal(),{report,focus})
 export function KnowledgeReviewStatus({value,answer}:{value:unknown;answer:string}){
- useTranslation();const parsed=KnowledgeCheckReportSchema.safeParse(value),[valid,setValid]=useState(false),report=parsed.success?parsed.data:undefined
- useEffect(()=>{let active=true;setValid(false);if(report)void knowledgeAnswerHash(answer).then(hash=>{if(active)setValid(hash===report.answerHash)});return()=>{active=false}},[answer,report?.answerHash])
+ useTranslation();const parsed=KnowledgeCheckReportSchema.safeParse(value),[match,setMatch]=useState<string>(),report=parsed.success?parsed.data:undefined
+ useEffect(()=>{let active=true;setMatch(undefined);if(report)void knowledgeAnswerHash(answer).then(hash=>{if(active)setMatch(hash===report.answerHash?answer:undefined)});return()=>{active=false}},[answer,report?.answerHash])
  if(!report)return null
+ const valid=match===answer
  return <Group gap="xs" wrap="wrap"><Button variant="light" size="xs" color={valid&&report.status==='checked'?'teal':'yellow'} onClick={()=>void openKnowledgeReview(valid?report:{...report,status:'unverified',reason:'invalid_judgment'})}>{valid&&report.status==='checked'?'✅':'❔'} {ft(valid&&report.status==='checked'?'Checked against sources':'Review needs attention')}</Button>{report.revised&&<Text size="xs" c="dimmed">{ft('Answer revised after review')}</Text>}</Group>
 }
 export function CitationReviewBadge({href}:{href:string|undefined}){

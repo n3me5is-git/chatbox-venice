@@ -2,7 +2,7 @@ import {beforeEach,expect,it,vi} from 'vitest'
 import {knowledgeEvidenceUrl} from '@shared/knowledge-evidence'
 import {KnowledgeCheckReportSchema,knowledgeAnswerHash} from '@shared/knowledge-verification'
 const state=vi.hoisted(()=>({header:{} as any,global:{} as any,store:{assert:vi.fn(),readEvidence:vi.fn(),data:vi.fn(),sourceRevision:vi.fn()},verify:vi.fn()}))
-vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{getSessionHeader:async()=>state.header}}}))
+vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{getSessionHeader:async()=>state.header?{header:state.header}:null}}}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>state.global})}}))
 vi.mock('@/stores/uiStore',()=>({uiStore:{getState:()=>({sessionKnowledgeBaseMap:{chat:{id:-1}}})}}))
 vi.mock('@/adapters/CurrentBlobStorage',()=>({currentBlobStorage:{get:async()=>null}}))

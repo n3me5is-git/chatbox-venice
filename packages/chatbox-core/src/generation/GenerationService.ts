@@ -812,8 +812,7 @@ export class GenerationService<TContext> {
         }
         return segmentTransitions.run(
           async () => {
-            if(publication)finalizedSegment=await publication.finish(finalizedSegment)
-            controller.signal.throwIfAborted()
+            if(publication){finalizedSegment=await publication.finish(finalizedSegment);controller.signal.throwIfAborted()}
             try {
               return await splitWriter(
                 sessionId,
@@ -1136,8 +1135,7 @@ export class GenerationService<TContext> {
         usage: processorState.usage,
         generationDuration: host.now() - segmentStartedAt,
       }
-      if(publication){sessions.updateStreamingCache(sessionId,{...targetMessage,generating:true,status:[{type:'checking_sources'}]});targetMessage=await publication.finish(targetMessage)}
-      controller.signal.throwIfAborted()
+      if(publication){sessions.updateStreamingCache(sessionId,{...targetMessage,generating:true,status:[{type:'checking_sources'}]});targetMessage=await publication.finish(targetMessage);controller.signal.throwIfAborted()}
       await sessions.persistStreamingMessage(sessionId, targetMessage, { refreshCounting: true })
       if (options?.operationType === 'send_message') {
         host.markFirstSuccessfulChatCompleted()

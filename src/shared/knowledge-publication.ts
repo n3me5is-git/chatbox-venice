@@ -6,7 +6,7 @@ export interface KnowledgePublicationPort {
  project(message:Message):Message
  finish(message:Message):Promise<Message>
 }
-export const knowledgeAnswerText=(parts:MessageContentParts)=>parts.filter(part=>part.type==='text'&&!part.protocolOnly).map(part=>part.text).join('\n')
+export const knowledgeAnswerText=(parts:MessageContentParts=[])=>parts.flatMap(part=>part.type==='text'&&!part.protocolOnly?[part.text]:[]).join('\n')
 export function reviewedKnowledgeParts(parts:MessageContentParts,answer:string,report:KnowledgeCheckReport):MessageContentParts{
  const previous=parts.filter(part=>part.type!=='info'||part.text!==KNOWLEDGE_VERIFICATION_INFO)
  if(!report.revised)return [...previous,{type:'info',text:KNOWLEDGE_VERIFICATION_INFO,values:{report}}]
