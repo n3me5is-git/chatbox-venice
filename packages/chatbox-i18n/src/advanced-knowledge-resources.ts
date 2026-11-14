@@ -161,6 +161,8 @@ export const advancedKnowledgeItalian:Record<string,string>={
 "Filter collection documents":"Filtra i documenti della raccolta",
 "Matching documents":"Documenti corrispondenti",
 "Previous page":"Pagina precedente",
-"Next page":"Pagina successiva"
+"Next page":"Pagina successiva",
+"Claims linked to this source":"Affermazioni collegate a questa fonte",
+"Show all statements":"Mostra tutte le affermazioni"
 }
 export const advancedKnowledgeEnglish=Object.fromEntries(Object.keys(advancedKnowledgeItalian).map(key=>[key,key]))

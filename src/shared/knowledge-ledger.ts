@@ -7,7 +7,7 @@ export async function knowledgeToolLedger(parts:MessageContentParts,readBlob?:(k
  const references=new Map<string,NonNullable<ReturnType<typeof parseKnowledgeEvidenceUrl>>>(),external:KnowledgeCheckSource[]=[];let truncated=false
  for(const part of parts){
   if(part.type!=='tool-call'||part.state!=='result')continue
-  const knowledge=/^knowledge_(?:base|sources)(?:_\d+)?$/.test(part.toolName),web=/^(?:web_search(?:_(?:brave|google|exa))?|parse_link)$/.test(part.toolName)
+  const knowledge=/^knowledge_(?:base|sources|verify)(?:_\d+)?$/.test(part.toolName),web=/^(?:web_search(?:_(?:brave|google|exa))?|parse_link)$/.test(part.toolName)
   if(!knowledge&&!web)continue
   let output=part.result
   if(part.resultStorageKey&&readBlob){const text=await readBlob(part.resultStorageKey);if(!text||text.length>256000){truncated=true;continue}try{output=JSON.parse(text)}catch{continue}}

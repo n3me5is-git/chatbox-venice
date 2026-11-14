@@ -386,7 +386,9 @@ describe('prepareAgentGenerationHarness', () => {
 
     expect(prepared.chatOptions.tools).toBe(prepared.tools)
     expect(prepared.chatOptions.agentMode).toBe(true)
-    expect(prepared.chatOptions.prepareStep).toBeUndefined()
+    expect(prepared.chatOptions.prepareStep).toBeDefined()
+    const step=await prepared.chatOptions.prepareStep?.({steps:[],messages:prepared.coreMessages} as never)
+    expect(step?.messages??prepared.coreMessages).toEqual(prepared.coreMessages)
   })
 
   test('keeps legacy auto mode on the plain chat path when there are no files', async () => {
@@ -851,7 +853,7 @@ describe('prepareAgentGenerationHarness', () => {
 
     expect(prepared.tools.chatbox_cli).toBeDefined()
     expect(prepared.chatOptions.prepareStep).toBeDefined()
-    const stepSettings = await prepared.chatOptions.prepareStep?.({ steps: [] } as never)
+    const stepSettings = await prepared.chatOptions.prepareStep?.({ steps: [], messages:prepared.coreMessages } as never)
     expect(stepSettings?.activeTools).not.toContain('chatbox_cli')
   })
 

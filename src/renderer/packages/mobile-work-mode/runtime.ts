@@ -77,7 +77,7 @@ export function capacitorImageTools(model: ModelInterface, sessionId: string, si
     : undefined
 }
 
-type CapacitorToolRequest = Pick<GenerationPreparationRequest<ModelDependencies>, 'settings'|'globalSettings'|'model'|'signal'|'webBrowsing'> & {sessionId:string;messages:import('@shared/types').Message[]}
+type CapacitorToolRequest = Pick<GenerationPreparationRequest<ModelDependencies>, 'settings'|'globalSettings'|'model'|'signal'|'webBrowsing'|'knowledgeBase'> & {sessionId:string;messages:import('@shared/types').Message[]}
 
 export async function prepareCapacitorSessionTools(request:CapacitorToolRequest,memoryTools:ToolSet={},restoreActive=false){
   throwIfWorkAborted(request.signal)
@@ -103,6 +103,10 @@ export async function prepareCapacitorSessionTools(request:CapacitorToolRequest,
   const sessionImages = request.model.isSupportVision()
     ? (await import('@/packages/model-calls/toolsets/view-image')).buildViewImageToolSet({sessionId:request.sessionId,toolResultImages:supportsToolResultImages(request.model.apiStyle)})
     : undefined
+  if((request.knowledgeBase||request.settings.knowledgeCollectionIds?.length)&&request.model.isSupportToolUse('knowledge-base')){
+    const {selectedKnowledgeCollections}=await import('@shared/knowledge-federation'),ids=selectedKnowledgeCollections(request.knowledgeBase?.id,request.settings.knowledgeCollectionIds)
+    if(ids.length){const {getFederatedKnowledgeToolSet}=await import('@/packages/model-calls/toolsets/knowledge-federation'),knowledge=await getFederatedKnowledgeToolSet(ids);Object.assign(local.tools,knowledge.tools);for(const name of Object.keys(knowledge.tools))local.active.add(name)}
+  }
   const { extendSessionWorkTools, guardSharedSessionTools } = await import('@/packages/model-calls/session-work-tools')
   const common = await extendSessionWorkTools({sessionId:request.sessionId,settings:request.settings,messages:request.messages,globalSettings:request.globalSettings,baseTools:Object.fromEntries(Object.entries(local.tools).filter(([name])=>local.active.has(name))),imageResults:sessionImages?.imageResults})
   for(const name of Object.keys(common.tools))local.active.add(name)

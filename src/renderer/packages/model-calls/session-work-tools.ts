@@ -44,6 +44,8 @@ export async function extendSessionWorkTools({ sessionId, settings, messages, ba
     if (Object.keys(images).length) instructions += '\nFor image generation in this ChatGPT subscription chat, prefer chatgpt_image. It uses the configured subscription image endpoint and asks for approval. Venice tools remain available when configured; use them if explicitly requested or after the user chooses them. Never switch providers automatically after a failure. Generated images belong to this conversation and its local library.\n'
   }
 
+  if(settings.knowledgeVerification?.enabled){const {getKnowledgeVerifierTools}=await import('./toolsets/knowledge-verifier');Object.assign(tools,await getKnowledgeVerifierTools(sessionId,settings))}
+
   const { createAskUserTool } = await import('@shared/user-questions')
   const { requestUserAnswers } = await import('@/components/agent/UserQuestion')
   tools.ask_user = createAskUserTool((input, signal) => routeSharedDecision(sessionId, requester, { kind: 'questions', input }, signal => requestUserAnswers(input, signal), value => value, value => value && typeof value === 'object' && 'answers' in value ? value : null, signal))
