@@ -1,12 +1,12 @@
 import {z} from 'zod'
-import {RAG_ROOT,RagIndexSchema,type RagSettings} from '@shared/session-rag'
+import {RAG_ROOT,RagIndexSchema,RAG_MAX_FILES,type RagSettings} from '@shared/session-rag'
 import {ragFingerprint,SessionRagEngine,ragHash,type RagEnginePort,type RagSource} from '@shared/session-rag-engine'
 import {KnowledgeAugmentationSchema,KnowledgeAnalysisManifestSchema,KNOWLEDGE_ANALYSIS_VERSION,type KnowledgeAugmentation,type KnowledgeAnalysis} from '@shared/knowledge-augmentation'
 import {KnowledgeAugmentationEngine,type KnowledgeAnalysisManifest,type KnowledgeDocument} from '@shared/knowledge-augmentation-engine'
 const ROOT='.chatbox/knowledge/',CURRENT=ROOT+'state.json',INDEX=RAG_ROOT+'index.json',META=ROOT+'index.json'
 const digest=z.string().regex(/^[a-f0-9]{64}$/)
 const TextRef=z.object({fileId:z.string().max(128),path:z.string().max(240),sourceHash:digest,textHash:digest,fingerprint:digest,alias:z.string().regex(/^\.chatbox\/knowledge\/text\/[a-f0-9-]{36}\.json$/),kind:z.enum(['parsed','ocr','transcript']),retain:z.boolean()}).strict()
-export const KnowledgeStateSchema=z.object({version:z.literal(1),revision:z.string().uuid(),vector:RagIndexSchema,metadata:KnowledgeAnalysisManifestSchema.nullable(),analysisFingerprint:digest,derivatives:z.array(TextRef).max(2000)}).strict()
+export const KnowledgeStateSchema=z.object({version:z.literal(1),revision:z.string().uuid(),vector:RagIndexSchema,metadata:KnowledgeAnalysisManifestSchema.nullable(),analysisFingerprint:digest,derivatives:z.array(TextRef).max(RAG_MAX_FILES)}).strict()
 export type KnowledgeState=z.infer<typeof KnowledgeStateSchema>
 const TextSchema=z.object({version:z.literal(1),text:z.string().max(512000),kind:z.enum(['parsed','ocr','transcript']),sourceHash:digest,textHash:digest,fingerprint:digest,warning:z.string().max(500).optional()}).strict()
 export interface AugmentedPort{get<T>(path:string):Promise<T|null>;put(path:string,value:unknown):Promise<void>;remove(path:string):Promise<void>;check():Promise<void>;publish(work:()=>Promise<void>):Promise<void>}
