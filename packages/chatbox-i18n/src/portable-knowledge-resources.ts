@@ -49,6 +49,7 @@ export const portableKnowledgeItalian = {
   "Portable collection record needs maintenance": "Un record della collezione portabile richiede manutenzione",
   "Invalid federated graph cursor": "Posizione del grafo federato non valida",
   "This collection already has its own folder database": "Questa collezione ha già un proprio database nella cartella",
-  "Unmount the collection before changing its folder": "Scollega la collezione prima di cambiarne la cartella"
+  "Unmount the collection before changing its folder": "Scollega la collezione prima di cambiarne la cartella",
+"Provider mappings and consent are saved on this device. Rebuilding or changing source documents requires a writable mount.": "La corrispondenza dei provider e il consenso vengono salvati su questo dispositivo. Per ricreare l’indice o modificare i documenti sorgenti serve un collegamento in scrittura."
 } as const
 export const portableKnowledgeEnglish = Object.fromEntries(Object.keys(portableKnowledgeItalian).map(key=>[key,key]))

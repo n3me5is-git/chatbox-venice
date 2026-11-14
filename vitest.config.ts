@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
   const isModelProviderRun = process.env.RUN_MODEL_PROVIDER_TESTS === '1'
   const isOpenRouterImageLiveRun = process.env.RUN_OPENROUTER_IMAGE_LIVE === '1'
   const defaultInclude = [
-    'src/**/*.{test,spec}.{ts,tsx}',
+    'src/**/*.{test,spec}.{ts,tsx,mjs}',
     'packages/**/*.{test,spec}.{ts,tsx}',
     'test/integration/**/*.{test,spec}.{ts,tsx}',
   ]
