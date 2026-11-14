@@ -96,3 +96,5 @@ Folder database encryption is on by default. For a public collection, explicitly
 Derived descriptions and metadata follow the source hash and parsing settings, participate in incremental updates, and can be searched/read through the existing KB/session tools and desktop MCP permissions. Filename words are also available in lexical retrieval without rebuilding stored text.
 
 Source review and OCR offer a **concise** mode that uses only a catalog-supported low/off thinking setting, scoped to the auxiliary request. Existing automatic reasoning remains valid. Concise mode leaves a bounded output budget for JSON; an incomplete or invalid judge response remains unverified. It is not an accuracy guarantee.
+
+The source-review evidence validator also excludes quotations overlapping recognized explicit evaluator/system-control directives. This is a bounded conservative heuristic: it can abstain on legitimate quoted instructions and does not detect every prompt-injection technique. Exact quotes, claim coverage and model assessment still do not establish real-world truth.

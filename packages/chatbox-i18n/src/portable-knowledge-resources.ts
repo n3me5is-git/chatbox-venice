@@ -128,5 +128,6 @@ export const portableKnowledgeItalian = {
 "Use concise OCR and image descriptions":"Usa OCR e descrizioni delle immagini concisi",
 "Uses the lowest supported thinking mode for faster extraction. Turn off to keep the model’s default reasoning.":"Usa il livello di ragionamento più basso supportato per estrarre più rapidamente. Disattiva per mantenere il ragionamento predefinito del modello.",
 "The assessment lacks matching source evidence.":"La valutazione non contiene prove corrispondenti nelle fonti.",
+"Reindex this collection to retain its extracted text":"Ricrea l’indice di questa collezione per conservarne il testo estratto",
 } as const
 export const portableKnowledgeEnglish = Object.fromEntries(Object.keys(portableKnowledgeItalian).map(key=>[key,key]))
