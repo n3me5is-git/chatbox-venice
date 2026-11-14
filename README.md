@@ -30,7 +30,9 @@ Desktop and Android can optionally link a real device folder as the workspace. D
 
 ## Hybrid knowledge collections
 
-Portable encrypted collections add optional hybrid semantic/BM25 retrieval, source-grounded metadata and relations, LLM reranking, retained OCR/transcripts, source excerpts and a bounded graph explorer. Link a read-only device folder and update only changed document hashes. Attach multiple collections to a chat and optionally review source support before publishing an answer, with clickable assessments and explicit model consent. Desktop MCP can expose selected collections and verification under separate permissions. See the [knowledge guide](docs/advanced-knowledge-guide.md) for setup, privacy and limitations.
+Encrypted collections add optional hybrid semantic/BM25 retrieval, source-grounded metadata and relations, LLM reranking, retained OCR/transcripts, source excerpts and a bounded graph explorer. Link a read-only device folder and update only changed document hashes. Attach multiple collections to a chat and optionally review source support before publishing an answer, with clickable assessments and explicit model consent. Desktop MCP can expose selected collections and verification under separate permissions. See the [knowledge guide](docs/advanced-knowledge-guide.md) for setup, privacy and limitations.
+
+Use **Move database into folder** to keep a collection’s encrypted originals, vectors and derived data in its own `.rag-collection` directory. Transfer the whole root and open it with **Open folder collection** on another desktop or Android device; indexed documents do not need new embeddings. The passphrase travels separately, while provider credentials and consent stay device-local. Read-only is the default; updates use one explicitly enabled writer. Global search and the combined graph query mounted collections without creating a central vector/graph copy. See the [portable format and interoperability specification](docs/portable-knowledge-v1.md).
 
 ## Collaborative chats
 

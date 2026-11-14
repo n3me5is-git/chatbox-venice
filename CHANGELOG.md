@@ -1,5 +1,9 @@
 # Changelog — Chatbox Venice
 
+## 1.45.0
+
+See [release notes](docs/releases/v1.45.0.md). Adds self-contained encrypted folder collections, transferable indexed data, federated graph exploration, query embedding reuse and a documented integration format.
+
 ## 1.44.0
 
 See [release notes](docs/releases/v1.44.0.md). Adds optional encrypted hybrid knowledge retrieval, source review, collection federation, linked source folders and scoped MCP access; restores Android Work knowledge tools and preserves reasoning replay during approvals.

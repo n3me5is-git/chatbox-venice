@@ -66,3 +66,19 @@ Desktop application MCP endpoints can explicitly grant selected collections for 
 ## Backup and compatibility
 
 Encrypted library backups include accessible sources and collection metadata. Restores create fresh collection IDs, omit derived caches and OS directory grants, and require local provider consent/reindexing. Dedicated PIN/biometric envelopes are device-bound and must be configured again. Legacy desktop collections remain separate and unencrypted until explicitly migrated/deleted. Protection is not forensic erasure or protection against a compromised device.
+
+## Self-contained folder collections
+
+The original linked-source option keeps encrypted copies inside the application archive. To put the collection database alongside the source tree, choose **Move database into folder** in that collection. Select its root and create a separate collection passphrase. This copies existing sources and indices, verifies encrypted data, then retires the app-owned copy. No document embedding or extraction call is made during migration. Cancelling preserves the previous source binding; interrupted migration can resume from the same unchanged collection revision.
+
+The reserved `.rag-collection` directory holds the independent database. Source scanning is recursive and excludes that database at every level. Native knowledge access permits reading originals and writing only the reserved database subtree. Automatic incremental refresh remains optional and may charge the selected providers only for changed content.
+
+To transfer a collection, stop its writer and copy the entire root, including the hidden database directory. On the recipient device, choose **Open folder collection**, select the root and enter the collection passphrase. Opening does not import API keys, automatically approve providers or require document re-embedding. The stored graph and retained text can be explored before configuring providers. Map the original embedding model/endpoint and save local consent before semantic search; a query still needs its own embedding. A different embedding space requires an explicit rebuild.
+
+Read-only is the default. To modify source copies or indices, reopen with writing enabled and use only one writer for the physical root. Do not concurrently update the same folder from cloud-sync clients or multiple devices. Unmount removes local registration/grants while preserving folder data. Local PIN/biometrics gate application access, but the transferable passphrase is required after restart and is needed on another device. Ordinary originals outside the encrypted database can remain plaintext. Application library backups do not include this external database: back up the root itself.
+
+**Search across collections** searches unlocked mounts with local provider consent. Compatible spaces reuse one query embedding within the operation; rank fusion combines different spaces. **Explore combined graph** loads bounded, source-owned graph pages across unlocked advanced collections, without a central graph mirror or automatic homonym merging. Desktop MCP endpoints can expose that same graph under their selected-collection permissions.
+
+See [Portable Knowledge Directory v1](portable-knowledge-v1.md), its [JSON Schema](portable-knowledge-v1.schema.json) and the [independent reader](../scripts/portable-knowledge/reader.mjs) for integration details and precise limits.
+
+A writable folder collection also provides **Clean database storage** for orphan chunks and interrupted/stale record objects. Deleting a document prunes its older payload records; cleanup does not overwrite flash sectors or erase independent backups.

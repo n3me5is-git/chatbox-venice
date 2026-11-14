@@ -460,6 +460,329 @@
           "$ref": "#/$defs/embedding"
         }
       }
+    },
+    "sourceFile": {
+      "type": "object",
+      "required": [
+        "id",
+        "path",
+        "name",
+        "mime",
+        "bytes",
+        "alias",
+        "createdAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "mime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10485760
+        },
+        "alias": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "assetId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "linkedPath": {
+          "type": "string",
+          "maxLength": 240
+        }
+      }
+    },
+    "sourceManifest": {
+      "type": "object",
+      "required": [
+        "version",
+        "name",
+        "settings",
+        "files"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "settings": {
+          "type": "object"
+        },
+        "files": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/sourceFile"
+          }
+        },
+        "augmentation": {
+          "type": "object"
+        },
+        "retrievalMode": {
+          "enum": [
+            "semantic",
+            "hybrid"
+          ]
+        },
+        "rerankProvider": {
+          "type": "string"
+        },
+        "rerankModel": {
+          "type": "string"
+        },
+        "rerankMode": {
+          "enum": [
+            "api",
+            "llm"
+          ]
+        },
+        "consented": {
+          "type": "boolean",
+          "description": "Descriptive only; a recipient must obtain device-local consent."
+        }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "required": [
+        "start",
+        "end",
+        "quote"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 512000
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 512000
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 800
+        }
+      },
+      "additionalProperties": false
+    },
+    "parsedText": {
+      "type": "object",
+      "required": [
+        "version",
+        "text",
+        "kind",
+        "sourceHash",
+        "textHash",
+        "fingerprint"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 512000
+        },
+        "kind": {
+          "enum": [
+            "parsed",
+            "ocr",
+            "transcript"
+          ]
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "textHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "warning": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "knowledgeAnalysis": {
+      "type": "object",
+      "required": [
+        "version",
+        "fileId",
+        "sourceHash",
+        "textHash",
+        "fingerprint",
+        "summary",
+        "sections",
+        "entities",
+        "relations",
+        "tags"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "fileId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "textHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 2400
+        },
+        "sections": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": [
+              "start",
+              "end",
+              "summary"
+            ],
+            "properties": {
+              "start": {
+                "type": "integer"
+              },
+              "end": {
+                "type": "integer"
+              },
+              "summary": {
+                "type": "string",
+                "maxLength": 600
+              },
+              "hash": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        },
+        "entities": {
+          "type": "array",
+          "maxItems": 2048,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "type",
+              "anchor"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/sha256"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "type": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "anchor": {
+                "$ref": "#/$defs/anchor"
+              }
+            }
+          }
+        },
+        "relations": {
+          "type": "array",
+          "maxItems": 3072,
+          "items": {
+            "type": "object",
+            "required": [
+              "subject",
+              "predicate",
+              "object",
+              "anchor"
+            ],
+            "properties": {
+              "subject": {
+                "$ref": "#/$defs/sha256"
+              },
+              "predicate": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "object": {
+                "$ref": "#/$defs/sha256"
+              },
+              "anchor": {
+                "$ref": "#/$defs/anchor"
+              }
+            }
+          }
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 2048,
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "value",
+              "anchor"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "anchor": {
+                "$ref": "#/$defs/anchor"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
