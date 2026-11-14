@@ -5,8 +5,8 @@ import {mkdir,mkdtemp,writeFile} from 'node:fs/promises'
 import {tmpdir,cpus,totalmem} from 'node:os'
 import path from 'node:path'
 import assert from 'node:assert/strict'
-const output=path.resolve('test-results/knowledge-benchmarks'),count=Number(process.env.KNOWLEDGE_BENCHMARK_DOCUMENTS||1000)
-assert(Number.isSafeInteger(count)&&count>=2&&count<=2000,'Invalid synthetic corpus size')
+const output=path.resolve('test-results/knowledge-benchmarks'),count=Number(process.env.KNOWLEDGE_BENCHMARK_DOCUMENTS||1000),dimensions=Number(process.env.KNOWLEDGE_BENCHMARK_DIMENSIONS||1024)
+assert(Number.isSafeInteger(count)&&count>=2&&count<=2000,'Invalid synthetic corpus size');assert(Number.isSafeInteger(dimensions)&&dimensions>=128&&dimensions<=8192,'Invalid embedding dimensions')
 await mkdir(output,{recursive:true})
 const bundle=await build({entryPoints:['scripts/knowledge-benchmark/browser.ts'],bundle:true,write:false,platform:'browser',format:'esm',target:'chrome120',sourcemap:false})
 const server=createServer((req,res)=>{res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; connect-src 'none'");if(req.url==='/driver.js'){res.setHeader('Content-Type','text/javascript');res.end(bundle.outputFiles[0].contents)}else if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><title>Encrypted knowledge benchmark</title><script type="module" src="/driver.js"></script>')}else{res.statusCode=404;res.end()}})
@@ -24,18 +24,18 @@ try{
  evaluate=async expression=>{const result=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text);return result.result.value}
  await cdp('Runtime.enable');await cdp('Network.enable');await cdp('Page.enable');await cdp('Page.navigate',{url:origin+'/'})
  await wait(()=>evaluate('typeof window.runKnowledgeBenchmark === "function"'),'Benchmark module did not load')
- await evaluate('window.runKnowledgeBenchmark('+count+').then(result=>{window.knowledgeBenchmarkResult=result},error=>{window.knowledgeBenchmarkError=String(error.stack||error)});undefined')
+ await evaluate('window.runKnowledgeBenchmark('+count+','+dimensions+').then(result=>{window.knowledgeBenchmarkResult=result},error=>{window.knowledgeBenchmarkError=String(error.stack||error)});undefined')
  let lastPhase;const deadline=Date.now()+300000
  while(Date.now()<deadline){
   const state=await evaluate('({result:window.knowledgeBenchmarkResult,error:window.knowledgeBenchmarkError,progress:window.knowledgeBenchmarkPhase})')
-  if(state.progress&&JSON.stringify(state.progress)!==lastPhase){lastPhase=JSON.stringify(state.progress);await writeFile(path.join(output,'chromium-progress.json'),JSON.stringify(state.progress,null,2));console.log('KNOWLEDGE_BROWSER_PHASE '+JSON.stringify(state.progress.phases.at(-1)))}
+  if(state.progress&&JSON.stringify(state.progress)!==lastPhase){lastPhase=JSON.stringify(state.progress);await writeFile(path.join(output,'chromium-progress-d'+dimensions+'.json'),JSON.stringify(state.progress,null,2));console.log('KNOWLEDGE_BROWSER_PHASE '+JSON.stringify(state.progress.phases.at(-1)))}
   if(state.error)throw Error(state.error)
   if(state.result){
    assert.deepEqual(exceptions,[],'Browser exceptions');assert.deepEqual(requests.filter(url=>!url.startsWith(origin+'/')),[],'Benchmark requested an external service')
    const report={...state.result,commit:process.env.GITHUB_SHA,browser:await cdp('Browser.getVersion'),runner:{platform:process.platform,arch:process.arch,node:process.version,logicalCpus:cpus().length,cpu:cpus()[0]?.model,totalMemoryBytes:totalmem(),virtualizedCI:!!process.env.CI},externalRequests:0}
-   await writeFile(path.join(output,'encrypted-chromium-'+count+'.json'),JSON.stringify(report,null,2));console.log('KNOWLEDGE_ENCRYPTED_BROWSER_BENCHMARK '+JSON.stringify(report));process.exitCode=0;break
+   await writeFile(path.join(output,'encrypted-chromium-'+count+'-d'+dimensions+'.json'),JSON.stringify(report,null,2));console.log('KNOWLEDGE_ENCRYPTED_BROWSER_BENCHMARK '+JSON.stringify(report));process.exitCode=0;break
   }
   await delay(500)
  }
  if(!lastPhase||!await evaluate('!!window.knowledgeBenchmarkResult'))throw Error('Encrypted browser benchmark exceeded five minutes')
-}finally{socket?.close();chrome.kill('SIGTERM');await new Promise(resolve=>server.close(resolve));await writeFile(path.join(output,'chromium.log'),chromeLog)}
+}finally{socket?.close();if(chrome.exitCode===null&&chrome.signalCode===null)await new Promise(resolve=>{const timer=setTimeout(resolve,10000);chrome.once('close',()=>{clearTimeout(timer);resolve()});chrome.kill('SIGTERM')});await new Promise(resolve=>server.close(resolve));await writeFile(path.join(output,'chromium.log'),chromeLog)}

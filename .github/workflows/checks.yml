@@ -147,7 +147,13 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Measure authenticated storage with native browser IndexedDB
+      - name: Measure 1000 documents with 1024-dimensional vectors
+        env:
+          KNOWLEDGE_BENCHMARK_DIMENSIONS: '1024'
+        run: node scripts/knowledge-benchmark/run.mjs
+      - name: Measure 1000 documents with 4096-dimensional vectors
+        env:
+          KNOWLEDGE_BENCHMARK_DIMENSIONS: '4096'
         run: node scripts/knowledge-benchmark/run.mjs
       - name: Save complete measurements or last completed phase
         if: always()
