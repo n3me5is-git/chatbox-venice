@@ -30,3 +30,5 @@ it('rejects symlink escapes and stale binding identities',async()=>{
 it('reports oversize files without reading them into memory',async()=>{
  const {root,broker}=await fixture();await writeFile(path.join(root,'large.pdf'),'');await truncate(path.join(root,'large.pdf'),11*1024*1024);const listing=await broker.operation({sessionId:'root',action:'list'});expect(listing.skipped).toEqual(['large.pdf']);expect(listing.files!.map(file=>file.path)).toEqual(['input.md'])
 })
+
+it('keeps knowledge roots read-only and refuses writable descendants',async()=>{const {root,broker}=await fixture();await broker.operation({sessionId:'knowledge-1',action:'pick'});expect((await broker.operation({sessionId:'knowledge-1',action:'list'})).files).toHaveLength(1);for(const action of ['write','mkdir','remove'] as const)await expect(broker.operation({sessionId:'knowledge-1',action,path:'input.md',base64:''})).rejects.toThrow('read-only');await expect(broker.operation({sessionId:'child',action:'inherit',parentId:'knowledge-1'})).rejects.toThrow('read-only');expect(await readFile(path.join(root,'input.md'),'utf8')).toBe('Original')})

@@ -12,6 +12,7 @@ vi.mock('@/packages/session-rag/embeddings',()=>({multimodalEmbedding:(provider:
 vi.mock('@/packages/knowledge-collections/service',()=>({knowledgeCollections:{list:state.list,create:state.create,data:state.data,authorize:state.authorize,configure:state.configure,index:state.index,indexStatus:state.status,assert:async()=>{if(state.locked)throw Error('Unlock')},running:()=>false,lock:state.lock,vault:{keys:{snapshot:()=>state.revision,subscribe:(callback:()=>void)=>{state.notify=callback;return()=>{}},isUnlocked:()=>!state.locked}}}}))
 vi.mock('@/components/settings/SettingsLayout',()=>({SettingsPage:({children,action}:any)=><main>{action}{children}</main>}))
 vi.mock('@/components/common/AdaptiveModal',()=>({AdaptiveModal:({opened,children}:any)=>opened?<div role="dialog">{children}</div>:null}))
+vi.mock('./CollectionFolder',()=>({CollectionFolder:()=>null}))
 vi.mock('./CollectionProtection',()=>({CollectionProtection:()=>null}))
 vi.mock('@/components/ModelSelectorV2',()=>({ModelSelectorV2:({children,onSelect}:any)=><div>{children}<button onClick={()=>onSelect('gemini','gemini-embedding-2')}>Use native multimodal</button></div>}))
 import CollectionsPage from './CollectionsPage'

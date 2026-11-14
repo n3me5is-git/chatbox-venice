@@ -6,7 +6,7 @@ const plugin=registerPlugin<{operation(input:FolderRequest):Promise<FolderReply>
 export const linkedFolderAvailable=()=>platform.type==='desktop'&&typeof window!=='undefined'&&!!window.electronAPI||platform.type==='mobile'&&Capacitor.getPlatform()==='android'
 export async function linkedFolderOperation(input:FolderRequest):Promise<FolderReply>{
   if(!linkedFolderAvailable())return {linked:false}
-  const {vaultRuntimeFor}=await import('@/packages/vault/runtime');await vaultRuntimeFor(platform).projects.assertSession(input.sessionId)
+  const {vaultRuntimeFor}=await import('@/packages/vault/runtime');if(input.sessionId.startsWith('knowledge-')){const value=input.sessionId.slice('knowledge-'.length),id=-Number(value);if(!/^[1-9][0-9]*$/.test(value)||!Number.isSafeInteger(id))throw Error('Invalid knowledge collection');await (await import('@/packages/knowledge-collections/service')).knowledgeCollections.assert(id)}else await vaultRuntimeFor(platform).projects.assertSession(input.sessionId)
   const result:FolderReply=platform.type==='desktop'?await window.electronAPI.invoke('session-folder:operation',input):input.action==='pick'?await plugin.pick(input):await plugin.operation(input)
   if(input.action!=='status'&&input.action!=='list'&&input.action!=='read'){const old=cache.get(input.sessionId);if(old)old.until=0;window.dispatchEvent(new CustomEvent('session-resources:changed',{detail:input.sessionId}))}
   return result

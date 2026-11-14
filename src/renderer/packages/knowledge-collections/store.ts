@@ -9,11 +9,12 @@ import { RagSettingsSchema, RAG_ROOT, RagIndexSchema, type RagSettings, type Rag
 import { SessionRagEngine, type RagEnginePort } from '@shared/session-rag-engine'
 import type { VaultRuntime } from '@/packages/vault/runtime'
 import { VaultJsonRecords } from '@/packages/vault/json-records'
+import {linkedPath} from '@shared/linked-folder'
 import {resourceMime} from '@shared/session-resources'
 
 export type CollectionEntry={id:number;scope:string;createdAt:number;pendingScopes?:string[]}
-export type CollectionFile={id:number;path:string;name:string;mime:string;bytes:number;alias:string;createdAt:number;hash?:string;assetId?:string}
-export type CollectionData={version:1;name:string;settings:RagSettings;files:CollectionFile[];consented?:boolean;rerankProvider?:string;rerankModel?:string;rerankMode?:'api'|'llm';augmentation?:KnowledgeAugmentation;retrievalMode?:'semantic'|'hybrid'}
+export type CollectionFile={id:number;path:string;name:string;mime:string;bytes:number;alias:string;createdAt:number;hash?:string;assetId?:string;linkedPath?:string}
+export type CollectionData={version:1;name:string;settings:RagSettings;files:CollectionFile[];consented?:boolean;rerankProvider?:string;rerankModel?:string;rerankMode?:'api'|'llm';augmentation?:KnowledgeAugmentation;retrievalMode?:'semantic'|'hybrid';folder?:{bindingId:string;name:string;automatic:boolean;lastRefresh?:number}}
 export type CollectionSummary=CollectionEntry&{name:string;locked:boolean;settings?:RagSettings}
 export interface CollectionAdapters {extract:RagEnginePort['extract'];embed:RagEnginePort['embed'];validate(settings:RagSettings):void;unlock(scope:string):Promise<boolean>;authority?(settings:RagSettings):string;embeddingIdentity?(settings:RagSettings):Promise<string>;rerank?(query:string,documents:string[],provider:string,model:string,signal:AbortSignal):Promise<{index:number;score:number}[]>;llmRerank?:CollectionAdapters['rerank'];analyze?:(text:string,settings:KnowledgeAugmentation,signal:AbortSignal)=>Promise<unknown>;analysisAuthority?:(settings:KnowledgeAugmentation)=>string}
 const REGISTRY='knowledge-collections:v1',prefix=(id:number)=>'knowledge-collection:'+id+':'
@@ -63,6 +64,27 @@ export class KnowledgeCollections {
       try{const hash=await ragHash(bytes),ref=await this.vault.assets.put((async function*(){yield bytes})(),{name:file.name,mime,kind:'document',hidden:true,sourceId:alias},entry.scope,alias);created.push(ref);const header=await this.vault.assets.header(ref);if(!header)throw Error('Knowledge document is unavailable');added.push({id:fileId,path,name:file.name,mime,bytes:file.size,alias,createdAt:Date.now(),hash,assetId:header.id})}finally{bytes.fill(0)}
     }await this.save(id,{...data,files:[...data.files,...added]});return added.map(file=>file.id)
     }catch(error){try{const current=await this.data(id),retained=new Set(current.files.map(file=>file.assetId));for(const ref of created){const header=await this.vault.assets.header(ref);if(header&&!retained.has(header.id))await this.vault.assets.remove(ref).catch(()=>{})}}catch{/* preserve encrypted staged sources when publication state is unreadable */}throw error}
+  })}
+  async linkFolder(id:number,folder:CollectionData['folder']){return this.serial(async()=>{if(this.jobs.has(id))throw Error('Stop indexing before changing this collection');const data=await this.data(id);await this.save(id,{...data,folder,files:folder?data.files:data.files.map(({linkedPath,...file})=>file)})})}
+  /** Stage changed sources under fresh aliases, then atomically replace only the
+   * encrypted source manifest. Native directory access is strictly read-only.
+   * A failed/partial scan must never be passed here as a deletion snapshot. */
+  async syncFolder(id:number,bindingId:string,rows:readonly {path:string;bytes:number;version:string}[],port:{read(path:string,hash:string):Promise<Uint8Array>;check():Promise<void>},signal=new AbortController().signal){return this.serial(async()=>{
+    if(this.jobs.has(id))throw Error('Stop indexing before changing this collection');const data=await this.data(id);if(data.folder?.bindingId!==bindingId)throw Error('Linked folder changed');if(rows.length>2000||new Set(rows.map(row=>row.path)).size!==rows.length)throw Error('Invalid linked folder snapshot')
+    for(const row of rows){linkedPath(row.path);if(!/^[a-f0-9]{64}$/.test(row.version)||row.bytes<1||row.bytes>10*1024*1024)throw Error('Invalid linked document')}
+    const previous=new Map(data.files.filter(file=>file.linkedPath).map(file=>[file.linkedPath!,file])),files=data.files.filter(file=>!file.linkedPath),created:string[]=[],retired:string[]=[],ids=new Set(data.files.map(file=>file.id));let added=0,changed=0,removed=0,unchanged=0
+    const check=async()=>{signal.throwIfAborted();await this.assert(id);await port.check();signal.throwIfAborted()}
+    try{await check();const entry=await this.assert(id)
+      for(const row of rows){await check();const old=previous.get(row.path);previous.delete(row.path);if(old&&await this.fileRevision(id,old)===row.version){files.push(old);unchanged++;continue}
+        const bytes=await port.read(row.path,row.version);try{await check();if(bytes.length!==row.bytes||await ragHash(bytes)!==row.version)throw Error('Linked source changed during refresh');let fileId=old?.id||identity();while(!old&&ids.has(fileId))fileId++;ids.add(fileId)
+          const alias=prefix(id)+'source:'+fileId+':'+crypto.randomUUID(),name=row.path.split('/').at(-1)!,mime=resourceMime(name),ref=await this.vault.assets.put((async function*(){yield bytes})(),{name,mime,kind:'document',hidden:true,sourceId:alias},entry.scope,alias);created.push(ref);const header=await this.vault.assets.header(ref);if(!header)throw Error('Knowledge document is unavailable')
+          files.push({id:fileId,path:old?.path||'documents/'+fileId+'/'+name.slice(-180),name,mime,bytes:bytes.length,alias,createdAt:old?.createdAt||Date.now(),hash:row.version,assetId:header.id,linkedPath:row.path});if(old){retired.push(old.alias);changed++}else added++
+        }finally{bytes.fill(0)}
+      }
+      for(const file of previous.values()){retired.push(file.alias);removed++}if(files.length>2000)throw Error('Session file count limit reached')
+      await check();if(!added&&!changed&&!removed)return {added,changed,removed,unchanged};await this.publish(id,async()=>{await check();await this.save(id,{...data,files,folder:{...data.folder!,lastRefresh:Date.now()}})})
+      for(const alias of retired)await this.vault.assets.remove(alias).catch(()=>{});return {added,changed,removed,unchanged}
+    }catch(error){try{const current=await this.data(id),retained=new Set(current.files.map(file=>file.assetId));for(const ref of created){const header=await this.vault.assets.header(ref);if(header&&!retained.has(header.id))await this.vault.assets.remove(ref).catch(()=>{})}}catch{/* ambiguous publication: preserve staged encrypted assets */}throw error}
   })}
   private dataReader(id:number){let snapshot:{assetId:string;data:CollectionData}|undefined;return async()=>{
     await this.assert(id);const before=await this.vault.assets.header(prefix(id)+'manifest');if(!before)throw Error('Knowledge collection not found');if(snapshot?.assetId===before.id){await this.assert(id);return snapshot.data}
@@ -189,9 +211,9 @@ export class KnowledgeCollections {
         if(!raw||raw.version!==1||typeof raw.name!=='string'||raw.name.length>200||!Array.isArray(raw.files)||raw.files.length>2000)throw Error('Invalid knowledge collection backup')
         const settings=RagSettingsSchema.parse(raw.settings),augmentation=raw.augmentation?KnowledgeAugmentationSchema.parse(raw.augmentation):undefined;let id=-identity();while([...registry,...incoming].some(entry=>entry.id===id))id--
         const files:CollectionFile[]=[],seen=new Set<string>(),paths=new Set<string>()
-        for(const file of raw.files){signal.throwIfAborted();if(!Number.isSafeInteger(file.id)||file.id<=0||typeof file.name!=='string'||file.name.length>512||typeof file.mime!=='string'||file.mime.length>200||!Number.isSafeInteger(file.bytes)||file.bytes<1||typeof file.path!=='string'||file.path.length>240||!file.path.startsWith('documents/')||file.path.split('/').some(part=>part==='..'||part==='.')||/[\\\u0000-\u001f]/.test(file.path)||file.alias!==oldPrefix+'source:'+file.id||seen.has(file.alias)||paths.has(file.path))throw Error('Invalid knowledge collection backup');seen.add(file.alias);paths.add(file.path)
+        for(const file of raw.files){signal.throwIfAborted();if(!Number.isSafeInteger(file.id)||file.id<=0||typeof file.name!=='string'||file.name.length>512||typeof file.mime!=='string'||file.mime.length>200||!Number.isSafeInteger(file.bytes)||file.bytes<1||typeof file.path!=='string'||file.path.length>240||!file.path.startsWith('documents/')||file.path.split('/').some(part=>part==='..'||part==='.')||/[\\\u0000-\u001f]/.test(file.path)||!(file.alias===oldPrefix+'source:'+file.id||file.alias.startsWith(oldPrefix+'source:'+file.id+':')&&/^[a-f0-9-]{36}$/.test(file.alias.slice((oldPrefix+'source:'+file.id+':').length)))||seen.has(file.alias)||paths.has(file.path))throw Error('Invalid knowledge collection backup');seen.add(file.alias);paths.add(file.path)
           const source=entries.get(file.alias);if(!source||source.scope!==manifest.scope||source.bytes!==file.bytes||source.bytes>10*1024*1024)throw Error('Invalid knowledge collection backup');const alias=prefix(id)+'source:'+file.id,header=await this.vault.assets.header(source.ref);if(!header)throw Error('Invalid knowledge collection backup');const info=await this.vault.assets.info(header)
-          created.push(await this.vault.assets.put(this.vault.assets.read(source.ref),{...info,hidden:true,sourceId:alias},manifest.scope,alias,signal));files.push({...file,alias})
+          created.push(await this.vault.assets.put(this.vault.assets.read(source.ref),{...info,hidden:true,sourceId:alias},manifest.scope,alias,signal));files.push({id:file.id,path:file.path,name:file.name,mime:file.mime,bytes:file.bytes,createdAt:file.createdAt,alias})
         }
         const alias=prefix(id)+'manifest';await this.json.set(alias,{version:1,name:raw.name,settings,files,augmentation,retrievalMode:raw.retrievalMode,rerankProvider:raw.rerankProvider,rerankModel:raw.rerankModel,rerankMode:raw.rerankMode,consented:false},manifest.scope);created.push(alias);incoming.push({id,scope:manifest.scope,createdAt:Date.now()})
       }

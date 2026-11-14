@@ -141,6 +141,22 @@ export const advancedKnowledgeItalian:Record<string,string>={
  'The knowledge model returned an unexpected tool call':'Il modello KB ha restituito una chiamata a strumento inattesa',
  'Knowledge model request timed out':'Tempo disponibile per la richiesta al modello KB esaurito',
  'Invalid LLM rerank passage identity':'Identificativo di estratto non valido nel reranking LLM',
- 'LLM reranking exceeds the candidate limit':'Il reranking LLM supera il limite dei candidati'
+ 'LLM reranking exceeds the candidate limit':'Il reranking LLM supera il limite dei candidati',
+"Linked source folder":"Cartella sorgente collegata",
+"Source folders are read-only. Documents are copied into encrypted app storage. Changed hashes update only affected documents; original files are never deleted. Copies remain available when the folder is missing.":"Le cartelle sorgenti sono in sola lettura. I documenti vengono copiati nell’archivio cifrato dell’app. Gli hash modificati aggiornano solo i documenti interessati; i file originali non vengono mai eliminati. Le copie rimangono disponibili se la cartella manca.",
+"Choose another source folder":"Scegli un’altra cartella sorgente",
+"Link a source folder":"Collega una cartella sorgente",
+"Refresh folder and update index":"Aggiorna cartella e indice",
+"Disconnect folder and keep copies":"Scollega cartella e conserva le copie",
+"Automatically refresh and index while the app is active":"Aggiorna cartella e indice automaticamente mentre l’app è attiva",
+"Checks every minute. Changed documents may use the saved providers and incur charges. Locked collections pause. After a folder error, refresh manually to resume.":"Controllo ogni minuto. I documenti modificati possono usare i provider salvati e comportare costi. Le raccolte bloccate vengono sospese. Dopo un errore della cartella, aggiorna manualmente per riprendere.",
+"Linked folder is unavailable or changed":"La cartella collegata non è disponibile oppure è cambiata",
+"Linked folder scan is incomplete; previous documents were kept":"La scansione della cartella è incompleta; i documenti precedenti sono stati conservati",
+"Linked source changed during refresh":"La sorgente collegata è cambiata durante l’aggiornamento",
+"Knowledge source folders are read-only":"Le cartelle sorgenti delle raccolte sono in sola lettura",
+"Invalid linked folder snapshot":"Elenco dei file della cartella collegata non valido",
+"Invalid linked document":"Documento collegato non valido",
+"Knowledge review does not match the published answer":"La verifica delle fonti non corrisponde alla risposta pubblicata",
+"Source review requires knowledge and model permissions for this endpoint":"La verifica delle fonti richiede i permessi per raccolte e modelli di questo endpoint"
 }
 export const advancedKnowledgeEnglish=Object.fromEntries(Object.keys(advancedKnowledgeItalian).map(key=>[key,key]))
