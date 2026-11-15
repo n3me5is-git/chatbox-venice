@@ -17,10 +17,16 @@ def config(name,filename):
  candidates.sort(key=lambda p:('static' not in str(p).lower(),len(str(p))))
  print('SDK configuration',name,str(candidates[0]));return str(candidates[0].parent)
 build=ROOT/'build-windows'
-subprocess.run(['cmake','-S','native/paddle-ocr','-B',str(build),'-A','x64','-Dncnn_DIR='+config('ncnn','ncnnConfig.cmake'),'-DOpenCV_DIR='+config('opencv','OpenCVConfig.cmake'),'-DJSON_INCLUDE_DIR='+str(include),'-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded'],check=True)
+subprocess.run(['cmake','-S','native/paddle-ocr','-B',str(build),'-A','x64','-Dncnn_DIR='+config('ncnn','ncnnConfig.cmake'),'-DOpenCV_DIR='+config('opencv','OpenCVConfig.cmake'),'-DJSON_INCLUDE_DIR='+str(include),'-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL'],check=True)
 subprocess.run(['cmake','--build',str(build),'--config','Release','--parallel','4'],check=True)
 package=ROOT/'package';package.mkdir(exist_ok=True)
 shutil.copy2(build/'Release/paddle-ocr-worker.exe',package/'paddle-ocr-worker.exe')
+vswhere=pathlib.Path(os.environ['ProgramFiles(x86)'])/'Microsoft Visual Studio/Installer/vswhere.exe'
+vs=pathlib.Path(subprocess.check_output([str(vswhere),'-latest','-property','installationPath'],text=True).strip())
+redist=sorted((vs/'VC/Redist/MSVC').iterdir())[-1]/'x64'
+for folder in redist.iterdir():
+ if folder.name.endswith(('.CRT','.OpenMP')):
+  for dll in folder.glob('*.dll'):shutil.copy2(dll,package/dll.name)
 for p in (ROOT/'models').iterdir():
  if p.name.endswith(('.ncnn.param','.ncnn.bin')) or p.name in ['dictionary.json','model-manifest.json']:shutil.copy2(p,package/p.name)
 shutil.copy2('native/paddle-ocr/THIRD-PARTY-NOTICES.md',package/'THIRD-PARTY-NOTICES.md')
