@@ -1,5 +1,6 @@
 // English source; other locales fall back to English.
 export const localOcrEnglish = {
+  "Technical details":"Technical details",
   "Imported GGUF files are copied into the app model storage. The original files are not changed.":"Imported GGUF files are copied into the app model storage. The original files are not changed.",
   "Download model and required components":"Download model and required components",
   "No compatible Vulkan GPU was found; choose CPU processing":"No compatible Vulkan GPU was found; choose CPU processing",
@@ -73,6 +74,7 @@ export const localOcrEnglish = {
   "Invalid local OCR settings": "Invalid local OCR settings"
 }
 export const localOcrItalian = {
+  "Technical details":"Dettagli tecnici",
   "Imported GGUF files are copied into the app model storage. The original files are not changed.":"I file GGUF importati vengono copiati nell’archivio modelli dell’app. I file originali non vengono modificati.",
   "Download model and required components":"Scarica modello e componenti necessari",
   "No compatible Vulkan GPU was found; choose CPU processing":"Nessuna GPU Vulkan compatibile trovata: scegli l’elaborazione CPU",

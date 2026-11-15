@@ -34,8 +34,10 @@ jobs:
         with:
           path: |
             .cache/local-ocr/MiniCPM-OCR-1_0-Q4_K_M.gguf
+            .cache/local-ocr/MiniCPM-OCR-1_0-Q8_0.gguf
             .cache/local-ocr/mmproj-model-f16-4x.gguf
-          key: minicpm-ocr-0133ad8-q4-projector-v1
+          key: minicpm-ocr-0133ad8-q4-q8-projector-v2
+          restore-keys: minicpm-ocr-0133ad8-q4-projector-v1
           enableCrossOsArchive: true
       - name: Build native OCR driver
         run: pnpm exec esbuild scripts/local-ocr-live.ts --bundle --platform=node --format=esm --packages=external --outfile=test-results/local-ocr-live.mjs

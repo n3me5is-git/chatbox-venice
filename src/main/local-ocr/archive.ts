@@ -9,7 +9,7 @@ export function archivePath(name:string){return !!name&&!name.includes('\\')&&!n
 export async function extractOcrRuntime(artifact:OcrArtifact,archive:string,directory:string){
  if(artifact.name.endsWith('.zip')){
   const zip=new AdmZip(archive),entries=zip.getEntries();if(entries.length>2000||entries.reduce((sum,entry)=>sum+entry.header.size,0)>512*1024*1024)throw Error('Invalid local OCR runtime archive')
-  for(const entry of entries){if(!archivePath(entry.entryName)||((entry.attr>>>16)&0xf000)===0xa000)throw Error('Invalid local OCR runtime archive');const target=resolve(directory,entry.entryName);if(relative(directory,target).startsWith('..'))throw Error('Invalid local OCR runtime archive');if(entry.isDirectory)await mkdir(target,{recursive:true});else{await mkdir(dirname(target),{recursive:true});await writeFile(target,entry.getData(),{mode:0o700})}}
+  for(const entry of entries){if(!archivePath(entry.entryName)||((entry.attr>>>16)&0xf000)===0xa000)throw Error('Invalid local OCR runtime archive');const target=resolve(directory,entry.entryName);if(relative(directory,target).startsWith('..'))throw Error('Invalid local OCR runtime archive');if(entry.isDirectory)await mkdir(target,{recursive:true});else{await mkdir(dirname(target),{recursive:true});const data=entry.getData();await writeFile(target,new Uint8Array(data.buffer,data.byteOffset,data.byteLength),{mode:0o700})}}
  }else{
   const exec=promisify(execFile),listed=await exec('tar',['-tzf',archive],{windowsHide:true,maxBuffer:1024*1024,timeout:30000}),names=listed.stdout.trim().split(/\r?\n/);if(names.length>2000||names.some(name=>!archivePath(name)))throw Error('Invalid local OCR runtime archive');await exec('tar',['-xzf',archive,'-C',directory],{windowsHide:true,timeout:60000})
  }

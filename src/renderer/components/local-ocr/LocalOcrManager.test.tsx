@@ -1,0 +1,13 @@
+// @vitest-environment jsdom
+import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
+import {MantineProvider} from '@mantine/core'
+import {afterEach,beforeEach,expect,it,vi} from 'vitest'
+import {LOCAL_OCR_MODELS,type LocalOcrStatus} from '@shared/local-ocr'
+const state=vi.hoisted(()=>({status:undefined as LocalOcrStatus|undefined,control:vi.fn()}))
+vi.mock('@/platform',()=>({default:{openLink:vi.fn()}}))
+vi.mock('@/packages/local-ocr/client',()=>({localOcrStatus:async()=>state.status,localOcrControl:(...args:any[])=>state.control(...args),recognizeLocally:vi.fn()}))
+import {LocalOcrManager} from './LocalOcrManager'
+afterEach(cleanup)
+beforeEach(()=>{state.status={config:{backend:'cpu',threads:4,idleSeconds:120},ready:['q4','q8'],projector:true,runtime:true,loaded:false,pending:0,busy:false,root:'C:/app/local-ocr',platformSupported:true};state.control.mockReset().mockImplementation(async(_command,config)=>({...state.status,config}));Object.defineProperty(window,'matchMedia',{configurable:true,value:vi.fn(()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()}))});vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})})
+it('saves an edited idle window only when Apply is pressed and selects the installed model',async()=>{const use=vi.fn();render(<MantineProvider><LocalOcrManager onClose={vi.fn()} onUse={use}/></MantineProvider>);await screen.findByText('MiniCPM-OCR Q4 · 529 MB');fireEvent.change(screen.getByLabelText('Keep the model ready after the queue finishes (seconds)'),{target:{value:'300'}});expect(state.control).not.toHaveBeenCalled();fireEvent.click(screen.getByText('Apply processing settings'));await waitFor(()=>expect(state.control).toHaveBeenCalledWith('configure',{backend:'cpu',threads:4,idleSeconds:300}));fireEvent.click(screen.getAllByText('Use this OCR model')[0]);expect(use).toHaveBeenCalledWith(LOCAL_OCR_MODELS.q4)})
+it('selects Vulkan inside the setup modal and persists the choice on Apply',async()=>{render(<MantineProvider><LocalOcrManager onClose={vi.fn()} onUse={vi.fn()}/></MantineProvider>);const hardware=await screen.findByLabelText('Processing hardware');fireEvent.click(hardware);fireEvent.click(await screen.findByRole('option',{name:'GPU with Vulkan (requires compatible drivers)'}));fireEvent.click(screen.getByText('Apply processing settings'));await waitFor(()=>expect(state.control).toHaveBeenCalledWith('configure',{backend:'vulkan',threads:4,idleSeconds:120}))})

@@ -374,7 +374,7 @@ export function RouteComponent() {
                   if (
                     slotId === 'llm' ||
                     slotId === 'fast' ||
-                    (slotId === 'ocr' && selection?.provider!==LOCAL_OCR_PROVIDER) ||
+                    slotId === 'ocr' ||
                     slotId === 'embedding' ||
                     slotId === 'rerank'
                   ) {
@@ -746,7 +746,7 @@ function displayTextForSlot(props: Parameters<typeof SlotCard>[0], autoText: str
 function isConnectionCheck(slotId: ModelRigSlotId, selection: ModelRef | undefined, parser: DocumentParserType) {
   return (
     (slotId === 'llm' && Boolean(selection)) ||
-    slotId === 'ocr' ||
+    (slotId === 'ocr' && selection?.provider!==LOCAL_OCR_PROVIDER) ||
     slotId === 'search' ||
     (slotId === 'fast' && Boolean(selection)) ||
     (slotId === 'parser' && parser === 'mineru')
