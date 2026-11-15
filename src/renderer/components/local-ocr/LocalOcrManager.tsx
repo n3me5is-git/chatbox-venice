@@ -12,7 +12,7 @@ export function LocalOcrManager({onClose,onUse}:{onClose:()=>void;onUse:(model:s
  const running=busy||status?.busy||!!status?.pending,configure=(patch:Partial<LocalOcrStatus['config']>)=>setDraft(current=>({...status!.config,...current,...patch}))
  const ready=(variant:LocalOcrVariant)=>status?.ready.includes(variant)&&status.projector&&status.runtime
  const tryImage=async(file:File)=>{if(!status)return;const variant=status.ready[0];if(!variant||!ready(variant))return;const controller=new AbortController();testController.current=controller;setTesting(true);setTest('');setError('');try{if(file.size>16*1024*1024)throw Error('Use a supported local OCR image');const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(Error('Unable to read the image'));reader.readAsDataURL(file)});const text=await recognizeLocally(LOCAL_OCR_MODELS[variant],data,controller.signal);if(active.current)setTest(text)}catch(error){if(active.current)setError((error as Error).message)}finally{if(active.current)setTesting(false)}}
- return <Modal opened onClose={onClose} title={ft('Local MiniCPM OCR')} size="lg" scrollAreaComponent={undefined} styles={{body:{maxHeight:'75dvh',overflowY:'auto'}}><Stack gap="md">
+ return <Modal opened onClose={onClose} title={ft('Local MiniCPM OCR')} size="lg" scrollAreaComponent={undefined} styles={{body:{maxHeight:'75dvh',overflowY:'auto'}}}><Stack gap="md">
  <Text size="sm">{ft('Reads images and scanned PDF pages on this computer. Documents are never uploaded by this OCR engine. Downloads contact Hugging Face and GitHub only when you request installation.')}</Text>
  <Alert color="blue">{ft('Memory mapping can reclaim file-backed pages, but OCR still needs RAM for active weights, vision, context and buffers. GPU acceleration also uses graphics memory, which may be shared with RAM.')}</Alert>
  {(error||status?.error)&&<Alert color="red">{ft(error||status!.error!)}</Alert>}
@@ -28,6 +28,7 @@ export function LocalOcrManager({onClose,onUse}:{onClose:()=>void;onUse:(model:s
  <input ref={image} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event=>{const file=event.currentTarget.files?.[0];event.currentTarget.value='';if(file)void tryImage(file)}}/>
  <Group><Button variant="default" loading={testing} disabled={running||!status.ready.some(ready)} onClick={()=>image.current?.click()}>{ft('Test OCR with an image')}</Button>{testing&&<Button variant="subtle" onClick={()=>testController.current?.abort()}>{ft('Cancel')}</Button>}</Group>
  {test&&<Textarea label={ft('Recognized text')} value={test} readOnly autosize minRows={3} maxRows={12}/>}
+ <Text size="xs" c="dimmed">{ft('Imported GGUF files are copied into the app model storage. The original files are not changed.')}</Text>
  <Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{ft('Model storage')}: {status.root}</Text>
  </>}
  <Text size="xs" c="dimmed">{ft('This integration performs page text recognition. It does not include the upstream layout detector, semantic photo descriptions or guaranteed table reconstruction.')}</Text>

@@ -3,7 +3,7 @@ export const LOCAL_OCR_PROVIDER = 'local-minicpm-ocr'
 export const LOCAL_OCR_MODELS = {q4:'minicpm-ocr-1.0-q4-k-m-0133ad8',q8:'minicpm-ocr-1.0-q8-0-0133ad8'} as const
 export type LocalOcrVariant = keyof typeof LOCAL_OCR_MODELS
 export type LocalOcrConfig = {backend:'cpu'|'vulkan';threads:number;idleSeconds:number}
-export type LocalOcrStatus = {config:LocalOcrConfig;ready:LocalOcrVariant[];projector:boolean;runtime:boolean;loaded:boolean;starting?:boolean;pending:number;busy:boolean;progress?:{name:string;bytes:number;total:number};error?:string;root:string;platformSupported:boolean}
+export type LocalOcrStatus = {config:LocalOcrConfig;ready:LocalOcrVariant[];projector:boolean;runtime:boolean;loaded:boolean;starting?:boolean;pending:number;busy:boolean;progress?:{name:string;bytes:number;total:number};error?:string;diagnostic?:string;root:string;platformSupported:boolean}
 export const localOcrVariant = (id:string):LocalOcrVariant|undefined => (Object.keys(LOCAL_OCR_MODELS) as LocalOcrVariant[]).find(key=>LOCAL_OCR_MODELS[key]===id)
 export function validateLocalOcrConfig(input:unknown):LocalOcrConfig {
  const value=input as Partial<LocalOcrConfig>|null

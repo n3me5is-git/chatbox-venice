@@ -1,7 +1,7 @@
 name: Local OCR real inference
 on:
   pull_request:
-    types: [opened, reopened, synchronize, labeled]
+    types: [opened, reopened, labeled]
     paths:
       - 'src/main/local-ocr/**'
       - 'src/shared/local-ocr*'

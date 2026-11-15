@@ -97,6 +97,6 @@ export async function ocrImagesInMessages(
 
       part.ocrResult = text
     },
-    { concurrency: 3 }
+    { concurrency: ocrModel.name==='MiniCPM-OCR · Local'?1:3 }
   )
 }
