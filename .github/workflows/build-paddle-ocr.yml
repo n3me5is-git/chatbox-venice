@@ -5,7 +5,7 @@ on:
     paths: ['native/paddle-ocr/**', 'scripts/paddle-ocr/**', '.github/workflows/build-paddle-ocr.yml']
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: paddle-runtime-${{ github.ref }}
   cancel-in-progress: true
@@ -39,3 +39,38 @@ jobs:
             .cache/paddle-ocr/models/dictionary.json
             .cache/paddle-ocr/models/model-manifest.json
           retention-days: 7
+
+  windows:
+    needs: models
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: PaddleOCR-models
+          path: .cache/paddle-ocr/models
+      - uses: actions/cache@v4
+        with:
+          path: .cache/paddle-ocr/sdk
+          key: paddle-sdk-win-ncnn20261020-opencv38-json3120
+      - name: Build isolated CPU/Vulkan recognition engine
+        run: python scripts/paddle-ocr/build-runtime.py
+      - name: Test native OCR and dynamic image sizes
+        run: node scripts/paddle-ocr/test-native.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PaddleOCR-Windows
+          path: |
+            .cache/paddle-ocr/paddle-ocr-win-x64-v1.zip
+            .cache/paddle-ocr/download-manifest.json
+            test-results/paddle-ocr/
+          retention-days: 7
+      - name: Publish optional runtime component
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view paddle-ocr-runtime-v1 >/dev/null 2>&1 || gh release create paddle-ocr-runtime-v1 --prerelease --title "PaddleOCR local engine v1" --notes "Optional Windows x64 PaddleOCR text-recognition component with CPU and Vulkan support. Includes Latin language models and third-party license notices."
+          gh release upload paddle-ocr-runtime-v1 .cache/paddle-ocr/paddle-ocr-win-x64-v1.zip .cache/paddle-ocr/download-manifest.json --clobber
