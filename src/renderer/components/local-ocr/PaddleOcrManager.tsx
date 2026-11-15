@@ -1,4 +1,5 @@
-import {Alert,Anchor,Button,Group,Modal,NumberInput,Progress,Select,Stack,Text,Textarea} from '@mantine/core'
+import {AdaptiveModal as Modal} from '@/components/common/AdaptiveModal'
+import {Alert,Anchor,Button,Group,NumberInput,Progress,Select,Stack,Text,Textarea} from '@mantine/core'
 import {useEffect,useRef,useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import {PADDLE_OCR_MODEL,type PaddleOcrStatus} from '@shared/paddle-ocr'
