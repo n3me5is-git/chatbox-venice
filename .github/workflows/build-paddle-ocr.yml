@@ -1,0 +1,41 @@
+name: PaddleOCR native runtime
+on:
+  push:
+    branches: ['codex/paddle-ocr']
+    paths: ['native/paddle-ocr/**', 'scripts/paddle-ocr/**', '.github/workflows/build-paddle-ocr.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: paddle-runtime-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: models
+        with:
+          path: .cache/paddle-ocr/models
+          key: ppocr-v5-latin-f32-20261020-${{ hashFiles('scripts/paddle-ocr/export-models.py') }}
+      - uses: actions/setup-python@v5
+        if: steps.models.outputs.cache-hit != 'true'
+        with:
+          python-version: '3.11'
+      - name: Install model conversion tools on runner only
+        if: steps.models.outputs.cache-hit != 'true'
+        run: python -m pip install numpy==1.26.4 paddlepaddle==3.0.0 paddle2onnx==2.1.0 onnx==1.18.0 onnxruntime==1.22.1
+      - name: Export pinned detector and Latin recognizer
+        if: steps.models.outputs.cache-hit != 'true'
+        run: python scripts/paddle-ocr/export-models.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PaddleOCR-models
+          path: |
+            .cache/paddle-ocr/models/*.ncnn.param
+            .cache/paddle-ocr/models/*.ncnn.bin
+            .cache/paddle-ocr/models/dictionary.json
+            .cache/paddle-ocr/models/model-manifest.json
+          retention-days: 7
