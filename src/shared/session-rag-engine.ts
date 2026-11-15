@@ -1,3 +1,4 @@
+import {KNOWLEDGE_BASE_MAX_FILE_SIZE,KNOWLEDGE_SOURCE_TOO_LARGE} from './knowledge-base'
 import {ocrFallbackFingerprint} from './virtual-ocr'
 import {packRagShard,unpackRagShard} from './rag-vector-storage'
 import { RAG_ROOT, RAG_MAX_FILES, RAG_MAX_CHUNKS, RagIndexSchema, chunkRagText, cosine, normalizedVector, ragCitation, ragExcluded, type RagChunk, type RagFile, type RagIndex, type RagSettings } from './session-rag'
@@ -6,6 +7,8 @@ export interface RagSource {path:string;name?:string;mime:string;bytes?:number}
 export interface RagInput {text?:string;data?:Uint8Array;mime?:string}
 export interface RagExtracted{text?:string;media?:boolean;warning?:string;kind?:'parsed'|'ocr'|'transcript'|'description'|'metadata'}
 export interface RagEnginePort {
+  sourceMaxBytes?:number
+  hashSource?(bytes:Uint8Array):Promise<string>
   embeddingSpace?:string
   portableSpace?:string
   portableDescriptor?:Record<string,unknown>
@@ -22,6 +25,7 @@ function withoutPdfPolicy(raw:string){try{const value=JSON.parse(raw);if(!Array.
 export class SessionRagEngine {
   constructor(private port:RagEnginePort){}
   async index(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void=()=>{},rebuild=false){
+    const maximum=this.port.sourceMaxBytes??10*1024*1024;if(!Number.isSafeInteger(maximum)||maximum<1||maximum>KNOWLEDGE_BASE_MAX_FILE_SIZE)throw Error('Invalid knowledge source limit');const sizeError=maximum===KNOWLEDGE_BASE_MAX_FILE_SIZE?KNOWLEDGE_SOURCE_TOO_LARGE:'Session files must not exceed 10 MB'
     const stored=await this.port.get(RAG_ROOT+'index.json'),previous=stored?RagIndexSchema.parse(stored):null,fingerprint=ragFingerprint(settings),files:RagFile[]=[],errors:RagIndex['errors']=[],created:string[]=[],stats={embeddedChunks:0,reusedChunks:0,unchangedFiles:0}
     try{
       if(!rebuild&&previous?.fingerprint===fingerprint&&this.port.embeddingSpace&&previous.embeddingSpace!==this.port.embeddingSpace)throw Error('The embedding endpoint or index binding changed. Use Reindex to rebuild vectors; no provider calls were made.')
@@ -32,11 +36,11 @@ export class SessionRagEngine {
       for(const source of sources){if(ragExcluded(source.path,settings))continue;signal.throwIfAborted();await this.port.check();progress(source.path)
         let bytes:Uint8Array|undefined
         try{
-          if((source.bytes||0)>10*1024*1024)throw Error('Session files must not exceed 10 MB')
+          if((source.bytes||0)>maximum)throw Error(sizeError)
           const prior=reuseVectors?previous?.files.find(file=>file.path===source.path):undefined
           const reuseSourceExtraction=reuseExtraction||reuseNonPdfExtraction&&!(/\.pdf$/i.test(source.path)||/^application\/pdf(?:;|$)/i.test(source.mime))
           if(prior&&reuseSourceExtraction&&this.port.revision&&await this.port.revision(source.path)===prior.hash){await this.port.check();files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
-          bytes=await this.port.read(source.path);const hash=await ragHash(bytes)
+          bytes=await this.port.read(source.path);if(bytes.byteLength>maximum)throw Error(sizeError);const hash=await (this.port.hashSource||ragHash)(bytes)
           if(prior?.hash===hash&&reuseSourceExtraction){files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
           const extracted=await this.port.extract(source,bytes,settings,signal)
           const textParts=chunkRagText(extracted.text||'').map(part=>({...part,media:false})),parts=extracted.media?[{text:'',line:1,endLine:1,page:undefined as number|undefined,media:true},...textParts]:textParts

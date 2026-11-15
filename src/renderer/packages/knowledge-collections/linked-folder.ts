@@ -1,3 +1,4 @@
+import {readLinkedKnowledgeSource} from './linked-source'
 import type {FolderReply,FolderRequest} from '@shared/linked-folder'
 import {ragExcluded} from '@shared/session-rag'
 import {resourceMime} from '@shared/session-resources'
@@ -19,7 +20,7 @@ export async function refreshCollectionFolder(id:number,index=false,signal=new A
   const check=async()=>{signal.throwIfAborted();const status=await operation(id,'status');if(!status.linked||status.bindingId!==folder.bindingId)throw Error('Linked folder is unavailable or changed');if((await store.data(id)).folder?.bindingId!==folder.bindingId)throw Error('Linked folder changed')}
   await check();const reply:FolderReply=await operation(id,'list',{bindingId:folder.bindingId});if(!reply.linked||reply.bindingId!==folder.bindingId||!Array.isArray(reply.files)||reply.truncated||reply.skipped?.length)throw Error('Linked folder scan is incomplete; previous documents were kept')
   const rows=(reply.files||[]).filter(row=>{if(!row.bytes||ragExcluded(row.path,data.settings))return false;const mime=resourceMime(row.path);return mime.startsWith('image/')?data.settings.images||data.settings.ocr||data.settings.describeImages||data.settings.fileMetadata:mime.startsWith('audio/')?data.settings.audio||data.settings.stt:/\.(pdf|docx?|xlsx|pptx|epub|odt|ods|odp|rtf|html?|md|markdown|txt|csv|tsv|json|ya?ml|xml|js|jsx|ts|tsx|py|java|c|cpp|h|cs|go|rs|sh|ps1|sql|css|scss|toml|ini|log)$/i.test(row.path)})
-  const result=await store.syncFolder(id,folder.bindingId,rows,{check,read:async(path,hash)=>{const reply=await operation(id,'read',{bindingId:folder.bindingId,path,expectedVersion:hash});if(!reply.linked||reply.bindingId!==folder.bindingId||reply.version!==hash||reply.base64===undefined)throw Error('Linked source changed during refresh');return Uint8Array.from(atob(reply.base64),char=>char.charCodeAt(0))}},signal)
+  const result=await store.syncFolder(id,folder.bindingId,rows,{check,read:async(path,hash)=>{const row=rows.find(row=>row.path===path);if(!row||row.version!==hash)throw Error('Linked source changed during refresh');return readLinkedKnowledgeSource(row,folder.bindingId,(action,options)=>operation(id,action,options),signal)}},signal)
   if(index){await check();await store.index(id,undefined,false)}issues.delete(id);changed(id);return result
  }catch(error){issues.set(id,error instanceof Error?error.message:String(error));changed(id);throw error}
 }

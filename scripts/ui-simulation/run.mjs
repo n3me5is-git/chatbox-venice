@@ -1,3 +1,4 @@
+import {runKnowledgeFileLimits} from './run-knowledge-file-limits.mjs'
 import {runLocalOcr} from './run-local-ocr.mjs'
 import {runSessionRag} from './run-session-rag.mjs'
 import {runKnowledgeCollections} from './run-knowledge-collections.mjs'
@@ -161,6 +162,7 @@ try {
   await runSpeechReview({click,evaluate,wait,byText,byLabel,fill,cdp,delay,output})
   await runMediaArtifactsReview({click,evaluate,wait,byText,cdp,output})
   await runLocalOcr({click,evaluate,wait,byText,fill,cdp,output})
+  await runKnowledgeFileLimits({evaluate,output})
   assert.deepEqual(exceptions, [], 'Browser exceptions')
   const external = requests.filter(url => !/^(http:\/\/127\.0\.0\.1:4174\/|data:|blob:)/.test(url))
   assert.deepEqual(external, [], 'UI simulation made an unexpected external request')

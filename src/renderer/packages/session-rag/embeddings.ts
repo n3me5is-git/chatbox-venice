@@ -1,4 +1,5 @@
 import {stripImageMetadata} from '@shared/rag-file-metadata'
+import {RAG_INLINE_MEDIA_MAX_BYTES} from '@shared/session-rag'
 import { SystemProviders } from '@shared/defaults'
 import { ModelProviderType } from '@shared/types'
 import { normalizeOpenAIApiHostAndPath } from '@shared/utils/llm_utils'
@@ -45,6 +46,7 @@ async function mediaPart(input:RagInput,signal:AbortSignal){
 export async function requestRagEmbeddings(inputs:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal){
   const {definition,saved,host}=ragProvider(settings)
   try{
+    if(inputs.some(input=>input.data&&input.data.byteLength>RAG_INLINE_MEDIA_MAX_BYTES))throw Error('Direct media embeddings support up to 10 MB per source. Use OCR or transcription for larger documents.')
     inputs=inputs.map(input=>input.data&&input.mime?.startsWith('image/')?{...input,data:stripImageMetadata(input.data,input.mime)}:input)
     if(settings.provider==='venice'&&inputs.some(input=>input.text===undefined))throw Error('Venice embeddings require text. Enable OCR or transcription for media.')
     const extension=adapterFor(settings.provider,settings.model,definition.type)

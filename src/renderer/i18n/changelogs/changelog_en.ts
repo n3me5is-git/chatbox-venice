@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.49.1
+1. Add knowledge-collection sources up to 50 MB, including linked folders and backups
+2. Read and encrypt large sources in bounded chunks with final hash verification
+3. Parse Office documents in a read-only worker while preserving execution limits
+
 ## Chatbox Venice 1.49.0
 1. Choose any Vision model as virtual OCR, including custom providers
 2. Optionally use vision after empty local OCR or directly for handwriting and complex pages

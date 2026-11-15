@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.49.1
+1. Supporta sorgenti delle raccolte fino a 50 MB, incluse cartelle collegate e backup
+2. Legge e cifra i file grandi a blocchi, verificando il loro hash finale
+3. Elabora i documenti Office in un worker di sola lettura, mantenendo i limiti di esecuzione
+
 ## Chatbox Venice 1.49.0
 1. Scegli qualsiasi modello Vision come OCR virtuale, anche con provider personalizzati
 2. Usa facoltativamente vision dopo un OCR locale vuoto o direttamente per manoscritti e pagine complesse

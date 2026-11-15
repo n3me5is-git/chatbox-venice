@@ -32,6 +32,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Knowledge source boundaries, streamed encryption and native folder ranges
+        run: pnpm exec vitest run src/renderer/packages/knowledge-collections/source-bytes.test.ts src/renderer/packages/knowledge-collections/linked-source.test.ts src/renderer/packages/knowledge-collections/linked-folder.test.ts src/renderer/packages/session-rag/document-parser.test.ts src/renderer/packages/session-rag/text.test.ts src/shared/mobile-work/worker/knowledge-document.test.ts src/main/sandbox/linked-folder.test.ts
       - name: Desktop local OCR lifecycle, downloads and role routing
         run: pnpm exec vitest run src/shared/virtual-ocr.test.ts src/renderer/stores/session/ocr-helper.test.ts src/renderer/stores/session/ocr-vision-fallback.test.ts src/renderer/routes/settings/-modelRigSettings.test.ts src/main/local-ocr src/main/paddle-ocr src/shared/local-ocr.test.ts src/shared/knowledge-text-storage.test.ts src/renderer/packages/knowledge-collections/compressed-storage.benchmark.test.ts src/renderer/packages/paddle-ocr packages/chatbox-i18n/src/resources.test.ts src/renderer/packages/local-ocr src/renderer/components/local-ocr src/renderer/packages/session-rag/extract.test.ts
       - name: Independent compressed-text reader and Android plugin registration

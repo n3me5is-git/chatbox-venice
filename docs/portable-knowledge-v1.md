@@ -26,7 +26,7 @@ project/
         <12-digit-sequence>_<record-uuid>.commit
 ~~~
 
-The source scan is recursive, hashes actual bytes, rejects symlinks and excludes `.rag-collection`, `.chatbox`, `.git`, `node_modules` and `.venv` at every depth, followed by configured exclusions. Knowledge scans are bounded at 64 levels and 50,000 examined entries; an index supports 10,000 documents and 100,000 passages. Each source is at most 10 MiB and each path at most 240 characters. An incomplete, inaccessible or truncated scan is never treated as an empty deletion snapshot. Sources are read-only through the knowledge capability; write permission is narrowly restricted to the reserved database subtree.
+The source scan is recursive, hashes actual bytes, rejects symlinks and excludes `.rag-collection`, `.chatbox`, `.git`, `node_modules` and `.venv` at every depth, followed by configured exclusions. Knowledge scans are bounded at 64 levels and 50,000 examined entries; an index supports 10,000 documents and 100,000 passages. Each source is at most 50 MiB and each path at most 240 characters. An incomplete, inaccessible or truncated scan is never treated as an empty deletion snapshot. Sources are read-only through the knowledge capability; write permission is narrowly restricted to the reserved database subtree.
 
 A nested collection's database is excluded. Ordinary documents beneath a nested root are still part of a recursive parent scan unless that subtree is explicitly excluded. Mounting both can intentionally produce overlapping evidence; this is not automatic deduplication across distinct collections.
 
