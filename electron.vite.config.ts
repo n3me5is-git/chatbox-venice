@@ -249,6 +249,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     renderer: {
+      // Module workers use lazy Office parsers; production must preserve ESM chunks.
+      worker: { format: 'es' },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, 'src/renderer'),

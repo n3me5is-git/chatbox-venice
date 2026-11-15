@@ -236,6 +236,18 @@ jobs:
           node scripts/build-mobile-work-worker.cjs
           node scripts/prepare-python-test-assets.mjs
           node scripts/ui-simulation/run.mjs
+      - name: Production Office workers and dynamic parser chunks
+        if: ${{ !cancelled() && steps.ui_dependencies.outcome == 'success' }}
+        run: node scripts/knowledge-parser-build/run.mjs
+      - name: Save production parser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Knowledge-production-parser
+          path: test-results/knowledge-parser-build/report.json
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
       - name: Install local TURN fixture
         if: ${{ !cancelled() && steps.ui_dependencies.outcome == 'success' }}
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends coturn
