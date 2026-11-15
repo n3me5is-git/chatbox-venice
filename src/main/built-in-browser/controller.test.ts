@@ -916,6 +916,9 @@ describe('BuiltInBrowserController reads', () => {
 
     const read = controller.request(host as unknown as Host, 1, { kind: 'read', requestId: 'after-cancelled-upload' })
     await flush()
+    // File-check I/O can still own the request queue after cancellation replies.
+    // Complete the snapshot only once this read has actually reached the page.
+    await vi.waitFor(() => expect(contents.snapshots).toHaveLength(1), { timeout: 5000 })
     contents.finishSnapshot('Loaded.')
     await expect(read).resolves.toMatchObject({ userInteracted: true })
   })
@@ -944,6 +947,7 @@ describe('BuiltInBrowserController reads', () => {
 
     const read = controller.request(host as unknown as Host, 1, { kind: 'read', requestId: 'after-slow-check' })
     await flush()
+    await vi.waitFor(() => expect(contents.snapshots).toHaveLength(1), { timeout: 5000 })
     contents.finishSnapshot('Loaded.')
     await expect(read).resolves.toMatchObject({ userInteracted: true })
   })

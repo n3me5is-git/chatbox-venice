@@ -1,6 +1,8 @@
 # Vision models as OCR
 
-Global Settings → Default models → OCR and the session/collection RAG media panel accept **any configured model with the Vision capability**. This includes custom providers and local vision servers; the model does not need an OCR-specific name. Enable Vision in a custom model's provider configuration, then select it as the OCR role. Runtime capability validation rejects text-only targets.
+Global Settings → Default models → OCR and the session/collection RAG media panel accept **configured models with Vision whose provider transport supports image inputs**. This includes general vision models, custom providers and local vision servers; the model does not need an OCR-specific name. Enable Vision in a custom model's provider configuration, then select it as the OCR role. Runtime capability validation rejects text-only targets.
+
+The existing encrypted Venice adapter remains text-only and rejects image attachments, even when an encrypted variant advertises Vision in the provider catalog. It does not silently fall back to plaintext. Vision OCR currently requires a transport that accepts images, such as a standard Private Venice vision endpoint. Private and E2EE are different guarantees; the live OCR diagnostic did not test encrypted image inference.
 
 Vision OCR asks for a faithful transcription, preserving language, spelling, numbers and reading order, with `[illegible]` for unreadable text. It does not ask the model to repair or summarize a source. Image instructions are treated as untrusted data; search and tools are disabled. Like other generative extraction, transcription can still be wrong and should be checked against the original.
 

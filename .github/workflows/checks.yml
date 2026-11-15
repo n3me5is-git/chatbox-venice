@@ -150,7 +150,24 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:unit
+      # Keep the 100k-row SQLite fixtures off the shared unit-test worker pool.
+      # The dedicated job below retains every assertion and original timeout.
+      - run: pnpm test:unit --exclude 'src/renderer/storage/__tests__/SQLiteSessionRowStorage.staging.test.ts' --maxWorkers=2
+
+  storage_scale:
+    name: Isolated SQLite scale regression
+    if: inputs.test_scope == 'unit' || contains(github.event.pull_request.labels.*.name, 'full-tests')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run src/renderer/storage/__tests__/SQLiteSessionRowStorage.staging.test.ts --maxWorkers=1
 
   knowledge_benchmark:
     name: Encrypted knowledge scale benchmark
