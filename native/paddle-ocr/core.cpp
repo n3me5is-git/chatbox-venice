@@ -73,7 +73,25 @@ void Engine::recognize(const cv::Mat& image,Line& line){
 static void order(std::vector<Line>& lines,int depth=0){
  if(lines.size()<2||depth>20)return;
  float best=0;int axis=-1;float cut=0;std::vector<float> heights;for(const auto& line:lines)heights.push_back(std::min(line.rect.size.width,line.rect.size.height));std::sort(heights.begin(),heights.end());const float unit=std::max(3.f,heights[heights.size()/2]);
- for(int dimension:{0,1}){std::vector<std::pair<float,float>> spans;for(const auto& line:lines){auto b=line.rect.boundingRect2f();spans.push_back(dimension==0?std::make_pair(b.x,b.x+b.width):std::make_pair(b.y,b.y+b.height));}std::sort(spans.begin(),spans.end());float end=spans[0].second;for(size_t i=1;i<spans.size();i++){float gap=(spans[i].first-end)/unit,threshold=dimension==0?1.6f:1.0f;if(gap>threshold&&gap>best){best=gap;axis=dimension;cut=(end+spans[i].first)/2;}end=std::max(end,spans[i].second);}}
+ for(int dimension:{0,1}){
+  std::vector<std::pair<float,float>> spans;
+  for(const auto& line:lines){auto b=line.rect.boundingRect2f();spans.push_back(dimension==0?std::make_pair(b.x,b.x+b.width):std::make_pair(b.y,b.y+b.height));}
+  std::sort(spans.begin(),spans.end());float end=spans[0].second;
+  for(size_t i=1;i<spans.size();i++){
+   const float gap=(spans[i].first-end)/unit,candidate=(end+spans[i].first)/2;
+   bool eligible=true;
+   if(dimension==0){
+    // Narrow gutters in two-column prose can be smaller than one line height.
+    // Require paragraph-like lines on BOTH sides so sparse invoice/table cells
+    // keep their row order instead of becoming separate text columns.
+    int left=0,right=0;
+    for(const auto& line:lines){const auto b=line.rect.boundingRect2f();if(line.text.size()>=20&&b.width>=6*unit)(line.rect.center.x<candidate?left:right)++;}
+    eligible=left>=3&&right>=3;
+   }
+   if(eligible&&gap>(dimension==0?.65f:1.0f)&&gap>best){best=gap;axis=dimension;cut=candidate;}
+   end=std::max(end,spans[i].second);
+  }
+ }
  if(axis>=0){std::vector<Line> first,second;for(auto& line:lines)((axis==0?line.rect.center.x:line.rect.center.y)<cut?first:second).push_back(std::move(line));if(!first.empty()&&!second.empty()){order(first,depth+1);order(second,depth+1);lines=std::move(first);lines.insert(lines.end(),std::make_move_iterator(second.begin()),std::make_move_iterator(second.end()));return;}}
  std::stable_sort(lines.begin(),lines.end(),[unit](const Line&a,const Line&b){return std::floor(a.rect.center.y/unit)!=std::floor(b.rect.center.y/unit)?a.rect.center.y<b.rect.center.y:a.rect.center.x<b.rect.center.x;});
 }
