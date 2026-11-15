@@ -1,5 +1,7 @@
 // English source; other locales fall back to English.
 export const localOcrEnglish = {
+  "Local OCR request failed":"Local OCR request failed",
+  "Unable to release the local OCR worker":"Unable to release the local OCR worker",
   "Technical details":"Technical details",
   "Imported GGUF files are copied into the app model storage. The original files are not changed.":"Imported GGUF files are copied into the app model storage. The original files are not changed.",
   "Download model and required components":"Download model and required components",
@@ -74,6 +76,8 @@ export const localOcrEnglish = {
   "Invalid local OCR settings": "Invalid local OCR settings"
 }
 export const localOcrItalian = {
+  "Local OCR request failed":"Richiesta OCR locale non riuscita",
+  "Unable to release the local OCR worker":"Impossibile scaricare il motore OCR locale dalla memoria",
   "Technical details":"Dettagli tecnici",
   "Imported GGUF files are copied into the app model storage. The original files are not changed.":"I file GGUF importati vengono copiati nell’archivio modelli dell’app. I file originali non vengono modificati.",
   "Download model and required components":"Scarica modello e componenti necessari",

@@ -8,7 +8,7 @@ export const localOcrVariant = (id:string):LocalOcrVariant|undefined => (Object.
 export function validateLocalOcrConfig(input:unknown):LocalOcrConfig {
  const value=input as Partial<LocalOcrConfig>|null
  if(!value||!['cpu','vulkan'].includes(value.backend||'')||!Number.isInteger(value.threads)||value.threads!<1||value.threads!>32||!Number.isInteger(value.idleSeconds)||value.idleSeconds!<0||value.idleSeconds!>1800)throw Error('Invalid local OCR settings')
- return value as LocalOcrConfig
+ return {backend:value.backend!,threads:value.threads!,idleSeconds:value.idleSeconds!}
 }
 /** One bounded page of look-ahead; the current page can run on the native worker. */
 export async function* prefetchOcrPages<T>(pages:AsyncIterable<T>,signal:AbortSignal){
