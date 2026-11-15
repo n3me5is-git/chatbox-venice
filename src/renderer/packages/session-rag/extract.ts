@@ -1,3 +1,4 @@
+import {forkT as ft} from '@/i18n/fork'
 import {runOcrWithFallback,VIRTUAL_OCR_INSTRUCTION} from '@shared/virtual-ocr'
 import {isLocalOcrProvider} from '@shared/local-ocr'
 import {LOCAL_OCR_PROVIDER,prefetchOcrPages} from '@shared/local-ocr'
@@ -17,10 +18,12 @@ async function legacyDoc(bytes:Uint8Array,signal:AbortSignal):Promise<string>{
   const worker=new Worker(new URL('./legacy-doc-worker.ts',import.meta.url),{type:'module'})
   return new Promise((resolve,reject)=>{let timeout:ReturnType<typeof setTimeout>;const finish=(error?:Error,text?:string)=>{clearTimeout(timeout);signal.removeEventListener('abort',abort);worker.terminate();error?reject(error):resolve(text!)};const abort=()=>finish(new DOMException('Aborted','AbortError'));worker.onmessage=event=>event.data.error?finish(Error(event.data.error)):finish(undefined,event.data.text);worker.onerror=()=>finish(Error('Local Word parsing failed'));timeout=setTimeout(()=>finish(Error('Local Word parsing timed out')),20000);signal.addEventListener('abort',abort,{once:true});if(signal.aborted){abort();return}const copy=Uint8Array.from(bytes);worker.postMessage(copy,[copy.buffer])})
 }
-export async function ragOcr(dataUrl:string,settings:RagSettings,signal:AbortSignal,onFallback?:()=>void):Promise<string>{
-  if(isLocalOcrProvider(settings.ocrProvider)&&settings.ocrVisionFallback?.mode&&settings.ocrVisionFallback.mode!=='off'){
+export async function ragOcr(dataUrl:string,settings:RagSettings,signal:AbortSignal,onFallback?:()=>void,authorize?:()=>Promise<void>):Promise<string>{
+  signal.throwIfAborted();await authorize?.();signal.throwIfAborted()
+  if(isLocalOcrProvider(settings.ocrProvider)&&settings.describeImages)throw Error(settings.ocrProvider===PADDLE_OCR_PROVIDER?'Local PaddleOCR supports text recognition only':'Local MiniCPM supports OCR only')
+  if(settings.ocr&&isLocalOcrProvider(settings.ocrProvider)&&settings.ocrVisionFallback?.mode&&settings.ocrVisionFallback.mode!=='off'){
     const fallback=settings.ocrVisionFallback
-    return runOcrWithFallback(()=>ragOcr(dataUrl,{...settings,ocrVisionFallback:undefined},signal),()=>ragOcr(dataUrl,{...settings,ocrVisionFallback:undefined,ocrProvider:fallback.provider,ocrModel:fallback.model},signal),{provider:settings.ocrProvider,fallback,signal,text:value=>value,onFallback})
+    return runOcrWithFallback(()=>ragOcr(dataUrl,{...settings,ocrVisionFallback:undefined},signal,undefined,authorize),()=>ragOcr(dataUrl,{...settings,ocrVisionFallback:undefined,ocrProvider:fallback.provider,ocrModel:fallback.model},signal,undefined,authorize),{provider:settings.ocrProvider,fallback,signal,text:value=>value,onFallback})
   }
   if(!settings.ocrProvider||!settings.ocrModel)throw Error('Choose an OCR model first')
   if(settings.ocrProvider===PADDLE_OCR_PROVIDER){if(settings.describeImages)throw Error('Local PaddleOCR supports text recognition only');const {recognizePaddle}=await import('@/packages/paddle-ocr/client');return recognizePaddle(settings.ocrModel,dataUrl,signal).catch(error=>{throw Object.assign(error instanceof Error?error:Error(String(error)),{fatal:true})})}
@@ -32,9 +35,9 @@ export async function ragOcr(dataUrl:string,settings:RagSettings,signal:AbortSig
   const result=await model.chat([{role:'system',content:instruction},{role:'user',content:[{type:'image',image:dataUrl}]}],{signal,maxSteps:1,tools:{}}).catch(error=>{throw Object.assign(error instanceof Error?error:Error(String(error)),{fatal:true})})
   signal.throwIfAborted();const text=result.contentParts.filter(part=>part.type==='text').map(part=>part.text).join('\n');if(!settings.describeImages)return text;const parsed=z.object({text:z.string().max(512000),description:z.string().max(2000)}).strict().parse(parseKnowledgeJson(text));return [settings.ocr?parsed.text:'',parsed.description?'## AI visual description (inferred; verify against the original image)\nAI-generated visual description (inferred): '+parsed.description.slice(0,900):''].filter(Boolean).join('\n\n')
 }
-async function extractCore(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal,onFallback:()=>void):Promise<RagExtracted>{
+async function extractCore(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal,onFallback:()=>void,authorize?:()=>Promise<void>):Promise<RagExtracted>{
   const file=new File([Uint8Array.from(bytes)],source.path.split('/').pop()!,{type:source.mime})
-  if(source.mime.startsWith('image/')){if(settings.describeImages)return {media:settings.images||undefined,text:await ragOcr('data:'+source.mime+';base64,'+base64(stripImageMetadata(bytes,source.mime)),settings,signal,onFallback),kind:settings.ocr?'ocr':'description'};if(settings.images)return {media:true};if(settings.ocr)return {text:await ragOcr('data:'+source.mime+';base64,'+base64(stripImageMetadata(bytes,source.mime)),settings,signal,onFallback),kind:'ocr'};return {}}
+  if(source.mime.startsWith('image/')){if(settings.describeImages)return {media:settings.images||undefined,text:await ragOcr('data:'+source.mime+';base64,'+base64(stripImageMetadata(bytes,source.mime)),settings,signal,onFallback,authorize),kind:settings.ocr?'ocr':'description'};if(settings.images)return {media:true};if(settings.ocr)return {text:await ragOcr('data:'+source.mime+';base64,'+base64(stripImageMetadata(bytes,source.mime)),settings,signal,onFallback,authorize),kind:'ocr'};return {}}
   if(source.mime.startsWith('audio/')){if(settings.audio)return {media:true};if(settings.stt){const {transcribeKnowledgeAudio}=await import('@/packages/knowledge-collections/stt');return {text:await transcribeKnowledgeAudio(file,settings,signal),kind:'transcript'}}return {}}
   if(/\.pdf$/i.test(source.path)||/^application\/pdf(?:;|$)/i.test(source.mime)){
     const metadata:Record<string,string>={}
@@ -49,7 +52,7 @@ async function extractCore(source:RagSource,bytes:Uint8Array,settings:RagSetting
     const missing=hasText?new Set([...content].filter(([,value])=>!value).map(([page])=>page)):undefined
     if(hasText&&!missing?.size&&!settings.describeImages)return {text:withMetadata(text)}
     const {pdfPagesForOcr}=await import('@/packages/pdf-parser')
-    for await(const page of prefetchOcrPages(pdfPagesForOcr(file,signal,settings.describeImages?undefined:missing),signal)){const existing=content.get(page.page)||'',visual=await ragOcr(page.dataUrl,{...settings,ocr:settings.ocr&&!existing.trim()},signal,onFallback);content.set(page.page,[existing,visual].filter(Boolean).join('\n\n'))}
+    for await(const page of prefetchOcrPages(pdfPagesForOcr(file,signal,settings.describeImages?undefined:missing),signal)){const existing=content.get(page.page)||'',visual=await ragOcr(page.dataUrl,{...settings,ocr:settings.ocr&&!existing.trim()},signal,onFallback,authorize);content.set(page.page,[existing,visual].filter(Boolean).join('\n\n'))}
     return {kind:settings.ocr?'ocr':'description',text:withMetadata([...content].sort((a,b)=>a[0]-b[0]).map(([page,value])=>'==== Page '+page+' ====\n'+value).join('\n\n'))}
   }
   if(/\.doc$/i.test(source.path))return {text:await legacyDoc(bytes,signal)}
@@ -59,4 +62,4 @@ async function extractCore(source:RagSource,bytes:Uint8Array,settings:RagSetting
   try{const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);if(text.includes('\0'))return {};return {text}}catch{return {}}
 }
 
-export async function extractRagSource(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal):Promise<RagExtracted>{let usedFallback=false;const result=await extractCore(source,bytes,settings,signal,()=>{usedFallback=true});signal.throwIfAborted();if(usedFallback)result.warning=[result.warning,'Vision OCR fallback used: '+settings.ocrVisionFallback!.provider+' / '+settings.ocrVisionFallback!.model+'. Verify transcription against the original.'].filter(Boolean).join(' ').slice(0,500);if(!settings.fileMetadata||/\.pdf$/i.test(source.path)||/^application\/pdf(?:;|$)/i.test(source.mime))return result;const metadata=source.mime.startsWith('image/')?imageFileMetadata(bytes,settings.locationMetadata):{};return {...result,kind:result.kind||(result.text?'parsed':'metadata'),text:[result.text,fileMetadataText({...source,bytes:bytes.length},metadata)].filter(Boolean).join('\n\n')}}
+export async function extractRagSource(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal,authorize?:()=>Promise<void>):Promise<RagExtracted>{let usedFallback=false;const result=await extractCore(source,bytes,settings,signal,()=>{usedFallback=true},authorize);signal.throwIfAborted();if(usedFallback)result.warning=[result.warning,ft('Vision OCR fallback used: {{provider}} / {{model}}. Verify transcription against the original.',{provider:settings.ocrVisionFallback!.provider,model:settings.ocrVisionFallback!.model})].filter(Boolean).join(' ').slice(0,500);if(!settings.fileMetadata||/\.pdf$/i.test(source.path)||/^application\/pdf(?:;|$)/i.test(source.mime))return result;const metadata=source.mime.startsWith('image/')?imageFileMetadata(bytes,settings.locationMetadata):{};return {...result,kind:result.kind||(result.text?'parsed':'metadata'),text:[result.text,fileMetadataText({...source,bytes:bytes.length},metadata)].filter(Boolean).join('\n\n')}}

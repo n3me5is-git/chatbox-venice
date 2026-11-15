@@ -10,7 +10,7 @@ export interface RagEnginePort {
   portableSpace?:string
   portableDescriptor?:Record<string,unknown>
   list():Promise<RagSource[]>;read(path:string):Promise<Uint8Array>;get(path:string):Promise<unknown|null>;put(path:string,value:unknown):Promise<void>;remove(path:string):Promise<void>
-  extract(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal):Promise<RagExtracted>
+  extract(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal,authorize?:()=>Promise<void>):Promise<RagExtracted>
   embed(input:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal):Promise<number[][]>
   revision?(path:string):Promise<string|null>
   check():Promise<void>

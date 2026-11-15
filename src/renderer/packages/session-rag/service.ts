@@ -23,7 +23,7 @@ export async function loadRagSettings(id:string):Promise<RagSettings>{
   const saved=await get(id,RAG_ROOT+'settings.json');if(saved)return RagSettingsSchema.parse(saved)
   return defaultRagSettings()
 }
-const consent=(settings:RagSettings)=>{const value={...settings};if(!(settings.ocr&&settings.pdfOcrMode==='all'))delete (value as Partial<RagSettings>).pdfOcrMode;if(!ocrFallbackFingerprint(settings).length)delete value.ocrVisionFallback;return JSON.stringify(value)}
+const consent=(settings:RagSettings)=>{const value=RagSettingsSchema.parse(settings);if(!(settings.ocr&&settings.pdfOcrMode==='all'))delete (value as Partial<RagSettings>).pdfOcrMode;if(!ocrFallbackFingerprint(settings).length)delete value.ocrVisionFallback;return JSON.stringify(value)}
 export async function ragAuthorized(id:string,settings:RagSettings){const saved=await vault().db.getSetting('rag:consent:'+id);return settings.enabled&&(saved===consent(settings)||!(settings.ocr&&settings.pdfOcrMode==='all')&&saved===JSON.stringify(settings))}
 async function put(id:string,path:string,value:unknown){const bytes=new TextEncoder().encode(JSON.stringify(value));try{await sessionFiles.write(id,path,bytes,{mime:'application/json',deliverable:false,managed:true})}finally{bytes.fill(0)}}
 export async function configureRag(id:string,input:RagSettings){
@@ -50,7 +50,7 @@ async function engine(id:string,settings:RagSettings){
     read:async path=>{await check();const file=(snapshot||(await listSessionResources(id)).items).find(file=>file.path===path);if(!file)throw Error('Session file not found');const header=file.key&&!file.key.startsWith('linked:')?await vault().assets.header(file.key):null;if(!canIndexRagScope(await vault().projects.sessionScope(id)||undefined,header?.scope))throw Error('This protected source belongs to another privacy scope and is excluded from RAG');if(file.key?.startsWith('linked:'))return (await (await import('@/packages/session-resources/linked-folder')).readMounted(file.key))!;return (await readSessionResource(id,file)).bytes},
     get:path=>get(id,path),put:(path,value)=>put(id,path,value),
     remove:async path=>{const file=(await sessionFiles.list(id,true)).find(file=>file.path===path);if(file)await sessionFiles.remove(id,file.id,[],true)},
-    extract:extractRagSource,
+    extract:(source,bytes,cfg,signal)=>extractRagSource(source,bytes,cfg,signal,check),
     embed:async(input,query,cfg,signal)=>{await check();const result=await requestRagEmbeddings(input,query,cfg,signal);await check();return result},
   }
   await check();return new SessionRagEngine(port)
