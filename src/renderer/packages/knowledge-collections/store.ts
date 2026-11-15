@@ -104,7 +104,7 @@ export class KnowledgeCollections {
     const check=async()=>{signal.throwIfAborted();await this.assert(id);await port.check();signal.throwIfAborted()}
     try{await check();const entry=await this.assert(id)
       for(const row of rows){await check();const old=previous.get(row.path);previous.delete(row.path);if(old&&await this.fileRevision(id,old)===row.version){files.push(old);unchanged++;continue}
-        const bytes=await port.read(row.path,row.version);try{await check();if(bytes.length!==row.bytes||await knowledgeSourceHash(bytes)!==row.version)throw Error('Linked source changed during refresh');let fileId=old?.id||identity();while(!old&&ids.has(fileId))fileId++;ids.add(fileId)
+        const bytes=await port.read(row.path,row.version);try{await check();if(bytes.length!==row.bytes||await knowledgeSourceHash(bytes,signal)!==row.version)throw Error('Linked source changed during refresh');let fileId=old?.id||identity();while(!old&&ids.has(fileId))fileId++;ids.add(fileId)
           const alias=prefix(id)+'source:'+fileId+':'+crypto.randomUUID(),name=row.path.split('/').at(-1)!,mime=resourceMime(name),ref=await (await this.assets(id)).put((async function*(){yield bytes})(),{name,mime,kind:'document',hidden:true,sourceId:alias},entry.scope,alias,signal);created.push(ref);const header=await (await this.assets(id)).header(ref);if(!header)throw Error('Knowledge document is unavailable')
           files.push({id:fileId,path:old?.path||'documents/'+fileId+'/'+name.slice(-180),name,mime,bytes:bytes.length,alias,createdAt:old?.createdAt||Date.now(),hash:row.version,assetId:header.id,linkedPath:row.path});if(old){retired.push(old.alias);changed++}else added++
         }finally{bytes.fill(0)}

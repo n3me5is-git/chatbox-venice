@@ -8,7 +8,7 @@ export interface RagInput {text?:string;data?:Uint8Array;mime?:string}
 export interface RagExtracted{text?:string;media?:boolean;warning?:string;kind?:'parsed'|'ocr'|'transcript'|'description'|'metadata'}
 export interface RagEnginePort {
   sourceMaxBytes?:number
-  hashSource?(bytes:Uint8Array):Promise<string>
+  hashSource?(bytes:Uint8Array,signal?:AbortSignal):Promise<string>
   embeddingSpace?:string
   portableSpace?:string
   portableDescriptor?:Record<string,unknown>
@@ -40,7 +40,7 @@ export class SessionRagEngine {
           const prior=reuseVectors?previous?.files.find(file=>file.path===source.path):undefined
           const reuseSourceExtraction=reuseExtraction||reuseNonPdfExtraction&&!(/\.pdf$/i.test(source.path)||/^application\/pdf(?:;|$)/i.test(source.mime))
           if(prior&&reuseSourceExtraction&&this.port.revision&&await this.port.revision(source.path)===prior.hash){await this.port.check();files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
-          bytes=await this.port.read(source.path);if(bytes.byteLength>maximum)throw Error(sizeError);const hash=await (this.port.hashSource||ragHash)(bytes)
+          bytes=await this.port.read(source.path);if(bytes.byteLength>maximum)throw Error(sizeError);const hash=this.port.hashSource?await this.port.hashSource(bytes,signal):await ragHash(bytes)
           if(prior?.hash===hash&&reuseSourceExtraction){files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
           const extracted=await this.port.extract(source,bytes,settings,signal)
           const textParts=chunkRagText(extracted.text||'').map(part=>({...part,media:false})),parts=extracted.media?[{text:'',line:1,endLine:1,page:undefined as number|undefined,media:true},...textParts]:textParts

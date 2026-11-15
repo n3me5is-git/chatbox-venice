@@ -16,3 +16,4 @@ it('preserves small File-like adapters while requiring bounded reads for large o
  const source=knowledgeFileSource({size:3,arrayBuffer:async()=>new Uint8Array([1,2,3]).buffer} as Blob,async()=>{});for await(const _ of source.chunks){}expect(source.digest()).toBe(bytesToHex(sha256(new Uint8Array([1,2,3]))));const large=knowledgeFileSource({size:CHUNK+1,arrayBuffer:vi.fn()} as Blob,async()=>{});await expect(large.chunks.next()).rejects.toThrow('bounded reads')
 })
 it('matches native digest conventions without allocating a source-sized copy',async()=>{const bytes=new Uint8Array(CHUNK+1).fill(42);expect(await knowledgeSourceHash(bytes)).toBe(bytesToHex(sha256(bytes)));expect(bytes.at(-1)).toBe(42)})
+it('responds to cancellation while hashing a large source',async()=>{const controller=new AbortController(),pending=knowledgeSourceHash(new Uint8Array(8*CHUNK),controller.signal);controller.abort();await expect(pending).rejects.toMatchObject({name:'AbortError'})})

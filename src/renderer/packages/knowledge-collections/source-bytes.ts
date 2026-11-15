@@ -16,9 +16,11 @@ export function knowledgeFileSource(file:Blob,check:()=>Promise<void>){
 
 /** Hash the existing view without duplicating a 50 MiB source. Yield between
  * groups of chunks so the UI can process cancellation and lock events. */
-export async function knowledgeSourceHash(bytes:Uint8Array){
+export async function knowledgeSourceHash(bytes:Uint8Array,signal?:AbortSignal){
+ signal?.throwIfAborted()
  if(bytes.length>KNOWLEDGE_BASE_MAX_FILE_SIZE)throw Error(KNOWLEDGE_SOURCE_TOO_LARGE)
  const hash=sha256.create()
- for(let offset=0;offset<bytes.length;offset+=KNOWLEDGE_SOURCE_CHUNK_BYTES){hash.update(bytes.subarray(offset,offset+KNOWLEDGE_SOURCE_CHUNK_BYTES));if(offset&&offset%(4*KNOWLEDGE_SOURCE_CHUNK_BYTES)===0)await new Promise<void>(resolve=>setTimeout(resolve,0))}
+ for(let offset=0;offset<bytes.length;offset+=KNOWLEDGE_SOURCE_CHUNK_BYTES){signal?.throwIfAborted();hash.update(bytes.subarray(offset,offset+KNOWLEDGE_SOURCE_CHUNK_BYTES));if(offset&&offset%(4*KNOWLEDGE_SOURCE_CHUNK_BYTES)===0)await new Promise<void>(resolve=>setTimeout(resolve,0))}
+ signal?.throwIfAborted()
  return bytesToHex(hash.digest())
 }
