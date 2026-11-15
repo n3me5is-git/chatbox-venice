@@ -127,6 +127,7 @@ describe('model rig slot settings', () => {
       threadNamingModel: undefined,
       searchTermConstructionModel: undefined,
       ocrModel: undefined,
+      ocrVisionFallback: undefined,
       defaultEmbeddingModel: undefined,
       defaultRerankModel: undefined,
       defaultVirtualRerankModel: undefined,

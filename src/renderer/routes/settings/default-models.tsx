@@ -2,6 +2,8 @@ import {PADDLE_OCR_PROVIDER,PADDLE_OCR_MODEL} from '@shared/paddle-ocr'
 import {paddleOcrStatus} from '@/packages/paddle-ocr/client'
 import {LOCAL_OCR_PROVIDER,LOCAL_OCR_MODELS} from '@shared/local-ocr'
 import {localOcrStatus} from '@/packages/local-ocr/client'
+import {isLocalOcrProvider} from '@shared/local-ocr'
+import {OcrVisionFallbackSettings} from '@/components/local-ocr/OcrVisionFallbackSettings'
 import {OcrModelSelector} from '@/components/local-ocr/OcrModelSelector'
 import {KnowledgeModelDefaults} from '@/components/knowledge-base/KnowledgeModelDefaults'
 /** biome-ignore-all lint/style/noNonNullAssertion: auto-text fallbacks are always defined for these selectors */
@@ -507,6 +509,7 @@ function SlotCard(props: {
         <SlotStatus result={props.result} connection={isConnectionCheck(props.slotId, selection, props.parser)} />
       </Flex>}
 
+      {props.slotId==='ocr'&&isLocalOcrProvider(selection?.provider)&&<OcrVisionFallbackSettings value={settings.ocrVisionFallback} onChange={ocrVisionFallback=>settingsStore.getState().setSettings({ocrVisionFallback})}/>}
       <Text size="xs" c="chatbox-tertiary">
         {t(
           sourceForSlot(

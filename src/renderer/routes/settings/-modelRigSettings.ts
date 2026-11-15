@@ -126,6 +126,7 @@ export function applyAllPresetsSettings(): Pick<
   | 'threadNamingModel'
   | 'searchTermConstructionModel'
   | 'ocrModel'
+  | 'ocrVisionFallback'
   | 'defaultEmbeddingModel'
   | 'defaultRerankModel'
   | 'defaultVirtualRerankModel'
@@ -139,6 +140,7 @@ export function applyAllPresetsSettings(): Pick<
     threadNamingModel: undefined,
     searchTermConstructionModel: undefined,
     ocrModel: undefined,
+    ocrVisionFallback: undefined,
     defaultEmbeddingModel: undefined,
     defaultRerankModel: undefined,
     defaultVirtualRerankModel: undefined,

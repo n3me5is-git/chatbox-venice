@@ -33,7 +33,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Desktop local OCR lifecycle, downloads and role routing
-        run: pnpm exec vitest run src/main/local-ocr src/main/paddle-ocr src/shared/local-ocr.test.ts src/shared/knowledge-text-storage.test.ts src/renderer/packages/knowledge-collections/compressed-storage.benchmark.test.ts src/renderer/packages/paddle-ocr packages/chatbox-i18n/src/resources.test.ts src/renderer/packages/local-ocr src/renderer/components/local-ocr src/renderer/packages/session-rag/extract.test.ts
+        run: pnpm exec vitest run src/shared/virtual-ocr.test.ts src/renderer/stores/session/ocr-helper.test.ts src/renderer/stores/session/ocr-vision-fallback.test.ts src/renderer/routes/settings/-modelRigSettings.test.ts src/main/local-ocr src/main/paddle-ocr src/shared/local-ocr.test.ts src/shared/knowledge-text-storage.test.ts src/renderer/packages/knowledge-collections/compressed-storage.benchmark.test.ts src/renderer/packages/paddle-ocr packages/chatbox-i18n/src/resources.test.ts src/renderer/packages/local-ocr src/renderer/components/local-ocr src/renderer/packages/session-rag/extract.test.ts
       - name: Independent compressed-text reader and Android plugin registration
         run: node --test scripts/portable-knowledge/text-codec.test.mjs scripts/configure-fork-android.test.mjs
       - name: Concise user-facing release notes
@@ -150,7 +150,24 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:unit
+      # Keep the 100k-row SQLite fixtures off the shared unit-test worker pool.
+      # The dedicated job below retains every assertion and original timeout.
+      - run: pnpm test:unit --exclude 'src/renderer/storage/__tests__/SQLiteSessionRowStorage.staging.test.ts' --maxWorkers=2
+
+  storage_scale:
+    name: Isolated SQLite scale regression
+    if: inputs.test_scope == 'unit' || contains(github.event.pull_request.labels.*.name, 'full-tests')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run src/renderer/storage/__tests__/SQLiteSessionRowStorage.staging.test.ts --maxWorkers=1
 
   knowledge_benchmark:
     name: Encrypted knowledge scale benchmark

@@ -1,3 +1,4 @@
+import {runOcrWithFallback,activeOcrFallback,validateOcrFallback,VIRTUAL_OCR_INSTRUCTION} from '@shared/virtual-ocr'
 import {LOCAL_OCR_PROVIDER} from '@shared/local-ocr'
 import {PADDLE_OCR_PROVIDER} from '@shared/paddle-ocr'
 import {paddleOcrModel} from '@/packages/paddle-ocr/model'
@@ -32,13 +33,17 @@ export function getOCRModel(
   if (hasUserOcrModel) {
     // User has explicitly configured an OCR model — always respect their choice
     const ocrModelSetting = globalSettings.ocrModel!
-    if(ocrModelSetting.provider===PADDLE_OCR_PROVIDER)return {model:paddleOcrModel(ocrModelSetting.model),providerName:'PaddleOCR · Local'}
-    if(ocrModelSetting.provider===LOCAL_OCR_PROVIDER)return {model:localOcrModel(ocrModelSetting.model),providerName:'MiniCPM-OCR · Local'}
-    const modelSettings = getModelSettings(globalSettings, ocrModelSetting.provider, ocrModelSetting.model)
-    return {
-      model: getModel(modelSettings, globalSettings, configs, dependencies),
-      providerName: ocrModelSetting.provider,
+    const vision=(provider:string,modelId:string)=>{
+      const selected=getModelSettings(globalSettings,provider,modelId)
+      const model=getModel({...selected,temperature:0,maxTokens:4096,subscriptionWebSearch:false,veniceProfile:{webSearch:'off',webSearchEnabled:false,xSearch:false,webScraping:false}},globalSettings,configs,dependencies)
+      if(!model.isSupportVision())throw Error('Choose a vision model for OCR')
+      return model
     }
+    const primary=ocrModelSetting.provider===PADDLE_OCR_PROVIDER?paddleOcrModel(ocrModelSetting.model):ocrModelSetting.provider===LOCAL_OCR_PROVIDER?localOcrModel(ocrModelSetting.model):vision(ocrModelSetting.provider,ocrModelSetting.model)
+    const fallback=activeOcrFallback(ocrModelSetting.provider,globalSettings.ocrVisionFallback)
+    validateOcrFallback(ocrModelSetting.provider,fallback)
+    const model:ModelInterface=fallback?{...primary,chat:(messages,options)=>runOcrWithFallback(()=>primary.chat(messages,options),()=>vision(fallback.provider,fallback.model).chat(messages,{...options,maxSteps:1,tools:{}}),{provider:ocrModelSetting.provider,fallback,signal:options.signal,text:result=>result.contentParts.filter(p=>p.type==='text').map(p=>p.text).join('')})}:primary
+    return {model,providerName:primary.name||ocrModelSetting.provider}
   }
 
   // Fallback to Chatbox AI built-in OCR model
@@ -57,8 +62,10 @@ export function getOCRModel(
 export async function ocrImagesInMessages(
   messages: Message[],
   ocrModel: ModelInterface,
-  sessionId: string
+  sessionId: string,
+  signal?:AbortSignal
 ): Promise<void> {
+  signal?.throwIfAborted()
   const imageParts: Array<{ storageKey: string; part: Message['contentParts'][number] & { type: 'image' } }> = []
   for (const msg of messages) {
     for (const part of msg.contentParts) {
@@ -75,7 +82,9 @@ export async function ocrImagesInMessages(
   await pMap(
     imageParts,
     async ({ storageKey, part }) => {
+      signal?.throwIfAborted()
       const imageData = await dependencies.storage.getImage(storageKey)
+      signal?.throwIfAborted()
       if (!imageData) return
 
       const ocrMsg: ModelMessage = {
@@ -83,16 +92,13 @@ export async function ocrImagesInMessages(
         content: [
           {
             type: 'text',
-            text: [
-              'OCR the following image into Markdown.',
-              'Tables should be formatted as HTML.',
-              'Do not surround your output with triple backticks.',
-            ].join(' '),
+            text: VIRTUAL_OCR_INSTRUCTION,
           },
           { type: 'image' as const, image: imageData },
         ],
       }
-      const chatResult = await ocrModel.chat([ocrMsg], { sessionId })
+      const chatResult = await ocrModel.chat([ocrMsg], { sessionId, maxSteps:1, tools:{},...(signal?{signal}:{}) })
+      signal?.throwIfAborted()
       const text = chatResult.contentParts
         .filter((p) => p.type === 'text')
         .map((p) => p.text)
@@ -100,6 +106,6 @@ export async function ocrImagesInMessages(
 
       part.ocrResult = text
     },
-    { concurrency: ocrModel.name==='MiniCPM-OCR · Local'?1:3 }
+    { concurrency: ocrModel.name==='MiniCPM-OCR · Local'?1:3,...(signal?{signal}:{}) }
   )
 }

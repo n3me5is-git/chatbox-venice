@@ -1,5 +1,14 @@
 // Shared by desktop and Android; every other locale uses the English fallback.
 export const paddleOcrItalian={
+ 'Choose a vision model (virtual OCR)':'Scegli un modello vision (OCR virtuale)',
+ 'Any model with Vision can transcribe images; a dedicated OCR model is not required. For custom models, enable the Vision capability in provider settings. Images are processed by the selected provider.':'Qualsiasi modello con capacità Vision può trascrivere le immagini: non serve un modello OCR dedicato. Per i modelli personalizzati, abilita Vision nelle impostazioni del provider. Le immagini vengono elaborate dal provider selezionato.',
+ 'Vision fallback for local OCR':'Vision di riserva per OCR locale',
+ 'Off — local OCR only':'Disattivato — solo OCR locale',
+ 'When local OCR finds no text':'Quando l’OCR locale non trova testo',
+ 'Always use vision (handwriting or complex pages)':'Usa sempre vision (manoscritto o pagine complesse)',
+ 'Images and PDF pages may be sent to the vision provider selected below. This is independent of the chat model. Local OCR does not reliably detect handwriting or confidently wrong text; use Always for those documents. Engine errors and cancellation never trigger an upload.':'Immagini e pagine PDF possono essere inviate al provider vision scelto qui sotto, indipendentemente dal modello della chat. L’OCR locale non rileva in modo affidabile il manoscritto o il testo errato riconosciuto con sicurezza: per questi documenti scegli Sempre. Gli errori del motore e l’annullamento non attivano mai l’invio.',
+ 'Choose a vision model for the OCR fallback':'Scegli un modello vision di riserva per l’OCR',
+ 'Vision OCR fallback used: {{provider}} / {{model}}. Verify transcription against the original.':'Usato OCR vision di riserva: {{provider}} / {{model}}. Verifica la trascrizione sull’originale.',
  'Local PaddleOCR':'PaddleOCR locale',
  'Fast local text recognition for Latin languages, including Italian and English. Images and PDF pages stay on this device. Installation downloads public components from GitHub.':'Riconoscimento rapido del testo nelle lingue latine, compresi italiano e inglese. Immagini e pagine PDF restano su questo dispositivo. L’installazione scarica componenti pubblici da GitHub.',
  'Detects text regions and preserves geometric reading order. This option does not include PP-Structure table reconstruction, formula recognition or AI image descriptions.':'Rileva le aree di testo e ne ricostruisce geometricamente l’ordine di lettura. Questa opzione non include la ricostruzione delle tabelle di PP-Structure, il riconoscimento delle formule o le descrizioni delle immagini tramite IA.',
