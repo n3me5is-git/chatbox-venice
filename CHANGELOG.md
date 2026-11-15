@@ -1,5 +1,12 @@
 # Changelog — Chatbox Venice
 
+## 1.49.1
+
+- Support knowledge-collection sources up to 50 MB across uploads, linked folders, replacement and backup/restore.
+- Stream source ingestion and use bounded, hash-verified native folder reads.
+- Use a dedicated binary document parser while retaining resource and execution limits.
+- Update English and Italian file-limit guidance.
+
 ## 1.49.0
 
 - Virtual OCR selection for any configured Vision model, including custom providers.

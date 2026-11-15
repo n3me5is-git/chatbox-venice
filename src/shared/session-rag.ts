@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {OcrVisionFallbackSchema} from './virtual-ocr'
 import { recursiveRagChunks } from './rag-chunker'
 export const RAG_MAX_FILES=10000, RAG_MAX_CHUNKS=100000
+export const RAG_INLINE_MEDIA_MAX_BYTES=10*1024*1024
 export const RAG_ROOT='.chatbox/rag/'
 export const RagSettingsSchema=z.object({version:z.literal(1).default(1),enabled:z.boolean().default(false),provider:z.string().default(''),model:z.string().default(''),auto:z.boolean().default(false),images:z.boolean().default(false),audio:z.boolean().default(false),ocr:z.boolean().default(false),pdfOcrMode:z.enum(['scanned','all']).default('scanned'),ocrReasoning:z.enum(['auto','concise']).default('auto'),describeImages:z.boolean().default(false),fileMetadata:z.boolean().default(false),locationMetadata:z.boolean().default(false),ocrProvider:z.string().default(''),ocrModel:z.string().default(''),ocrVisionFallback:OcrVisionFallbackSchema.optional(),stt:z.boolean().default(false),sttProvider:z.string().default(''),sttModel:z.string().default(''),exclude:z.array(z.string().max(240)).max(100).default(['node_modules','.git','.venv','venv','dist','build','.env']),dimensions:z.number().int().min(128).max(8192).optional()})
 export type RagSettings=z.infer<typeof RagSettingsSchema>

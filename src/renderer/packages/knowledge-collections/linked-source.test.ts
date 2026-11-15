@@ -1,0 +1,10 @@
+import {expect,it,vi} from 'vitest'
+import {sha256} from '@noble/hashes/sha256'
+import {bytesToHex} from '@noble/hashes/utils'
+import {KNOWLEDGE_SOURCE_CHUNK_BYTES as CHUNK} from '@shared/knowledge-base'
+import {readLinkedKnowledgeSource} from './linked-source'
+const bytes=new Uint8Array(CHUNK+15).fill(97),row={path:'deep/document.pdf',bytes:bytes.length,version:bytesToHex(sha256(bytes))}
+const encode=(bytes:Uint8Array)=>Buffer.from(bytes).toString('base64')
+it('assembles bounded native chunks, validates the final hash and retains read-only access',async()=>{const operation=vi.fn(async(action,options)=>{expect(action).toBe('read-chunk');expect(options.length).toBeLessThanOrEqual(CHUNK);return {linked:true,bindingId:'b',offset:options.offset,totalBytes:row.bytes,base64:encode(bytes.subarray(options.offset,options.offset+options.length))}});const result=await readLinkedKnowledgeSource(row,'b',operation,new AbortController().signal);expect(result).toEqual(bytes);expect(operation).toHaveBeenCalledTimes(2)})
+it('rejects a changed grant, size, partial range or mixed content revision',async()=>{for(const wrong of [{bindingId:'other'},{totalBytes:row.bytes+1},{offset:1},{base64:''},{base64:encode(new Uint8Array(CHUNK))}]){const operation=vi.fn(async(_action,options)=>({linked:true,bindingId:'b',offset:options.offset,totalBytes:row.bytes,base64:encode(bytes.subarray(options.offset,options.offset+options.length)),...wrong}));await expect(readLinkedKnowledgeSource(row,'b',operation,new AbortController().signal)).rejects.toThrow('changed during refresh')}})
+it('stops before the next native request when cancelled',async()=>{const controller=new AbortController(),operation=vi.fn(async(_action,options)=>{controller.abort();return {linked:true,bindingId:'b',offset:options.offset,totalBytes:row.bytes,base64:encode(bytes.subarray(options.offset,options.offset+options.length))}});await expect(readLinkedKnowledgeSource(row,'b',operation,controller.signal)).rejects.toMatchObject({name:'AbortError'});expect(operation).toHaveBeenCalledOnce()})

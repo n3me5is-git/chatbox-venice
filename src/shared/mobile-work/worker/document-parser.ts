@@ -1,8 +1,11 @@
 import { MAX_PARSED_DOCUMENT_TEXT, type ParsedLocalDocument } from '../document-parser'
+import {KNOWLEDGE_BASE_MAX_FILE_SIZE} from '../../knowledge-base'
 
 /** Extract content only; scripts and document generation are not initialized. */
-export async function parseLocalDocument(name: string, bytes: Uint8Array): Promise<ParsedLocalDocument> {
-  if (bytes.length > 10 * 1024 * 1024) throw new Error('Document exceeds the 10 MB local parsing limit')
+export async function parseLocalDocument(name: string, bytes: Uint8Array,maximumBytes=10*1024*1024): Promise<ParsedLocalDocument> {
+  if(![10*1024*1024,KNOWLEDGE_BASE_MAX_FILE_SIZE].includes(maximumBytes))throw Error('Invalid document parsing limit')
+  if (bytes.length > maximumBytes) throw new Error(maximumBytes===KNOWLEDGE_BASE_MAX_FILE_SIZE?'Knowledge documents must not exceed 50 MB':'Document exceeds the 10 MB local parsing limit')
+  if(/\.(rtf|html?|xhtml)$/i.test(name)&&bytes.length>10*1024*1024)throw Error('This document format exceeds its 10 MB parsing limit')
   let text: string
   if (/\.docx$/i.test(name)) {
     const { readWordText } = await import('./office-text')
