@@ -24,7 +24,12 @@ for abi in ['arm64-v8a','armeabi-v7a','x86_64']:
  build=ROOT/('build-android-'+abi)
  subprocess.run(['cmake','-S','native/paddle-ocr','-B',str(build),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release','-DCMAKE_TOOLCHAIN_FILE='+str(ndk/'build/cmake/android.toolchain.cmake'),'-DANDROID_ABI='+abi,'-DANDROID_PLATFORM=android-26','-DANDROID_STL=c++_static','-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON','-Dncnn_DIR='+str(ncnn),'-DOpenCV_DIR='+str(opencv),'-DJSON_INCLUDE_DIR='+str(include)],check=True)
  subprocess.run(['cmake','--build',str(build),'--parallel','4'],check=True)
- target=output/abi;target.mkdir(exist_ok=True);shutil.copy2(build/'libpaddle_ocr.so',target/'libpaddle_ocr.so')
+ target=output/abi;target.mkdir(exist_ok=True);library=target/'libpaddle_ocr.so';shutil.copy2(build/'libpaddle_ocr.so',library)
+ # Prebuilt static SDKs contain debug symbols. Do not ship those in the APK.
+ host='windows-x86_64' if os.name=='nt' else 'linux-x86_64'
+ strip=ndk/('toolchains/llvm/prebuilt/'+host+'/bin/llvm-strip'+('.exe' if os.name=='nt' else ''))
+ subprocess.run([str(strip),'--strip-unneeded',str(library)],check=True)
+ print('Stripped Android library',abi,library.stat().st_size,flush=True)
 package_support.licenses(output)
 models=ROOT/'model-package';models.mkdir(exist_ok=True)
 package_support.models(ROOT/'models',models)
