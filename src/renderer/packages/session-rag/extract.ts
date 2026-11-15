@@ -1,3 +1,4 @@
+import {LOCAL_OCR_PROVIDER,prefetchOcrPages} from '@shared/local-ocr'
 import {knowledgeModelOptions} from '@shared/knowledge-model-options'
 import {settingsStore} from '@/stores/settingsStore'
 import {imageFileMetadata,fileMetadataText,stripImageMetadata} from '@shared/rag-file-metadata'
@@ -15,6 +16,7 @@ async function legacyDoc(bytes:Uint8Array,signal:AbortSignal):Promise<string>{
 }
 export async function ragOcr(dataUrl:string,settings:RagSettings,signal:AbortSignal){
   if(!settings.ocrProvider||!settings.ocrModel)throw Error('Choose an OCR model first')
+  if(settings.ocrProvider===LOCAL_OCR_PROVIDER){if(settings.describeImages)throw Error('Local MiniCPM supports OCR only');const {recognizeLocally}=await import('@/packages/local-ocr/client');return recognizeLocally(settings.ocrModel,dataUrl,signal).catch(error=>{throw Object.assign(error instanceof Error?error:Error(String(error)),{fatal:true})})}
   const saved=settings.ocrReasoning==='concise'?settingsStore.getState().getSettings().providers?.[settings.ocrProvider]:undefined,info=[...(saved?.catalogModels||[]),...(saved?.models||[])].find(model=>model.modelId===settings.ocrModel),scoped=knowledgeModelOptions(settings.ocrProvider,settings.ocrModel,info,settings.ocrReasoning)
   const model=await createModel({...scoped,provider:settings.ocrProvider,modelId:settings.ocrModel,temperature:0,maxTokens:4096,subscriptionWebSearch:false,veniceProfile:{webSearch:'off',webSearchEnabled:false,xSearch:false,webScraping:false}})
   if(!model.isSupportVision())throw Error('Choose a vision model for OCR')
@@ -37,7 +39,7 @@ async function extractCore(source:RagSource,bytes:Uint8Array,settings:RagSetting
     const missing=hasText?new Set([...content].filter(([,value])=>!value).map(([page])=>page)):undefined
     if(hasText&&!missing?.size&&!settings.describeImages)return {text:withMetadata(text)}
     const {pdfPagesForOcr}=await import('@/packages/pdf-parser')
-    for await(const page of pdfPagesForOcr(file,signal,settings.describeImages?undefined:missing)){const existing=content.get(page.page)||'',visual=await ragOcr(page.dataUrl,{...settings,ocr:settings.ocr&&!existing.trim()},signal);content.set(page.page,[existing,visual].filter(Boolean).join('\n\n'))}
+    for await(const page of prefetchOcrPages(pdfPagesForOcr(file,signal,settings.describeImages?undefined:missing),signal)){const existing=content.get(page.page)||'',visual=await ragOcr(page.dataUrl,{...settings,ocr:settings.ocr&&!existing.trim()},signal);content.set(page.page,[existing,visual].filter(Boolean).join('\n\n'))}
     return {kind:settings.ocr?'ocr':'description',text:withMetadata([...content].sort((a,b)=>a[0]-b[0]).map(([page,value])=>'==== Page '+page+' ====\n'+value).join('\n\n'))}
   }
   if(/\.doc$/i.test(source.path))return {text:await legacyDoc(bytes,signal)}

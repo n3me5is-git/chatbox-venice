@@ -1,3 +1,6 @@
+import {LOCAL_OCR_PROVIDER,LOCAL_OCR_MODELS} from '@shared/local-ocr'
+import {localOcrStatus} from '@/packages/local-ocr/client'
+import {OcrModelSelector} from '@/components/local-ocr/OcrModelSelector'
 import {KnowledgeModelDefaults} from '@/components/knowledge-base/KnowledgeModelDefaults'
 /** biome-ignore-all lint/style/noNonNullAssertion: auto-text fallbacks are always defined for these selectors */
 
@@ -174,6 +177,7 @@ export function RouteComponent() {
   )
 
   const pingChat = useCallback(async (provider: string, modelId: string, vision?: boolean) => {
+    if(provider===LOCAL_OCR_PROVIDER){const status=await localOcrStatus();if(!status.runtime||!status.projector||!status.ready.some(key=>LOCAL_OCR_MODELS[key]===modelId))throw Error('Install and verify the selected MiniCPM model and projector first');return}
     const configs = await platform.getConfig()
     const dependencies = await createModelDependencies()
     const result = await pingModel({
@@ -370,7 +374,7 @@ export function RouteComponent() {
                   if (
                     slotId === 'llm' ||
                     slotId === 'fast' ||
-                    slotId === 'ocr' ||
+                    (slotId === 'ocr' && selection?.provider!==LOCAL_OCR_PROVIDER) ||
                     slotId === 'embedding' ||
                     slotId === 'rerank'
                   ) {
@@ -622,6 +626,7 @@ function SlotSelector(
     )
   }
 
+  if(props.slotId==='ocr')return <OcrModelSelector value={props.selection} onSelect={(provider,model)=>props.onSelectModel(provider,model)} showAuto/>
   const modelFilter = modelFilterForSlot(props.slotId)
   return (
     <ModelSelectorV2
@@ -754,6 +759,7 @@ function sourceForSlot(
   settings: ReturnType<typeof settingsStore.getState>,
   parser: DocumentParserType
 ) {
+  if(slotId==='ocr'&&provider===LOCAL_OCR_PROVIDER)return 'Local service · This device'
   if(slotId==='asr'||slotId==='tts')return 'Speech requests use the explicitly selected global model. No automatic fallback is used.'
   if (slotId === 'parser')
     return parser === 'mineru'
