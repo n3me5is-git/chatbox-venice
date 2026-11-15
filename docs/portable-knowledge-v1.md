@@ -84,6 +84,19 @@ Vector shards contain at most 32 chunks. Each chunk retains source SHA-256, orig
 
 A source change invalidates only the affected file's source/vector/metadata contributions. Exact unchanged chunks and extraction windows are reused. OCR/transcripts and optional parsed Markdown are retained as source-bound derivatives, not mistaken for originals. Extracted relations/tags are interpretations with source/text hashes and quote offsets; they are not proof that a claim is true.
 
+## Retained derived-text compression
+
+Logical assets under `.chatbox/knowledge/text/*.json` use one of two records, independently of the collection's encryption mode:
+
+- Version 1: `{version:1,text,kind,sourceHash,textHash,fingerprint,warning?}`.
+- Version 2: replace `text` with `encoding:"gzip-base64-v1"`, `utf8Bytes` and `data` (canonical padded base64 of a gzip stream). All other provenance fields remain unchanged.
+
+Compression happens before the existing chunked-asset encryption. It applies only to derived text, not source PDFs, images, vectors or graph records. A writer uses compression for UTF-8 text of at least 4,096 bytes only when the encoded payload plus a 128-byte allowance is smaller than 90% of the original text bytes. This threshold is not a promise about whole-vault savings. Readers continue to accept version 1; unavailable compression falls back to version 1 when writing.
+
+The SHA-256 `textHash` always covers the exact decompressed UTF-8 text. Citation offsets remain UTF-16 code units in that text. Bound decompression by the declared byte count (maximum 2,048,000), check the exact length, validate UTF-8 and verify the text hash before use. The decoded string is limited to 512,000 UTF-16 code units. Gzip integrity, envelope authentication and source-revision checks serve different purposes; none replaces the others.
+
+The optional `collection-config.records.derivedText` declaration advertises versions and codecs. The independent Node reader exposes `textAsset(alias)` and `decodeKnowledgeText(record)` for both versions. Ordinary `jsonAsset` preserves the stored representation. Repacking text does not change parser fingerprints, source revisions or embedding identities, so it does not itself invoke OCR, embedding or extraction again.
+
 ## Virtual federation and graph semantics
 
 Mounted collections retain independent vector spaces and databases. Search keeps only bounded candidates, executes at most two collections at a time and combines ranks by reciprocal rank fusion. Raw scores/vectors from different spaces are never directly compared. Equivalent query embeddings may be reused within the same operation; no cross-session query cache is persisted. The current explicit all-collections operation is bounded at 256 unlocked, consented mounts.

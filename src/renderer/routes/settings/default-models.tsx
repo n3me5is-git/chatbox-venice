@@ -1,3 +1,5 @@
+import {PADDLE_OCR_PROVIDER,PADDLE_OCR_MODEL} from '@shared/paddle-ocr'
+import {paddleOcrStatus} from '@/packages/paddle-ocr/client'
 import {LOCAL_OCR_PROVIDER,LOCAL_OCR_MODELS} from '@shared/local-ocr'
 import {localOcrStatus} from '@/packages/local-ocr/client'
 import {OcrModelSelector} from '@/components/local-ocr/OcrModelSelector'
@@ -177,6 +179,7 @@ export function RouteComponent() {
   )
 
   const pingChat = useCallback(async (provider: string, modelId: string, vision?: boolean) => {
+    if(provider===PADDLE_OCR_PROVIDER){if(modelId!==PADDLE_OCR_MODEL||!(await paddleOcrStatus()).ready)throw Error('Install and verify local PaddleOCR first');return}
     if(provider===LOCAL_OCR_PROVIDER){const status=await localOcrStatus();if(!status.runtime||!status.projector||!status.ready.some(key=>LOCAL_OCR_MODELS[key]===modelId))throw Error('Install and verify the selected MiniCPM model and projector first');return}
     const configs = await platform.getConfig()
     const dependencies = await createModelDependencies()
@@ -746,7 +749,7 @@ function displayTextForSlot(props: Parameters<typeof SlotCard>[0], autoText: str
 function isConnectionCheck(slotId: ModelRigSlotId, selection: ModelRef | undefined, parser: DocumentParserType) {
   return (
     (slotId === 'llm' && Boolean(selection)) ||
-    (slotId === 'ocr' && selection?.provider!==LOCAL_OCR_PROVIDER) ||
+    (slotId === 'ocr' && selection?.provider!==LOCAL_OCR_PROVIDER&&selection?.provider!==PADDLE_OCR_PROVIDER) ||
     slotId === 'search' ||
     (slotId === 'fast' && Boolean(selection)) ||
     (slotId === 'parser' && parser === 'mineru')
@@ -759,7 +762,7 @@ function sourceForSlot(
   settings: ReturnType<typeof settingsStore.getState>,
   parser: DocumentParserType
 ) {
-  if(slotId==='ocr'&&provider===LOCAL_OCR_PROVIDER)return 'Local service · This device'
+  if(slotId==='ocr'&&(provider===LOCAL_OCR_PROVIDER||provider===PADDLE_OCR_PROVIDER))return 'Local service · This device'
   if(slotId==='asr'||slotId==='tts')return 'Speech requests use the explicitly selected global model. No automatic fallback is used.'
   if (slotId === 'parser')
     return parser === 'mineru'

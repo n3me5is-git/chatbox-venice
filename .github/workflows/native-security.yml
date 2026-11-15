@@ -49,6 +49,7 @@ jobs:
         run: node --input-type=module -e "import fs from 'node:fs'; fs.mkdirSync('release/app/dist/renderer',{recursive:true}); fs.writeFileSync('release/app/dist/renderer/index.html','<!doctype html><title>Native compilation fixture</title>')"
       - run: pnpm exec cap add android
       - run: node scripts/configure-fork-android.mjs
+      - run: node scripts/prepare-paddle-android.mjs
       - run: pnpm exec cap sync android
       - name: Compile Java without packaging or signing an APK
         run: chmod +x android/gradlew && cd android && ./gradlew :app:compileReleaseJavaWithJavac --no-daemon
@@ -83,12 +84,14 @@ jobs:
           echo '<!doctype html><title>Keystore runtime tests</title>' > release/app/dist/renderer/index.html
           pnpm exec cap add android
           node scripts/configure-fork-android.mjs
+          node scripts/prepare-paddle-android.mjs --test-models
           pnpm exec cap sync android
           mkdir -p android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice
           cp native/android/test/EmulatorDeviceFixture.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
           cp native/android/test/VaultKeyDeviceTest.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
           cp native/android/test/MicrophoneDeviceTest.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
           cp native/android/test/CollaborationDeviceTest.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
+          cp native/android/test/PaddleOCRDeviceTest.java android/app/src/androidTest/java/io/github/n3me5is/chatboxvenice/
           chmod +x android/gradlew
       - name: Enable emulator acceleration
         run: |
@@ -111,7 +114,7 @@ jobs:
             adb shell input text 123456
             adb shell input keyevent 66
             adb shell wm dismiss-keyguard
-            cd android && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.n3me5is.chatboxvenice.VaultKeyDeviceTest,io.github.n3me5is.chatboxvenice.MicrophoneDeviceTest,io.github.n3me5is.chatboxvenice.CollaborationDeviceTest --no-daemon
+            cd android && ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=io.github.n3me5is.chatboxvenice.VaultKeyDeviceTest,io.github.n3me5is.chatboxvenice.MicrophoneDeviceTest,io.github.n3me5is.chatboxvenice.CollaborationDeviceTest,io.github.n3me5is.chatboxvenice.PaddleOCRDeviceTest --no-daemon
       - name: Save Android device test reports
         if: always()
         uses: actions/upload-artifact@v4

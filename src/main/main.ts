@@ -1,4 +1,5 @@
 import {registerLocalOcrIPC} from './local-ocr/ipc'
+import {registerPaddleOcrIPC} from './paddle-ocr/ipc'
 // Polyfill browser canvas globals (DOMMatrix/Path2D/ImageData) that pdfjs-dist
 // references at top level. Must run before any module that loads pdfjs, so keep
 // this as the very first import. See pdfjs-globals.ts for details.
@@ -878,6 +879,7 @@ registerVaultKeyIpc(() => mainWindow)
 registerArchiveStorageIpc(() => mainWindow)
 registerLocalMCPIPC(() => mainWindow)
 registerLocalOcrIPC(() => mainWindow)
+registerPaddleOcrIPC(() => mainWindow)
 registerMarkdownPDF(() => mainWindow)
 
 ipcMain.handle('getStoreValue', (event, key) => {

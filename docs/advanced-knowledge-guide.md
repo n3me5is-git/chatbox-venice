@@ -102,3 +102,6 @@ The source-review evidence validator also excludes quotations overlapping recogn
 ## Optional desktop OCR
 
 [Local MiniCPM OCR](local-minicpm-ocr.md) can be selected globally or independently for a knowledge collection. It uses a managed native worker and verified public model files, with CPU/Vulkan controls and bounded page/memory scheduling.
+
+
+[Local PaddleOCR](local-paddle-ocr.md) adds a lightweight Windows/Android OCR choice with CPU/Vulkan controls. The same OCR settings offer all-page PDF replacement. Retained derived text is compressed before encryption when beneficial, while existing records and citation offsets remain compatible.

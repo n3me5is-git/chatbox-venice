@@ -1,5 +1,7 @@
 // English source; other locales fall back to English.
+import {paddleOcrEnglish,paddleOcrItalian} from './paddle-ocr-resources'
 export const localOcrEnglish = {
+  ...paddleOcrEnglish,
   "GPU (Vulkan)":"GPU (Vulkan)",
   "Requires compatible Vulkan drivers.":"Requires compatible Vulkan drivers.",
   "Local OCR request failed":"Local OCR request failed",
@@ -78,6 +80,7 @@ export const localOcrEnglish = {
   "Invalid local OCR settings": "Invalid local OCR settings"
 }
 export const localOcrItalian = {
+  ...paddleOcrItalian,
   "GPU (Vulkan)":"GPU (Vulkan)",
   "Requires compatible Vulkan drivers.":"Richiede driver Vulkan compatibili.",
   "Local OCR request failed":"Richiesta OCR locale non riuscita",

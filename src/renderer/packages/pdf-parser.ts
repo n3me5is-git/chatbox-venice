@@ -35,7 +35,7 @@ async function loadPdfjs() {
 
 export async function parsePdfFileLocally(
   file: File,
-  options: { signal?: AbortSignal; failOnPageError?: boolean; onMetadata?:(value:Record<string,unknown>)=>void } = {}
+  options: { signal?: AbortSignal; failOnPageError?: boolean; metadataOnly?: boolean; onMetadata?:(value:Record<string,unknown>)=>void } = {}
 ): Promise<string> {
   const { signal } = options
   signal?.throwIfAborted()
@@ -69,6 +69,7 @@ export async function parsePdfFileLocally(
   try {
     const document = await Promise.race([loadingTask.promise, canceled])
     if(options.onMetadata){try{const metadata=await Promise.race([document.getMetadata(),canceled]);signal?.throwIfAborted();options.onMetadata(metadata.info as Record<string,unknown>)}catch{signal?.throwIfAborted()}}
+    if (options.metadataOnly) return ''
     const pageTexts: string[] = []
 
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {

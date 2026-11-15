@@ -152,6 +152,7 @@ jobs:
           path: release/app/dist/renderer/
       - run: pnpm exec cap add android
       - run: node scripts/configure-fork-android.mjs
+      - run: node scripts/prepare-paddle-android.mjs
       - run: pnpm exec cap sync android
       - name: Assemble personal release APK
         run: chmod +x android/gradlew && cd android && ./gradlew assembleRelease --no-daemon

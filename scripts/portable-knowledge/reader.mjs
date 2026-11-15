@@ -3,9 +3,25 @@
 import {readFile,readdir,lstat,realpath} from 'node:fs/promises'
 import path from 'node:path'
 import {webcrypto,createHash} from 'node:crypto'
+import {gunzipSync} from 'node:zlib'
 const {subtle}=webcrypto,utf8=new TextEncoder(),text=new TextDecoder('utf-8',{fatal:true}),hash=value=>createHash('sha256').update(value).digest('hex')
 const uuid=value=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value)
 const bytes=s=>new Uint8Array(Buffer.from(s,'base64'))
+/** Derived-text codec is independent of the collection's encryption envelope. */
+export function decodeKnowledgeText(value){
+ const keys=['version','text','kind','sourceHash','textHash','fingerprint','warning'],packed=value?.version===2
+ if(packed)keys.splice(1,1,'encoding','utf8Bytes','data')
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!keys.includes(k))||![1,2].includes(value.version)||!['parsed','ocr','transcript','description','metadata'].includes(value.kind)||['sourceHash','textHash','fingerprint'].some(k=>typeof value[k]!=='string'||!/^[a-f0-9]{64}$/.test(value[k]))||value.warning!==undefined&&(typeof value.warning!=='string'||value.warning.length>500))throw Error('Invalid knowledge text record')
+ let result=value.text
+ if(packed){
+  if(value.encoding!=='gzip-base64-v1'||!Number.isSafeInteger(value.utf8Bytes)||value.utf8Bytes<1||value.utf8Bytes>2048000||typeof value.data!=='string'||value.data.length>2730700||value.data.length%4||!/^[A-Za-z0-9+/]*={0,2}$/.test(value.data))throw Error('Invalid compressed knowledge text')
+  const input=Buffer.from(value.data,'base64');let output
+  try{if(input.toString('base64')!==value.data)throw Error('Invalid compressed knowledge text');output=gunzipSync(input,{maxOutputLength:value.utf8Bytes});if(output.length!==value.utf8Bytes)throw Error('Invalid knowledge text length');result=text.decode(output)}finally{input.fill(0);output?.fill(0)}
+ }
+ if(typeof result!=='string'||result.length>512000||hash(utf8.encode(result))!==value.textHash)throw Error('Invalid knowledge text revision')
+ const {encoding:_,utf8Bytes:__,data:___,...metadata}=value
+ return {...metadata,version:1,text:result}
+}
 async function decrypt(key,value,aad){if(bytes(value.iv).length!==12)throw Error('Invalid GCM nonce');return new Uint8Array(await subtle.decrypt({name:'AES-GCM',iv:bytes(value.iv),additionalData:utf8.encode(aad),tagLength:128},key,bytes(value.data)))}
 const aes=raw=>subtle.importKey('raw',raw,'AES-GCM',false,['decrypt'])
 export async function openCollection(directory,passphrase=''){
@@ -19,5 +35,5 @@ export async function openCollection(directory,passphrase=''){
  const header=async alias=>{const canonical=alias.replace(/^knowledge-collection:-[0-9]+:/,'knowledge-collection:'+descriptor.id+':'),id=alias.startsWith('vault-asset-')?alias.slice(12):await get('aliases/'+hash(canonical));return id?JSON.parse(await get('headers/'+id)||'null'):null}
  async function* readAsset(alias){const item=await header(alias);if(!item||item.status!=='ready'||!Number.isSafeInteger(item.chunks)||item.chunks<1||item.chunks>128||!Number.isSafeInteger(item.bytes)||item.bytes<1||item.bytes>128*1024*1024)throw Error('Unavailable asset');if(descriptor.cipher==='none'){if(item.key?.iv!=='none'||item.manifest?.iv!=='sha256-v1')throw Error('Invalid plaintext asset');const manifest=JSON.parse(item.manifest.data);if(manifest.bytes!==item.bytes||manifest.chunks!==item.chunks||item.chunks!==Math.ceil(item.bytes/(1024*1024))||!Array.isArray(manifest.hashes)||manifest.hashes.length!==item.chunks)throw Error('Damaged asset manifest');for(let n=0;n<item.chunks;n++){const raw=await get('chunks/vault-v1-'+item.id+'-chunk-'+n);if(!raw)throw Error('Missing asset chunk');const value=JSON.parse(raw);if(value.encoding!=='base64-v1'||typeof value.data!=='string'||value.data.length%4||!/^[A-Za-z0-9+/]*={0,2}$/.test(value.data))throw Error('Invalid plaintext chunk');const block=bytes(value.data);if(block.length!==Math.min(1024*1024,item.bytes-n*1024*1024)||hash(block)!==manifest.hashes[n])throw Error('Damaged plaintext chunk');yield block}return}const raw=await decrypt(master,item.key,item.id+':key:'+item.scope+':'+(item.alias||''));let key;try{key=await aes(raw)}finally{raw.fill(0)}const manifestRaw=await decrypt(key,item.manifest,item.id+':manifest');let manifest;try{manifest=JSON.parse(text.decode(manifestRaw))}finally{manifestRaw.fill(0)}if(manifest.bytes!==item.bytes||manifest.chunks!==item.chunks)throw Error('Damaged asset manifest');let total=0;for(let n=0;n<item.chunks;n++){const sealed=await get('chunks/vault-v1-'+item.id+'-chunk-'+n);if(!sealed)throw Error('Missing asset chunk');const block=await decrypt(key,JSON.parse(sealed),item.id+':chunk:'+n);total+=block.length;if(block.length!==Math.min(1024*1024,item.bytes-n*1024*1024)||total>item.bytes)throw Error('Damaged asset length');yield block}if(total!==item.bytes)throw Error('Incomplete asset')}
  async function jsonAsset(alias){const parts=[];let length=0;for await(const block of readAsset(alias)){length+=block.length;if(length>10*1024*1024)throw Error('Metadata too large');parts.push(block)}const bytes=new Uint8Array(length);try{let at=0;for(const part of parts){bytes.set(part,at);at+=part.length;part.fill(0)}return JSON.parse(text.decode(bytes))}finally{bytes.fill(0)}}
- return {descriptor,get,records,header,readAsset,jsonAsset,configuration:async()=>JSON.parse(await get('collection-config')||'null')}
+ return {descriptor,get,records,header,readAsset,jsonAsset,textAsset:async alias=>decodeKnowledgeText(await jsonAsset(alias)),configuration:async()=>JSON.parse(await get('collection-config')||'null')}
 }

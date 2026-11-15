@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, copyFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, copyFileSync, mkdirSync } from 'node:fs'
 
 const manifest = 'android/app/src/main/AndroidManifest.xml'
 let xml = readFileSync(manifest, 'utf8')
@@ -24,6 +24,9 @@ copyFileSync('native/android/ArchiveStoragePlugin.java', `${javaDir}/ArchiveStor
 copyFileSync('native/android/VaultKeyPlugin.java', `${javaDir}/VaultKeyPlugin.java`)
 copyFileSync('native/android/SharingBackgroundPlugin.java', `${javaDir}/SharingBackgroundPlugin.java`)
 copyFileSync('native/android/SharingBackgroundService.java', `${javaDir}/SharingBackgroundService.java`)
+copyFileSync('native/android/PaddleOCRPlugin.java', `${javaDir}/PaddleOCRPlugin.java`)
+mkdirSync('android/app/src/main/assets',{recursive:true})
+copyFileSync('src/shared/paddle-ocr-artifacts.json','android/app/src/main/assets/paddle-ocr-artifacts.json')
 writeFileSync(`${javaDir}/MainActivity.java`, `package io.github.n3me5is.chatboxvenice;
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
@@ -34,6 +37,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(SessionFolderPlugin.class);
     registerPlugin(ArchiveStoragePlugin.class);
     registerPlugin(SharingBackgroundPlugin.class);
+    registerPlugin(PaddleOCRPlugin.class);
     super.onCreate(savedInstanceState);
   }
 }

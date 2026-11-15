@@ -373,6 +373,38 @@
             },
             "vectors": {
               "const": "rag-vector-storage-v1"
+            },
+            "derivedText": {
+              "type": "object",
+              "properties": {
+                "schema": {
+                  "const": "knowledge-text-record"
+                },
+                "readVersions": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      1,
+                      2
+                    ]
+                  }
+                },
+                "codecs": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "identity",
+                      "gzip-base64-v1"
+                    ]
+                  }
+                },
+                "maxUtf8Bytes": {
+                  "const": 2048000
+                },
+                "citationOffsets": {
+                  "const": "utf16-code-units"
+                }
+              }
             }
           }
         }
@@ -948,6 +980,71 @@
         }
       ],
       "additionalProperties": false
+    },
+    "compressedParsedText": {
+      "type": "object",
+      "required": [
+        "version",
+        "encoding",
+        "utf8Bytes",
+        "data",
+        "kind",
+        "sourceHash",
+        "textHash",
+        "fingerprint"
+      ],
+      "properties": {
+        "version": {
+          "const": 2
+        },
+        "kind": {
+          "enum": [
+            "parsed",
+            "ocr",
+            "transcript",
+            "description",
+            "metadata"
+          ]
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "textHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "warning": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "encoding": {
+          "const": "gzip-base64-v1"
+        },
+        "utf8Bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2048000
+        },
+        "data": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2730700,
+          "contentEncoding": "base64"
+        }
+      },
+      "additionalProperties": false
+    },
+    "storedParsedText": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/parsedText"
+        },
+        {
+          "$ref": "#/$defs/compressedParsedText"
+        }
+      ]
     }
   },
   "allOf": [
