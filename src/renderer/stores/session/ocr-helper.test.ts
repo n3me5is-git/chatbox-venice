@@ -30,4 +30,9 @@ describe('ocrImagesInMessages', () => {
     expect(chatMock).toHaveBeenCalledWith(expect.any(Array), { sessionId: 'session-1', maxSteps:1, tools:{} })
     expect(messages[0].contentParts[0]).toMatchObject({ type: 'image', ocrResult: 'OCR result' })
   })
+  it('forwards cancellation and does not publish text after an aborted OCR request',async()=>{
+    const controller=new AbortController(),chat=vi.fn(async()=>{controller.abort();return {contentParts:[{type:'text',text:'late'}]}}),model={chat} as unknown as ModelInterface,messages:Message[]=[{id:'user',role:'user',contentParts:[{type:'image',storageKey:'image-1'}]}]
+    await expect(ocrImagesInMessages(messages,model,'session',controller.signal)).rejects.toMatchObject({name:'AbortError'})
+    expect(chat).toHaveBeenCalledWith(expect.any(Array),expect.objectContaining({signal:controller.signal,tools:{}}));expect(messages[0].contentParts[0]).not.toHaveProperty('ocrResult')
+  })
 })

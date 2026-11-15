@@ -301,7 +301,7 @@ export async function prepareAgentGenerationHarness(
       throw ChatboxAIAPIError.fromCodeName('model_not_support_image_2', 'model_not_support_image_2')
     }
     try {
-      await ocrImagesInMessages(promptMsgs, ocrResult.model, session.id)
+      await ocrImagesInMessages(promptMsgs, ocrResult.model, session.id, signal)
     } catch (err) {
       throw new OCRError(ocrResult.providerName, err instanceof Error ? err : new Error(extractStreamErrorMessage(err)))
     }

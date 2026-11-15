@@ -62,8 +62,10 @@ export function getOCRModel(
 export async function ocrImagesInMessages(
   messages: Message[],
   ocrModel: ModelInterface,
-  sessionId: string
+  sessionId: string,
+  signal?:AbortSignal
 ): Promise<void> {
+  signal?.throwIfAborted()
   const imageParts: Array<{ storageKey: string; part: Message['contentParts'][number] & { type: 'image' } }> = []
   for (const msg of messages) {
     for (const part of msg.contentParts) {
@@ -80,7 +82,9 @@ export async function ocrImagesInMessages(
   await pMap(
     imageParts,
     async ({ storageKey, part }) => {
+      signal?.throwIfAborted()
       const imageData = await dependencies.storage.getImage(storageKey)
+      signal?.throwIfAborted()
       if (!imageData) return
 
       const ocrMsg: ModelMessage = {
@@ -93,7 +97,8 @@ export async function ocrImagesInMessages(
           { type: 'image' as const, image: imageData },
         ],
       }
-      const chatResult = await ocrModel.chat([ocrMsg], { sessionId, maxSteps:1, tools:{} })
+      const chatResult = await ocrModel.chat([ocrMsg], { sessionId, maxSteps:1, tools:{},...(signal?{signal}:{}) })
+      signal?.throwIfAborted()
       const text = chatResult.contentParts
         .filter((p) => p.type === 'text')
         .map((p) => p.text)
@@ -101,6 +106,6 @@ export async function ocrImagesInMessages(
 
       part.ocrResult = text
     },
-    { concurrency: ocrModel.name==='MiniCPM-OCR · Local'?1:3 }
+    { concurrency: ocrModel.name==='MiniCPM-OCR · Local'?1:3,...(signal?{signal}:{}) }
   )
 }
