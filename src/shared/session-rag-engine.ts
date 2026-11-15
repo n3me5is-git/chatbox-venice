@@ -33,7 +33,7 @@ export class SessionRagEngine {
         try{
           if((source.bytes||0)>10*1024*1024)throw Error('Session files must not exceed 10 MB')
           const prior=reuseVectors?previous?.files.find(file=>file.path===source.path):undefined
-          const reuseSourceExtraction=reuseExtraction||reuseNonPdfExtraction&&!/\.pdf$/i.test(source.path)
+          const reuseSourceExtraction=reuseExtraction||reuseNonPdfExtraction&&!(/\.pdf$/i.test(source.path)||/^application\/pdf(?:;|$)/i.test(source.mime))
           if(prior&&reuseSourceExtraction&&this.port.revision&&await this.port.revision(source.path)===prior.hash){await this.port.check();files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
           bytes=await this.port.read(source.path);const hash=await ragHash(bytes)
           if(prior?.hash===hash&&reuseSourceExtraction){files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
