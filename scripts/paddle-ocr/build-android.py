@@ -13,7 +13,9 @@ for name,url,digest in packages:
 include=SDK/'include';include.mkdir(exist_ok=True)
 download('https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp',include/'json.hpp','aaf127c04cb31c406e5b04a63f1ae89369fccde6d8fa7cdda1ed4f32dfc5de63')
 sdkroot=pathlib.Path(os.environ.get('ANDROID_HOME',os.environ.get('ANDROID_SDK_ROOT','/usr/local/lib/android/sdk')))
-ndk=pathlib.Path(os.environ['ANDROID_NDK_HOME']) if os.environ.get('ANDROID_NDK_HOME') else sorted((sdkroot/'ndk').iterdir(),key=lambda p:tuple(map(int,p.name.split('.'))))[-1]
+ndkpath=os.environ.get('ANDROID_NDK_LATEST_HOME') or os.environ.get('ANDROID_NDK_HOME')
+ndk=pathlib.Path(ndkpath) if ndkpath else sorted((sdkroot/'ndk').iterdir(),key=lambda p:tuple(map(int,p.name.split('.'))))[-1]
+print('Native Android toolchain:',ndk,(ndk/'source.properties').read_text(),flush=True)
 output=ROOT/'android-libs';output.mkdir(exist_ok=True)
 opencv=next((SDK/'opencv').rglob('OpenCVConfig.cmake')).parent
 for abi in ['arm64-v8a','armeabi-v7a','x86_64']:
