@@ -1,5 +1,6 @@
 import {Capacitor,registerPlugin} from '@capacitor/core'
 import {PADDLE_OCR_MODEL,type PaddleOcrStatus} from '@shared/paddle-ocr'
+import {preparePaddleImage} from './image-input'
 const native=registerPlugin<{control(input:{command:string;value?:unknown}):Promise<any>}>('PaddleOCR')
 export function paddleOcrAvailable(){return typeof window!=='undefined'&&typeof window.electronAPI?.invoke==='function'||Capacitor.getPlatform()==='android'}
 export async function paddleOcrControl(command:string,value?:unknown):Promise<any>{
@@ -8,5 +9,5 @@ export async function paddleOcrControl(command:string,value?:unknown):Promise<an
 export const paddleOcrStatus=()=>paddleOcrControl('status') as Promise<PaddleOcrStatus>
 export async function recognizePaddle(modelId:string,image:string,signal?:AbortSignal):Promise<string>{
  if(modelId!==PADDLE_OCR_MODEL)throw Error('Choose a supported local OCR model');signal?.throwIfAborted();const id=crypto.randomUUID();let rejectCancelled:(error:Error)=>void=()=>{};const cancelled=new Promise<never>((_,reject)=>{rejectCancelled=reject}),cancel=()=>{rejectCancelled(new DOMException('Aborted','AbortError'));void paddleOcrControl('cancel',id).catch(()=>{})};signal?.addEventListener('abort',cancel,{once:true})
- try{const result=await Promise.race([paddleOcrControl('ocr',{id,modelId,image}),cancelled]);signal?.throwIfAborted();const text=typeof result==='string'?result:result?.text;if(typeof text!=='string'||text.length>512000)throw Error('Invalid local OCR response');return text}finally{signal?.removeEventListener('abort',cancel)}
+ try{const prepared=async()=>{const pixels=await preparePaddleImage(image,signal);signal?.throwIfAborted();return paddleOcrControl('ocr',{id,modelId,image:pixels})};const result=await Promise.race([prepared(),cancelled]);signal?.throwIfAborted();const text=typeof result==='string'?result:result?.text;if(typeof text!=='string'||text.length>512000)throw Error('Invalid local OCR response');return text}finally{signal?.removeEventListener('abort',cancel)}
 }

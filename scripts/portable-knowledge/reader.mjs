@@ -16,7 +16,7 @@ export function decodeKnowledgeText(value){
  if(packed){
   if(value.encoding!=='gzip-base64-v1'||!Number.isSafeInteger(value.utf8Bytes)||value.utf8Bytes<1||value.utf8Bytes>2048000||typeof value.data!=='string'||value.data.length>2730700||value.data.length%4||!/^[A-Za-z0-9+/]*={0,2}$/.test(value.data))throw Error('Invalid compressed knowledge text')
   const input=Buffer.from(value.data,'base64');let output
-  try{if(input.toString('base64')!==value.data)throw Error('Invalid compressed knowledge text');output=gunzipSync(input,{maxOutputLength:value.utf8Bytes});if(output.length!==value.utf8Bytes)throw Error('Invalid knowledge text length');result=text.decode(output)}finally{input.fill(0);output?.fill(0)}
+  try{if(input.toString('base64')!==value.data)throw Error('Invalid compressed knowledge text');output=gunzipSync(input,{maxOutputLength:value.utf8Bytes});if(output.length!==value.utf8Bytes)throw Error('Invalid knowledge text length');result=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(output)}finally{input.fill(0);output?.fill(0)}
  }
  if(typeof result!=='string'||result.length>512000||hash(utf8.encode(result))!==value.textHash)throw Error('Invalid knowledge text revision')
  const {encoding:_,utf8Bytes:__,data:___,...metadata}=value

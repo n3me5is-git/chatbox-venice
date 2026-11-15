@@ -6,7 +6,7 @@ export const KnowledgeTextSchema=z.object({version:z.literal(1),text:z.string().
 export type KnowledgeText=z.infer<typeof KnowledgeTextSchema>
 const PackedTextSchema=z.object({version:z.literal(2),encoding:z.literal('gzip-base64-v1'),utf8Bytes:z.number().int().min(1).max(2048000),data:z.string().min(1).max(2730700),...fields}).strict()
 export type StoredKnowledgeText=KnowledgeText|z.infer<typeof PackedTextSchema>
-const encoder=new TextEncoder(),decoder=new TextDecoder('utf-8',{fatal:true})
+const encoder=new TextEncoder(),decoder=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true})
 const byteStream=(bytes:Uint8Array)=>new ReadableStream<Uint8Array<ArrayBuffer>>({start(controller){controller.enqueue(Uint8Array.from(bytes));controller.close()}})
 const hash=async(bytes:Uint8Array)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',Uint8Array.from(bytes)))).map(n=>n.toString(16).padStart(2,'0')).join('')
 function encode(bytes:Uint8Array){let text='';for(let n=0;n<bytes.length;n+=32768)text+=String.fromCharCode(...bytes.subarray(n,n+32768));return btoa(text)}
@@ -17,6 +17,9 @@ async function collect(stream:ReadableStream<Uint8Array>,maximum:number){const r
 export async function packKnowledgeText(input:unknown):Promise<StoredKnowledgeText>{
  const value=KnowledgeTextSchema.parse(input),bytes=encoder.encode(value.text)
  if(bytes.length<4096||typeof CompressionStream==='undefined'){bytes.fill(0);return value}
+ // UTF-8 replaces isolated UTF-16 surrogates. Keep legacy storage if encoding
+ // would change the original string or its citation offsets.
+ if(decoder.decode(bytes)!==value.text){bytes.fill(0);return value}
  let packed:Uint8Array|undefined
  try{packed=await collect(byteStream(bytes).pipeThrough(new CompressionStream('gzip')),2097152);const data=encode(packed);if(data.length+128>=bytes.length*0.9)return value;const {text:_,version:__,...metadata}=value;return {version:2,encoding:'gzip-base64-v1',utf8Bytes:bytes.length,data,...metadata}}finally{bytes.fill(0);packed?.fill(0)}
 }

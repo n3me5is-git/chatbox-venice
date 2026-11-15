@@ -19,6 +19,7 @@ export const paddleOcrItalian={
  'Local PaddleOCR could not recognize this image':'PaddleOCR locale non ha potuto riconoscere questa immagine',
  'Local PaddleOCR supports text recognition only':'PaddleOCR locale supporta solo il riconoscimento del testo',
  'Local PaddleOCR needs one local image':'PaddleOCR locale richiede una sola immagine locale',
+ 'Use a smaller image for local OCR':'Usa un’immagine più piccola per l’OCR locale',
  'Use an image up to 16 megapixels':'Usa un’immagine fino a 16 megapixel',
  'Unable to remove PaddleOCR files':'Impossibile rimuovere i file di PaddleOCR',
  'Invalid PaddleOCR package':'Pacchetto PaddleOCR non valido',

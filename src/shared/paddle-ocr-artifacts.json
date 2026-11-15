@@ -2,23 +2,23 @@
   "version": 1,
   "windows": {
     "name": "paddle-ocr-win-x64-v1.zip",
-    "bytes": 20400557,
-    "sha256": "0bef3f6c686847fb9352fde030f3ada7ff772f9157a50a0c7bc33e3c58afda34",
-    "manifestSha256": "4cddc921b0fca3ce5aa14d1b691912d25fc6bf9b718b354dbabaab4a6f7cdd0d",
-    "sourceCommit": "ebce32ad698bf9653c553b03480c6f8e4269cc19",
+    "bytes": 20400555,
+    "sha256": "1b59e674db38221281d00d40c0ef1553af2b009e4c03b5e12035ecffaa15f869",
+    "manifestSha256": "ccbdc216be22a1c974f93d63969ee3ca51835c2867bbda22c3280d3722d54f19",
+    "sourceCommit": "3c194d89f5c47c2a1acb85ad4809b9abdd8de7a1",
     "url": "https://github.com/n3me5is-git/chatbox-venice/releases/download/paddle-ocr-runtime-v1/paddle-ocr-win-x64-v1.zip"
   },
   "models": {
     "name": "paddle-ocr-models-v1.zip",
-    "bytes": 11848232,
-    "sha256": "e5e0c6db975376ff55a544ecaba36cfbcc2caf1d7daf1d859b0c97fddb70d612",
+    "bytes": 11848236,
+    "sha256": "a2965a8b700d404a97ee02e8db84c19ad1bf241e3fd8cddda3641f3b4d5d2d54",
     "url": "https://github.com/n3me5is-git/chatbox-venice/releases/download/paddle-ocr-runtime-v1/paddle-ocr-models-v1.zip",
-    "manifestSha256": "7712eab9e4446b9d1fb070d0f0bfc014452e4c6bd780b07a37c1a2c539587ede"
+    "manifestSha256": "39393d4591f8104393126b40090ab2e7f89e5465c868e9a3ed45af9a14f28929"
   },
   "android": {
     "name": "paddle-ocr-android-v1.zip",
-    "bytes": 27637097,
-    "sha256": "249009140efae5c7f05f39ab3fb2b5f6866398e7a34920505d1f422055b2d81d",
+    "bytes": 20835056,
+    "sha256": "ebf8cef3d4b40f96bc691378cd47b033246f2a34bd78d28a846eb6a82aaf7359",
     "url": "https://github.com/n3me5is-git/chatbox-venice/releases/download/paddle-ocr-runtime-v1/paddle-ocr-android-v1.zip"
   }
 }

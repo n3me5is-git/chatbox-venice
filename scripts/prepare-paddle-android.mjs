@@ -24,5 +24,6 @@ if(process.argv.includes('--test-models')){
  const models=await download(metadata.models),target='android/app/src/androidTest/assets/paddle-test-models';await mkdir(target,{recursive:true})
  for(const entry of models.getEntries()){if(entry.isDirectory||!/^[A-Za-z0-9_.-]+$/.test(entry.entryName)||entry.header.size>32*1024*1024)throw Error('Invalid PaddleOCR model archive');await writeFile(path.join(target,entry.entryName),entry.getData())}
  await copyFile('native/paddle-ocr/fixtures/simple.png','android/app/src/androidTest/assets/paddle-test.png')
+ await copyFile('native/android/test/fixtures/invoice-exif6.jpg','android/app/src/androidTest/assets/paddle-test-exif6.jpg')
 }
 console.log('Verified PaddleOCR native libraries: '+[...found].join(', '))
