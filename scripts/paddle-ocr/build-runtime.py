@@ -23,7 +23,9 @@ package=ROOT/'package';package.mkdir(exist_ok=True)
 shutil.copy2(build/'Release/paddle-ocr-worker.exe',package/'paddle-ocr-worker.exe')
 vswhere=pathlib.Path(os.environ['ProgramFiles(x86)'])/'Microsoft Visual Studio/Installer/vswhere.exe'
 vs=pathlib.Path(subprocess.check_output([str(vswhere),'-latest','-property','installationPath'],text=True).strip())
-redist=sorted((vs/'VC/Redist/MSVC').iterdir())[-1]/'x64'
+candidates=[p for p in (vs/'VC/Redist/MSVC').rglob('Microsoft.VC143.CRT') if p.parent.name=='x64' and 'onecore' not in str(p).lower()]
+if not candidates:raise ValueError('x64 Visual C++ runtime not found')
+redist=sorted(candidates,key=lambda p:len(str(p)))[0].parent
 for folder in redist.iterdir():
  if folder.name.endswith(('.CRT','.OpenMP')):
   for dll in folder.glob('*.dll'):shutil.copy2(dll,package/dll.name)
