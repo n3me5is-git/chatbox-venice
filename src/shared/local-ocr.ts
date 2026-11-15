@@ -1,5 +1,7 @@
 /** Desktop-only OCR identity; kept outside the chat/provider catalog. */
+import {PADDLE_OCR_PROVIDER} from './paddle-ocr'
 export const LOCAL_OCR_PROVIDER = 'local-minicpm-ocr'
+export const isLocalOcrProvider=(provider?:string)=>provider===LOCAL_OCR_PROVIDER||provider===PADDLE_OCR_PROVIDER
 export const LOCAL_OCR_MODELS = {q4:'minicpm-ocr-1.0-q4-k-m-0133ad8',q8:'minicpm-ocr-1.0-q8-0-0133ad8'} as const
 export type LocalOcrVariant = keyof typeof LOCAL_OCR_MODELS
 export type LocalOcrConfig = {backend:'cpu'|'vulkan';threads:number;idleSeconds:number}

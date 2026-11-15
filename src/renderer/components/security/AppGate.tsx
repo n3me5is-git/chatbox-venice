@@ -1,4 +1,5 @@
 import {localOcrControl,localOcrDesktop} from '@/packages/local-ocr/client'
+import {paddleOcrAvailable,paddleOcrControl} from '@/packages/paddle-ocr/client'
 import { Alert,Box,Button,Group,Stack,Text } from '@mantine/core'
 import { createContext,type ReactNode,useContext,useEffect,useState,useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +24,7 @@ export function lockApplication():Promise<void>{
   pendingLock=(async()=>{try{
   const [{rendererApplication},{veniceMediaService},{sessionApprovals},{stopAllMessageGenerations},{getImageGenerationService},{uiStore},{rendererBackupService}]=await Promise.all([import('@/app/renderer-application'),import('@/packages/venice/service'),import('@/packages/venice/session-approvals'),import('@/stores/session/generation-cancellation'),import('@/stores/imageGenerationActions'),import('@/stores/uiStore'),import('@/app/renderer-backup')])
   if(localOcrDesktop())await localOcrControl('unload').catch(()=>{})
+  if(paddleOcrAvailable())await paddleOcrControl('unload').catch(()=>{})
   uiStore.getState().setPictureShow(null);uiStore.getState().setOpenSearchDialog(false)
   sessionApprovals.clearAll()
   await Promise.allSettled([getImageGenerationService().cancel(),veniceMediaService.pauseAll(),rendererBackupService.cancelAndWait(),...rendererApplication.generationRuntime.getGeneratingSessionIds().map(id=>stopAllMessageGenerations(id))])

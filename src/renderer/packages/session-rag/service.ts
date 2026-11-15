@@ -22,8 +22,8 @@ export async function loadRagSettings(id:string):Promise<RagSettings>{
   const saved=await get(id,RAG_ROOT+'settings.json');if(saved)return RagSettingsSchema.parse(saved)
   return defaultRagSettings()
 }
-const consent=(settings:RagSettings)=>JSON.stringify(settings)
-export async function ragAuthorized(id:string,settings:RagSettings){return settings.enabled&&await vault().db.getSetting('rag:consent:'+id)===consent(settings)}
+const consent=(settings:RagSettings)=>{const {pdfOcrMode,...legacy}=settings;return JSON.stringify(settings.ocr&&pdfOcrMode==='all'?settings:legacy)}
+export async function ragAuthorized(id:string,settings:RagSettings){const saved=await vault().db.getSetting('rag:consent:'+id);return settings.enabled&&(saved===consent(settings)||!(settings.ocr&&settings.pdfOcrMode==='all')&&saved===JSON.stringify(settings))}
 async function put(id:string,path:string,value:unknown){const bytes=new TextEncoder().encode(JSON.stringify(value));try{await sessionFiles.write(id,path,bytes,{mime:'application/json',deliverable:false,managed:true})}finally{bytes.fill(0)}}
 export async function configureRag(id:string,input:RagSettings){
   await vault().projects.assertSession(id);const settings=RagSettingsSchema.parse({...input,...(input.provider==='venice'?{images:false,audio:false}:{})})

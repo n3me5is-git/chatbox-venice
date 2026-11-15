@@ -1,4 +1,6 @@
 import {LOCAL_OCR_PROVIDER} from '@shared/local-ocr'
+import {PADDLE_OCR_PROVIDER} from '@shared/paddle-ocr'
+import {paddleOcrModel} from '@/packages/paddle-ocr/model'
 import {localOcrModel} from '@/packages/local-ocr/model'
 import { getModel } from '@shared/models'
 import type { ModelInterface } from '@shared/models/types'
@@ -30,6 +32,7 @@ export function getOCRModel(
   if (hasUserOcrModel) {
     // User has explicitly configured an OCR model — always respect their choice
     const ocrModelSetting = globalSettings.ocrModel!
+    if(ocrModelSetting.provider===PADDLE_OCR_PROVIDER)return {model:paddleOcrModel(ocrModelSetting.model),providerName:'PaddleOCR · Local'}
     if(ocrModelSetting.provider===LOCAL_OCR_PROVIDER)return {model:localOcrModel(ocrModelSetting.model),providerName:'MiniCPM-OCR · Local'}
     const modelSettings = getModelSettings(globalSettings, ocrModelSetting.provider, ocrModelSetting.model)
     return {

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "windows": {
+    "name": "paddle-ocr-win-x64-v1.zip",
+    "bytes": 20400555,
+    "sha256": "1b59e674db38221281d00d40c0ef1553af2b009e4c03b5e12035ecffaa15f869",
+    "manifestSha256": "ccbdc216be22a1c974f93d63969ee3ca51835c2867bbda22c3280d3722d54f19",
+    "sourceCommit": "3c194d89f5c47c2a1acb85ad4809b9abdd8de7a1",
+    "url": "https://github.com/n3me5is-git/chatbox-venice/releases/download/paddle-ocr-runtime-v1/paddle-ocr-win-x64-v1.zip"
+  },
+  "models": {
+    "name": "paddle-ocr-models-v1.zip",
+    "bytes": 11848236,
+    "sha256": "a2965a8b700d404a97ee02e8db84c19ad1bf241e3fd8cddda3641f3b4d5d2d54",
+    "url": "https://github.com/n3me5is-git/chatbox-venice/releases/download/paddle-ocr-runtime-v1/paddle-ocr-models-v1.zip",
+    "manifestSha256": "39393d4591f8104393126b40090ab2e7f89e5465c868e9a3ed45af9a14f28929"
+  },
+  "android": {
+    "name": "paddle-ocr-android-v1.zip",
+    "bytes": 20835056,
+    "sha256": "ebf8cef3d4b40f96bc691378cd47b033246f2a34bd78d28a846eb6a82aaf7359",
+    "url": "https://github.com/n3me5is-git/chatbox-venice/releases/download/paddle-ocr-runtime-v1/paddle-ocr-android-v1.zip"
+  }
+}

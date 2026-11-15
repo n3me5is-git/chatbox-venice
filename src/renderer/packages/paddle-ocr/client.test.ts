@@ -1,0 +1,10 @@
+// @vitest-environment jsdom
+import {afterEach,beforeEach,expect,it,vi} from 'vitest'
+const state=vi.hoisted(()=>({platform:'android',control:vi.fn()}))
+vi.mock('@capacitor/core',()=>({Capacitor:{getPlatform:()=>state.platform},registerPlugin:()=>({control:(...args:unknown[])=>state.control(...args)})}))
+import {PADDLE_OCR_MODEL} from '@shared/paddle-ocr'
+import {paddleOcrAvailable,paddleOcrControl,recognizePaddle} from './client'
+beforeEach(()=>{state.platform='android';state.control.mockReset()});afterEach(()=>{delete (window as any).electronAPI})
+it('uses the registered Android plugin, without a remote-provider fallback',async()=>{state.control.mockResolvedValue({text:'Forlì, quantità 24'});expect(paddleOcrAvailable()).toBe(true);await expect(recognizePaddle(PADDLE_OCR_MODEL,'data:image/png;base64,AQID')).resolves.toBe('Forlì, quantità 24');expect(state.control).toHaveBeenCalledWith({command:'ocr',value:{id:expect.any(String),modelId:PADDLE_OCR_MODEL,image:'data:image/png;base64,AQID'}})})
+it('cancels Android requests immediately and refuses a late native result',async()=>{let finish:(value:unknown)=>void=()=>{};state.control.mockImplementation(({command})=>command==='ocr'?new Promise(resolve=>finish=resolve):Promise.resolve());const controller=new AbortController(),run=recognizePaddle(PADDLE_OCR_MODEL,'data:image/png;base64,AQID',controller.signal);controller.abort();await expect(run).rejects.toThrow();finish({text:'late output'});expect(state.control).toHaveBeenCalledWith({command:'cancel',value:expect.any(String)})})
+it('routes Electron to its owned IPC and reports unsupported browsers explicitly',async()=>{state.platform='web';await expect(paddleOcrControl('status')).rejects.toThrow('unavailable');const invoke=vi.fn().mockResolvedValue({ready:true});(window as any).electronAPI={invoke};await expect(paddleOcrControl('status')).resolves.toEqual({ready:true});expect(invoke).toHaveBeenCalledWith('paddle-ocr:control','status',undefined);expect(state.control).not.toHaveBeenCalled()})

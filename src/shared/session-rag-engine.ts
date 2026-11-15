@@ -15,23 +15,28 @@ export interface RagEnginePort {
   check():Promise<void>
 }
 export const ragHash=async(bytes:Uint8Array)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',Uint8Array.from(bytes)))).map(n=>n.toString(16).padStart(2,'0')).join('')
-export const ragFingerprint=(settings:RagSettings)=>JSON.stringify([settings.provider,settings.model,settings.dimensions,settings.images,settings.audio,settings.ocr,settings.ocrProvider,settings.ocrModel,RAG_CHUNKER_VERSION,...(settings.stt?[settings.stt,settings.sttProvider,settings.sttModel]:[]),...(settings.describeImages||settings.fileMetadata||settings.locationMetadata||settings.ocrReasoning==='concise'?['source-enrichment-v1',settings.describeImages,settings.fileMetadata,settings.locationMetadata,settings.ocrReasoning]:[])])
+export const ragFingerprint=(settings:RagSettings)=>JSON.stringify([settings.provider,settings.model,settings.dimensions,settings.images,settings.audio,settings.ocr,settings.ocrProvider,settings.ocrModel,RAG_CHUNKER_VERSION,...(settings.stt?[settings.stt,settings.sttProvider,settings.sttModel]:[]),...(settings.describeImages||settings.fileMetadata||settings.locationMetadata||settings.ocrReasoning==='concise'?['source-enrichment-v1',settings.describeImages,settings.fileMetadata,settings.locationMetadata,settings.ocrReasoning]:[]),...(settings.ocr&&settings.pdfOcrMode==='all'?['pdf-ocr-all-v1']:[])])
+function sameEmbedding(previous:RagIndex|null,current:string,space?:string){if(!previous||previous.embeddingSpace!==space)return false;try{const old=JSON.parse(previous.fingerprint),next=JSON.parse(current);return Array.isArray(old)&&Array.isArray(next)&&JSON.stringify(old.slice(0,3))===JSON.stringify(next.slice(0,3))}catch{return false}}
+function withoutPdfPolicy(raw:string){try{const value=JSON.parse(raw);if(!Array.isArray(value))return null;if(value.at(-1)==='pdf-ocr-all-v1')value.pop();return JSON.stringify(value)}catch{return null}}
 export class SessionRagEngine {
   constructor(private port:RagEnginePort){}
   async index(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void=()=>{},rebuild=false){
     const stored=await this.port.get(RAG_ROOT+'index.json'),previous=stored?RagIndexSchema.parse(stored):null,fingerprint=ragFingerprint(settings),files:RagFile[]=[],errors:RagIndex['errors']=[],created:string[]=[],stats={embeddedChunks:0,reusedChunks:0,unchangedFiles:0}
     try{
       if(!rebuild&&previous?.fingerprint===fingerprint&&this.port.embeddingSpace&&previous.embeddingSpace!==this.port.embeddingSpace)throw Error('The embedding endpoint or index binding changed. Use Reindex to rebuild vectors; no provider calls were made.')
-      let dimensions:number|undefined;if(!rebuild&&previous?.fingerprint===fingerprint&&previous.files[0]?.shards[0])dimensions=(await this.shard(previous.files[0].shards[0]))[0]?.vector.length
+      const reuseVectors=!rebuild&&sameEmbedding(previous,fingerprint,this.port.embeddingSpace),reuseExtraction=!rebuild&&previous?.fingerprint===fingerprint
+      const nonPdfFingerprint=withoutPdfPolicy(fingerprint),reuseNonPdfExtraction=!rebuild&&!!previous&&nonPdfFingerprint!==null&&withoutPdfPolicy(previous.fingerprint)===nonPdfFingerprint
+      let dimensions:number|undefined;if(reuseVectors&&previous?.files[0]?.shards[0])dimensions=(await this.shard(previous.files[0].shards[0]))[0]?.vector.length
       const sources=await this.port.list();if(sources.length>RAG_MAX_FILES)throw Error('Session file count limit reached')
       for(const source of sources){if(ragExcluded(source.path,settings))continue;signal.throwIfAborted();await this.port.check();progress(source.path)
         let bytes:Uint8Array|undefined
         try{
           if((source.bytes||0)>10*1024*1024)throw Error('Session files must not exceed 10 MB')
-          const prior=!rebuild&&previous?.fingerprint===fingerprint?previous.files.find(file=>file.path===source.path):undefined
-          if(prior&&this.port.revision&&await this.port.revision(source.path)===prior.hash){await this.port.check();files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
+          const prior=reuseVectors?previous?.files.find(file=>file.path===source.path):undefined
+          const reuseSourceExtraction=reuseExtraction||reuseNonPdfExtraction&&!(/\.pdf$/i.test(source.path)||/^application\/pdf(?:;|$)/i.test(source.mime))
+          if(prior&&reuseSourceExtraction&&this.port.revision&&await this.port.revision(source.path)===prior.hash){await this.port.check();files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
           bytes=await this.port.read(source.path);const hash=await ragHash(bytes)
-          if(prior?.hash===hash){files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
+          if(prior?.hash===hash&&reuseSourceExtraction){files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;continue}
           const extracted=await this.port.extract(source,bytes,settings,signal)
           const textParts=chunkRagText(extracted.text||'').map(part=>({...part,media:false})),parts=extracted.media?[{text:'',line:1,endLine:1,page:undefined as number|undefined,media:true},...textParts]:textParts
           if(!parts.length)continue

@@ -1,0 +1,8 @@
+// @vitest-environment jsdom
+import {afterEach,beforeEach,expect,it,vi} from 'vitest'
+import {preparePaddleImage} from './image-input'
+const fixture=(width=64,height=32)=>{const bytes=new Uint8Array(30);bytes.set(new TextEncoder().encode('RIFF'),0);bytes.set(new TextEncoder().encode('WEBPVP8X'),8);for(const [offset,value]of [[24,width-1],[27,height-1]]){bytes[offset]=value&255;bytes[offset+1]=(value>>>8)&255;bytes[offset+2]=(value>>>16)&255}return 'data:image/webp;base64,'+btoa(String.fromCharCode(...bytes))}
+afterEach(()=>{delete (window as any).electronAPI;vi.restoreAllMocks();vi.unstubAllGlobals()})
+beforeEach(()=>{(window as any).electronAPI={invoke:vi.fn()}})
+it('locally converts a bounded WebP to PNG and releases its bitmap and canvas',async()=>{const close=vi.fn(),draw=vi.fn(),decode=vi.fn(async()=>({close}));vi.stubGlobal('createImageBitmap',decode);vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockReturnValue({drawImage:draw} as any);vi.spyOn(HTMLCanvasElement.prototype,'toDataURL').mockReturnValue('data:image/png;base64,AQID');await expect(preparePaddleImage(fixture())).resolves.toBe('data:image/png;base64,AQID');expect(decode).toHaveBeenCalledWith(expect.any(Blob),{resizeWidth:64,resizeHeight:32,resizeQuality:'high'});expect(draw).toHaveBeenCalledOnce();expect(close).toHaveBeenCalledOnce()})
+it('rejects oversized WebP headers before browser decoding and leaves supported native inputs unchanged',async()=>{const decode=vi.fn();vi.stubGlobal('createImageBitmap',decode);await expect(preparePaddleImage(fixture(8000,8000))).rejects.toThrow('16 megapixels');expect(decode).not.toHaveBeenCalled();await expect(preparePaddleImage('data:image/png;base64,AQID')).resolves.toBe('data:image/png;base64,AQID')})

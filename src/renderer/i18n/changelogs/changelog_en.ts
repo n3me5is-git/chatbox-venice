@@ -1,4 +1,10 @@
 const changelog = `
+## Chatbox Venice 1.48.0
+1. Use local PaddleOCR on Windows and Android with CPU/Vulkan controls
+2. Read every PDF page with OCR while preserving references and incremental reuse
+3. Store retained document text more compactly in encrypted and public collections
+4. Improve OCR reading order, camera-photo orientation and local WebP handling
+
 ## Chatbox Venice 1.35.0
 1. Share encrypted peer chats by QR/code, with participant IDs, permissions and revocation
 2. Route agent questions and Venice approvals to the owner, everyone (first answer), or the requester

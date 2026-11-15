@@ -1,5 +1,12 @@
 # Changelog — Chatbox Venice
 
+## 1.48.0
+
+- Optional local PaddleOCR on Windows and Android with CPU/Vulkan controls.
+- All-page PDF OCR with incremental cache reuse and preserved page references.
+- Compressed retained document text and portable-reader compatibility.
+- Improved OCR reading order, camera orientation and local WebP handling.
+
 ## 1.47.0
 
 - Optional managed desktop MiniCPM OCR with verified downloads/imports, CPU/Vulkan controls and queue-aware memory reuse.
