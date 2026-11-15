@@ -1,0 +1,51 @@
+name: Local OCR real inference
+on:
+  pull_request:
+    types: [opened, reopened, labeled]
+    paths:
+      - 'src/main/local-ocr/**'
+      - 'src/shared/local-ocr*'
+      - 'scripts/local-ocr-live.ts'
+      - '.github/workflows/test-local-ocr.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: local-ocr-live-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native-ocr:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'local-ocr-live')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/local-ocr/MiniCPM-OCR-1_0-Q4_K_M.gguf
+            .cache/local-ocr/MiniCPM-OCR-1_0-Q8_0.gguf
+            .cache/local-ocr/mmproj-model-f16-4x.gguf
+          key: minicpm-ocr-0133ad8-q4-q8-projector-v2
+          restore-keys: minicpm-ocr-0133ad8-q4-projector-v1
+          enableCrossOsArchive: true
+      - name: Build native OCR driver
+        run: pnpm exec esbuild scripts/local-ocr-live.ts --bundle --platform=node --format=esm --packages=external --outfile=test-results/local-ocr-live.mjs
+      - name: Real model download, queued pages and idle release
+        run: node test-results/local-ocr-live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Local-OCR-${{ runner.os }}
+          path: test-results/local-ocr/
+          retention-days: 7

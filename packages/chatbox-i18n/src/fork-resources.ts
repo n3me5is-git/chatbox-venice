@@ -1,3 +1,4 @@
+import {localOcrEnglish,localOcrItalian} from './local-ocr-resources'
 import {portableKnowledgeEnglish,portableKnowledgeItalian} from './portable-knowledge-resources'
 import {advancedKnowledgeEnglish,advancedKnowledgeItalian} from './advanced-knowledge-resources'
 import {mcpEnglish,mcpItalian} from './mcp-resources'
@@ -10,6 +11,7 @@ import {catalogEnglish,catalogItalian} from './catalog-resources'
 import {agentsEnglish,agentsItalian} from './agents-resources'
 import {transferEnglish,transferItalian} from './transfer-resources'
 export const forkEnglish = {
+  ...localOcrEnglish,
   ...portableKnowledgeEnglish,
   ...mcpEnglish,
   ...archiveEnglish,
@@ -679,6 +681,7 @@ export const forkEnglish = {
   "This model does not declare native function calling. Choose encrypted text tools or another model.": "This model does not declare native function calling. Choose encrypted text tools or another model.",
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+  ...localOcrItalian,
   ...mcpItalian,
   ...archiveItalian,
   ...ragItalian,

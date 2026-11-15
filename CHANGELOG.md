@@ -1,5 +1,10 @@
 # Changelog — Chatbox Venice
 
+## 1.47.0
+
+- Optional managed desktop MiniCPM OCR with verified downloads/imports, CPU/Vulkan controls and queue-aware memory reuse.
+- Global and per-collection OCR selection, bounded PDF prefetch and English/Italian setup controls.
+
 ## 1.46.0
 
 - Optional public folder collections and automatic existing-folder setup.

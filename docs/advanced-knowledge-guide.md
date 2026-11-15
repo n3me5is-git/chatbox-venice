@@ -98,3 +98,7 @@ Derived descriptions and metadata follow the source hash and parsing settings, p
 Source review and OCR offer a **concise** mode that uses only a catalog-supported low/off thinking setting, scoped to the auxiliary request. Existing automatic reasoning remains valid. Concise mode leaves a bounded output budget for JSON; an incomplete or invalid judge response remains unverified. It is not an accuracy guarantee.
 
 The source-review evidence validator also excludes quotations overlapping recognized explicit evaluator/system-control directives. This is a bounded conservative heuristic: it can abstain on legitimate quoted instructions and does not detect every prompt-injection technique. Exact quotes, claim coverage and model assessment still do not establish real-world truth.
+
+## Optional desktop OCR
+
+[Local MiniCPM OCR](local-minicpm-ocr.md) can be selected globally or independently for a knowledge collection. It uses a managed native worker and verified public model files, with CPU/Vulkan controls and bounded page/memory scheduling.

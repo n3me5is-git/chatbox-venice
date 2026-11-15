@@ -32,6 +32,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Desktop local OCR lifecycle, downloads and role routing
+        run: pnpm exec vitest run src/main/local-ocr src/shared/local-ocr.test.ts src/renderer/packages/local-ocr src/renderer/components/local-ocr src/renderer/packages/session-rag/extract.test.ts
       - name: Concise user-facing release notes
         run: node --test scripts/release-notes-policy.test.mjs
       - name: Optional LLM reranking and incremental knowledge metadata
