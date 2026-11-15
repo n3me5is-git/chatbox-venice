@@ -15,7 +15,7 @@ export async function runLocalOcr({click,evaluate,wait,byText,fill,cdp,output}){
  await wait(()=>evaluate("document.body.textContent.includes('MiniCPM OCR locale')"),'Italian OCR setup missing')
  assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'OCR setup overflows a narrow desktop window')
  await writeFile(path.join(output,'local-ocr-narrow-it.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
- await evaluate("window.__simulationSetLanguage('en')");await click(byText('Use this OCR model'))
+ await evaluate("window.__simulationSetLanguage('en')");await click("document.querySelector('button[aria-label=\"Use this OCR model Q4\"]')")
  await wait(()=>evaluate("window.__localOcrSelected==='minicpm-ocr-1.0-q4-k-m-0133ad8'"),'Local model selection failed')
  assert.equal(await evaluate("window.__localOcrCalls.every(call=>['status','configure'].includes(call.command))"),true,'Setup made an unexpected native call')
  await cdp('Emulation.setDeviceMetricsOverride',{width:412,height:915,deviceScaleFactor:1,mobile:true})
