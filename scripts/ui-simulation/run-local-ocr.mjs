@@ -8,7 +8,7 @@ export async function runLocalOcr({click,evaluate,wait,byText,fill,cdp,output}){
  await fill('Keep the model ready after the queue finishes (seconds)','300');await click(byText('Apply processing settings'))
  await wait(()=>evaluate("window.__localOcrCalls.some(call=>call.command==='configure'&&call.value.idleSeconds===300)"),'Idle window did not save')
  await click("document.getElementById([...document.querySelectorAll('label')].find(e=>e.textContent==='Processing hardware').htmlFor)")
- await click("[...document.querySelectorAll('[role=option]')].find(e=>e.textContent==='GPU with Vulkan (requires compatible drivers)')")
+ await click("[...document.querySelectorAll('[role=option]')].find(e=>e.textContent==='GPU (Vulkan)')")
  await click(byText('Apply processing settings'));await wait(()=>evaluate("window.__localOcrCalls.some(call=>call.command==='configure'&&call.value.backend==='vulkan')"),'Vulkan did not save')
  await writeFile(path.join(output,'local-ocr-desktop.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  await cdp('Emulation.setDeviceMetricsOverride',{width:520,height:900,deviceScaleFactor:1,mobile:false});await evaluate("window.__simulationSetLanguage('it-IT')")

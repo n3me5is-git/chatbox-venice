@@ -1,5 +1,7 @@
 // English source; other locales fall back to English.
 export const localOcrEnglish = {
+  "GPU (Vulkan)":"GPU (Vulkan)",
+  "Requires compatible Vulkan drivers.":"Requires compatible Vulkan drivers.",
   "Local OCR request failed":"Local OCR request failed",
   "Unable to release the local OCR worker":"Unable to release the local OCR worker",
   "Technical details":"Technical details",
@@ -76,6 +78,8 @@ export const localOcrEnglish = {
   "Invalid local OCR settings": "Invalid local OCR settings"
 }
 export const localOcrItalian = {
+  "GPU (Vulkan)":"GPU (Vulkan)",
+  "Requires compatible Vulkan drivers.":"Richiede driver Vulkan compatibili.",
   "Local OCR request failed":"Richiesta OCR locale non riuscita",
   "Unable to release the local OCR worker":"Impossibile scaricare il motore OCR locale dalla memoria",
   "Technical details":"Dettagli tecnici",
