@@ -1,4 +1,5 @@
 import hashlib,json,os,pathlib,shutil,subprocess,urllib.request,zipfile
+import package_support
 ROOT=pathlib.Path('.cache/paddle-ocr').resolve();SDK=ROOT/'android-sdk';SDK.mkdir(parents=True,exist_ok=True)
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def download(url,path,digest):
@@ -24,11 +25,10 @@ for abi in ['arm64-v8a','armeabi-v7a','x86_64']:
  subprocess.run(['cmake','-S','native/paddle-ocr','-B',str(build),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release','-DCMAKE_TOOLCHAIN_FILE='+str(ndk/'build/cmake/android.toolchain.cmake'),'-DANDROID_ABI='+abi,'-DANDROID_PLATFORM=android-26','-DANDROID_STL=c++_static','-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON','-Dncnn_DIR='+str(ncnn),'-DOpenCV_DIR='+str(opencv),'-DJSON_INCLUDE_DIR='+str(include)],check=True)
  subprocess.run(['cmake','--build',str(build),'--parallel','4'],check=True)
  target=output/abi;target.mkdir(exist_ok=True);shutil.copy2(build/'libpaddle_ocr.so',target/'libpaddle_ocr.so')
-shutil.copy2('native/paddle-ocr/THIRD-PARTY-NOTICES.md',output/'THIRD-PARTY-NOTICES.md')
+package_support.licenses(output)
 models=ROOT/'model-package';models.mkdir(exist_ok=True)
-for name in ['det.ncnn.param','det.ncnn.bin','rec.ncnn.param','rec.ncnn.bin','dictionary.json','model-manifest.json']:shutil.copy2(ROOT/'models'/name,models/name)
-shutil.copy2('native/paddle-ocr/THIRD-PARTY-NOTICES.md',models/'THIRD-PARTY-NOTICES.md')
-(models/'runtime-manifest.json').write_text(json.dumps({'version':1,'model':'ppocr-v5-latin-f32-v1','files':{p.name:{'bytes':p.stat().st_size,'sha256':sha(p)} for p in models.iterdir() if p.is_file()}},indent=2),encoding='utf-8')
+package_support.models(ROOT/'models',models)
+package_support.manifest(models)
 manifest={'version':1,'source':os.environ.get('GITHUB_SHA')}
 for key,name,path in [('android','paddle-ocr-android-v1',output),('models','paddle-ocr-models-v1',models)]:
  archive=pathlib.Path(shutil.make_archive(str(ROOT/name),'zip',path));manifest[key]={'name':archive.name,'bytes':archive.stat().st_size,'sha256':sha(archive),'url':'https://github.com/n3me5is-git/chatbox-venice/releases/download/paddle-ocr-runtime-v1/'+archive.name}

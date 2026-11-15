@@ -5,7 +5,7 @@ on:
     paths: ['native/paddle-ocr/**', 'scripts/paddle-ocr/**', '.github/workflows/build-paddle-ocr.yml']
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: paddle-runtime-${{ github.ref }}
   cancel-in-progress: true
@@ -65,15 +65,13 @@ jobs:
           path: |
             .cache/paddle-ocr/paddle-ocr-win-x64-v1.zip
             .cache/paddle-ocr/download-manifest.json
-            test-results/paddle-ocr/
           retention-days: 7
-      - name: Publish optional runtime component
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view paddle-ocr-runtime-v1 >/dev/null 2>&1 || gh release create paddle-ocr-runtime-v1 --target "$GITHUB_SHA" --prerelease --title "PaddleOCR local engine v1" --notes "Optional Windows x64 PaddleOCR text-recognition component with CPU and Vulkan support. Includes Latin language models and third-party license notices."
-          gh release upload paddle-ocr-runtime-v1 .cache/paddle-ocr/paddle-ocr-win-x64-v1.zip .cache/paddle-ocr/download-manifest.json --clobber
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PaddleOCR-Windows-Tests
+          path: test-results/paddle-ocr/
+          retention-days: 7
 
   android:
     needs: models
@@ -99,9 +97,27 @@ jobs:
             .cache/paddle-ocr/paddle-ocr-models-v1.zip
             .cache/paddle-ocr/android-download-manifest.json
           retention-days: 7
-      - name: Publish Android components
+
+  publish:
+    needs: [windows, android]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: PaddleOCR-Windows
+          path: windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: PaddleOCR-Android
+          path: android
+      - name: Publish verified optional components
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view paddle-ocr-runtime-v1 >/dev/null 2>&1 || gh release create paddle-ocr-runtime-v1 --target "$GITHUB_SHA" --prerelease --title "PaddleOCR local engine v1" --notes "Optional local PaddleOCR components for Windows and Android, with CPU and Vulkan support and Latin language models."
-          gh release upload paddle-ocr-runtime-v1 .cache/paddle-ocr/paddle-ocr-android-v1.zip .cache/paddle-ocr/paddle-ocr-models-v1.zip .cache/paddle-ocr/android-download-manifest.json --clobber
+          node --input-type=module -e "const r=await fetch('https://raw.githubusercontent.com/n3me5is-git/chatbox-venice/main/src/shared/paddle-ocr-artifacts.json'); if(r.ok&&JSON.stringify(await r.json()).includes('/paddle-ocr-runtime-v1/'))throw Error('Component v1 is pinned by a shipped app; bump the component version instead of replacing it'); if(!r.ok&&r.status!==404)throw Error('Unable to check component version pin');"
+          gh release view paddle-ocr-runtime-v1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create paddle-ocr-runtime-v1 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "PaddleOCR local engine v1" --notes "Optional Windows and Android OCR components with CPU/Vulkan support, Latin language models and complete third-party license texts."
+          test "$(gh release view paddle-ocr-runtime-v1 --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease)" = true
+          gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/paddle-ocr-runtime-v1" --method PATCH -f sha="$GITHUB_SHA" -F force=true
+          gh release upload paddle-ocr-runtime-v1 --repo "$GITHUB_REPOSITORY" windows/*.zip windows/download-manifest.json android/*.zip android/android-download-manifest.json --clobber

@@ -1,4 +1,5 @@
 import hashlib,json,os,pathlib,shutil,subprocess,urllib.request,zipfile
+import package_support
 ROOT=pathlib.Path('.cache/paddle-ocr').resolve();SDK=ROOT/'sdk';SDK.mkdir(parents=True,exist_ok=True)
 def download(url,path,digest):
  if not path.exists():
@@ -29,15 +30,8 @@ redist=sorted(candidates,key=lambda p:len(str(p)))[0].parent
 for folder in redist.iterdir():
  if folder.name.endswith(('.CRT','.OpenMP')):
   for dll in folder.glob('*.dll'):shutil.copy2(dll,package/dll.name)
-for p in (ROOT/'models').iterdir():
- if p.name.endswith(('.ncnn.param','.ncnn.bin')) or p.name in ['dictionary.json','model-manifest.json']:shutil.copy2(p,package/p.name)
-shutil.copy2('native/paddle-ocr/THIRD-PARTY-NOTICES.md',package/'THIRD-PARTY-NOTICES.md')
-licenses=package/'licenses';licenses.mkdir(exist_ok=True)
-for name,path in [('ncnn',SDK/'ncnn'),('opencv',SDK/'opencv'),('clipper',build/'_deps/clipper-src')]:
- for p in path.rglob('*'):
-  if p.is_file() and p.name.lower() in ['license','license.txt','licence','licence.txt']:
-   shutil.copy2(p,licenses/(name+'-'+p.name));break
-(package/'runtime-manifest.json').write_text(json.dumps({'version':1,'model':'ppocr-v5-latin-f32-v1','files':{p.name:{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in package.iterdir() if p.is_file()}},indent=2),encoding='utf-8')
+package_support.models(ROOT/'models',package)
+package_support.manifest(package)
 archive=pathlib.Path(shutil.make_archive(str(ROOT/'paddle-ocr-win-x64-v1'),'zip',package))
-(ROOT/'download-manifest.json').write_text(json.dumps({'name':archive.name,'bytes':archive.stat().st_size,'sha256':hashlib.sha256(archive.read_bytes()).hexdigest()},indent=2),encoding='utf-8')
+(ROOT/'download-manifest.json').write_text(json.dumps({'name':archive.name,'bytes':archive.stat().st_size,'sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),'manifestSha256':package_support.digest(package/'runtime-manifest.json'),'sourceCommit':os.environ.get('GITHUB_SHA'),'url':'https://github.com/n3me5is-git/chatbox-venice/releases/download/paddle-ocr-runtime-v1/'+archive.name},indent=2),encoding='utf-8')
 print((ROOT/'download-manifest.json').read_text())

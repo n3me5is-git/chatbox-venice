@@ -1,0 +1,37 @@
+[
+  {
+    "name": "LICENSE-PaddleOCR-APACHE-2.0.txt",
+    "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/LICENSE",
+    "sha256": "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+  },
+  {
+    "name": "LICENSE-ncnn-BSD-3-Clause.txt",
+    "url": "https://raw.githubusercontent.com/Tencent/ncnn/20261020/LICENSE.txt",
+    "sha256": "7c974bac98848df46be1af5bdaa3c3c9c01f6082a90f55caeb7f60c6208aa255"
+  },
+  {
+    "name": "LICENSE-OpenCV-APACHE-2.0.txt",
+    "url": "https://raw.githubusercontent.com/opencv/opencv/4.x/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "name": "LICENSE-Clipper2-Boost.txt",
+    "url": "https://raw.githubusercontent.com/AngusJohnson/Clipper2/21ebba05db8894f0c7217ad35ea518080f324946/LICENSE",
+    "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+  },
+  {
+    "name": "LICENSE-JSON-MIT.txt",
+    "url": "https://raw.githubusercontent.com/nlohmann/json/v3.12.0/LICENSE.MIT",
+    "sha256": "46a65cffd1ea955132d95a8dd921640714a8d6b537d2e4e482d31145ae95b603"
+  },
+  {
+    "name": "LICENSE-glslang-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/KhronosGroup/glslang/main/LICENSE.txt",
+    "sha256": "17e70c676e1521ff3e4686f04a2053d93a7e28a33be8de7ec37ab0ff72feb677"
+  },
+  {
+    "name": "LICENSE-stb-Public-Domain-or-MIT.txt",
+    "url": "https://raw.githubusercontent.com/nothings/stb/master/LICENSE",
+    "sha256": "eb36e45c704dd0b59730115523e089b051852625b4db0a6fe76c991900af20e7"
+  }
+]
