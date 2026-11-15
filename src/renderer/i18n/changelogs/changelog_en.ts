@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.49.0
+1. Choose any Vision model as virtual OCR, including custom providers
+2. Optionally use vision after empty local OCR or directly for handwriting and complex pages
+3. Preserve cancellation, provider consent, processing provenance and incremental reuse
+
 ## Chatbox Venice 1.48.0
 1. Use local PaddleOCR on Windows and Android with CPU/Vulkan controls
 2. Read every PDF page with OCR while preserving references and incremental reuse

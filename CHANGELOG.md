@@ -1,5 +1,12 @@
 # Changelog — Chatbox Venice
 
+## 1.49.0
+
+- Virtual OCR selection for any configured Vision model, including custom providers.
+- Optional local-to-vision OCR fallback for empty text, handwriting and complex pages.
+- Explicit fallback provider selection, cancellation protection and processing provenance.
+- Updated English and Italian OCR controls on desktop and Android.
+
 ## 1.48.0
 
 - Optional local PaddleOCR on Windows and Android with CPU/Vulkan controls.

@@ -1,3 +1,4 @@
+import {OcrVisionFallbackSchema} from '@shared/virtual-ocr'
 import {KnowledgeVerificationSettingsSchema} from '@shared/knowledge-verification'
 import { LOCAL_WORK_CAPABILITY_IDS } from '@shared/mobile-work/capabilities'
 import { MultiAgentPolicySchema } from '@shared/multi-agent'
@@ -589,6 +590,7 @@ export const SettingsSchema = GlobalSessionSettingsSchema.extend({
     })
     .optional()
     .catch(undefined),
+  ocrVisionFallback: OcrVisionFallbackSchema.optional().catch(undefined),
   defaultEmbeddingModel: DefaultModelSelectionSchema,
   defaultRerankModel: DefaultModelSelectionSchema,
   defaultVirtualRerankModel: DefaultModelSelectionSchema,

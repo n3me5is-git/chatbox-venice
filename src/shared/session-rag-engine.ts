@@ -1,3 +1,4 @@
+import {ocrFallbackFingerprint} from './virtual-ocr'
 import {packRagShard,unpackRagShard} from './rag-vector-storage'
 import { RAG_ROOT, RAG_MAX_FILES, RAG_MAX_CHUNKS, RagIndexSchema, chunkRagText, cosine, normalizedVector, ragCitation, ragExcluded, type RagChunk, type RagFile, type RagIndex, type RagSettings } from './session-rag'
 import { RAG_CHUNKER_VERSION } from './rag-chunker'
@@ -15,7 +16,7 @@ export interface RagEnginePort {
   check():Promise<void>
 }
 export const ragHash=async(bytes:Uint8Array)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',Uint8Array.from(bytes)))).map(n=>n.toString(16).padStart(2,'0')).join('')
-export const ragFingerprint=(settings:RagSettings)=>JSON.stringify([settings.provider,settings.model,settings.dimensions,settings.images,settings.audio,settings.ocr,settings.ocrProvider,settings.ocrModel,RAG_CHUNKER_VERSION,...(settings.stt?[settings.stt,settings.sttProvider,settings.sttModel]:[]),...(settings.describeImages||settings.fileMetadata||settings.locationMetadata||settings.ocrReasoning==='concise'?['source-enrichment-v1',settings.describeImages,settings.fileMetadata,settings.locationMetadata,settings.ocrReasoning]:[]),...(settings.ocr&&settings.pdfOcrMode==='all'?['pdf-ocr-all-v1']:[])])
+export const ragFingerprint=(settings:RagSettings)=>JSON.stringify([settings.provider,settings.model,settings.dimensions,settings.images,settings.audio,settings.ocr,settings.ocrProvider,settings.ocrModel,RAG_CHUNKER_VERSION,...ocrFallbackFingerprint(settings),...(settings.stt?[settings.stt,settings.sttProvider,settings.sttModel]:[]),...(settings.describeImages||settings.fileMetadata||settings.locationMetadata||settings.ocrReasoning==='concise'?['source-enrichment-v1',settings.describeImages,settings.fileMetadata,settings.locationMetadata,settings.ocrReasoning]:[]),...(settings.ocr&&settings.pdfOcrMode==='all'?['pdf-ocr-all-v1']:[])])
 function sameEmbedding(previous:RagIndex|null,current:string,space?:string){if(!previous||previous.embeddingSpace!==space)return false;try{const old=JSON.parse(previous.fingerprint),next=JSON.parse(current);return Array.isArray(old)&&Array.isArray(next)&&JSON.stringify(old.slice(0,3))===JSON.stringify(next.slice(0,3))}catch{return false}}
 function withoutPdfPolicy(raw:string){try{const value=JSON.parse(raw);if(!Array.isArray(value))return null;if(value.at(-1)==='pdf-ocr-all-v1')value.pop();return JSON.stringify(value)}catch{return null}}
 export class SessionRagEngine {

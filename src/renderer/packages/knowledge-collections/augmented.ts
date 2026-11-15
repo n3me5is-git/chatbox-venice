@@ -1,3 +1,4 @@
+import {ocrFallbackFingerprint} from '@shared/virtual-ocr'
 import {z} from 'zod'
 import {packKnowledgeText,unpackKnowledgeText} from '@shared/knowledge-text-storage'
 import {RAG_ROOT,RagIndexSchema,RAG_MAX_FILES,type RagSettings} from '@shared/session-rag'
@@ -11,7 +12,7 @@ export const KnowledgeStateSchema=z.object({version:z.literal(1),revision:z.stri
 export type KnowledgeState=z.infer<typeof KnowledgeStateSchema>
 export interface AugmentedPort{get<T>(path:string):Promise<T|null>;put(path:string,value:unknown):Promise<void>;remove(path:string):Promise<void>;check():Promise<void>;publish(work:()=>Promise<void>):Promise<void>}
 export const knowledgeAnalysisFingerprint=async(settings:KnowledgeAugmentation)=>ragHash(new TextEncoder().encode(JSON.stringify([KNOWLEDGE_ANALYSIS_VERSION,KnowledgeAugmentationSchema.parse(settings)])))
-const parsingFingerprint=async(settings:RagSettings,pdf=false)=>ragHash(new TextEncoder().encode(JSON.stringify(['parser-v2',settings.ocr,settings.ocrProvider,settings.ocrModel,settings.stt,settings.sttProvider,settings.sttModel,...(settings.describeImages||settings.fileMetadata||settings.locationMetadata||settings.ocrReasoning==='concise'?['source-enrichment-v1',settings.describeImages,settings.fileMetadata,settings.locationMetadata,settings.ocrReasoning]:[]),...(pdf&&settings.ocr&&settings.pdfOcrMode==='all'?['pdf-ocr-all-v1']:[])])))
+const parsingFingerprint=async(settings:RagSettings,pdf=false)=>ragHash(new TextEncoder().encode(JSON.stringify(['parser-v2',settings.ocr,settings.ocrProvider,settings.ocrModel,settings.stt,settings.sttProvider,settings.sttModel,...ocrFallbackFingerprint(settings),...(settings.describeImages||settings.fileMetadata||settings.locationMetadata||settings.ocrReasoning==='concise'?['source-enrichment-v1',settings.describeImages,settings.fileMetadata,settings.locationMetadata,settings.ocrReasoning]:[]),...(pdf&&settings.ocr&&settings.pdfOcrMode==='all'?['pdf-ocr-all-v1']:[])])))
 /** A single encrypted publication record links vectors, evidence and metadata.
  * Existing immutable shards are reused; old data is removed only after commit. */
 export class AugmentedCollectionIndex{

@@ -27,7 +27,7 @@ describe('ocrImagesInMessages', () => {
 
     await ocrImagesInMessages(messages, model, 'session-1')
 
-    expect(chatMock).toHaveBeenCalledWith(expect.any(Array), { sessionId: 'session-1' })
+    expect(chatMock).toHaveBeenCalledWith(expect.any(Array), { sessionId: 'session-1', maxSteps:1, tools:{} })
     expect(messages[0].contentParts[0]).toMatchObject({ type: 'image', ocrResult: 'OCR result' })
   })
 })
