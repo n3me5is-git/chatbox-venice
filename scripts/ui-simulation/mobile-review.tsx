@@ -13,8 +13,8 @@ import {dataUrlBytes} from '../../src/renderer/packages/vault/chunk-store'
 import platform from './platform'
 const models=[{id:'private-secure',type:'text',model_spec:{name:'Private secure model',privacy:'private',uncensored:true,capabilities:{supportsE2EE:true,supportsTeeAttestation:true},pricing:{input:{usd:0.2,diem:0.2},output:{usd:0.5,diem:0.5}},constraints:{durations:['5s','10s'],maxInputImages:3}}},{id:'anonymous-image',type:'image',model_spec:{name:'Anonymous image model',privacy:'anonymized',uncensored:false}}]
 let initialized:Promise<void>|undefined
-async function seedLibrary(){
- const envelopes=new Map<string,string>(),vault=vaultRuntimeFor(platform as any,{databaseName:'mobile-review-library',device:{capabilities:async()=>({encryption:true,biometric:false,name:'Simulated device key'}),protect:async value=>{const id=crypto.randomUUID();envelopes.set(id,value);return id},unprotect:async id=>{const value=envelopes.get(id);if(!value)throw Error('Missing simulated key');return value}}})
+export async function seedLibrary(){
+ const envelopes=new Map<string,string>(),vault=vaultRuntimeFor(platform as any,{databaseName:new URLSearchParams(location.search).has('screen')?'screen-library-'+crypto.randomUUID():'mobile-review-library',device:{capabilities:async()=>({encryption:true,biometric:false,name:'Simulated device key'}),protect:async value=>{const id=crypto.randomUUID();envelopes.set(id,value);return id},unprotect:async id=>{const value=envelopes.get(id);if(!value)throw Error('Missing simulated key');return value}}})
  Object.assign(vault,{projects:{assertApp:async()=>{},libraryKeyVisible:async()=>true,assertLibraryKey:async()=>{}},media:{get:async(id:string)=>id==='music-record'?{kind:'music'}:null}})
  await vault.keys.configure('app',{pin:'123456',biometric:false})
  const canvas=document.createElement('canvas');canvas.width=160;canvas.height=120;const context=canvas.getContext('2d')!;context.fillStyle='#ff9900';context.fillRect(0,0,160,120)

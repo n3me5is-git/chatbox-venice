@@ -66,10 +66,11 @@ export default function CollectionsPage({service=defaultStore}:{service?:Knowled
  useOverlayManager(!!selected&&!graph&&!creating&&!protection&&!preview&&!busy,closeCollection)
  const removeCollection=()=>{if(selected&&window.confirm(ft(current?.directory?'Unmount this collection? Its folder, sources and database will be kept.':'Delete this collection and all its encrypted documents and vectors?')))void run(async()=>{await store.remove(selected);setSelected(undefined);setDetail(undefined)})}
 
- return <SettingsPage title={ft('Knowledge Base')} description={!selected?ft('Keep documents in collections and use them in any chat.'):undefined} action={!selected?<Group className="feature-panel" gap="xs" grow wrap="wrap"><Button leftSection={<IconPlus size={18}/>} style={{flex:1}} onClick={openCreate} disabled={busy}>{ft('New collection')}</Button>{knowledgeFolderAvailable()&&<Button variant="default" disabled={busy} onClick={()=>{setWriteMount(false);setMountDialog(true)}}>{ft('Open folder collection')}</Button>}</Group>:undefined}>
+ return <SettingsPage title={ft('Knowledge Base')} description={!selected?ft('Keep documents in collections and use them in any chat.'):undefined}>
  <div className="feature-panel"><Stack gap="md">
  {error&&<Alert color="red" role="alert">{ft(error)}</Alert>}
  {busy&&<Group role="status" wrap="wrap"><Loader size="sm"/><Text size="sm">{progress?ft('Indexing file')+': '+progress:ft('Working…')}</Text>{selected&&store.running(selected)&&<Button variant="subtle" color="red" onClick={()=>store.cancel(selected)}>{ft('Stop indexing')}</Button>}</Group>}
+ {!selected&&<SimpleGrid cols={{base:1,sm:2}} spacing="xs" data-testid="knowledge-overview-actions"><Button fullWidth leftSection={<IconPlus size={18}/>} onClick={openCreate} disabled={busy}>{ft('New collection')}</Button>{knowledgeFolderAvailable()&&<Button fullWidth variant="default" disabled={busy} onClick={()=>{setWriteMount(false);setMountDialog(true)}}>{ft('Open folder collection')}</Button>}</SimpleGrid>}
  {!selected&&<Tabs value={homeTab} onChange={setHomeTab} keepMounted={false}>
   <Tabs.List grow><Tabs.Tab value="collections">{ft('Collections')}</Tabs.Tab><Tabs.Tab value="search">{ft('Search across collections')}</Tabs.Tab></Tabs.List>
   <Tabs.Panel value="collections" pt="md"><Stack gap="md">

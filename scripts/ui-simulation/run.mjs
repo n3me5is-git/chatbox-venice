@@ -1,3 +1,4 @@
+import {runMobilePages} from './run-mobile-pages.mjs'
 import {runKnowledgeFileLimits} from './run-knowledge-file-limits.mjs'
 import {runAgentMobileReview} from './run-agent-mobile-review.mjs'
 import {runLocalOcr} from './run-local-ocr.mjs'
@@ -166,6 +167,7 @@ try {
   await runAgentMobileReview({click,evaluate,wait,fill,byText,cdp,output})
   await runLocalOcr({click,evaluate,wait,byText,fill,cdp,output})
   await runKnowledgeFileLimits({evaluate,output})
+  await runMobilePages({cdp,evaluate,click,wait,output})
   assert.deepEqual(exceptions, [], 'Browser exceptions')
   const external = requests.filter(url => !/^(http:\/\/127\.0\.0\.1:4174\/|data:|blob:)/.test(url))
   assert.deepEqual(external, [], 'UI simulation made an unexpected external request')
