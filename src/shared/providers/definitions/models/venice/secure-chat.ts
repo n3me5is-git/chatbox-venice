@@ -66,7 +66,7 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
         const privateMessages = encryptedToolMessages(native.privateMessages, tools, toolChoice)
         request.messages=[...encryptConversation(privateMessages,evidence.signingKey!),...pending]
       }else request.messages = encryptConversation(toolMode==='encrypted-text' ? encryptedToolMessages(body.messages, tools, toolChoice) : body.messages, evidence.signingKey!)
-      request.venice_parameters = { enable_e2ee: true, include_venice_system_prompt: false, enable_web_search: 'off', enable_web_scraping: false, enable_x_search: false, enable_web_citations: false, include_search_results_in_stream: false, strip_thinking_response: true }
+      request.venice_parameters = { enable_e2ee: true, include_venice_system_prompt: false, enable_web_search: 'off', enable_web_scraping: false, enable_x_search: false, enable_web_citations: false, include_search_results_in_stream: false, strip_thinking_response: true, ...(typeof body.venice_parameters?.disable_thinking==='boolean'?{disable_thinking:body.venice_parameters.disable_thinking}:{}) }
       headers.set('X-Venice-TEE-Client-Pub-Key', pair.publicKeyHex); headers.set('X-Venice-TEE-Model-Pub-Key', evidence.signingKey!); headers.set('X-Venice-TEE-Signing-Algo', 'ecdsa')
     }
     const sent = JSON.stringify(request)

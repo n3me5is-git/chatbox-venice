@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({ getDocument: vi.fn(), destroy: vi.fn() }))
 vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({
   getDocument: mocks.getDocument,
   GlobalWorkerOptions: {},
+  OPS: {paintImageXObject:1,paintInlineImageXObject:2,paintImageMaskXObject:3,paintImageXObjectRepeat:4,constructPath:5},
 }))
 vi.mock('pdfjs-dist/legacy/build/pdf.worker.mjs?url', () => ({ default: 'pdf-worker' }))
 
@@ -105,5 +106,8 @@ describe('local PDF parsing', () => {
     mocks.getDocument.mockReturnValue({ promise: Promise.reject(error), destroy: mocks.destroy })
     await expect(parsePdfFileLocally(file, { failOnPageError: true })).rejects.toThrow('pdf_password_protected')
     expect(mocks.destroy).toHaveBeenCalledOnce()
+  })
+  it('inspects graphics only when explicitly requested and distinguishes text pages from raster images',async()=>{
+    const operators=vi.fn(async()=>({fnArray:[1]})),cleanup=vi.fn();mocks.getDocument.mockReturnValue({promise:Promise.resolve({numPages:1,getPage:async()=>({getTextContent:async()=>content,getOperatorList:operators,cleanup})}),destroy:mocks.destroy});await parsePdfFileLocally(file);expect(operators).not.toHaveBeenCalled();const graphics=vi.fn();await parsePdfFileLocally(file,{onPageGraphics:graphics});expect(graphics).toHaveBeenLastCalledWith(1,true);operators.mockResolvedValue({fnArray:[]});await parsePdfFileLocally(file,{onPageGraphics:graphics});expect(graphics).toHaveBeenLastCalledWith(1,false);expect(cleanup).toHaveBeenCalledTimes(3)
   })
 })

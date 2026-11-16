@@ -7,6 +7,7 @@ import type {VaultRuntime} from '@/packages/vault/runtime'
 import {RagSettingsSchema} from '@shared/session-rag'
 import {KnowledgeCollections,type CollectionAdapters} from './store'
 import {exportVault,importVault} from '@/packages/vault/backup'
+import {VaultJsonRecords} from '@/packages/vault/json-records'
 
 async function fixture(adapters:Partial<CollectionAdapters>={}){
  const blobs=new Map<string,string>(),envelopes=new Map<string,string>(),db=new VaultDatabase('kb-'+crypto.randomUUID()),device={capabilities:async()=>({encryption:true,biometric:true,name:'Test device'}),protect:async(value:string)=>{const id=crypto.randomUUID();envelopes.set(id,value);return id},unprotect:async(id:string)=>{const value=envelopes.get(id);if(!value)throw Error('Missing device key');return value}},keys=new VaultKeys(db,device)
@@ -86,6 +87,13 @@ it('keeps native multimodal retrieval instead of asking a text-only LLM to rank 
 
 const extractRelations=vi.fn(async(text:string)=>{const match=/Project (\w+) has client (\w+)\./.exec(text);if(!match)throw Error('Synthetic source missing');const [,project,client]=match;return {summary:text,entities:[{name:project,type:'project',quote:match[0]},{name:client,type:'client',quote:match[0]}],relations:[{subject:project,predicate:'HAS_CLIENT',object:client,quote:match[0]}],tags:[{key:'client',value:client,quote:match[0]}]}})
 const advanced=()=>({augmentation:{enabled:true,model:{provider:'private',model:'small'},keepMarkdown:true,mediaText:false,windowChars:8000},retrievalMode:'hybrid' as const})
+it('keeps retry checkpoints encrypted and purges one deleted source from staged vectors, metadata and window cache',async()=>{
+ const analyze=vi.fn(extractRelations),f=await fixture({analyze});await f.add('alpha.md','Project Alpha has client Acme.');await f.add('beta.md','Project Beta has client Nova.');await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,undefined,advanced());analyze.mockImplementationOnce(extractRelations).mockRejectedValueOnce(Error('Model timed out'))
+ await expect(f.store.index(f.id)).rejects.toThrow('timed out');expect(f.store.progress.get(f.id)?.stage).toBe('failed');expect(await f.store.indexStatus(f.id)).toBeNull();expect(JSON.stringify([...f.blobs])).not.toContain('Acme')
+ const [file]=(await f.store.data(f.id)).files,json=new VaultJsonRecords(f.store.vault.assets),prefix='knowledge-collection:'+f.id+':',cache=await json.get<any[]>(prefix+'.chatbox/knowledge/window-cache.json');expect(cache?.some(row=>row.fileId===String(file.id))).toBe(true)
+ await f.store.removeFile(f.id,file.id);const staged=await json.get<any>(prefix+'.chatbox/knowledge/staging.json'),metadata=await json.get<any>(prefix+'.chatbox/knowledge/analysis-staging.json'),after=await json.get<any[]>(prefix+'.chatbox/knowledge/window-cache.json');expect(staged.vector.files.some((row:any)=>row.path===file.path)).toBe(false);expect(metadata.metadata.files.some((row:any)=>row.fileId===String(file.id))).toBe(false);expect(after?.some(row=>row.fileId===String(file.id))).toBe(false);for(const row of cache!.filter(row=>row.fileId===String(file.id)))expect(await f.store.vault.assets.header(prefix+row.alias)).toBeNull()
+ f.embed.mockClear();await f.store.index(f.id);expect(f.embed).not.toHaveBeenCalled();expect((await f.store.indexStatus(f.id))?.files).toHaveLength(1)
+})
 it('publishes encrypted vectors, derivatives and source-grounded metadata together and reuses unchanged work',async()=>{
  extractRelations.mockClear();const f=await fixture({analyze:extractRelations});await f.add('alpha.md','Project Alpha has client Acme.');await f.add('beta.md','Project Beta has client Nova.');await f.store.configure(f.id,'Projects',f.cfg,undefined,undefined,undefined,advanced());await f.store.index(f.id)
  expect(extractRelations).toHaveBeenCalledTimes(2);expect((await f.store.metadata(f.id,{type:'client'})).results.flatMap(row=>row.entities.map(entity=>entity.name))).toEqual(['Acme','Nova']);expect(JSON.stringify([...f.blobs])).not.toContain('Acme')

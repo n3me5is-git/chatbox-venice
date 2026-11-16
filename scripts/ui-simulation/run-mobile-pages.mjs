@@ -4,7 +4,7 @@ import path from 'node:path'
 
 export const auditedScreens=['knowledge-base','pdf-viewer','studio-speech','studio-transcription','studio-video','studio-music','studio-sound-effects','studio-voice-conversion','knowledge-models','knowledge-intelligence','knowledge-review','knowledge-graph','knowledge-evidence','venice-search','venice-image-settings','venice-modules','venice-profile','subscription','web-search','chat-privacy','e2ee-tools','receipts','approvals','questions','generation-failure','multi-agent-settings','agent-calling-details','agent-transcript','security','library-settings','archive-storage','collaboration','transfer','mcp-session','mcp-application']
 
-export async function runMobilePages({cdp,evaluate,click,wait,output,onStep=()=>{}}){
+export async function runMobilePages({cdp,evaluate,click,wait,output,openPage,onStep=()=>{}}){
  const report=[],failures=[]
  const persist=()=>writeFile(path.join(output,'mobile-screen-matrix.json'),JSON.stringify({productionTheme:true,productionSettingsRoute:true,nativeFolderVisible:true,physicalDevice:false,failures,report},null,2))
  const screenshot=async name=>{await writeFile(path.join(output,name+'.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))}
@@ -21,10 +21,11 @@ export async function runMobilePages({cdp,evaluate,click,wait,output,onStep=()=>
  }
  const find=text=>`[...document.querySelectorAll('button')].findLast(e=>e.textContent.trim()===${JSON.stringify(text)})`
  for(const variant of [{name:'it-dark-360',width:360,lang:'it-IT',theme:'dark'},{name:'en-light-430',width:430,lang:'en',theme:'light'}]){
-  await cdp('Emulation.setDeviceMetricsOverride',{width:variant.width,height:800,deviceScaleFactor:1,mobile:true})
   for(const screen of auditedScreens){
    try {
    onStep('Screen audit: '+screen+' / '+variant.name)
+   if(openPage)({cdp,evaluate,click}=await openPage())
+   await cdp('Emulation.setDeviceMetricsOverride',{width:variant.width,height:800,deviceScaleFactor:1,mobile:true})
    await cdp('Page.navigate',{url:'http://127.0.0.1:4174/scripts/ui-simulation/mobile-pages.html?'+new URLSearchParams({screen,lang:variant.lang,theme:variant.theme})})
    await wait(()=>evaluate(`window.__screenAuditReady===${JSON.stringify(screen)}&&!!document.querySelector('button,input,textarea,[role="tab"],details')`),'Production screen did not render: '+screen)
    if(screen==='pdf-viewer'){
@@ -75,10 +76,11 @@ export async function runMobilePages({cdp,evaluate,click,wait,output,onStep=()=>
     await wait(()=>evaluate(`document.querySelector('[data-testid="indexing-status"]')?.innerText.includes(${JSON.stringify(variant.lang==='en'?'Indexed':'Indicizzato')})`),'Index did not resume after navigating Back')
     await capture('knowledge-index-completed',variant.name)
    }
-   } catch(error) {failures.push({screen,variant:variant.name,error:String(error)});await persist();try{await screenshot('screen-'+screen+'-failure-'+variant.name)}catch{} }
+   } catch(error) {const failure={screen,variant:variant.name,error:String(error)};failures.push(failure);await persist();try{failure.state=await evaluate(`({url:location.href,ready:window.__screenAuditReady,body:document.body.innerText,resources:performance.getEntriesByType('resource').length})`);await persist();await screenshot('screen-'+screen+'-failure-'+variant.name)}catch{} }
   }
  }
  // A separate larger-font KB case directly targets Android display/font scaling.
+ if(openPage)({cdp,evaluate,click}=await openPage())
  await cdp('Emulation.setDeviceMetricsOverride',{width:360,height:780,deviceScaleFactor:1,mobile:true})
  await cdp('Page.navigate',{url:'http://127.0.0.1:4174/scripts/ui-simulation/mobile-pages.html?screen=knowledge-base&lang=it-IT&theme=dark&large=1'})
  await wait(()=>evaluate(`window.__screenAuditReady==='knowledge-base'&&!!document.querySelector('[data-testid="knowledge-overview-actions"]')`),'Large-font native KB did not render')

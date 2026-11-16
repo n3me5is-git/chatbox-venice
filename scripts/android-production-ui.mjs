@@ -1,9 +1,15 @@
 import {createServer} from 'node:http'
+import {build} from 'esbuild'
+import {pathToFileURL} from 'node:url'
+import {resolve} from 'node:path'
 import assert from 'node:assert/strict'
 import {execFileSync} from 'node:child_process'
 import {mkdir,writeFile} from 'node:fs/promises'
 const output='test-results/android-production-ui',app='io.github.n3me5is.chatboxvenice'
 await mkdir(output,{recursive:true})
+await build({stdin:{contents:"export {createDefaultSettings} from './packages/chatbox-core/src/domain/settings/settings-defaults'",resolveDir:process.cwd()},outfile:output+'/defaults.mjs',bundle:true,platform:'node',format:'esm'})
+const {createDefaultSettings}=await import(pathToFileURL(resolve(output+'/defaults.mjs')))
+const fixtureDefaults=createDefaultSettings()
 const adb=(...args)=>execFileSync('adb',args,{encoding:'utf8',timeout:30000}).trim(),delay=ms=>new Promise(resolve=>setTimeout(resolve,ms))
 assert.equal(adb('shell','getprop','ro.kernel.qemu'),'1','This destructive fixture is for disposable emulators only')
 adb('install','-r','android/app/build/outputs/apk/debug/app-debug.apk')
@@ -33,10 +39,10 @@ try{
  await cdp('Runtime.enable');await cdp('Page.enable')
  }
  await connect()
- await wait(()=>evaluate(`!!window.Capacitor?.nativePromise&&document.body.innerText.length>30`),'Production renderer did not initialize',90000)
+ await wait(()=>evaluate(`!!window.Capacitor?.nativePromise&&!!document.getElementById('root')?.children.length&&!document.querySelector('.startup-error')`),'Production renderer did not initialize',90000)
  await delay(2000)
  // Seed only this disposable app's real SQLite settings, never production source/test hooks.
- await evaluate(`(async()=>{const call=(method,args)=>window.Capacitor.nativePromise('CapacitorSQLite',method,args);const rows=await call('query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]});if(!rows.values?.length)throw Error('Real settings row missing');const settings=JSON.parse(rows.values[0].value);Object.assign(settings,{language:'it-IT',theme:0,defaultEmbeddingModel:{provider:'venice',model:'fixture-embedding'}});settings.providers={...settings.providers,venice:{apiKey:'SYNTHETIC-UI-FIXTURE',apiHost:'http://10.0.2.2:4176/api/v1',models:[{modelId:'fixture-embedding',type:'embedding'}],venice:{enabled:true}}};await call('run',{database:'chatbox.db',statement:"UPDATE key_value SET value=? WHERE key='settings'",values:[JSON.stringify(settings)]});})()`)
+ await evaluate(`(async()=>{const call=(method,args)=>window.Capacitor.nativePromise('CapacitorSQLite',method,args);const rows=await call('query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]});const settings={...${JSON.stringify(fixtureDefaults)},...JSON.parse(rows.values?.[0]?.value||'null')};Object.assign(settings,{language:'it-IT',theme:0,defaultEmbeddingModel:{provider:'venice',model:'fixture-embedding'}});settings.providers={...settings.providers,venice:{apiKey:'SYNTHETIC-UI-FIXTURE',apiHost:'http://10.0.2.2:4176/api/v1',models:[{modelId:'fixture-embedding',type:'embedding'}],venice:{enabled:true}}};await call('run',{database:'chatbox.db',statement:"INSERT OR REPLACE INTO key_value(key,value) VALUES ('settings',?)",values:[JSON.stringify(settings)]});})()`)
  socket.close();adb('shell','am','force-stop',app);adb('shell','am','start','-n',app+'/.MainActivity');await connect()
  await wait(()=>evaluate(`!!document.querySelector('.startup-error')||document.readyState==='complete'&&document.body.innerText.length>30`),'App did not restart')
  assert.equal(await evaluate(`!!document.querySelector('.startup-error')`),false,'Production app startup failed: '+errors.join(' | '))

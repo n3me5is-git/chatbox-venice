@@ -4,7 +4,7 @@ import type {AugmentedPort} from './augmented'
 const MANIFEST='.chatbox/knowledge/window-cache.json',digest=z.string().regex(/^[a-f0-9]{64}$/),alias=z.string().regex(/^\.chatbox\/knowledge\/data\/[a-f0-9-]{36}\.json$/)
 export const WindowCacheEntries=z.array(z.object({key:digest,alias,fileId:z.string().max(128)}).strict()).max(64)
 const Entries=WindowCacheEntries,Record=z.object({key:digest,value:KnowledgeExtractionSchema}).strict()
-/** Bounded, collection-encrypted LRU. Only validated model windows enter this cache.
+/** Bounded, collection-encrypted LRU. Only schema-checked model windows enter this cache.
  * Hashes bind model/configuration and exact source text; cached output is re-anchored by the engine. */
 export function knowledgeWindowCache(storage:AugmentedPort){
  let entries:z.infer<typeof Entries>|undefined
