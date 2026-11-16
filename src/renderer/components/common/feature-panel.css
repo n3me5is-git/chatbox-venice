@@ -1,0 +1,30 @@
+.feature-panel { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.feature-panel .feature-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.feature-panel .feature-actions > * { min-width: 0; }
+.feature-panel .feature-model-button { height: auto; min-height: 44px; max-width: 100%; }
+.feature-panel .feature-model-button .mantine-Button-label { white-space: normal; overflow-wrap: anywhere; }
+.feature-panel .feature-scroll-tabs { min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; touch-action: auto; }
+.feature-panel .feature-scroll-tabs .mantine-SegmentedControl-root { min-width: max-content; }
+.feature-panel .feature-protection-tabs .mantine-SegmentedControl-label { white-space: normal; }
+
+@media (max-width: 599px) {
+  /* Shared model pickers retain inline desktop density; the touch minimum takes precedence. */
+  .feature-panel .mantine-Button-root { min-height: 44px !important; height: auto; max-width: 100%; }
+  .feature-panel .mantine-Button-label { white-space: normal; overflow-wrap: anywhere; padding-block: 4px; }
+  .feature-panel .mantine-Button-section { flex-shrink: 0; }
+  .feature-panel .mantine-ActionIcon-root { min-width: 44px; min-height: 44px; flex-shrink: 0; }
+  .feature-panel .mantine-Input-input { min-height: 44px; }
+  .feature-panel .mantine-Switch-label,
+  .feature-panel .mantine-Checkbox-label { padding-block: 10px; }
+  .feature-panel .mantine-Switch-body,
+  .feature-panel .mantine-Checkbox-body { align-items: center; }
+  .feature-panel .mantine-Tabs-tab { min-height: 44px; min-width: 0; flex: 1; }
+  .feature-panel .mantine-Tabs-tab { padding: 10px 6px; font-size: 13px; }
+  .feature-panel .mantine-Tabs-tabLabel { white-space: normal; overflow-wrap: normal; text-align: center; }
+  .feature-panel .mantine-Menu-dropdown { max-height: calc(100dvh - 100px); max-width: calc(100vw - 24px); overflow-y: auto; }
+  .feature-panel .mantine-Menu-item { min-height: 44px; }
+  .feature-panel .mantine-Menu-itemLabel { white-space: normal; overflow-wrap: anywhere; }
+  .feature-panel .mantine-Accordion-control { min-height: 48px; }
+  .feature-panel .feature-actions > .mantine-Button-root { flex: 1 1 130px; }
+  .feature-panel .feature-save-bar { position: sticky; bottom: 0; z-index: 2; padding: 12px 0 max(8px, env(safe-area-inset-bottom)); background: var(--mantine-color-body); border-top: 1px solid var(--mantine-color-default-border); }
+}

@@ -7,6 +7,7 @@ import SwipeableDrawer from '@mui/material/SwipeableDrawer'
 import { TestId } from '@shared/automation/testids'
 import {
   IconCode,
+  IconBooks,
   IconDownload,
   IconHelpCircle,
   IconInfoCircle,
@@ -272,6 +273,7 @@ export default function Sidebar() {
             onClick={handleCreateNewPictureSession}
           />
           <SidebarNavRow label={ft('Local media library')} icon={IconPhotoPlus} onClick={() => { navigate({ to: '/library' }); closeOnSmallScreen() }} />
+          <SidebarNavRow label={ft('Knowledge Base')} icon={IconBooks} onClick={() => { navigate({ to: '/settings/knowledge-base' }); closeOnSmallScreen() }} />
           <SidebarNavRow label={ft('Collaborative chats')} icon={IconUsers} onClick={() => { void openCollaboration(); closeOnSmallScreen() }} />
           <SidebarNavRow label={ft('Dedicated agents')} icon={IconMessageChatbot} onClick={() => { void import('@/components/multi-agent/AgentLibrary').then(module => module.openAgentLibrary()); closeOnSmallScreen() }} />
           {showVeniceStudio && <SidebarNavRow label="Venice Studio" icon={IconPhotoPlus} onClick={() => { navigate({ to: '/venice' }); closeOnSmallScreen() }} />}

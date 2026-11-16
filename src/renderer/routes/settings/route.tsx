@@ -17,6 +17,7 @@ import { Toaster } from 'sonner'
 import { ICON_SIZE, ICON_STROKE_WIDTH, IconButton } from '@/components/common/IconButton'
 import { ScalableIcon } from '@/components/common/ScalableIcon'
 import Page from '@/components/layout/Page'
+import { closeTopSurface } from '@/packages/overlay-back'
 import { SettingsDensityProvider, settingsHighlightStore } from '@/components/settings/SettingsLayout'
 import {
   getSettingsNavGroups,
@@ -79,7 +80,7 @@ export function RouteComponent() {
             iconSize={ICON_SIZE.touch}
             icon={IconChevronLeft}
             aria-label={t('Back')}
-            onClick={() => router.history.back()}
+            onClick={() => { if (!closeTopSurface()) router.history.back() }}
           />
         ) : undefined
       }

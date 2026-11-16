@@ -16,7 +16,7 @@ it('requires explicit provider consent, persists separate modalities, indexes an
  let settings=RagSettingsSchema.parse({provider:'venice',model:'text-embedding'}),authorized=false
  const api={subscribeRag:()=>()=>{},ragJob:()=>undefined,ragStatus:vi.fn(async()=>({settings,index:null,authorized})),configureRag:vi.fn(async(_id,value)=>{settings=value;authorized=true}),indexSessionRag:vi.fn(),cancelSessionRag:vi.fn(),clearSessionRag:vi.fn(),searchSessionRag:vi.fn(async()=>({matches:[{id:'hit',path:'notes.md',line:2,endLine:3,snippet:'Relevant source'}],stale:false}))}
  render(<MantineProvider><SessionRagPanel sessionId="chat" service={api as any}/></MantineProvider>)
- await screen.findByRole('switch',{name:'Enable session RAG'})
+ await screen.findByRole('switch',{name:'Enable session RAG'});fireEvent.click(screen.getByRole('button',{name:'Processing and index options'}))
  expect((screen.getByRole('switch',{name:'Use text embeddings for media'}) as HTMLInputElement).checked).toBe(true);expect((screen.getByRole('switch',{name:'Use text embeddings for media'}) as HTMLInputElement).disabled).toBe(true);expect(screen.queryByRole('checkbox',{name:'Embed photos directly'})).toBeNull()
  fireEvent.click(screen.getByRole('switch',{name:'Enable session RAG'}))
  expect((screen.getByRole('button',{name:'Save RAG settings'}) as HTMLButtonElement).disabled).toBe(true)

@@ -60,7 +60,7 @@ export function SettingsPage({
       )}
     >
       {showTitle && (
-        <div className="flex items-start gap-3">
+        <div className={clsx('flex gap-3', density === 'touch' ? 'flex-col items-stretch' : 'items-start flex-wrap')}>
           <div className="flex flex-col gap-1 flex-1 min-w-0">
             <Text component="h2" m={0} fz={20} fw={600} lh="28px">
               {title}
@@ -71,17 +71,17 @@ export function SettingsPage({
               </Text>
             )}
           </div>
-          {action}
+          {action && <div className={clsx('min-w-0', density === 'touch' && 'w-full')}>{action}</div>}
         </div>
       )}
       {!showTitle && (description || action) && (
-        <div className="flex items-center gap-3 px-1">
+        <div className="flex flex-col items-stretch gap-3 px-1">
           {description && (
             <Text fz={13} c="chatbox-tertiary" lh="20px" className="flex-1 min-w-0">
               {description}
             </Text>
           )}
-          {action && <div className="ms-auto">{action}</div>}
+          {action && <div className="min-w-0 w-full">{action}</div>}
         </div>
       )}
       {children}

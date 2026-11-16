@@ -1,4 +1,10 @@
 const changelog = `
+## Chatbox Venice 1.50.0
+1. Apri le raccolte direttamente nelle viste Documenti, Ricerca e Impostazioni
+2. Usa azioni dei documenti più chiare, paginazione mobile e bozze delle impostazioni conservate
+3. Migliora comandi touch, scorrimento e gesti della libreria nei pannelli
+4. Semplifica i moduli di agenti e RAG della sessione e il tasto Indietro nei menu
+
 ## Chatbox Venice 1.49.1
 1. Supporta sorgenti delle raccolte fino a 50 MB, incluse cartelle collegate e backup
 2. Legge e cifra i file grandi a blocchi, verificando il loro hash finale
