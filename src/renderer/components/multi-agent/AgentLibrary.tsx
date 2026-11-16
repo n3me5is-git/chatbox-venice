@@ -23,7 +23,7 @@ export const AgentLibrary = NiceModal.create(() => {
   useEffect(() => { void load().catch(error => setError(error.message)) }, [])
   const run = async (work: () => Promise<void>) => { setBusy(true); setError(''); try { await work(); await load() } catch (error) { setError(String((error as Error).message)) } finally { setBusy(false) } }
   const blank = (): DedicatedAgent => ({ id: crypto.randomUUID(), name: 'worker', title: '', description: '', prompt: '', model: { provider: '', modelId: '' }, toolNames: ['session_file'], allowOnDemand: false, dedicatedIds: [] })
-  return <AdaptiveModal opened={modal.visible} onClose={() => modal.remove()} title={ft('Dedicated agents')} size="xl"><Stack gap="sm" style={{ maxHeight: '78dvh', overflowY: 'auto', overscrollBehavior: 'contain' }}>
+  return <AdaptiveModal opened={modal.visible} onClose={() => modal.remove()} title={ft('Dedicated agents')} size="xl"><Stack className="feature-panel" gap="sm">
     {error && <Alert color="red" role="alert">{ft(error)}</Alert>}
     {!draft ? <>
       <Text size="sm">{ft('Reusable workers have their own model, instructions and tool permissions. Call them with @name from a Work chat or expose them in its multi-agent settings. They receive only explicitly shared context and files.')}</Text>

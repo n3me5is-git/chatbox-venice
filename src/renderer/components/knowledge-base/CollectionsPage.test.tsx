@@ -27,7 +27,7 @@ it('creates an encrypted collection on mobile only after explicit remote-process
  expect(state.index).not.toHaveBeenCalled()
 })
 it('keeps native photos/audio independent from OCR and never enables them for text-only APIs',async()=>{
- mount();fireEvent.click(screen.getByRole('button',{name:'New collection'}));expect((screen.getByRole('switch',{name:'Use text embeddings for media'}) as HTMLInputElement).disabled).toBe(true);expect(screen.queryByRole('checkbox',{name:'Index photos directly (no OCR)'})).toBeNull()
+ mount();fireEvent.click(screen.getByRole('button',{name:'New collection'}));fireEvent.click(screen.getByRole('button',{name:'Document processing'}));expect((screen.getByRole('switch',{name:'Use text embeddings for media'}) as HTMLInputElement).disabled).toBe(true);expect(screen.queryByRole('checkbox',{name:'Index photos directly (no OCR)'})).toBeNull()
  fireEvent.click(screen.getByRole('button',{name:'Use native multimodal'}));fireEvent.click(screen.getByRole('checkbox',{name:'Index photos directly (no OCR)'}));expect((screen.getByRole('checkbox',{name:'Index audio directly (no transcription)'}) as HTMLInputElement).checked).toBe(false);expect((screen.getByRole('switch',{name:'Optional OCR for images and scanned PDFs'}) as HTMLInputElement).checked).toBe(false)
 })
 it('requests owner authentication before loading a protected collection',async()=>{
@@ -36,6 +36,7 @@ it('requests owner authentication before loading a protected collection',async()
 
 it('enables virtual reranking per collection with an explicit default model and renewed consent',async()=>{
  state.list.mockResolvedValue([{id:-1,scope:'public',name:'Manuals',locked:false}]);mount();fireEvent.click(await screen.findByRole('button',{name:'Open collection'}))
+ fireEvent.click(await screen.findByRole('tab',{name:'Settings'}));fireEvent.click(screen.getByRole('button',{name:'Reranking (optional)'}))
  const mode=await screen.findByRole('switch',{name:'Virtual reranking with LLM'});expect((mode as HTMLInputElement).checked).toBe(false)
  fireEvent.click(mode);expect(await screen.findByRole('button',{name:'small-ranker'})).toBeTruthy();expect((screen.getByRole('button',{name:'Save settings'}) as HTMLButtonElement).disabled).toBe(true)
  fireEvent.click(screen.getByRole('checkbox',{name:/I allow/}));fireEvent.click(screen.getByRole('button',{name:'Save settings'}))
@@ -44,3 +45,13 @@ it('enables virtual reranking per collection with an explicit default model and 
 
 it('connects an existing folder from creation without creating another collection or requesting provider inference',async()=>{mount();fireEvent.click(screen.getByRole('button',{name:'New collection'}));fireEvent.click(screen.getByRole('radio',{name:'Connect existing'}));expect(screen.getByText(/Encrypted collections ask for a passphrase/)).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'Choose folder'}));await waitFor(()=>expect(state.mount).toHaveBeenCalledWith(false));expect(state.create).not.toHaveBeenCalled();expect(state.index).not.toHaveBeenCalled()})
 it('creates an explicitly public folder collection and never triggers indexing implicitly',async()=>{mount();fireEvent.click(screen.getByRole('button',{name:'New collection'}));fireEvent.change(screen.getByRole('textbox',{name:'Collection name'}),{target:{value:'Public docs'}});fireEvent.click(screen.getByRole('switch',{name:'Store this collection in a linked folder'}));fireEvent.click(screen.getByRole('switch',{name:'Encrypt the folder database'}));expect(screen.getByText(/Anyone with the folder/)).toBeTruthy();fireEvent.click(screen.getByRole('checkbox',{name:/I allow/}));fireEvent.click(screen.getByRole('button',{name:'Create collection'}));await waitFor(()=>expect(state.migrate).toHaveBeenCalledWith(-1,{encrypted:false}));expect(state.index).not.toHaveBeenCalled()})
+
+it('opens documents first, retains draft settings between tabs and requires confirmation before leaving them',async()=>{
+ state.list.mockResolvedValue([{id:-1,scope:'public',name:'Manuals',locked:false}]);mount();fireEvent.click(await screen.findByRole('button',{name:'Open collection'}))
+ expect(await screen.findByTestId('collection-documents')).toBeTruthy();expect(screen.queryByRole('textbox',{name:'Collection name'})).toBeNull();expect(state.index).not.toHaveBeenCalled()
+ fireEvent.click(screen.getByRole('tab',{name:'Settings'}));fireEvent.change(screen.getByRole('textbox',{name:'Collection name'}),{target:{value:'Unsaved manuals'}})
+ fireEvent.click(screen.getByRole('tab',{name:'Documents'}));expect(screen.getByText('Save your settings before updating the index.')).toBeTruthy();expect((screen.getByRole('button',{name:'Index now'}) as HTMLButtonElement).disabled).toBe(true)
+ const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);fireEvent.click(screen.getByRole('button',{name:'Back to collections'}));expect(screen.getByTestId('collection-documents')).toBeTruthy()
+ fireEvent.click(screen.getByRole('tab',{name:'Settings'}));expect((screen.getByRole('textbox',{name:'Collection name'}) as HTMLInputElement).value).toBe('Unsaved manuals')
+ confirm.mockReturnValue(true);fireEvent.click(screen.getByRole('button',{name:'Back to collections'}));await screen.findByRole('button',{name:'Open collection'});expect(state.configure).not.toHaveBeenCalled();expect(state.index).not.toHaveBeenCalled();confirm.mockRestore()
+})
