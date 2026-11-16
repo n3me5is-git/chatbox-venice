@@ -1,4 +1,5 @@
 import {runKnowledgeFileLimits} from './run-knowledge-file-limits.mjs'
+import {runAgentMobileReview} from './run-agent-mobile-review.mjs'
 import {runLocalOcr} from './run-local-ocr.mjs'
 import {runSessionRag} from './run-session-rag.mjs'
 import {runKnowledgeCollections} from './run-knowledge-collections.mjs'
@@ -161,6 +162,7 @@ try {
   await runKnowledgeCollections({click,evaluate,wait,byText,byLabel,fill,cdp,output})
   await runSpeechReview({click,evaluate,wait,byText,byLabel,fill,cdp,delay,output})
   await runMediaArtifactsReview({click,evaluate,wait,byText,cdp,output})
+  await runAgentMobileReview({click,evaluate,wait,fill,byText,cdp,output})
   await runLocalOcr({click,evaluate,wait,byText,fill,cdp,output})
   await runKnowledgeFileLimits({evaluate,output})
   assert.deepEqual(exceptions, [], 'Browser exceptions')

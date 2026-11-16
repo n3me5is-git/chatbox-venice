@@ -1,5 +1,6 @@
-import { ActionIcon, Alert, Badge, Button, Card, Group, Menu, Stack, Text, TextInput } from '@mantine/core'
-import { IconDots, IconFileText, IconPlus, IconSearch } from '@tabler/icons-react'
+import { ActionIcon, Alert, Badge, Button, Card, Group, Stack, Text, TextInput } from '@mantine/core'
+import { FeatureMenu as Menu } from '@/components/common/FeatureMenu'
+import { IconChevronLeft, IconChevronRight, IconDots, IconFileText, IconPlus, IconSearch } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { forkT as ft } from '@/i18n/fork'
 import type { CollectionData, KnowledgeCollections } from '@/packages/knowledge-collections/store'
@@ -23,17 +24,7 @@ export function CollectionDocuments({ id, data, index, busy, readOnly, dirty, st
         {ft('Add documents')}<input type="file" hidden multiple disabled={busy || readOnly} onChange={event => { addFiles(event.currentTarget.files); event.currentTarget.value = '' }}/>
       </Button>
       <Button variant="light" leftSection={<IconSearch size={18}/>} disabled={indexDisabled} onClick={() => void run(async () => { await store.index(id, onProgress); await reload() })}>{ft('Index now')}</Button>
-      <Menu withinPortal={false} position="bottom-end" width={260}>
-        <Menu.Target><ActionIcon variant="default" size={44} aria-label={ft('Index actions')}><IconDots size={20}/></ActionIcon></Menu.Target>
-        <Menu.Dropdown>
-          <Menu.Item disabled={indexDisabled} onClick={() => {
-            if (window.confirm(ft('Rebuild all vectors with the saved settings? This sends documents to the selected providers again.'))) void run(async () => { await store.index(id, onProgress, true); await reload() })
-          }}>{ft('Reindex collection')}</Menu.Item>
-          <Menu.Item color="red" disabled={busy || readOnly} onClick={() => {
-            if (window.confirm(ft('Delete the local RAG index? Source files are kept.'))) void run(async () => { await store.clearIndex(id); await reload() })
-          }}>{ft('Clear index')}</Menu.Item>
-        </Menu.Dropdown>
-      </Menu>
+
     </div>
     {dirty && <Alert color="yellow"><Stack gap="xs"><Text size="sm">{ft('Save your settings before updating the index.')}</Text><Button variant="subtle" onClick={onSettings}>{ft('Review settings')}</Button></Stack></Alert>}
     {readOnly && <Text size="sm" c="dimmed">{ft('Read-only mount')}</Text>}
@@ -47,7 +38,7 @@ export function CollectionDocuments({ id, data, index, busy, readOnly, dirty, st
       <Stack gap="sm">
         <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>{file.linkedPath || file.name}</Text>
         <Group wrap="nowrap" gap="xs">
-          <Button variant="default" style={{ flex: 1 }} disabled={busy} onClick={() => void run(async () => { const document = await store.documentText(id, file.id); onPreview(document.text, 'parsed') })}>{ft('Open parsed document')}</Button>
+          <Button variant="default" style={{ flex: 1 }} disabled={busy} onClick={() => void run(async () => { const document = await store.documentText(id, file.id); onPreview(document.text, 'parsed') })}>{ft('Read document')}</Button>
           <Menu withinPortal={false} position="bottom-end" width={260}>
             <Menu.Target><ActionIcon variant="subtle" size={44} aria-label={ft('Document actions for {{name}}', { name: file.name })}><IconDots size={20}/></ActionIcon></Menu.Target>
             <Menu.Dropdown>
@@ -64,6 +55,6 @@ export function CollectionDocuments({ id, data, index, busy, readOnly, dirty, st
         </Group>
       </Stack>
     </Card>)}
-    {pages > 1 && <Group justify="space-between" gap="xs"><Button variant="default" disabled={page === 0} onClick={() => setPage(page - 1)}>{ft('Previous page')}</Button><Text size="sm">{page + 1} / {pages}</Text><Button variant="default" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>{ft('Next page')}</Button></Group>}
+    {pages > 1 && <Group justify="space-between" gap="xs" wrap="nowrap"><ActionIcon size={44} variant="default" aria-label={ft('Previous page')} disabled={page === 0} onClick={() => setPage(page - 1)}><IconChevronLeft size={20}/></ActionIcon><Text size="sm">{page + 1} / {pages}</Text><ActionIcon size={44} variant="default" aria-label={ft('Next page')} disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}><IconChevronRight size={20}/></ActionIcon></Group>}
   </Stack>
 }

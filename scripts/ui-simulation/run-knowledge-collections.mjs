@@ -3,7 +3,16 @@ import {runKnowledgeMobileUx} from './run-knowledge-mobile-ux.mjs'
 import {writeFile} from 'node:fs/promises'
 import path from 'node:path'
 export async function runKnowledgeCollections({click,evaluate,wait,byText,fill,cdp,output}){
- await click(byText('Test knowledge collections'));await click(byText('Open collection'))
+ await click(byText('Test knowledge collections'))
+ const original=await evaluate('({width:innerWidth,height:innerHeight})')
+ await cdp('Emulation.setDeviceMetricsOverride',{width:360,height:780,deviceScaleFactor:1,mobile:true})
+ assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Collection overview overflows mobile')
+ await writeFile(path.join(output,'knowledge-overview-360.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+ await evaluate("window.__simulationSetLanguage('it-IT')");await wait(()=>evaluate("document.body.textContent.includes('Raccolte')"),'Italian overview missing')
+ assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Italian collection overview overflows mobile')
+ await writeFile(path.join(output,'knowledge-overview-italian-360.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
+ await evaluate("window.__simulationSetLanguage('en')");await wait(()=>evaluate("!![...document.querySelectorAll('button')].find(e=>e.textContent==='Open collection')"),'English overview missing')
+ await cdp('Emulation.setDeviceMetricsOverride',{...original,deviceScaleFactor:1,mobile:true});await click(byText('Open collection'))
  await wait(()=>evaluate(`!!document.querySelector('[data-testid="collection-documents"]')`),'Collection did not open')
  await click(byText('Index now'));await wait(()=>evaluate(`document.body.textContent.includes('61 Documents')`),'Collection documents missing')
  await wait(()=>evaluate(`![...document.querySelectorAll('button')].find(e=>e.textContent==='Index now').disabled`),'Collection indexing did not finish')

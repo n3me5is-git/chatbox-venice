@@ -1,5 +1,9 @@
 export const knowledgeItalian:Record<string,string>={
  'Collections':'Raccolte',
+ 'Read document':'Leggi documento',
+ 'Extracted text used for search.':'Testo estratto utilizzato per la ricerca.',
+ 'Processing and index options':'Opzioni di elaborazione e indicizzazione',
+ 'Tools and runtime options':'Strumenti e opzioni di esecuzione',
  'Keep documents in collections and use them in any chat.':'Organizza i documenti in raccolte e usali in qualsiasi chat.',
  'Your knowledge, ready for any chat':'I tuoi documenti, pronti per qualsiasi chat',
  'Index actions':'Azioni dell’indice',

@@ -8,7 +8,8 @@
 .feature-panel .feature-protection-tabs .mantine-SegmentedControl-label { white-space: normal; }
 
 @media (max-width: 599px) {
-  .feature-panel .mantine-Button-root { min-height: 44px; height: auto; max-width: 100%; }
+  /* Shared model pickers retain inline desktop density; the touch minimum takes precedence. */
+  .feature-panel .mantine-Button-root { min-height: 44px !important; height: auto; max-width: 100%; }
   .feature-panel .mantine-Button-label { white-space: normal; overflow-wrap: anywhere; padding-block: 4px; }
   .feature-panel .mantine-Button-section { flex-shrink: 0; }
   .feature-panel .mantine-ActionIcon-root { min-width: 44px; min-height: 44px; flex-shrink: 0; }
@@ -18,7 +19,9 @@
   .feature-panel .mantine-Switch-body,
   .feature-panel .mantine-Checkbox-body { align-items: center; }
   .feature-panel .mantine-Tabs-tab { min-height: 44px; min-width: 0; flex: 1; }
-  .feature-panel .mantine-Tabs-tabLabel { white-space: normal; text-align: center; }
+  .feature-panel .mantine-Tabs-tab { padding: 10px 6px; font-size: 13px; }
+  .feature-panel .mantine-Tabs-tabLabel { white-space: normal; overflow-wrap: normal; text-align: center; }
+  .feature-panel .mantine-Menu-dropdown { max-height: calc(100dvh - 100px); max-width: calc(100vw - 24px); overflow-y: auto; }
   .feature-panel .mantine-Menu-item { min-height: 44px; }
   .feature-panel .mantine-Menu-itemLabel { white-space: normal; overflow-wrap: anywhere; }
   .feature-panel .mantine-Accordion-control { min-height: 48px; }

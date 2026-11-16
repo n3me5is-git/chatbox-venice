@@ -1,5 +1,12 @@
 # Changelog — Chatbox Venice
 
+## 1.50.0
+
+- Open knowledge collections in dedicated Documents, Search and Settings views, with direct access from sidebar tools.
+- Improve mobile document actions, pagination, settings drafts and advanced processing controls.
+- Make new feature panels easier to use with touch, narrow screens and on-screen keyboards.
+- Simplify agent and session RAG forms, library gestures and contextual-menu back navigation.
+
 ## 1.49.1
 
 - Support knowledge-collection sources up to 50 MB across uploads, linked folders, replacement and backup/restore.

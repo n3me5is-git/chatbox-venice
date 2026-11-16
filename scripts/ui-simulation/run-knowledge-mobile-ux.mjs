@@ -5,6 +5,7 @@ import path from 'node:path'
 export async function runKnowledgeMobileUx({ click, evaluate, wait, fill, cdp, output }) {
   const tab = name => `[...document.querySelectorAll('[role="tab"]')].findLast(e=>e.textContent===${JSON.stringify(name)})`
   const button = name => `[...document.querySelectorAll('button')].findLast(e=>e.textContent===${JSON.stringify(name)})`
+  const original = await evaluate('({width:innerWidth,height:innerHeight})')
   const requests = await evaluate('window.__knowledgeRequests()'), report = []
   for (const width of [360, 390, 430]) {
     await cdp('Emulation.setDeviceMetricsOverride', { width, height: 780, deviceScaleFactor: 1, mobile: true })
@@ -43,7 +44,7 @@ export async function runKnowledgeMobileUx({ click, evaluate, wait, fill, cdp, o
   await wait(() => evaluate(`document.body.textContent.includes('Synthetic enterprise source 60')`), 'Document action menu did not open the chosen source')
   await click(`[...document.querySelectorAll('[role="dialog"]')].at(-1).querySelector('button[aria-label="Close" i]')`)
   await fill('Filter collection documents', '')
-  await click(button('Next page'))
+  await click(`document.querySelector('[aria-label="Next page"]')`)
   assert.equal(await evaluate(`document.querySelectorAll('[data-testid="collection-documents"] button[aria-label^="Document actions"]').length`), 11, 'The second document page was inaccessible')
   await evaluate(`window.__simulationSetLanguage('it-IT')`)
   await wait(() => evaluate(`!![...document.querySelectorAll('[role="tab"]')].find(e=>e.textContent==='Documenti')`), 'Italian KB navigation missing')
@@ -51,5 +52,6 @@ export async function runKnowledgeMobileUx({ click, evaluate, wait, fill, cdp, o
   await writeFile(path.join(output, 'knowledge-documents-italian.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
   await evaluate(`window.__simulationSetLanguage('en')`)
   await wait(() => evaluate(`!![...document.querySelectorAll('[role="tab"]')].find(e=>e.textContent==='Documents')`), 'English KB navigation missing')
+  await cdp('Emulation.setDeviceMetricsOverride', { ...original, deviceScaleFactor: 1, mobile: true })
   await writeFile(path.join(output, 'knowledge-mobile-ux.json'), JSON.stringify({ report, documents: 61, pagination: true, longNameMenu: true, languages: ['en', 'it-IT'] }, null, 2))
 }

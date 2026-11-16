@@ -1,4 +1,10 @@
 const changelog = `
+## Chatbox Venice 1.50.0
+1. Open knowledge collections directly in Documents, Search and Settings views
+2. Use clearer document actions, mobile pagination and retained settings drafts
+3. Improve touch controls, scrolling and library gestures across feature panels
+4. Simplify agent/session RAG forms and contextual-menu back navigation
+
 ## Chatbox Venice 1.49.1
 1. Add knowledge-collection sources up to 50 MB, including linked folders and backups
 2. Read and encrypt large sources in bounded chunks with final hash verification

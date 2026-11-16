@@ -4,12 +4,12 @@ import {QueryClient,QueryClientProvider} from '@tanstack/react-query'
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {RagSettingsSchema} from '@shared/session-rag'
-const state=vi.hoisted(()=>({mount:vi.fn(),migrate:vi.fn(),directoryEntry:vi.fn(),remove:vi.fn(),list:vi.fn(),create:vi.fn(),data:vi.fn(),authorize:vi.fn(),configure:vi.fn(),index:vi.fn(),lock:vi.fn(),status:vi.fn(),locked:false,revision:0,notify:()=>{}}))
+const state=vi.hoisted(()=>({addMany:vi.fn(),mount:vi.fn(),migrate:vi.fn(),directoryEntry:vi.fn(),remove:vi.fn(),list:vi.fn(),create:vi.fn(),data:vi.fn(),authorize:vi.fn(),configure:vi.fn(),index:vi.fn(),lock:vi.fn(),status:vi.fn(),locked:false,revision:0,notify:()=>{}}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultVirtualRerankModel:{provider:'private',model:'small-ranker'}})})}}))
 vi.mock('@/platform',()=>({default:{type:'mobile'}}))
 vi.mock('@/packages/session-rag/defaults',()=>({defaultRagSettings:()=>RagSettingsSchema.parse({provider:'venice',model:'private-embedding'})}))
 vi.mock('@/packages/session-rag/embeddings',()=>({multimodalEmbedding:(provider:string)=>provider==='gemini',embeddingMediaSupport:(provider:string)=>({image:provider==='gemini',audio:provider==='gemini'})}))
-vi.mock('@/packages/knowledge-collections/service',()=>({collectionDirectories:{mount:state.mount,migrate:state.migrate},knowledgeCollections:{remove:state.remove,directoryEntry:state.directoryEntry,list:state.list,create:state.create,data:state.data,authorize:state.authorize,configure:state.configure,index:state.index,indexStatus:state.status,assert:async()=>{if(state.locked)throw Error('Unlock')},running:()=>false,lock:state.lock,vault:{keys:{snapshot:()=>state.revision,subscribe:(callback:()=>void)=>{state.notify=callback;return()=>{}},isUnlocked:()=>!state.locked}}}}))
+vi.mock('@/packages/knowledge-collections/service',()=>({collectionDirectories:{mount:state.mount,migrate:state.migrate},knowledgeCollections:{addMany:state.addMany,remove:state.remove,directoryEntry:state.directoryEntry,list:state.list,create:state.create,data:state.data,authorize:state.authorize,configure:state.configure,index:state.index,indexStatus:state.status,assert:async()=>{if(state.locked)throw Error('Unlock')},running:()=>false,lock:state.lock,vault:{keys:{snapshot:()=>state.revision,subscribe:(callback:()=>void)=>{state.notify=callback;return()=>{}},isUnlocked:()=>!state.locked}}}}))
 vi.mock('@/components/settings/SettingsLayout',()=>({SettingsPage:({children,action}:any)=><main>{action}{children}</main>}))
 vi.mock('@/components/common/AdaptiveModal',()=>({AdaptiveModal:({opened,children}:any)=>opened?<div role="dialog">{children}</div>:null}))
 vi.mock('@/packages/knowledge-collections/linked-folder',()=>({knowledgeFolderAvailable:()=>true}))
@@ -54,4 +54,12 @@ it('opens documents first, retains draft settings between tabs and requires conf
  const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);fireEvent.click(screen.getByRole('button',{name:'Back to collections'}));expect(screen.getByTestId('collection-documents')).toBeTruthy()
  fireEvent.click(screen.getByRole('tab',{name:'Settings'}));expect((screen.getByRole('textbox',{name:'Collection name'}) as HTMLInputElement).value).toBe('Unsaved manuals')
  confirm.mockReturnValue(true);fireEvent.click(screen.getByRole('button',{name:'Back to collections'}));await screen.findByRole('button',{name:'Open collection'});expect(state.configure).not.toHaveBeenCalled();expect(state.index).not.toHaveBeenCalled();confirm.mockRestore()
+})
+
+it('keeps unsaved configuration when documents are added from the document tab',async()=>{
+ state.list.mockResolvedValue([{id:-1,scope:'public',name:'Manuals',locked:false}]);mount();fireEvent.click(await screen.findByRole('button',{name:'Open collection'}));await screen.findByTestId('collection-documents')
+ fireEvent.click(screen.getByRole('tab',{name:'Settings'}));fireEvent.change(screen.getByRole('textbox',{name:'Collection name'}),{target:{value:'Pending title'}});fireEvent.click(screen.getByRole('tab',{name:'Documents'}))
+ const file=new File(['New source'],'new.md',{type:'text/markdown'});fireEvent.change(screen.getByLabelText('Add documents',{selector:'input'}),{target:{files:[file]}})
+ await waitFor(()=>expect(state.addMany).toHaveBeenCalledWith(-1,[file]));await waitFor(()=>expect(screen.queryByRole('status')).toBeNull())
+ fireEvent.click(screen.getByRole('tab',{name:'Settings'}));expect((screen.getByRole('textbox',{name:'Collection name'}) as HTMLInputElement).value).toBe('Pending title');expect(state.configure).not.toHaveBeenCalled()
 })
