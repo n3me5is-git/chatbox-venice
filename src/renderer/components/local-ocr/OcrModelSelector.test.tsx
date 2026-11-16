@@ -1,3 +1,4 @@
+vi.mock('@/stores/settingsStore',()=>({useSettingsStore:(selector:any)=>selector({providers:{}})}))
 // @vitest-environment jsdom
 import {cleanup,fireEvent,render,screen} from '@testing-library/react'
 import {MantineProvider} from '@mantine/core'

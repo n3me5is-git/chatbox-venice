@@ -1,3 +1,7 @@
+import {IndexingBackgroundSettings} from './IndexingBackgroundSettings'
+import {isOfficePreview} from '@/components/common/OfficeDocumentViewer'
+import {indexStageLabel} from './IndexingStatus'
+import {ragFingerprint} from '@shared/session-rag-engine'
 import { ActionIcon, Alert, Badge, Button, Card, Group, Stack, Text, TextInput } from '@mantine/core'
 import { FeatureMenu as Menu } from '@/components/common/FeatureMenu'
 import { IconChevronLeft, IconChevronRight, IconDots, IconFileText, IconPlus, IconSearch } from '@tabler/icons-react'
@@ -6,11 +10,12 @@ import { forkT as ft } from '@/i18n/fork'
 import type { CollectionData, KnowledgeCollections } from '@/packages/knowledge-collections/store'
 import type { RagIndex } from '@shared/session-rag'
 
-export function CollectionDocuments({ id, data, index, busy, readOnly, dirty, store, run, reload, addFiles, onPreview, onSettings, onProgress }: {
+export function CollectionDocuments({ id, data, index, busy, readOnly, dirty, store, run, reload, addFiles, onPreview, onReadSource, onSettings, onProgress }: {
   id: number; data: CollectionData; index: RagIndex | null; busy: boolean; readOnly: boolean; dirty: boolean
   store: KnowledgeCollections; run: (work: () => Promise<void>) => Promise<void>; reload: () => Promise<void>
   addFiles: (files: FileList | null) => void
   onPreview: (text: string, kind: 'parsed' | 'passages') => void; onSettings: () => void
+  onReadSource: (fileId: number) => void
   onProgress: (path: string) => void
 }) {
   const [filter, setFilter] = useState(''), [requestedPage, setPage] = useState(0)
@@ -26,6 +31,7 @@ export function CollectionDocuments({ id, data, index, busy, readOnly, dirty, st
       <Button variant="light" leftSection={<IconSearch size={18}/>} disabled={indexDisabled} onClick={() => void run(async () => { await store.index(id, onProgress); await reload() })}>{ft('Index now')}</Button>
 
     </div>
+    <IndexingBackgroundSettings vault={store.vault}/>
     {dirty && <Alert color="yellow"><Stack gap="xs"><Text size="sm">{ft('Save your settings before updating the index.')}</Text><Button variant="subtle" onClick={onSettings}>{ft('Review settings')}</Button></Stack></Alert>}
     {readOnly && <Text size="sm" c="dimmed">{ft('Read-only mount')}</Text>}
     <Text size="xs" c="dimmed">{ft('Add files up to 50 MB, then update the index to make them searchable.')}</Text>
@@ -37,11 +43,13 @@ export function CollectionDocuments({ id, data, index, busy, readOnly, dirty, st
     {matching.slice(page * 50, page * 50 + 50).map(file => <Card key={file.id} withBorder padding="sm" radius="md" style={{ overflow: 'visible' }}>
       <Stack gap="sm">
         <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>{file.linkedPath || file.name}</Text>
+        <Group gap="xs"><Badge variant="light" color={index?.errors.some(error=>error.path===file.path)?"red":"gray"}>{ft(store.progress?.get(id)?.files[file.path]&&store.running(id)?indexStageLabel[store.progress.get(id)!.files[file.path].stage]:index?.errors.some(error=>error.path===file.path)?'Indexing failed':index?.files.some(entry=>entry.path===file.path&&(!file.hash||entry.hash===file.hash))&&index.fingerprint===ragFingerprint(data.settings)?'Indexed':index?.files.some(entry=>entry.path===file.path)?'Needs update':'Not indexed')}</Badge></Group>
         <Group wrap="nowrap" gap="xs">
-          <Button variant="default" style={{ flex: 1 }} disabled={busy} onClick={() => void run(async () => { const document = await store.documentText(id, file.id); onPreview(document.text, 'parsed') })}>{ft('Read document')}</Button>
+          <Button variant="default" style={{ flex: 1 }} disabled={busy} onClick={() => {if(file.mime==='application/pdf'||isOfficePreview(file.name))onReadSource(file.id);else void run(async () => { const document = await store.documentText(id, file.id); onPreview(document.text, 'parsed') })}}>{ft('Read document')}</Button>
           <Menu withinPortal={false} position="bottom-end" width={260}>
             <Menu.Target><ActionIcon variant="subtle" size={44} aria-label={ft('Document actions for {{name}}', { name: file.name })}><IconDots size={20}/></ActionIcon></Menu.Target>
             <Menu.Dropdown>
+              <Menu.Item disabled={busy} onClick={()=>void run(async()=>{const document=await store.documentText(id,file.id);onPreview(document.text,'parsed')})}>{ft('View extracted text')}</Menu.Item>
               <Menu.Item disabled={busy} onClick={() => void run(async () => {
                 const chunks = await store.chunks(id, Array.from({ length: 20 }, (_, n) => ({ fileId: file.id, chunkIndex: n })))
                 onPreview(chunks.map(item => '[' + item.chunkIndex + '] ' + item.text).join('\n\n') || ft('Build the index first'), 'passages')

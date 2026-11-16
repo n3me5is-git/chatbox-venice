@@ -1,0 +1,5 @@
+import {afterEach,expect,it,vi} from 'vitest'
+import {knowledgeRequestDeadline} from './knowledge-request-deadline'
+afterEach(()=>vi.useRealTimers())
+it('keeps an active stream alive beyond one minute but retains a hard bound',()=>{vi.useFakeTimers();const deadline=knowledgeRequestDeadline(new AbortController().signal);for(let n=0;n<5;n++){vi.advanceTimersByTime(30000);deadline.activity();expect(deadline.signal.aborted).toBe(false)}vi.advanceTimersByTime(30000);expect(deadline.signal.aborted).toBe(true);deadline.dispose()})
+it('stops a stalled request and preserves explicit cancellation',()=>{vi.useFakeTimers();const parent=new AbortController(),deadline=knowledgeRequestDeadline(parent.signal);vi.advanceTimersByTime(59000);expect(deadline.signal.aborted).toBe(false);vi.advanceTimersByTime(1000);expect(deadline.signal.reason.message).toBe('Knowledge model request timed out');deadline.dispose();const next=knowledgeRequestDeadline(parent.signal);parent.abort(new DOMException('User cancelled','AbortError'));expect(next.signal.reason.message).toBe('User cancelled');next.dispose()})

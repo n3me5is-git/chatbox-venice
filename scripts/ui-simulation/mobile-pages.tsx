@@ -1,3 +1,6 @@
+import {auditPdf} from './pdf-fixture'
+import {PdfDocumentViewer} from '../../src/renderer/components/common/PdfDocumentViewer'
+import type {ProviderSettings} from '../../src/shared/types'
 import {seedLibrary} from './mobile-review'
 // Real production screens and theme; only data/native boundaries use disposable fixtures.
 import '@mantine/core/styles.css'
@@ -58,7 +61,7 @@ Object.assign(document.documentElement.dataset,{theme:dark?'dark':'light'})
 document.documentElement.classList.toggle('dark',dark)
 document.documentElement.style.fontSize=params.get('large')==='1'?'20px':'16px'
 document.documentElement.style.backgroundColor='var(--chatbox-background-primary)'
-const provider={models:[{modelId:'fixture-private',displayName:'Private research model with a long descriptive name',type:'chat',capabilities:['vision','reasoning'],vendorMetadata:{privacy:'private',uncensored:true}},{modelId:'fixture-embedding',displayName:'Private embeddings',type:'embedding'}],apiKey:''}
+const provider:ProviderSettings={models:[{modelId:'fixture-private',displayName:'Private research model with a long descriptive name',type:'chat',capabilities:['vision','reasoning'],vendorMetadata:{privacy:'private',uncensored:true}},{modelId:'fixture-embedding',displayName:'Private embeddings',type:'embedding'}],apiKey:''}
 settingsStore.setState({language:language as any,providers:{...settingsStore.getState().providers,venice:provider}})
 const archivePort={engine:{state:async()=>({root:'internal'}),ready:async()=>{}},disk:{status:async()=>({available:true,name:'Internal'}),pick:async()=>null},subscribe:()=>()=>{},migrate:async()=>{}} as any
 const noop=()=>{}
@@ -66,6 +69,7 @@ function ControlledScreen(){
  const [value,setValue]=useState<any>({}),[intel,setIntel]=useState(()=>collectionIntelligence({})),[privacy,setPrivacy]=useState<any>(),[enabled,setEnabled]=useState(true)
  switch(screen){
  case 'knowledge-base':return <CollectionsPage service={knowledgeSimulationStore}/>
+ case 'pdf-viewer':return <PdfDocumentViewer url={URL.createObjectURL(new Blob([Uint8Array.from(auditPdf()).buffer],{type:'application/pdf'}))} name="Enterprise report.pdf"/>
  case 'knowledge-models':return <KnowledgeModelDefaults/>
  case 'knowledge-intelligence':return <CollectionIntelligence value={intel} onChange={setIntel}/>
  case 'knowledge-graph':return <KnowledgeGraph store={knowledgeSimulationStore} id={Number(params.get('collection'))}/>
@@ -104,4 +108,4 @@ await i18n.changeLanguage(language)
 const queryClient=new QueryClient({defaultOptions:{queries:{retry:false}}})
 createRoot(document.getElementById('root')!).render(<QueryClientProvider client={queryClient}><MantineProvider theme={createAppMantineTheme()} forceColorScheme={dark?'dark':'light'}><AppProviders><ThemeProvider theme={createTheme(getThemeDesign(dark?'dark':'light',language as any))}><CssBaseline/><NiceModal.Provider><RouterProvider router={router}/></NiceModal.Provider></ThemeProvider></AppProviders></MantineProvider></QueryClientProvider>)
 ;(window as any).__screenAuditReady=screen
-;(window as any).__screenAuditSeed=async()=>{const id=await knowledgeSimulationStore.create('Enterprise project manuals',RagSettingsSchema.parse({provider:'venice',model:'fixture-private-embedding',enabled:true}));await knowledgeSimulationStore.add(id,new File(['# Project policy\n\nThe project owner approves all document releases.'],'project-policy.md',{type:'text/markdown'}));return id}
+;(window as any).__screenAuditSeed=async()=>{const id=await knowledgeSimulationStore.create('Enterprise project manuals',RagSettingsSchema.parse({provider:'venice',model:'fixture-private-embedding',enabled:true}));await knowledgeSimulationStore.add(id,new File([Uint8Array.from(auditPdf()).buffer],'enterprise-report.pdf',{type:'application/pdf'}));knowledgeSimulationStore.vault.keys.refresh();return id}

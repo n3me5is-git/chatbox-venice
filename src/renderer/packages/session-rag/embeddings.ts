@@ -1,3 +1,4 @@
+import type {IndexProgressReporter} from '@shared/knowledge-index-progress'
 import {stripImageMetadata} from '@shared/rag-file-metadata'
 import {RAG_INLINE_MEDIA_MAX_BYTES} from '@shared/session-rag'
 import { SystemProviders } from '@shared/defaults'
@@ -43,7 +44,7 @@ async function mediaPart(input:RagInput,signal:AbortSignal){
   if(input.mime.startsWith('audio/')){const {voiceFileDuration}=await import('@/packages/voice-file');const duration=await voiceFileDuration(new File([Uint8Array.from(input.data)],'audio',{type:input.mime}),signal);if(duration>60)throw Error('Embedding audio must not exceed 60 seconds')}
   return {inlineData:{mimeType:input.mime,data:encode(input.data)}}
 }
-export async function requestRagEmbeddings(inputs:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal){
+export async function requestRagEmbeddings(inputs:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal,report?:IndexProgressReporter){
   const {definition,saved,host}=ragProvider(settings)
   try{
     if(inputs.some(input=>input.data&&input.data.byteLength>RAG_INLINE_MEDIA_MAX_BYTES))throw Error('Direct media embeddings support up to 10 MB per source. Use OCR or transcription for larger documents.')
@@ -67,6 +68,6 @@ export async function requestRagEmbeddings(inputs:RagInput[],query:boolean,setti
     const {apiHost,apiPath}=normalizeOpenAIApiHostAndPath({apiHost:host,apiPath:'/embeddings'},{apiPath:'/embeddings'})
     const response=await apiRequest.post(apiHost+apiPath,{...(saved.apiKey?{Authorization:'Bearer '+saved.apiKey}:{}),'Content-Type':'application/json'},JSON.stringify({model:settings.model,input:inputs.map(input=>input.text),encoding_format:'float',...(settings.dimensions?{dimensions:settings.dimensions}:{})}),{signal,retry:0})
     const result=await response.json();if(!Array.isArray(result.data)||result.data.length!==inputs.length)throw Error('Incomplete embedding response')
-    const rows=[...result.data].sort((a,b)=>a.index-b.index);if(rows.some((row,index)=>row.index!==index))throw Error('Invalid embedding response order');return rows.map(row=>row.embedding as number[])
+    report?.({stage:'usage',provider:settings.provider,model:settings.model,inputTokens:result.usage?.prompt_tokens??result.usage?.total_tokens,outputTokens:0,estimatedInputTokens:result.usage?.prompt_tokens===undefined&&result.usage?.total_tokens===undefined?Math.ceil(inputs.reduce((sum,input)=>sum+(input.text?.length||0),0)/4):undefined});const rows=[...result.data].sort((a,b)=>a.index-b.index);if(rows.some((row,index)=>row.index!==index))throw Error('Invalid embedding response order');return rows.map(row=>row.embedding as number[])
   }catch(error){throw Object.assign(error instanceof Error?error:Error(String(error)),{fatal:true})}
 }

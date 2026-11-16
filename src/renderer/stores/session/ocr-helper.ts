@@ -1,3 +1,4 @@
+import {ocrTransportIssue} from '@shared/ocr-transport'
 import {runOcrWithFallback,activeOcrFallback,validateOcrFallback,VIRTUAL_OCR_INSTRUCTION} from '@shared/virtual-ocr'
 import {LOCAL_OCR_PROVIDER} from '@shared/local-ocr'
 import {PADDLE_OCR_PROVIDER} from '@shared/paddle-ocr'
@@ -34,6 +35,7 @@ export function getOCRModel(
     // User has explicitly configured an OCR model — always respect their choice
     const ocrModelSetting = globalSettings.ocrModel!
     const vision=(provider:string,modelId:string)=>{
+      const issue=ocrTransportIssue(provider,modelId,globalSettings.providers?.[provider]);if(issue)throw Error(issue)
       const selected=getModelSettings(globalSettings,provider,modelId)
       const model=getModel({...selected,temperature:0,maxTokens:4096,subscriptionWebSearch:false,veniceProfile:{webSearch:'off',webSearchEnabled:false,xSearch:false,webScraping:false}},globalSettings,configs,dependencies)
       if(!model.isSupportVision())throw Error('Choose a vision model for OCR')

@@ -1,3 +1,5 @@
+import {OfficeDocumentViewer,isOfficePreview} from '@/components/common/OfficeDocumentViewer'
+import {PdfDocumentViewer} from '@/components/common/PdfDocumentViewer'
 import { ActionIcon, Alert, Badge, Button, Checkbox, FileButton, FileInput, Group, Loader, MultiSelect, PasswordInput, Stack, Text, Textarea, TextInput } from '@mantine/core'
 import { IconArrowLeft, IconDownload, IconFile, IconFilePlus, IconFolder, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -87,7 +89,8 @@ export function SessionResources({sessionId,api=sessionResourceAPI,restricted=fa
         :selected.mime==='text/html'?<iframe title={ft('Local file preview')} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={buildWorkArtifactPreview(text)} style={{width:'100%',height:'65vh',border:0}}/>
         :isTextResource(selected)?<pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',margin:0}}>{text}</pre>
         :/^(image|audio|video)\//.test(selected.mime)&&url?<LocalMediaViewer name={selected.name} mime={selected.mime} url={url}/>
-        :selected.mime==='application/pdf'&&platform.isDesktopLike&&url?<iframe title={ft('Local file preview')} src={url} style={{width:'100%',height:'65vh',border:0}}/>
+        :selected.mime==='application/pdf'&&url?<PdfDocumentViewer url={url} name={selected.name}/>
+        :isOfficePreview(selected.name)&&url?<OfficeDocumentViewer url={url} name={selected.name}/>
         :<Text c="dimmed">{ft('Export this file to open it in another app.')}</Text>}
       </div>}
     </>:<>

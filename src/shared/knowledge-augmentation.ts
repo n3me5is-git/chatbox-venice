@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {KnowledgeModelSchema} from './knowledge-json'
 export const KNOWLEDGE_ANALYSIS_VERSION=2
-export const KnowledgeAugmentationSchema=z.object({enabled:z.boolean().default(false),model:KnowledgeModelSchema.optional(),keepMarkdown:z.boolean().default(false),mediaText:z.boolean().default(false),windowChars:z.number().int().min(2000).max(12000).default(8000)}).strict()
+export const KnowledgeAugmentationSchema=z.object({enabled:z.boolean().default(false),model:KnowledgeModelSchema.optional(),reasoning:z.enum(['auto','concise']).optional(),keepMarkdown:z.boolean().default(false),mediaText:z.boolean().default(false),windowChars:z.number().int().min(2000).max(12000).default(8000)}).strict()
 export type KnowledgeAugmentation=z.infer<typeof KnowledgeAugmentationSchema>
 const label=z.string().trim().min(1).max(160),quote=z.string().min(3).max(800)
 export const KnowledgeExtractionSchema=z.object({summary:z.string().max(600),entities:z.array(z.object({name:label,type:label,quote}).strict()).max(32),relations:z.array(z.object({subject:label,predicate:label,object:label,quote}).strict()).max(48),tags:z.array(z.object({key:label,value:label,quote}).strict()).max(32)}).strict()

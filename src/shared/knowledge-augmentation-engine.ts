@@ -1,9 +1,11 @@
+import type {IndexProgressReporter} from './knowledge-index-progress'
 import {KnowledgeAugmentationSchema,KnowledgeExtractionSchema,KnowledgeAnalysisSchema,KnowledgeAnalysisManifestSchema,KNOWLEDGE_ANALYSIS_VERSION,anchorKnowledgeQuote,knowledgeTerms,knowledgeWindows,type KnowledgeAnalysis,type KnowledgeAugmentation,type KnowledgeEntity} from './knowledge-augmentation'
 import {ragHash} from './session-rag-engine'
 export type KnowledgeDocument={fileId:string;sourceHash:string;text:string;retainText?:boolean;cachedOnly?:boolean}
 export type KnowledgeAnalysisRef={fileId:string;sourceHash:string;textHash:string;fingerprint:string;alias:string;terms:string[];warningCount?:number}
 export type KnowledgeAnalysisManifest={version:1;updated:number;files:KnowledgeAnalysisRef[];stats?:{extractedWindows:number;reusedWindows:number;unchangedDocuments:number;reboundDocuments:number}}
 export interface KnowledgeAnalysisPort{
+ report?:IndexProgressReporter
  revision(fileId:string):Promise<string|null>;get<T>(key:string):Promise<T|null>;put(key:string,value:unknown):Promise<void>;remove(key:string):Promise<void>;check():Promise<void>
  extract(text:string,settings:KnowledgeAugmentation,signal:AbortSignal):Promise<unknown>
 }
@@ -30,7 +32,9 @@ export class KnowledgeAugmentationEngine{
     // Rebind provenance to the new raw source revision without another LLM call.
     if(previousRecord&&previousRecord.textHash===textHash){const alias=ROOT+'data/'+crypto.randomUUID()+'.json',analysis={...previousRecord,sourceHash:document.sourceHash};await this.port.check();signal.throwIfAborted();await this.port.put(alias,analysis);created.push(alias);files.push({...cached!,sourceHash:document.sourceHash,alias});stats.reboundDocuments++;stats.reusedWindows+=analysis.sections.length;continue}
     const entities:KnowledgeEntity[]=[],relations:KnowledgeAnalysis['relations']=[],tags:KnowledgeAnalysis['tags']=[],sections:KnowledgeAnalysis['sections']=[],warnings:NonNullable<KnowledgeAnalysis['warnings']>=[]
-    for(const window of knowledgeWindows(document.text,settings.windowChars)){
+    const windows=knowledgeWindows(document.text,settings.windowChars)
+    for(const [windowIndex,window] of windows.entries()){
+      this.port.report?.({stage:'analyzing',batch:windowIndex+1,batches:windows.length})
       signal.throwIfAborted();await this.port.check();const windowHash=await hashText(window.text),cachedWindow=previousRecord?.sections.find(section=>section.hash===windowHash)
       if(previousRecord&&cachedWindow){
        const shift=window.start-cachedWindow.start,inside=(anchor:{start:number;end:number})=>anchor.start>=cachedWindow.start&&anchor.end<=cachedWindow.end

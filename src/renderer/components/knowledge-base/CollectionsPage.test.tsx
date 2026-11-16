@@ -5,7 +5,7 @@ import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {RagSettingsSchema} from '@shared/session-rag'
 const state=vi.hoisted(()=>({addMany:vi.fn(),mount:vi.fn(),migrate:vi.fn(),directoryEntry:vi.fn(),remove:vi.fn(),list:vi.fn(),create:vi.fn(),data:vi.fn(),authorize:vi.fn(),configure:vi.fn(),index:vi.fn(),lock:vi.fn(),status:vi.fn(),locked:false,revision:0,notify:()=>{}}))
-vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultVirtualRerankModel:{provider:'private',model:'small-ranker'}})})}}))
+vi.mock('@/stores/settingsStore',()=>({useSettingsStore:(selector:any)=>selector({providers:{}}),settingsStore:{getState:()=>({getSettings:()=>({defaultVirtualRerankModel:{provider:'private',model:'small-ranker'}})})}}))
 vi.mock('@/platform',()=>({default:{type:'mobile'}}))
 vi.mock('@/packages/session-rag/defaults',()=>({defaultRagSettings:()=>RagSettingsSchema.parse({provider:'venice',model:'private-embedding'})}))
 vi.mock('@/packages/session-rag/embeddings',()=>({multimodalEmbedding:(provider:string)=>provider==='gemini',embeddingMediaSupport:(provider:string)=>({image:provider==='gemini',audio:provider==='gemini'})}))
