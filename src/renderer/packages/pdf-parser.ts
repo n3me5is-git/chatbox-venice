@@ -35,7 +35,7 @@ export async function loadPdfjs() {
 
 export async function parsePdfFileLocally(
   file: File,
-  options: { signal?: AbortSignal; failOnPageError?: boolean; metadataOnly?: boolean; onMetadata?:(value:Record<string,unknown>)=>void; onPage?:(page:number,total:number)=>void } = {}
+  options: { signal?: AbortSignal; failOnPageError?: boolean; metadataOnly?: boolean; onMetadata?:(value:Record<string,unknown>)=>void; onPage?:(page:number,total:number)=>void; onPageGraphics?:(page:number,visual:boolean)=>void } = {}
 ): Promise<string> {
   const { signal } = options
   signal?.throwIfAborted()
@@ -47,7 +47,7 @@ export async function parsePdfFileLocally(
     throw new Error(LOCAL_PARSER_FILE_TOO_LARGE_ERROR)
   }
 
-  const { getDocument } = await loadPdfjs()
+  const { getDocument, OPS } = await loadPdfjs()
   signal?.throwIfAborted()
   const data = new Uint8Array(await file.arrayBuffer())
   signal?.throwIfAborted()
@@ -109,6 +109,7 @@ export async function parsePdfFileLocally(
           }
 
           pageTexts.push(pageText.trim())
+          if(options.onPageGraphics){const operations=await Promise.race([page.getOperatorList(),canceled]),imageOps=new Set([OPS.paintImageXObject,OPS.paintInlineImageXObject,OPS.paintImageMaskXObject,OPS.paintImageXObjectRepeat]);const paths=operations.fnArray.filter(op=>op===OPS.constructPath).length;options.onPageGraphics(pageNumber,operations.fnArray.some(op=>imageOps.has(op))||paths>=4)}
         } finally {
           page.cleanup()
         }

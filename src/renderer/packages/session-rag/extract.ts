@@ -48,9 +48,9 @@ async function extractCore(source:RagSource,bytes:Uint8Array,settings:RagSetting
   if(source.mime.startsWith('image/')){if((settings.describeImages||settings.ocr&&!settings.images)&&bytes.length>RAG_INLINE_MEDIA_MAX_BYTES)throw Error('Image OCR supports up to 10 MB per image. Resize the image before indexing.');if(settings.describeImages)return {media:settings.images||undefined,text:await ragOcr('data:'+source.mime+';base64,'+base64(stripImageMetadata(bytes,source.mime)),settings,signal,onFallback,authorize,report),kind:settings.ocr?'ocr':'description'};if(settings.images)return {media:true};if(settings.ocr)return {text:await ragOcr('data:'+source.mime+';base64,'+base64(stripImageMetadata(bytes,source.mime)),settings,signal,onFallback,authorize,report),kind:'ocr'};return {}}
   if(source.mime.startsWith('audio/')){if(settings.audio)return {media:true};if(settings.stt){const {transcribeKnowledgeAudio}=await import('@/packages/knowledge-collections/stt');return {text:await transcribeKnowledgeAudio(file(),settings,signal),kind:'transcript'}}return {}}
   if(/\.pdf$/i.test(source.path)||/^application\/pdf(?:;|$)/i.test(source.mime)){
-    const pdf=file(),metadata:Record<string,string>={}
+    const pdf=file(),metadata:Record<string,string>={},visualPages=new Set<number>()
     const forceOcr=settings.ocr&&settings.pdfOcrMode==='all'
-    const parsedText=forceOcr&&!settings.fileMetadata?'':await parsePdfFileLocally(pdf,{signal,failOnPageError:true,metadataOnly:forceOcr,onPage:(page,total)=>report?.({stage:'extracting',page,pages:total}),...(settings.fileMetadata?{onMetadata:(values:Record<string,unknown>)=>{for(const key of ['Title','Author','Subject','Keywords','Creator','Producer','CreationDate','ModDate'])if(typeof values[key]==='string')metadata[key]=(values[key] as string).replace(/[\u0000-\u001f]/g,' ').slice(0,256)}}:{})})
+    const parsedText=forceOcr&&!settings.fileMetadata?'':await parsePdfFileLocally(pdf,{signal,failOnPageError:true,metadataOnly:forceOcr,...(settings.describeImages&&!forceOcr?{onPageGraphics:(page:number,visual:boolean)=>{if(visual)visualPages.add(page)}}:{}),onPage:(page,total)=>report?.({stage:'extracting',page,pages:total}),...(settings.fileMetadata?{onMetadata:(values:Record<string,unknown>)=>{for(const key of ['Title','Author','Subject','Keywords','Creator','Producer','CreationDate','ModDate'])if(typeof values[key]==='string')metadata[key]=(values[key] as string).replace(/[\u0000-\u001f]/g,' ').slice(0,256)}}:{})})
     const text=forceOcr?'':parsedText
     const withMetadata=(text:string)=>settings.fileMetadata?text+'\n\n'+fileMetadataText({...source,bytes:bytes.length},metadata):text
     const hasText=!!text.replace(/==== Page \d+ ====/g,'').trim()
@@ -58,9 +58,10 @@ async function extractCore(source:RagSource,bytes:Uint8Array,settings:RagSetting
     const sections=text.split(/^==== Page (\d+) ====$/m),content=new Map<number,string>()
     for(let n=1;n<sections.length;n+=2)content.set(Number(sections[n]),sections[n+1].trim())
     const missing=hasText?new Set([...content].filter(([,value])=>!value).map(([page])=>page)):undefined
-    if(hasText&&!missing?.size&&!settings.describeImages)return {text:withMetadata(text)}
+    const targetPages=hasText&&settings.describeImages?new Set([...(missing||[]),...visualPages]):missing
+    if(hasText&&!targetPages?.size)return {text:withMetadata(text)}
     const {pdfPagesForOcr}=await import('@/packages/pdf-parser')
-    for await(const page of prefetchOcrPages(pdfPagesForOcr(pdf,signal,settings.describeImages?undefined:missing),signal)){report?.({stage:'ocr',page:page.page,pages:page.pages,provider:settings.ocrProvider,model:settings.ocrModel});const existing=content.get(page.page)||'',visual=await ragOcr(page.dataUrl,{...settings,ocr:settings.ocr&&!existing.trim()},signal,onFallback,authorize,report);content.set(page.page,[existing,visual].filter(Boolean).join('\n\n'))}
+    for await(const page of prefetchOcrPages(pdfPagesForOcr(pdf,signal,targetPages),signal)){report?.({stage:'ocr',page:page.page,pages:page.pages,provider:settings.ocrProvider,model:settings.ocrModel});const existing=content.get(page.page)||'',visual=await ragOcr(page.dataUrl,{...settings,ocr:settings.ocr&&!existing.trim()},signal,onFallback,authorize,report);content.set(page.page,[existing,visual].filter(Boolean).join('\n\n'))}
     return {kind:settings.ocr?'ocr':'description',text:withMetadata([...content].sort((a,b)=>a[0]-b[0]).map(([page,value])=>'==== Page '+page+' ====\n'+value).join('\n\n'))}
   }
   if(/\.doc$/i.test(source.path))return {text:await legacyDoc(bytes,signal)}

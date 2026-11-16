@@ -1,15 +1,18 @@
+import {knowledgeWindowCache} from './window-cache'
 import {ocrFallbackFingerprint} from '@shared/virtual-ocr'
 import {z} from 'zod'
 import {packKnowledgeText,unpackKnowledgeText} from '@shared/knowledge-text-storage'
 import {RAG_ROOT,RagIndexSchema,RAG_MAX_FILES,type RagSettings} from '@shared/session-rag'
 import {ragFingerprint,SessionRagEngine,ragHash,type RagEnginePort,type RagSource} from '@shared/session-rag-engine'
-import {KnowledgeAugmentationSchema,KnowledgeAnalysisManifestSchema,KNOWLEDGE_ANALYSIS_VERSION,type KnowledgeAugmentation,type KnowledgeAnalysis} from '@shared/knowledge-augmentation'
+import {KnowledgeExtractionSchema,KnowledgeAugmentationSchema,KnowledgeAnalysisManifestSchema,KNOWLEDGE_ANALYSIS_VERSION,type KnowledgeAugmentation,type KnowledgeAnalysis} from '@shared/knowledge-augmentation'
 import {KnowledgeAugmentationEngine,type KnowledgeAnalysisManifest,type KnowledgeDocument} from '@shared/knowledge-augmentation-engine'
-const ROOT='.chatbox/knowledge/',CURRENT=ROOT+'state.json',INDEX=RAG_ROOT+'index.json',META=ROOT+'index.json'
+const ROOT='.chatbox/knowledge/',STAGING=ROOT+'staging.json',ANALYSIS_STAGING=ROOT+'analysis-staging.json',CURRENT=ROOT+'state.json',INDEX=RAG_ROOT+'index.json',META=ROOT+'index.json'
 const digest=z.string().regex(/^[a-f0-9]{64}$/)
 const TextRef=z.object({fileId:z.string().max(128),path:z.string().max(240),sourceHash:digest,textHash:digest,fingerprint:digest,alias:z.string().regex(/^\.chatbox\/knowledge\/text\/[a-f0-9-]{36}\.json$/),kind:z.enum(['parsed','ocr','transcript','description','metadata']),retain:z.boolean()}).strict()
 export const KnowledgeStateSchema=z.object({version:z.literal(1),revision:z.string().uuid(),vector:RagIndexSchema,metadata:KnowledgeAnalysisManifestSchema.nullable(),analysisFingerprint:digest,derivatives:z.array(TextRef).max(RAG_MAX_FILES)}).strict()
 export type KnowledgeState=z.infer<typeof KnowledgeStateSchema>
+export const AnalysisStaging=z.object({analysisFingerprint:digest,metadata:KnowledgeAnalysisManifestSchema}).strict()
+export const StagingSchema=KnowledgeStateSchema.omit({metadata:true,revision:true}).extend({metadata:z.null()})
 export interface AugmentedPort{get<T>(path:string):Promise<T|null>;put(path:string,value:unknown):Promise<void>;remove(path:string):Promise<void>;check():Promise<void>;publish(work:()=>Promise<void>):Promise<void>}
 export const knowledgeAnalysisFingerprint=async(settings:KnowledgeAugmentation)=>ragHash(new TextEncoder().encode(JSON.stringify([KNOWLEDGE_ANALYSIS_VERSION,KnowledgeAugmentationSchema.parse(settings)])))
 const parsingFingerprint=async(settings:RagSettings,pdf=false)=>ragHash(new TextEncoder().encode(JSON.stringify(['parser-v2',settings.ocr,settings.ocrProvider,settings.ocrModel,settings.stt,settings.sttProvider,settings.sttModel,...ocrFallbackFingerprint(settings),...(settings.describeImages||settings.fileMetadata||settings.locationMetadata||settings.ocrReasoning==='concise'?['source-enrichment-v1',settings.describeImages,settings.fileMetadata,settings.locationMetadata,settings.ocrReasoning]:[]),...(pdf&&settings.ocr&&settings.pdfOcrMode==='all'?['pdf-ocr-all-v1']:[])])))
@@ -21,7 +24,11 @@ export class AugmentedCollectionIndex{
  vectorPort(snapshot:KnowledgeState|null):RagEnginePort{return {...this.base,get:path=>path===INDEX&&snapshot?Promise.resolve(snapshot.vector):this.base.get(path)}}
  async index(settings:RagSettings,configuration:KnowledgeAugmentation,signal:AbortSignal,progress:(path:string)=>void,rebuild=false){
   const cfg=KnowledgeAugmentationSchema.parse(configuration),previous=await this.state(),created=new Set<string>(),garbage=new Set<string>(),texts=new Map<string,z.infer<typeof TextRef>>(),previousText=new Map(previous?.derivatives.map(ref=>[ref.fileId,ref])||[]),parseFingerprint=await parsingFingerprint(settings),analysisFingerprint=await knowledgeAnalysisFingerprint(cfg)
-  let vector=previous?.vector||null,metadata:KnowledgeAnalysisManifest|null=rebuild?null:previous?.metadata||null
+  const rawAnalysis=await this.storage.get(ANALYSIS_STAGING),analysisStage=rawAnalysis?AnalysisStaging.parse(rawAnalysis):null
+  const rawStage=await this.storage.get(STAGING),oldStage=rawStage?StagingSchema.parse(rawStage):null,stage=!rebuild&&oldStage?.vector.fingerprint===ragFingerprint(settings)&&oldStage.vector.embeddingSpace===this.base.embeddingSpace?oldStage:null
+  for(const ref of stage?.derivatives||[])previousText.set(ref.fileId,ref)
+  let vector=stage?.vector||previous?.vector||null,metadata:KnowledgeAnalysisManifest|null=rebuild?null:previous?.metadata||null
+  if(!rebuild&&analysisStage?.analysisFingerprint===analysisFingerprint){const rows=new Map((metadata?.files||[]).map(file=>[file.fileId,file]));for(const file of analysisStage.metadata.files)rows.set(file.fileId,file);metadata={...analysisStage.metadata,files:[...rows.values()]}}
   const put=async(path:string,value:unknown)=>{await this.storage.check();const stored=path.startsWith(ROOT+'text/')?await packKnowledgeText(value):value;signal.throwIfAborted();await this.storage.check();await this.storage.put(path,stored);created.add(path)}
   const parsed=async(source:RagSource,bytes:Uint8Array,options:RagSettings):ReturnType<RagEnginePort['extract']>=>{
    const native=source.mime.startsWith('image/')&&options.images||source.mime.startsWith('audio/')&&options.audio;if(native&&!options.describeImages&&!options.fileMetadata)return {media:true}
@@ -39,27 +46,29 @@ export class AugmentedCollectionIndex{
   const wrapped:RagEnginePort={...this.base,get:async path=>path===INDEX?vector||await this.base.get(path):this.base.get(path),put:async(path,value)=>{if(path===INDEX)vector=RagIndexSchema.parse(value);else await put(path,value)},remove:async path=>{garbage.add(path)},extract:parsed}
   try{
    vector=await new SessionRagEngine(wrapped).index(settings,signal,progress,rebuild);if(vector.errors.length)throw Error('Advanced indexing was not published: '+vector.errors[0].error)
+   const stagedTexts=new Map(previousText);for(const [id,ref]of texts)stagedTexts.set(id,ref);const staging={version:1 as const,vector,metadata:null,analysisFingerprint,derivatives:[...stagedTexts.values()].filter(ref=>vector!.files.some(file=>file.path===ref.path&&file.hash===ref.sourceHash))};await this.storage.check();await this.storage.put(STAGING,staging)
    if(cfg.enabled){if(!cfg.model)throw Error('Choose a knowledge extraction model first')
     const sources=this.files,indexed=vector.files,base=this.base,storage=this.storage,canReuse=!!previous&&!rebuild&&previous.vector.fingerprint===ragFingerprint(settings)&&previous.analysisFingerprint===analysisFingerprint,cachedMetadata=new Map((metadata?.files||[]).map(file=>[file.fileId,file]))
     async function* documents():AsyncGenerator<KnowledgeDocument>{for(const file of indexed){signal.throwIfAborted();await storage.check();const source=sources.find(source=>source.path===file.path);if(!source)continue;base.report?.({stage:'analyzing',path:file.path});const native=source.mime.startsWith('image/')&&settings.images||source.mime.startsWith('audio/')&&settings.audio;if(native&&!cfg.mediaText)continue
      if(canReuse&&base.revision&&cachedMetadata.get(String(source.id))?.sourceHash===file.hash){if(await base.revision(file.path)!==file.hash)throw Error('Knowledge source changed during indexing');yield {fileId:String(source.id),sourceHash:file.hash,text:'',cachedOnly:true,retainText:false};continue}
      const bytes=await base.read(file.path);try{if(await ragHash(bytes)!==file.hash)throw Error('Knowledge source changed during indexing');const options=native?{...settings,images:false,audio:false}:settings,result=await parsed(source,bytes,options);if(result.media||!result.text?.trim())continue;yield {fileId:String(source.id),sourceHash:file.hash,text:result.text,retainText:false}}finally{bytes.fill(0)}
     }}
-    const engine=new KnowledgeAugmentationEngine({get:async<T>(path:string)=>path===META?metadata as T|null:this.storage.get<T>(path),put:async(path,value)=>{if(path===META)metadata=KnowledgeAnalysisManifestSchema.parse(value);else await put(path,value)},remove:async path=>{garbage.add(path)},check:()=>this.storage.check(),report:this.base.report,extract:this.extract,revision:async fileId=>vector!.files.find(file=>this.files.find(source=>String(source.id)===fileId)?.path===file.path)?.hash||null})
+    const cache=knowledgeWindowCache(this.storage)
+    const engine=new KnowledgeAugmentationEngine({checkpoint:async metadata=>{await this.storage.check();await this.storage.put(ANALYSIS_STAGING,{analysisFingerprint,metadata})},cachedWindow:rebuild?undefined:cache.get,cacheWindow:async(key,value,fileId)=>cache.put(key,KnowledgeExtractionSchema.parse(value),fileId),get:async<T>(path:string)=>path===META?metadata as T|null:this.storage.get<T>(path),put:async(path,value)=>{if(path===META)metadata=KnowledgeAnalysisManifestSchema.parse(value);else await put(path,value)},remove:async path=>{garbage.add(path)},check:()=>this.storage.check(),report:this.base.report,extract:this.extract,revision:async fileId=>vector!.files.find(file=>this.files.find(source=>String(source.id)===fileId)?.path===file.path)?.hash||null})
     // Text is stored once as a derivative, never duplicated in graph records.
     metadata=await engine.index(documents(),{...cfg,keepMarkdown:false},signal)
    }else metadata=null
    const retainedTexts=[...texts.values()].filter(ref=>ref.retain&&vector!.files.some(file=>file.path===ref.path&&file.hash===ref.sourceHash))
    // Unchanged vectors may bypass extraction; retain their matching old derivatives.
-   for(const ref of previous?.derivatives||[])if(!texts.has(ref.fileId)&&vector.files.some(file=>file.path===ref.path&&file.hash===ref.sourceHash)&&(cfg.keepMarkdown||ref.kind!=='parsed'))retainedTexts.push(ref)
+   for(const ref of previousText.values())if(!texts.has(ref.fileId)&&vector.files.some(file=>file.path===ref.path&&file.hash===ref.sourceHash)&&(cfg.keepMarkdown||ref.kind!=='parsed'))retainedTexts.push(ref)
    const state:KnowledgeState={version:1,revision:crypto.randomUUID(),vector,metadata,analysisFingerprint,derivatives:retainedTexts}
    const references=(value:KnowledgeState|null)=>new Set(value?[...value.vector.files.flatMap(file=>file.shards),...(value.metadata?.files.map(file=>file.alias)||[]),...value.derivatives.map(ref=>ref.alias)]:[]),retained=references(state)
-   for(const alias of [...references(previous),...created])if(!retained.has(alias))garbage.add(alias)
-   signal.throwIfAborted();await this.storage.check();await this.storage.publish(async()=>{signal.throwIfAborted();await this.storage.check();await this.storage.put(CURRENT,state);for(const alias of garbage)if(!retained.has(alias))await this.storage.remove(alias).catch(()=>{})})
+   for(const alias of [...references(previous),...(oldStage?.vector.files.flatMap(file=>file.shards)||[]),...(oldStage?.derivatives.map(ref=>ref.alias)||[]),...(analysisStage?.metadata.files.map(ref=>ref.alias)||[]),...created])if(!retained.has(alias))garbage.add(alias)
+   signal.throwIfAborted();await this.storage.check();await this.storage.publish(async()=>{signal.throwIfAborted();await this.storage.check();await this.storage.put(CURRENT,state);await this.storage.put(STAGING,null);await this.storage.put(ANALYSIS_STAGING,null);for(const alias of garbage)if(!retained.has(alias))await this.storage.remove(alias).catch(()=>{})})
    signal.throwIfAborted();await this.storage.check();return state.vector
   }catch(error){
    // Never delete committed files if publication reported an ambiguous I/O error.
-   try{const current=await this.state(),retained=new Set(current?[...current.vector.files.flatMap(file=>file.shards),...(current.metadata?.files.map(file=>file.alias)||[]),...current.derivatives.map(ref=>ref.alias)]:[]);for(const alias of created)if(!retained.has(alias))await this.storage.remove(alias).catch(()=>{})}catch{/* retain owned orphans until storage is available */}
+   try{const rawAnalysis=await this.storage.get(ANALYSIS_STAGING),savedAnalysis=rawAnalysis?AnalysisStaging.parse(rawAnalysis):null,stageRaw=await this.storage.get(STAGING),checkpoint=stageRaw?StagingSchema.parse(stageRaw):null,current=await this.state(),retained=new Set(current?[...current.vector.files.flatMap(file=>file.shards),...(current.metadata?.files.map(file=>file.alias)||[]),...current.derivatives.map(ref=>ref.alias)]:[]);for(const alias of [...(checkpoint?.vector.files.flatMap(file=>file.shards)||[]),...(checkpoint?.derivatives.map(ref=>ref.alias)||[]),...(savedAnalysis?.metadata.files.map(ref=>ref.alias)||[])])retained.add(alias);for(const alias of created)if(!retained.has(alias))await this.storage.remove(alias).catch(()=>{})}catch{/* retain owned orphans until storage is available */}
    throw error
   }
  }

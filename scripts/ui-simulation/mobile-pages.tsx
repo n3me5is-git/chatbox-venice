@@ -1,3 +1,5 @@
+import {VeniceStudio} from '../../src/renderer/components/venice/VeniceStudio'
+import mediaFixture from '../../test/fixtures/venice/catalog-2026-11-08.json'
 import {auditPdf} from './pdf-fixture'
 import {PdfDocumentViewer} from '../../src/renderer/components/common/PdfDocumentViewer'
 import type {ProviderSettings} from '../../src/shared/types'
@@ -61,12 +63,14 @@ Object.assign(document.documentElement.dataset,{theme:dark?'dark':'light'})
 document.documentElement.classList.toggle('dark',dark)
 document.documentElement.style.fontSize=params.get('large')==='1'?'20px':'16px'
 document.documentElement.style.backgroundColor='var(--chatbox-background-primary)'
-const provider:ProviderSettings={models:[{modelId:'fixture-private',displayName:'Private research model with a long descriptive name',type:'chat',capabilities:['vision','reasoning'],vendorMetadata:{privacy:'private',uncensored:true}},{modelId:'fixture-embedding',displayName:'Private embeddings',type:'embedding'}],apiKey:''}
+const provider:ProviderSettings={models:[{modelId:'fixture-private',nickname:'Private research model with a long descriptive name',type:'chat',capabilities:['vision','reasoning'],vendorMetadata:{privacy:'private',uncensored:true}},{modelId:'fixture-embedding',nickname:'Private embeddings',type:'embedding'}],apiKey:''}
 settingsStore.setState({language:language as any,providers:{...settingsStore.getState().providers,venice:provider}})
 const archivePort={engine:{state:async()=>({root:'internal'}),ready:async()=>{}},disk:{status:async()=>({available:true,name:'Internal'}),pick:async()=>null},subscribe:()=>()=>{},migrate:async()=>{}} as any
 const noop=()=>{}
+const studioService={list:async()=>[],subscribe:()=>()=>{},cachedCatalog:async()=>mediaFixture.models,catalog:async()=>mediaFixture.models,isActive:()=>false,quote:async()=>({quote:0.01}),start:async()=>{throw Error('Generation is disabled in screen audit')}} as any
 function ControlledScreen(){
  const [value,setValue]=useState<any>({}),[intel,setIntel]=useState(()=>collectionIntelligence({})),[privacy,setPrivacy]=useState<any>(),[enabled,setEnabled]=useState(true)
+ if(screen.startsWith('studio-'))return <VeniceStudio service={studioService} options={{audioEnabled:true,videoEnabled:true,musicEnabled:true}} initialKind={screen.slice(7) as any}/>
  switch(screen){
  case 'knowledge-base':return <CollectionsPage service={knowledgeSimulationStore}/>
  case 'pdf-viewer':return <PdfDocumentViewer url={URL.createObjectURL(new Blob([Uint8Array.from(auditPdf()).buffer],{type:'application/pdf'}))} name="Enterprise report.pdf"/>

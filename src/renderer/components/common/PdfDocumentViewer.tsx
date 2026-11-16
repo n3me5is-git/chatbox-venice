@@ -10,7 +10,7 @@ export function PdfDocumentViewer({url,name,initialPage=1}:{url:string;name:stri
  const [document,setDocument]=useState<PDFDocumentProxy>(),[page,setPage]=useState(initialPage),[zoom,setZoom]=useState(1),[width,setWidth]=useState(320),[busy,setBusy]=useState(true),[error,setError]=useState('')
  const container=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),renderTask=useRef<RenderTask>()
  useEffect(()=>{let active=true,task:ReturnType<Awaited<ReturnType<typeof loadPdfjs>>['getDocument']>|undefined;setDocument(undefined);setError('');setBusy(true)
-  void loadPdfjs().then(pdf=>{if(!active)return;task=pdf.getDocument({url,isEvalSupported:false,disableAutoFetch:true,disableStream:true});return task.promise}).then(pdf=>{if(active&&pdf){setDocument(pdf);setPage(Math.min(pdf.numPages,Math.max(1,initialPage)))}}).catch(error=>{if(active){setError((error as Error).message);setBusy(false)}})
+  void loadPdfjs().then(pdf=>{if(!active)return;task=pdf.getDocument({url,disableAutoFetch:true,disableStream:true});return task.promise}).then(pdf=>{if(active&&pdf){setDocument(pdf);setPage(Math.min(pdf.numPages,Math.max(1,initialPage)))}}).catch(error=>{if(active){setError((error as Error).message);setBusy(false)}})
   return()=>{active=false;renderTask.current?.cancel();void task?.destroy()}
  },[url,initialPage])
  useEffect(()=>{const element=container.current;if(!element)return;const update=()=>setWidth(Math.max(120,element.clientWidth-4));update();const observer=new ResizeObserver(update);observer.observe(element);return()=>observer.disconnect()},[])

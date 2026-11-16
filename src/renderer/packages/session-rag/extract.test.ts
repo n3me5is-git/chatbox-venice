@@ -4,9 +4,9 @@ vi.mock('@/packages/paddle-ocr/client',()=>({recognizePaddle:vi.fn(async()=>'Pad
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({providers:{venice:{models:[{modelId:'qwen3-5-35b-a3b',capabilities:['reasoning'],vendorMetadata:{capabilities:{supportsReasoning:true,supportsReasoningEffort:true,reasoningEffortOptions:['none','low']}}}]}}})})}}))
 import {beforeEach,expect,it,vi} from 'vitest'
 import {RagSettingsSchema} from '@shared/session-rag'
-const state=vi.hoisted(()=>({text:'',create:vi.fn(),chat:vi.fn(),render:vi.fn(),stt:vi.fn()}))
+const state=vi.hoisted(()=>({text:'',create:vi.fn(),chat:vi.fn(),render:vi.fn(),visuals:[1,2] as number[],stt:vi.fn()}))
 vi.mock('@/adapters',()=>({createModel:async(settings:unknown)=>{await state.create(settings);return {isSupportVision:()=>true,chat:state.chat}}}))
-vi.mock('@/packages/pdf-parser',()=>({parsePdfFileLocally:async()=>state.text,pdfPagesForOcr:async function*(_file:any,_signal:any,pages?:Set<number>){state.render(pages);for(const page of [1,2])if(!pages||pages.has(page))yield {page,dataUrl:'data:image/png;base64,AQID'}}}))
+vi.mock('@/packages/pdf-parser',()=>({parsePdfFileLocally:async(_file:any,options:any)=>{for(const page of state.visuals)options?.onPageGraphics?.(page,true);return state.text},pdfPagesForOcr:async function*(_file:any,_signal:any,pages?:Set<number>){state.render(pages);for(const page of [1,2])if(!pages||pages.has(page))yield {page,dataUrl:'data:image/png;base64,AQID'}}}))
 vi.mock('@/packages/mobile-work-mode/execution-service',()=>({capacitorExecution:{parseDocument:vi.fn()}}))
 vi.mock('@/packages/knowledge-collections/stt',()=>({transcribeKnowledgeAudio:state.stt}))
 import {extractRagSource} from './extract'
@@ -25,7 +25,7 @@ it('can replace embedded text on every PDF page without duplicating the damaged 
 it('does not activate all-page OCR unless OCR itself is enabled',async()=>{state.text='==== Page 1 ====\n\nExisting PDF text';const result=await extractRagSource(source,new Uint8Array(),{...cfg(),ocr:false,pdfOcrMode:'all'},signal);expect(result.text).toContain('Existing PDF text');expect(state.chat).not.toHaveBeenCalled();expect(state.render).not.toHaveBeenCalled()})
 it('routes all-page PDF OCR through Paddle on both platforms without creating a remote model',async()=>{const {recognizePaddle}=await import('@/packages/paddle-ocr/client');const {PADDLE_OCR_PROVIDER,PADDLE_OCR_MODEL}=await import('@shared/paddle-ocr');state.text='Stale native PDF layer';const result=await extractRagSource(source,new Uint8Array(),RagSettingsSchema.parse({ocr:true,pdfOcrMode:'all',ocrProvider:PADDLE_OCR_PROVIDER,ocrModel:PADDLE_OCR_MODEL}),signal);expect(result.text).toContain('==== Page 1 ====\nPaddle document text');expect(result.text).toContain('==== Page 2 ====\nPaddle document text');expect(result.text).not.toContain('Stale');expect(recognizePaddle).toHaveBeenCalled();expect(state.create).not.toHaveBeenCalled()})
 it('surfaces an all-page OCR failure instead of retaining a misleading native text layer',async()=>{state.text='Stale column text';state.chat.mockRejectedValueOnce(Error('OCR request failed'));await expect(extractRagSource(source,new Uint8Array(),{...cfg(),pdfOcrMode:'all'},signal)).rejects.toThrow('OCR request failed')})
-beforeEach(()=>{vi.clearAllMocks();state.text='';state.chat.mockResolvedValue({contentParts:[{type:'text',text:'Scanned page text'}]})})
+beforeEach(()=>{vi.clearAllMocks();state.visuals=[1,2];state.text='';state.chat.mockResolvedValue({contentParts:[{type:'text',text:'Scanned page text'}]})})
 it('extracts mixed PDFs locally and OCRs only pages with no extracted text when explicitly enabled',async()=>{
  state.text='==== Page 1 ====\n\nExisting text\n\n==== Page 2 ====\n\n'
  const off=await extractRagSource(source,new Uint8Array(),{...cfg(),ocr:false},signal);expect(off.text).toContain('Existing text');expect(state.chat).not.toHaveBeenCalled()

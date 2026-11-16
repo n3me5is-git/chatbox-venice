@@ -5,7 +5,9 @@ export type KnowledgeDocument={fileId:string;sourceHash:string;text:string;retai
 export type KnowledgeAnalysisRef={fileId:string;sourceHash:string;textHash:string;fingerprint:string;alias:string;terms:string[];warningCount?:number}
 export type KnowledgeAnalysisManifest={version:1;updated:number;files:KnowledgeAnalysisRef[];stats?:{extractedWindows:number;reusedWindows:number;unchangedDocuments:number;reboundDocuments:number}}
 export interface KnowledgeAnalysisPort{
+ checkpoint?(manifest:KnowledgeAnalysisManifest):Promise<void>
  report?:IndexProgressReporter
+ cachedWindow?(key:string):Promise<unknown>;cacheWindow?(key:string,value:unknown,fileId:string):Promise<void>
  revision(fileId:string):Promise<string|null>;get<T>(key:string):Promise<T|null>;put(key:string,value:unknown):Promise<void>;remove(key:string):Promise<void>;check():Promise<void>
  extract(text:string,settings:KnowledgeAugmentation,signal:AbortSignal):Promise<unknown>
 }
@@ -20,17 +22,18 @@ export class KnowledgeAugmentationEngine{
   const settings=KnowledgeAugmentationSchema.parse(options);if(!settings.enabled||!settings.model)throw Error('Choose a knowledge extraction model first')
   signal.throwIfAborted();await this.port.check()
   const fingerprint=await hashText(JSON.stringify([KNOWLEDGE_ANALYSIS_VERSION,settings])),stored=await this.port.get<KnowledgeAnalysisManifest>(MANIFEST),old=stored?KnowledgeAnalysisManifestSchema.parse(stored):null,previous=new Map((old?.files||[]).map(file=>[file.fileId,file])),files:KnowledgeAnalysisRef[]=[],created:string[]=[],seen=new Set<string>(),stats={extractedWindows:0,reusedWindows:0,unchangedDocuments:0,reboundDocuments:0}
+  let lastCheckpoint=Date.now();const checkpoint=async(force=false)=>{if(this.port.checkpoint&&(force||Date.now()-lastCheckpoint>=10000)){await this.port.checkpoint({version:1,updated:Date.now(),files:[...files],stats:{...stats}});lastCheckpoint=Date.now()}}
   try{for await(const document of documents){signal.throwIfAborted();await this.port.check()
     if(files.length>=10000||!document.fileId||document.fileId.length>128||seen.has(document.fileId)||!/^[a-f0-9]{64}$/.test(document.sourceHash))throw Error('Invalid knowledge document identity');seen.add(document.fileId)
     const documentFingerprint=await hashText(fingerprint+'|'+!!document.retainText),cached=previous.get(document.fileId)
-    if(document.cachedOnly){if(!cached||cached.sourceHash!==document.sourceHash||cached.fingerprint!==documentFingerprint)throw Error('Knowledge cache binding changed; retry indexing');files.push(cached);stats.unchangedDocuments++;continue}
+    if(document.cachedOnly){if(!cached||cached.sourceHash!==document.sourceHash||cached.fingerprint!==documentFingerprint)throw Error('Knowledge cache binding changed; retry indexing');files.push(cached);stats.unchangedDocuments++;await checkpoint();continue}
     const textHash=await hashText(document.text)
-    if(cached?.sourceHash===document.sourceHash&&cached.textHash===textHash&&cached.fingerprint===documentFingerprint){files.push(cached);stats.unchangedDocuments++;continue}
+    if(cached?.sourceHash===document.sourceHash&&cached.textHash===textHash&&cached.fingerprint===documentFingerprint){files.push(cached);stats.unchangedDocuments++;await checkpoint();continue}
     let previousRecord:KnowledgeAnalysis|null=null
     if(cached?.fingerprint===documentFingerprint){const raw=await this.port.get<KnowledgeAnalysis>(cached.alias);previousRecord=KnowledgeAnalysisSchema.parse(raw);if(previousRecord.fileId!==document.fileId||previousRecord.sourceHash!==cached.sourceHash||previousRecord.textHash!==cached.textHash||previousRecord.fingerprint!==cached.fingerprint)throw Error('Invalid knowledge cache revision')}
     // A container/metadata-only edit can leave the parsed document identical.
     // Rebind provenance to the new raw source revision without another LLM call.
-    if(previousRecord&&previousRecord.textHash===textHash){const alias=ROOT+'data/'+crypto.randomUUID()+'.json',analysis={...previousRecord,sourceHash:document.sourceHash};await this.port.check();signal.throwIfAborted();await this.port.put(alias,analysis);created.push(alias);files.push({...cached!,sourceHash:document.sourceHash,alias});stats.reboundDocuments++;stats.reusedWindows+=analysis.sections.length;continue}
+    if(previousRecord&&previousRecord.textHash===textHash){const alias=ROOT+'data/'+crypto.randomUUID()+'.json',analysis={...previousRecord,sourceHash:document.sourceHash};await this.port.check();signal.throwIfAborted();await this.port.put(alias,analysis);created.push(alias);files.push({...cached!,sourceHash:document.sourceHash,alias});stats.reboundDocuments++;stats.reusedWindows+=analysis.sections.length;await checkpoint();continue}
     const entities:KnowledgeEntity[]=[],relations:KnowledgeAnalysis['relations']=[],tags:KnowledgeAnalysis['tags']=[],sections:KnowledgeAnalysis['sections']=[],warnings:NonNullable<KnowledgeAnalysis['warnings']>=[]
     const windows=knowledgeWindows(document.text,settings.windowChars)
     for(const [windowIndex,window] of windows.entries()){
@@ -41,7 +44,7 @@ export class KnowledgeAugmentationEngine{
        const move=<T extends {anchor:{start:number;end:number;quote:string}}>(row:T):T=>{const anchor={...row.anchor,start:row.anchor.start+shift,end:row.anchor.end+shift};if(document.text.slice(anchor.start,anchor.end)!==anchor.quote)throw Error('Invalid cached knowledge quote');return {...row,anchor}}
        entities.push(...previousRecord.entities.filter(row=>inside(row.anchor)).map(move));relations.push(...previousRecord.relations.filter(row=>inside(row.anchor)).map(move));tags.push(...previousRecord.tags.filter(row=>inside(row.anchor)).map(move));warnings.push(...(previousRecord.warnings||[]).filter(row=>row.windowStart===cachedWindow.start).map(row=>({...row,windowStart:window.start})));sections.push({start:window.start,end:window.end,summary:cachedWindow.summary,hash:windowHash});if(entities.length+relations.length+tags.length>2048||[...entities,...relations,...tags].reduce((size,item)=>size+item.anchor.quote.length,0)>512000)throw Error('Knowledge metadata exceeds the document budget');stats.reusedWindows++;await new Promise<void>(resolve=>setTimeout(resolve,0));continue
       }
-      const value=KnowledgeExtractionSchema.parse(await this.port.extract(window.text,settings,signal));stats.extractedWindows++;signal.throwIfAborted();await this.port.check()
+      const cacheKey=await hashText(fingerprint+':'+document.fileId+':'+windowHash),cached=await this.port.cachedWindow?.(cacheKey),value=KnowledgeExtractionSchema.parse(cached??await this.port.extract(window.text,settings,signal));if(cached)stats.reusedWindows++;else stats.extractedWindows++;signal.throwIfAborted();await this.port.check()
       const local=new Map<string,string|null>()
       for(const entity of value.entities){const anchor=anchorKnowledgeQuote(window.text,entity.quote,window.start);if(!identity(anchor.quote).includes(identity(entity.name)))throw Error('Entity is absent from its quoted evidence');const id=await hashText(identity(entity.type)+'\0'+identity(entity.name));local.set(identity(entity.name),local.has(identity(entity.name))&&local.get(identity(entity.name))!==id?null:id);entities.push({id,name:entity.name,type:entity.type,anchor})}
       for(const [index,relation] of value.relations.entries()){
@@ -53,18 +56,19 @@ export class KnowledgeAugmentationEngine{
       }
       for(const tag of value.tags)tags.push({key:tag.key,value:tag.value,anchor:anchorKnowledgeQuote(window.text,tag.quote,window.start)})
       if(entities.length+relations.length+tags.length>2048||[...entities,...relations,...tags].reduce((size,item)=>size+item.anchor.quote.length,0)>512000)throw Error('Knowledge metadata exceeds the document budget')
-      sections.push({start:window.start,end:window.end,summary:value.summary,hash:windowHash})
+      sections.push({start:window.start,end:window.end,summary:value.summary,hash:windowHash});if(!cached)await this.port.cacheWindow?.(cacheKey,value,document.fileId)
       // Yield between model windows even when adapters resolve synchronously.
       await new Promise<void>(resolve=>setTimeout(resolve,0))
     }
     const summary=sections.map(part=>part.summary).filter(Boolean).join('\n').slice(0,2400),analysis:KnowledgeAnalysis={version:1,fileId:document.fileId,sourceHash:document.sourceHash,textHash,fingerprint:documentFingerprint,summary,sections,entities,relations,tags,warnings,...(settings.keepMarkdown||document.retainText?{text:document.text}:{})},alias=ROOT+'data/'+crypto.randomUUID()+'.json'
     signal.throwIfAborted();await this.port.check();await this.port.put(alias,analysis);created.push(alias)
     files.push({fileId:document.fileId,sourceHash:document.sourceHash,textHash,fingerprint:documentFingerprint,alias,warningCount:warnings.length,terms:knowledgeTerms([summary,...entities.flatMap(entity=>[entity.name,entity.type]),...relations.map(relation=>relation.predicate),...tags.flatMap(tag=>[tag.key,tag.value])].join(' '))})
+    await checkpoint()
   }
   signal.throwIfAborted();await this.port.check();const manifest:KnowledgeAnalysisManifest={version:1,updated:Date.now(),files,stats};await this.port.put(MANIFEST,manifest)
   const retained=new Set(files.map(file=>file.alias));for(const file of old?.files||[])if(!retained.has(file.alias))await this.port.remove(file.alias).catch(()=>{})
   return manifest
-  }catch(error){
+  }catch(error){await checkpoint(true).catch(()=>{});
    // An adapter can report an I/O error after its manifest write committed. Never
    // remove a new shard still referenced by that published generation. If the
    // manifest is unreadable, retain owned orphans for later reconciliation.

@@ -4,7 +4,7 @@ export interface IndexProgressEvent{
  provider?:string;model?:string;inputTokens?:number;outputTokens?:number;estimatedInputTokens?:number;message?:string
 }
 export type IndexProgressReporter=(event:IndexProgressEvent)=>void
-export interface IndexFileProgress{path:string;stage:IndexStage;started:number;updated:number;page?:number;pages?:number;chunks?:number;message?:string}
+export interface IndexFileProgress{path:string;stage:IndexStage;started:number;updated:number;page?:number;pages?:number;batch?:number;batches?:number;chunks?:number;message?:string}
 export interface IndexUsage{provider:string;model:string;inputTokens:number;outputTokens:number;estimatedInputTokens:number;calls:number;unreportedCalls:number}
 export interface IndexJobProgress{id:number;name:string;stage:IndexStage;started:number;updated:number;path?:string;files:Record<string,IndexFileProgress>;usage:Record<string,IndexUsage>;error?:string}
 

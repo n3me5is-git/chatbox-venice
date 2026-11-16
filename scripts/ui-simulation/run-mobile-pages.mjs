@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import {writeFile} from 'node:fs/promises'
 import path from 'node:path'
 
-export const auditedScreens=['knowledge-base','pdf-viewer','knowledge-models','knowledge-intelligence','knowledge-review','venice-search','venice-image-settings','venice-modules','venice-profile','subscription','web-search','chat-privacy','e2ee-tools','receipts','approvals','questions','generation-failure','multi-agent-settings','agent-calling-details','agent-transcript','security','library-settings','archive-storage','collaboration','transfer','mcp-session','mcp-application']
+export const auditedScreens=['knowledge-base','pdf-viewer','studio-speech','studio-transcription','studio-video','studio-music','studio-sound-effects','studio-voice-conversion','knowledge-models','knowledge-intelligence','knowledge-review','venice-search','venice-image-settings','venice-modules','venice-profile','subscription','web-search','chat-privacy','e2ee-tools','receipts','approvals','questions','generation-failure','multi-agent-settings','agent-calling-details','agent-transcript','security','library-settings','archive-storage','collaboration','transfer','mcp-session','mcp-application']
 
 export async function runMobilePages({cdp,evaluate,click,wait,output}){
  const report=[],failures=[]

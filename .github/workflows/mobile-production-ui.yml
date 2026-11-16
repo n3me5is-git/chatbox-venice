@@ -1,0 +1,77 @@
+name: Production Android UI
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['src/renderer/components/knowledge-base/**', 'src/renderer/components/common/PdfDocumentViewer*', 'src/renderer/theme/**', 'src/renderer/packages/knowledge-collections/**', 'native/android/KnowledgeIndexing*', 'scripts/android-production-ui.mjs', '.github/workflows/mobile-production-ui.yml']
+permissions:
+  contents: read
+concurrency:
+  group: android-production-ui-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android-ui:
+    name: Real app WebView, PDF and background indexing (API 35)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CHATBOX_BUILD_TARGET: mobile_app
+      CHATBOX_BUILD_PLATFORM: android
+      NODE_OPTIONS: --max-old-space-size=8192
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - name: Build the real Android renderer and debug app
+        run: |
+          pnpm build:renderer
+          pnpm exec cap add android
+          node scripts/configure-fork-android.mjs
+          node scripts/prepare-paddle-android.mjs --test-models
+          pnpm exec cap sync android
+          chmod +x android/gradlew
+          cd android && ./gradlew :app:assembleDebug --no-daemon
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            adb shell settings put system screen_off_timeout 1800000
+            adb shell svc power stayon true
+            adb shell wm size 1080x2400
+            adb shell wm density 480
+            adb shell locksettings set-pin 123456
+            adb shell input keyevent 224
+            adb shell input swipe 500 1600 500 300 400
+            adb shell input text 123456
+            adb shell input keyevent 66
+            adb shell wm dismiss-keyguard
+            node scripts/android-production-ui.mjs
+      - name: Retain actual Android screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-Production-UI
+          path: test-results/android-production-ui/
+          if-no-files-found: warn
+          retention-days: 14

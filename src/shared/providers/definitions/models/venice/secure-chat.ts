@@ -24,15 +24,15 @@ export function encryptConversation(messages: Body[], key: string) {
   return [...system, { role: 'user', content: encryptMessage(content, key) }]
 }
 
-async function boundedText(response: Response) {
+async function boundedText(response: Response,onActivity?:()=>void) {
   if (!response.body) throw new Error('Empty secure response')
   const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let size = 0
-  try { while (true) { const next = await reader.read(); if (next.done) break; size += next.value.byteLength; if (size > MAX_RESPONSE) throw new Error('Secure response exceeds the local verification limit'); chunks.push(next.value) } }
+  try { while (true) { const next = await reader.read();if(!next.done)onActivity?.(); if (next.done) break; size += next.value.byteLength; if (size > MAX_RESPONSE) throw new Error('Secure response exceeds the local verification limit'); chunks.push(next.value) } }
   catch (error) { await reader.cancel().catch(() => {}); throw error }
   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length }
   return new TextDecoder().decode(bytes)
 }
-export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint: string, init: RequestInit, body: Body, mode: 'tee' | 'e2ee', toolMode: false | 'encrypted-text' | 'native' = false, receiptCompatibility = false) {
+export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint: string, init: RequestInit, body: Body, mode: 'tee' | 'e2ee', toolMode: false | 'encrypted-text' | 'native' = false, receiptCompatibility = false,onActivity?:()=>void) {
   const base = endpoint.replace(/\/chat\/completions(?:\?.*)?$/, '')
   const headers = new Headers(init.headers); headers.delete('content-length')
   const nonce = bytesToHex(crypto.getRandomValues(new Uint8Array(32)))
@@ -72,7 +72,7 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     const sent = JSON.stringify(request)
     const response = await fetch(endpoint, { ...init, headers, body: sent })
     if (!response.ok) throw new Error(`Venice secure chat failed (HTTP ${response.status}); no plaintext retry was attempted`)
-    const raw = await boundedText(response)
+    const raw = await boundedText(response,onActivity)
     const streaming = (response.headers.get('content-type') || '').includes('text/event-stream')
     let completionId = ''; let plain = '';let encryptedContent=''
     const nativeCalls=new Map<number,Body>()

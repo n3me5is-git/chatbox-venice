@@ -81,6 +81,8 @@ export interface CallChatCompletionOptions<Tools extends ToolSet = ToolSet> {
   maxSteps?: number
   onRequestResolved?: (request: ResolvedChatRequest) => void | Promise<void>
   prepareStep?: PrepareStepFunction<ToolSet>
+  /** Network activity only; contains no decrypted content and does not bypass verification. */
+  onTransportActivity?: () => void
   onStepFinish?: (step: { usage?: { outputTokens?: number }; finishReason?: string }) => void
   onSecurityVerification?: (evidence: ResponseSecurity) => void
 }
