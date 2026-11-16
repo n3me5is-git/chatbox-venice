@@ -88,7 +88,7 @@ export default function CollectionsPage({service=defaultStore}:{service?:Knowled
    <ActionIcon size={44} variant="default" aria-label={ft('Back to collections')} disabled={busy} onClick={closeCollection}><IconArrowLeft size={20}/></ActionIcon>
    <Text fw={600} style={{flex:1,minWidth:0,overflowWrap:'anywhere'}}>{detail.name}</Text>
    <Menu withinPortal={false} position="bottom-end" width={260}>
-    <Menu.Target><ActionIcon size={44} variant="subtle" aria-label={ft('Collection actions')}><IconDots size={20}/></ActionIcon></Menu.Target>
+    <Menu.Target><ActionIcon size={44} variant="subtle" aria-label={ft('Collection actions')} disabled={busy}><IconDots size={20}/></ActionIcon></Menu.Target>
     <Menu.Dropdown>
      <Menu.Item disabled={busy} onClick={()=>setProtection(true)}>{ft('Collection protection')}</Menu.Item>
      {detail.augmentation?.enabled&&<Menu.Item disabled={busy} onClick={()=>{setGraphIds([selected]);setAllGraphs(false);setGraph(true)}}>{ft('Explore knowledge graph')}</Menu.Item>}
@@ -136,7 +136,7 @@ export default function CollectionsPage({service=defaultStore}:{service?:Knowled
  {createFolder&&!createEncrypted&&<Alert color="orange">{ft('This folder collection is not encrypted. Anyone with the folder can read its documents and index without a passphrase. App PIN and biometrics only restrict access inside this app.')}</Alert>}
  <Button disabled={busy||!ack||!name.trim()} onClick={()=>void run(async()=>{const id=await store.create(name,settings);if(createFolder){try{await collectionDirectories.migrate(id,{encrypted:createEncrypted});if(!(await store.directoryEntry(id)).directory){await store.remove(id);return}}catch(error){if(!(await store.directoryEntry(id)).directory)await store.remove(id);throw error}}setCreating(false);setSelected(id);await load(id)})}>{ft('Create collection')}</Button></>}
  </Stack></AdaptiveModal>
- <AdaptiveModal opened={protection&&!locked&&!!detail} onClose={()=>setProtection(false)} title={ft('Collection protection')}>{selected&&<CollectionProtection service={store} id={selected} onChanged={()=>{setProtection(false);void refresh()}}/>}</AdaptiveModal>
+ <AdaptiveModal opened={protection&&!locked&&!!detail} onClose={()=>setProtection(false)} title={ft('Collection protection')}>{selected&&<CollectionProtection service={store} id={selected} onChanged={()=>{setProtection(false);void run(async()=>{await load(selected)})}}/>}</AdaptiveModal>
  <AdaptiveModal opened={!!preview&&!locked&&!!detail} onClose={()=>setPreview('')} title={ft(previewKind==='parsed'?'Open parsed document':'Preview passages')} size="lg">{previewKind==='parsed'&&<Text size="xs" c="dimmed" mb="sm">{ft('Extracted text used for search.')}</Text>}<Text style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{preview}</Text></AdaptiveModal>
  </div></SettingsPage>
 }

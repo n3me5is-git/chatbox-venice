@@ -14,7 +14,7 @@ vi.mock('@/components/settings/SettingsLayout',()=>({SettingsPage:({children,act
 vi.mock('@/components/common/AdaptiveModal',()=>({AdaptiveModal:({opened,children}:any)=>opened?<div role="dialog">{children}</div>:null}))
 vi.mock('@/packages/knowledge-collections/linked-folder',()=>({knowledgeFolderAvailable:()=>true}))
 vi.mock('./CollectionFolder',()=>({CollectionFolder:()=>null}))
-vi.mock('./CollectionProtection',()=>({CollectionProtection:()=>null}))
+vi.mock('./CollectionProtection',()=>({CollectionProtection:({onChanged}:any)=><button onClick={onChanged}>Apply simulated protection</button>}))
 vi.mock('@/components/ModelSelectorV2',()=>({ModelSelectorV2:({children,onSelect}:any)=><div>{children}<button onClick={()=>onSelect('gemini','gemini-embedding-2')}>Use native multimodal</button></div>}))
 import CollectionsPage from './CollectionsPage'
 beforeEach(()=>{vi.clearAllMocks();state.mount.mockResolvedValue(-2);state.migrate.mockResolvedValue(undefined);state.directoryEntry.mockResolvedValue({directory:{uuid:'fixture'}});state.remove.mockResolvedValue(undefined);state.authorize.mockResolvedValue(undefined);state.locked=false;state.revision=0;const settings=RagSettingsSchema.parse({provider:'venice',model:'private-embedding',enabled:true});state.list.mockResolvedValue([]);state.create.mockResolvedValue(-1);state.data.mockResolvedValue({version:1,name:'Manuals',settings,files:[]});state.status.mockResolvedValue(null);Object.defineProperty(window,'matchMedia',{configurable:true,value:()=>({matches:false,addListener(){},removeListener(){},addEventListener(){},removeEventListener(){}})});vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})})
@@ -62,4 +62,13 @@ it('keeps unsaved configuration when documents are added from the document tab',
  const file=new File(['New source'],'new.md',{type:'text/markdown'});fireEvent.change(screen.getByLabelText('Add documents',{selector:'input'}),{target:{files:[file]}})
  await waitFor(()=>expect(state.addMany).toHaveBeenCalledWith(-1,[file]));await waitFor(()=>expect(screen.queryByRole('status')).toBeNull())
  fireEvent.click(screen.getByRole('tab',{name:'Settings'}));expect((screen.getByRole('textbox',{name:'Collection name'}) as HTMLInputElement).value).toBe('Pending title');expect(state.configure).not.toHaveBeenCalled()
+})
+
+it('blocks collection actions until protection changes have finished reloading',async()=>{
+ state.list.mockResolvedValue([{id:-1,scope:'public',name:'Manuals',locked:false}]);mount();fireEvent.click(await screen.findByRole('button',{name:'Open collection'}));await screen.findByTestId('collection-documents');await waitFor(()=>expect(screen.queryByRole('status')).toBeNull())
+ fireEvent.click(screen.getByRole('button',{name:'Collection actions'}));fireEvent.click(await screen.findByRole('menuitem',{name:'Collection protection'}));await screen.findByRole('button',{name:'Apply simulated protection'})
+ let complete!:(data:any)=>void;state.data.mockImplementationOnce(()=>new Promise(resolve=>{complete=resolve}))
+ fireEvent.click(screen.getByRole('button',{name:'Apply simulated protection'}));expect((screen.getByRole('button',{name:'Collection actions'}) as HTMLButtonElement).disabled).toBe(true)
+ complete({version:1,name:'Manuals',settings:RagSettingsSchema.parse({provider:'venice',model:'private-embedding',enabled:true}),files:[]})
+ await waitFor(()=>expect((screen.getByRole('button',{name:'Collection actions'}) as HTMLButtonElement).disabled).toBe(false));expect(screen.queryByRole('status')).toBeNull()
 })
