@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import {writeFile} from 'node:fs/promises'
 import path from 'node:path'
 
-export const auditedScreens=['knowledge-base','pdf-viewer','studio-speech','studio-transcription','studio-video','studio-music','studio-sound-effects','studio-voice-conversion','knowledge-models','knowledge-intelligence','knowledge-review','venice-search','venice-image-settings','venice-modules','venice-profile','subscription','web-search','chat-privacy','e2ee-tools','receipts','approvals','questions','generation-failure','multi-agent-settings','agent-calling-details','agent-transcript','security','library-settings','archive-storage','collaboration','transfer','mcp-session','mcp-application']
+export const auditedScreens=['knowledge-base','pdf-viewer','studio-speech','studio-transcription','studio-video','studio-music','studio-sound-effects','studio-voice-conversion','knowledge-models','knowledge-intelligence','knowledge-review','knowledge-graph','knowledge-evidence','venice-search','venice-image-settings','venice-modules','venice-profile','subscription','web-search','chat-privacy','e2ee-tools','receipts','approvals','questions','generation-failure','multi-agent-settings','agent-calling-details','agent-transcript','security','library-settings','archive-storage','collaboration','transfer','mcp-session','mcp-application']
 
-export async function runMobilePages({cdp,evaluate,click,wait,output}){
+export async function runMobilePages({cdp,evaluate,click,wait,output,onStep=()=>{}}){
  const report=[],failures=[]
  const persist=()=>writeFile(path.join(output,'mobile-screen-matrix.json'),JSON.stringify({productionTheme:true,productionSettingsRoute:true,nativeFolderVisible:true,physicalDevice:false,failures,report},null,2))
  const screenshot=async name=>{await writeFile(path.join(output,name+'.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))}
@@ -24,6 +24,7 @@ export async function runMobilePages({cdp,evaluate,click,wait,output}){
   await cdp('Emulation.setDeviceMetricsOverride',{width:variant.width,height:800,deviceScaleFactor:1,mobile:true})
   for(const screen of auditedScreens){
    try {
+   onStep('Screen audit: '+screen+' / '+variant.name)
    await cdp('Page.navigate',{url:'http://127.0.0.1:4174/scripts/ui-simulation/mobile-pages.html?'+new URLSearchParams({screen,lang:variant.lang,theme:variant.theme})})
    await wait(()=>evaluate(`window.__screenAuditReady===${JSON.stringify(screen)}&&!!document.querySelector('button,input,textarea,[role="tab"],details')`),'Production screen did not render: '+screen)
    if(screen==='pdf-viewer'){
@@ -32,13 +33,19 @@ export async function runMobilePages({cdp,evaluate,click,wait,output}){
     const next=variant.lang==='en'?'Next page':'Pagina successiva'
     await click(find(next));await wait(()=>evaluate(`document.querySelector('[data-testid="pdf-document-viewer"]')?.dataset.page==='2'&&document.querySelector('[data-testid="pdf-document-viewer"]').getAttribute('aria-busy')==='false'`),'PDF page navigation did not render page 2')
    }
+   if(screen==='knowledge-graph'){
+    await click(find(variant.lang==='en'?'Load graph':'Carica il grafo'))
+    await wait(()=>evaluate(`document.querySelectorAll('svg [role="button"]').length===2`),'Actual graph data did not load')
+    await click(`document.querySelector('svg [role="button"]')`)
+   }
+   if(screen==='knowledge-evidence')await wait(()=>evaluate(`!!document.querySelector('mark')`),'Source quote did not render')
    await capture(screen,variant.name)
    // Scroll each actual scrolling owner to its end; check that the final controls can be reached.
    await evaluate(`(()=>{for(const e of [...document.querySelectorAll('*')])if(e.scrollHeight>e.clientHeight+8&&/auto|scroll/.test(getComputedStyle(e).overflowY))e.scrollTop=e.scrollHeight;window.scrollTo(0,document.body.scrollHeight)})()`)
    await capture(screen+'-bottom',variant.name)
    if(screen==='knowledge-base'){
     const newLabel=variant.lang==='en'?'New collection':'Nuova raccolta',folderLabel=variant.lang==='en'?'Open folder collection':'Apri collezione da cartella'
-    const boxes=await evaluate(`(()=>{const texts=${JSON.stringify([newLabel,folderLabel])};return texts.map(text=>{const e=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===text);if(!e)return null;const r=e.getBoundingClientRect(),l=e.querySelector('.mantine-Button-label');return {x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom,labelHeight:l.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(l).lineHeight)}})})()`)
+    const boxes=await evaluate(`(()=>{const texts=${JSON.stringify([newLabel,folderLabel])};return texts.map(text=>{const e=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===text);if(!e)return null;const r=e.getBoundingClientRect(),l=e.querySelector('.mantine-Button-label');return {x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom,labelHeight:(()=>{const range=document.createRange();range.selectNodeContents(l);return range.getBoundingClientRect().height})(),lineHeight:parseFloat(getComputedStyle(l).lineHeight)}})})()`)
     assert.ok(boxes.every(Boolean),'Both native KB actions must be visible')
     assert.ok(boxes.every(b=>b.width>=variant.width-48&&b.height>=44&&b.labelHeight<=2.1*b.lineHeight),'Native actions must be readable and full-width: '+JSON.stringify(boxes))
     assert.ok(boxes[1].y>=boxes[0].bottom+4,'Native KB actions must stack without overlap')
@@ -46,6 +53,27 @@ export async function runMobilePages({cdp,evaluate,click,wait,output}){
     await click(`document.querySelector('[role="dialog"] .mantine-CloseButton-root')`)
     await click(find(folderLabel));await capture('knowledge-open-folder',variant.name)
     await click(`document.querySelector('[role="dialog"] .mantine-CloseButton-root')`)
+    await evaluate(`window.__screenAuditSeed()`)
+    await wait(()=>evaluate(`!!(${find(variant.lang==='en'?'Open collection':'Apri raccolta')})`),'Seeded collection did not appear')
+    await click(find(variant.lang==='en'?'Open collection':'Apri raccolta'))
+    await wait(()=>evaluate(`!!document.querySelector('[data-testid="collection-documents"]')`),'Native-style collection did not open')
+    await click(find(variant.lang==='en'?'Read document':'Leggi documento'))
+    await wait(()=>evaluate(`document.querySelector('[data-testid="pdf-document-viewer"]')?.getAttribute('aria-busy')==='false'`),'Original KB PDF did not render')
+    await capture('knowledge-original-pdf',variant.name)
+    await click(find(variant.lang==='en'?'View extracted text':'Vedi testo estratto'))
+    await wait(()=>evaluate(`!document.querySelector('[data-testid="pdf-document-viewer"]')&&[...document.querySelectorAll('[role="dialog"]')].some(e=>e.innerText.includes('Enterprise report - page 1'))`),'Extracted document must be a separate view')
+    await capture('knowledge-extracted-text',variant.name)
+    await click(`[...document.querySelectorAll('[role="dialog"]')].at(-1).querySelector('.mantine-CloseButton-root')`)
+    await evaluate(`window.__knowledgePause=true`)
+    await click(find(variant.lang==='en'?'Index now':'Indicizza ora'))
+    await wait(()=>evaluate(`typeof window.__knowledgeResume==='function'`),'Index request did not start')
+    await capture('knowledge-indexing',variant.name)
+    await click(`document.querySelector('button[aria-label=${JSON.stringify(variant.lang==='en'?'Back to collections':'Torna alle raccolte')} ]')`)
+    await wait(()=>evaluate(`!!(${find(variant.lang==='en'?'Open indexing progress':'Apri avanzamento indicizzazione')})`),'Back cancelled indexing or hid its progress')
+    await click(find(variant.lang==='en'?'Open indexing progress':'Apri avanzamento indicizzazione'))
+    await evaluate(`window.__knowledgePause=false;window.__knowledgeResume()`)
+    await wait(()=>evaluate(`document.querySelector('[data-testid="indexing-status"]')?.innerText.includes(${JSON.stringify(variant.lang==='en'?'Indexed':'Indicizzato')})`),'Index did not resume after navigating Back')
+    await capture('knowledge-index-completed',variant.name)
    }
    } catch(error) {failures.push({screen,variant:variant.name,error:String(error)});await persist();try{await screenshot('screen-'+screen+'-failure-'+variant.name)}catch{} }
   }

@@ -28,7 +28,23 @@ Protected collections are device-local. Session collaboration and direct session
 
 Encrypted library backups in Data & Backup include accessible collection originals and metadata, with streaming export. Derived vectors are excluded. Restore recreates collections under new IDs in the destination area selected by the user, preserving existing collections. It does not copy device-bound PIN/biometric envelopes: configure destination protection again if needed. Fresh embedding/OCR consent and reindexing are required before the restored collection can make provider requests. Collection internals do not clutter the media-library management list.
 
-## Validation
+## Document viewing and indexing progress
+
+Read document opens the original PDF in a local PDF.js viewer on Android and desktop. Chat session files and shared files use the same viewer. Only one page canvas is retained, with a four-million-pixel budget; closing the preview destroys its loading/rendering worker. The separate View extracted text action displays the representation used for retrieval. Modern Office formats have a local, read-only content preview, bounded by the document parser; original pagination, layout and embedded objects are not reproduced. The existing text editor, Markdown rendering and Markdown PDF/single-file HTML exports remain available.
+
+Indexing reports source reading, local extraction, page OCR, transcription, chunking, embedding batches, optional metadata windows and storage. Per-file status distinguishes indexed sources from changed, pending or failed sources. Token and cost displays track completed reported calls; missing prices, pending calls and unreported usage make them incomplete estimates, not billing statements.
+
+Android background indexing uses a separate dataSync foreground service and visible notification, enabled by default. Automatic app locking is deferred only while that service is active and the background setting is enabled. Manual locking still revokes access and stops the job. Notification/service denial keeps automatic protection and displays keep-open guidance. The foreground job lasts while the process remains alive; force-stop, OS termination, unavailable storage and Android service time limits can stop it. Completed work can be resumed explicitly; this is not an always-running background scheduler.
+
+Concise metadata extraction is the default for this optional role, and can be disabled to use model defaults. The supported reasoning options are passed on the actual model call; chat settings are unchanged. Requests have an idle deadline and a separate bounded total duration. Secure-stream activity only keeps the deadline alive: unverified response contents are still withheld until signature/attestation checks complete. Venice model Vision capability does not imply support for encrypted image transport. The current E2EE adapter accepts text; OCR must use a separately chosen Private Vision model or local engine, after which text-only RAG can remain E2EE. There is no silent unencrypted retry.
+
+## Durable unpublished work
+
+Advanced indexing publishes one complete generation atomically. After vector preparation succeeds, collection-local `.chatbox/knowledge/staging.json` retains its unpublished vector and derivative references. Validated LLM windows have a configuration/model/text-bound cache, limited to 64 entries. Completed document metadata is checkpointed at document boundaries, throttled to ten seconds, with a best-effort checkpoint after failure. Retry rechecks current source hashes and settings before reuse. Cache eviction, explicit Reindex, changed settings or lost uncheckpointed work can require new calls; zero repeat cost is not guaranteed.
+
+The published generation remains the query source until the new generation commits. Staging files are not exposed as partially complete query results. Removing a document removes its associated staging/cache references; clearing the index removes derived work. These files live in the collection storage and follow its existing encrypted or explicitly unencrypted folder policy. No separate central vector copy or new plaintext cache is introduced. Integrations should use the published state and ignore these internal staging records.
+
+## Validation scope
 
 Actions run collection encryption/unlock/lock-during-query tests, EPUB/RTF/OpenDocument parser fixtures, recursive chunk/reference tests, mobile collection UI tests, existing RAG regression suites and full TypeScript checks. Small authorized live Venice probes validate private BGE-M3, private Qwen3 and Gemini text embedding responses, plus rejection of multimodal input on the Venice endpoint. Native device fingerprint behavior still depends on the platform's configured biometric enrollment and must not be inferred solely from simulated device-protector tests.
 

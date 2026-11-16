@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.51.0
+1. Leggi i PDF originali e le anteprime locali dei contenuti Office nei file delle chat e nelle raccolte
+2. Corregge le azioni delle raccolte e migliora i pannelli sugli schermi piccoli
+3. Mostra fasi, pagine, stato dei documenti, tempo trascorso e stime di consumo durante l’indicizzazione
+4. Continua l’indicizzazione Android in background e riusa il lavoro completato dopo un errore del modello
+5. Applica l’elaborazione concisa a OCR e metadati, spiegando i limiti Vision del trasporto cifrato
+
 ## Chatbox Venice 1.50.0
 1. Apri le raccolte direttamente nelle viste Documenti, Ricerca e Impostazioni
 2. Usa azioni dei documenti più chiare, paginazione mobile e bozze delle impostazioni conservate

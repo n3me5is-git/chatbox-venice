@@ -32,6 +32,16 @@ it('cancels without publishing partial metadata or leaking uncommitted aliases',
  const f=fixture(),controller=new AbortController();f.extract.mockImplementation(async text=>{controller.abort();return {summary:'',entities:[],relations:[],tags:[]}})
  await expect(f.engine.index([await doc('a','Apollo has client Acme.')],settings,controller.signal)).rejects.toThrow();expect(f.data.size).toBe(0)
 })
+it('keeps completed checkpoint records available after a later failure with immediate-deletion storage',async()=>{
+ const f=fixture(),a=await doc('a','Apollo has client Acme.'),b=await doc('b','Acme is a client of Apollo.');let checkpoint:any
+ const engine=new KnowledgeAugmentationEngine({...f.port,checkpoint:async value=>{checkpoint=structuredClone(value)}})
+ f.extract.mockRejectedValueOnce(Error('retry first')).mockImplementation(async text=>({summary:'Project summary',entities:[],relations:[],tags:[]}))
+ await expect(engine.index([a],settings,new AbortController().signal)).rejects.toThrow('retry first')
+ f.extract.mockClear();f.extract.mockResolvedValueOnce({summary:'Complete first document',entities:[],relations:[],tags:[]}).mockRejectedValueOnce(Error('second timed out'))
+ await expect(engine.index([a,b],settings,new AbortController().signal)).rejects.toThrow('second timed out')
+ expect(checkpoint.files).toHaveLength(1);expect(f.data.has(checkpoint.files[0].alias)).toBe(true);expect(f.data.has('.chatbox/knowledge/index.json')).toBe(false)
+ f.data.set('.chatbox/knowledge/index.json',checkpoint);f.extract.mockClear();await engine.index([a],settings,new AbortController().signal);expect(f.extract).not.toHaveBeenCalled()
+})
 it('covers the entire parsed text in bounded windows, preserves surrogate pairs, and refuses silent truncation',()=>{
  const text='start\n'+'a'.repeat(1993)+'😀'+'b'.repeat(4200),windows=knowledgeWindows(text,2000)
  expect(windows.map(window=>window.text).join('')).toBe(text);expect(windows.every(window=>window.text.length<=2000&&!/[\uD800-\uDBFF]$/.test(window.text))).toBe(true)

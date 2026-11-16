@@ -22,7 +22,7 @@ await mkdir(output, { recursive: true })
 const profile = await mkdtemp(path.join(tmpdir(), 'venice-ui-'))
 const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--config', 'scripts/ui-simulation/vite.config.ts'], { stdio: ['ignore', 'pipe', 'pipe'] })
 let serverLog = ''; vite.stdout.on('data', x => { serverLog += x }); vite.stderr.on('data', x => { serverLog += x })
-const chrome = spawn(process.env.CHROME_PATH || '/usr/bin/google-chrome', ['--headless=new', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--remote-debugging-port=9222', '--remote-allow-origins=*', '--user-data-dir=' + profile, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] })
+const chrome = spawn(process.env.CHROME_PATH || '/usr/bin/google-chrome', ['--headless=new', '--disable-features=BackForwardCache', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--remote-debugging-port=9222', '--remote-allow-origins=*', '--user-data-dir=' + profile, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] })
 let chromeLog = ''; chrome.stderr.on('data', chunk => { chromeLog += chunk });
 let browserError; chrome.on('error', error => { browserError = error }); vite.on('error', error => { browserError = error })
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -41,6 +41,8 @@ try {
     const event = JSON.parse(message.data)
     if (event.id) { const task = pending.get(event.id); if (task) { pending.delete(event.id); event.error ? task.reject(new Error(event.error.message)) : task.resolve(event.result) } }
     if (event.method === 'Runtime.exceptionThrown') exceptions.push(event.params.exceptionDetails.text + ': ' + (event.params.exceptionDetails.exception?.description || ''))
+    if (event.method === 'Inspector.targetCrashed') exceptions.push('Browser renderer crashed')
+    if (event.method === 'Page.javascriptDialogOpening') {exceptions.push('Unexpected browser dialog: '+event.params.type+': '+event.params.message);void cdp('Page.handleJavaScriptDialog',{accept:false})}
     if (event.method === 'Network.requestWillBeSent') requests.push(event.params.request.url)
   }
   cdp = (method, params = {}) => new Promise((resolve, reject) => { const id = ++serial; const timer = setTimeout(() => { pending.delete(id); reject(new Error('CDP timeout: ' + method)) }, 20000); pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value) }, reject: error => { clearTimeout(timer); reject(error) } }); socket.send(JSON.stringify({ id, method, params })) })
@@ -167,7 +169,7 @@ try {
   await runAgentMobileReview({click,evaluate,wait,fill,byText,cdp,output})
   await runLocalOcr({click,evaluate,wait,byText,fill,cdp,output})
   await runKnowledgeFileLimits({evaluate,output})
-  await runMobilePages({cdp,evaluate,click,wait,output})
+  await runMobilePages({cdp,evaluate,click,wait,output,onStep:value=>{lastAction=value}})
   assert.deepEqual(exceptions, [], 'Browser exceptions')
   const external = requests.filter(url => !/^(http:\/\/127\.0\.0\.1:4174\/|data:|blob:)/.test(url))
   assert.deepEqual(external, [], 'UI simulation made an unexpected external request')
@@ -175,7 +177,7 @@ try {
   console.log('Venice Studio browser simulation passed; desktop/mobile screenshots saved.')
 } catch(error) {
   if(cdp&&evaluate){try{await writeFile(path.join(output,'failure.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'));await writeFile(path.join(output,'failure.json'),JSON.stringify({error:String(error),lastAction,...await evaluate(`({body:document.body.innerText,dialogs:[...document.querySelectorAll('[role="dialog"]')].map(e=>e.outerHTML.slice(0,10000))})`)},null,2))}catch{}}
-  console.error(JSON.stringify({error:String(error),stack:error?.stack,lastAction,exceptions,requests:requests.slice(-30)},null,2)); throw error
+  console.error(JSON.stringify({error:String(error),stack:error?.stack,lastAction,exceptions,chromeLog:chromeLog.slice(-4000),serverLog:serverLog.slice(-2000),requests:requests.slice(-30)},null,2)); throw error
 } finally {
   socket?.close(); chrome.kill('SIGTERM'); vite.kill('SIGTERM'); await writeFile(path.join(output, 'vite.log'), serverLog); await writeFile(path.join(output, 'chrome.log'), chromeLog)
 }

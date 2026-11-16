@@ -26,6 +26,7 @@ import {AppProviders} from '../../src/renderer/components/AppProviders'
 import CollectionsPage from '../../src/renderer/components/knowledge-base/CollectionsPage'
 import {KnowledgeModelDefaults} from '../../src/renderer/components/knowledge-base/KnowledgeModelDefaults'
 import {CollectionIntelligence,collectionIntelligence} from '../../src/renderer/components/knowledge-base/CollectionIntelligence'
+import {KnowledgeEvidencePanel} from '../../src/renderer/components/knowledge-base/KnowledgeEvidence'
 import {KnowledgeGraph} from '../../src/renderer/components/knowledge-base/KnowledgeGraph'
 import {VeniceSearchSettings,VeniceImageSettings,VeniceModuleSettings} from '../../src/renderer/components/settings/provider/VeniceSettings'
 import {ChatGPTSubscriptionSettings} from '../../src/renderer/components/settings/provider/ChatGPTSubscription'
@@ -76,7 +77,8 @@ function ControlledScreen(){
  case 'pdf-viewer':return <PdfDocumentViewer url={URL.createObjectURL(new Blob([Uint8Array.from(auditPdf()).buffer],{type:'application/pdf'}))} name="Enterprise report.pdf"/>
  case 'knowledge-models':return <KnowledgeModelDefaults/>
  case 'knowledge-intelligence':return <CollectionIntelligence value={intel} onChange={setIntel}/>
- case 'knowledge-graph':return <KnowledgeGraph store={knowledgeSimulationStore} id={Number(params.get('collection'))}/>
+ case 'knowledge-graph':return <KnowledgeGraph store={knowledgeSimulationStore} id={graphCollection!}/>
+ case 'knowledge-evidence':return <KnowledgeEvidencePanel store={knowledgeSimulationStore} collectionId={graphCollection!} fileId={graphFile!} id={graphEvidence!}/>
  case 'knowledge-review':return <ChatKnowledgeReview value={value} onChange={setValue}/>
  case 'venice-search':return <VeniceSearchSettings/>
  case 'venice-image-settings':return <VeniceImageSettings model={{modelId:'test-image',vendorMetadata:{supportsNegativePrompt:true}}}/>
@@ -103,7 +105,11 @@ function ControlledScreen(){
  default:throw Error('Unregistered screen '+screen)
  }
 }
-const modalScreens=new Set(['questions','generation-failure','collaboration','transfer','agent-transcript','mcp-session','mcp-application'])
+let graphCollection:number|undefined,graphFile:number|undefined,graphEvidence:string|undefined
+if(screen==='knowledge-graph'||screen==='knowledge-evidence'){
+ graphCollection=await knowledgeSimulationStore.create('Project graph fixture',RagSettingsSchema.parse({provider:'venice',model:'fixture-private-embedding',enabled:true}));graphFile=await knowledgeSimulationStore.add(graphCollection,new File(['Project Aurora has client Acme.'],'project.md',{type:'text/markdown'}));const data=await knowledgeSimulationStore.data(graphCollection);await knowledgeSimulationStore.configure(graphCollection,data.name,data.settings,undefined,undefined,undefined,{augmentation:{enabled:true,keepMarkdown:true,model:{provider:'venice',model:'fixture-private'},windowChars:8000,mediaText:false},retrievalMode:'hybrid'});await knowledgeSimulationStore.index(graphCollection);const row=(await knowledgeSimulationStore.metadata(graphCollection,{})).results[0],anchor=row.relations[0].anchor;graphEvidence=(await knowledgeSimulationStore.citeAnchors(graphCollection,[{fileId:graphFile,sourceHash:row.sourceHash,textHash:row.textHash,start:anchor.start,end:anchor.end}],new AbortController().signal))[0].id
+}
+const modalScreens=new Set(['knowledge-graph','knowledge-evidence','questions','generation-failure','collaboration','transfer','agent-transcript','mcp-session','mcp-application'])
 function Content(){return screen==='knowledge-base'?<ControlledScreen/>:modalScreens.has(screen)?<AdaptiveModal opened onClose={noop} title={ft(screen==='collaboration'?'Collaborative chats':screen==='transfer'?'Transfer chat':screen==='questions'?'Agent question':screen==='generation-failure'?'Generation failed':screen==='agent-transcript'?'Agent conversation':'MCP server')}><div className="feature-panel"><ControlledScreen/></div></AdaptiveModal>:<SettingsPage title={screen} titleOnTouch><div className="feature-panel"><Stack><ControlledScreen/></Stack></div></SettingsPage>}
 const root=createRootRoute({component:Outlet}),settings=createRoute({getParentRoute:()=>root,path:'/settings',component:SettingsRoute}),page=createRoute({getParentRoute:()=>settings,path:screen,component:Content})
 const router=createRouter({routeTree:root.addChildren([settings.addChildren([page])]),history:createMemoryHistory({initialEntries:['/settings/'+screen]})})

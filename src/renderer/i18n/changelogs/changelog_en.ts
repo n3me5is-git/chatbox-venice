@@ -1,4 +1,11 @@
 const changelog = `
+## Chatbox Venice 1.51.0
+1. Read original PDFs and local Office content previews in chat files and knowledge collections
+2. Fix mobile collection actions and improve feature panels on small screens
+3. Follow indexing phases, pages, document status, elapsed time and usage estimates
+4. Continue Android indexing in the background and reuse completed work after a model failure
+5. Apply concise OCR and knowledge processing, with clear encrypted Vision limitations
+
 ## Chatbox Venice 1.50.0
 1. Open knowledge collections directly in Documents, Search and Settings views
 2. Use clearer document actions, mobile pagination and retained settings drafts

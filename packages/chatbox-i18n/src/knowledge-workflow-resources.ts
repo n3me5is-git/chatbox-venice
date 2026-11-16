@@ -15,6 +15,7 @@ export const knowledgeWorkflowItalian:Record<string,string>={
  'Creating embeddings':'Creazione degli embedding',
  'Extracting relations and metadata':'Estrazione di relazioni e metadati',
  'Saving encrypted index':'Salvataggio dell’indice cifrato',
+ 'Saving index':'Salvataggio dell’indice',
  'Embeddings ready':'Embedding pronti',
  'Reused without new model calls':'Riutilizzato senza nuove chiamate al modello',
  'Indexed':'Indicizzato',
