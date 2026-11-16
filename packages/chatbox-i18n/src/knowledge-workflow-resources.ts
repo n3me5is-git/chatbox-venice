@@ -1,4 +1,5 @@
 export const knowledgeWorkflowItalian:Record<string,string>={
+ 'Embedding dimensions (optional)':'Dimensioni embedding (facoltative)',
  'Some extracted metadata had missing or ambiguous source references and was omitted.':'Alcuni metadati estratti avevano riferimenti mancanti o ambigui alla fonte e sono stati esclusi.',
  'View extracted text':'Vedi testo estratto',
  'The original document is rendered locally. Extracted text is the representation used for search.':'Il documento originale viene visualizzato sul dispositivo. Il testo estratto è la versione usata per la ricerca.',
