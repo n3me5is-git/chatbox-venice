@@ -4,8 +4,8 @@ import path from 'node:path'
 export async function runSessionRag({click,evaluate,wait,byText,fill,cdp,output}){
  await click(byText('Test session RAG'))
  await wait(()=>evaluate(`!![...document.querySelectorAll('label')].find(e=>e.textContent==='Enable session RAG')`),'RAG settings did not load')
- await writeFile(path.join(output,'session-rag-settings-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  await click(`[...document.querySelectorAll('label')].find(e=>e.textContent==='Enable session RAG')`)
+ await writeFile(path.join(output,'session-rag-settings-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
  assert.equal(await evaluate(`([...document.querySelectorAll('button')].find(e=>e.textContent==='Save RAG settings')).disabled`),true,'RAG must require provider consent')
  await click(`[...document.querySelectorAll('label')].find(e=>e.textContent.startsWith('I allow the selected'))`)
  await click(byText('Save RAG settings'));await click(byText('Index now'))

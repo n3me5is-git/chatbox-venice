@@ -19,6 +19,7 @@ export async function runAgentMobileReview({ click, evaluate, wait, fill, byText
     await click(guardian)
     await wait(() => evaluate(`![...document.querySelectorAll('label')].some(e=>e.textContent==='Guardian policy'&&e.getClientRects().length)`), 'Disabled guardian still occupied the form')
     await evaluate(`(()=>{const e=[...document.querySelectorAll('button')].find(e=>e.textContent==='Save agent');e.scrollIntoView({block:'center'})})()`)
+    await wait(() => evaluate(`document.getAnimations().every(animation=>animation.playState!=='running'||animation.effect?.getTiming().iterations===Infinity)`), 'Agent editor transitions did not settle')
     const geometry = await evaluate(`(()=>{const e=[...document.querySelectorAll('button')].find(e=>e.textContent==='Save agent'),r=e.getBoundingClientRect();return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,height:r.height,bottom:r.bottom,viewport:innerHeight}})()`)
     assert.ok(geometry.scrollWidth <= width, 'Agent editor overflows horizontally')
     assert.ok(geometry.height >= 43.5 && geometry.bottom <= geometry.viewport, 'Agent save action is inaccessible with a keyboard-sized viewport')
