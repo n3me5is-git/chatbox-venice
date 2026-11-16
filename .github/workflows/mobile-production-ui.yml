@@ -41,6 +41,8 @@ jobs:
           node scripts/configure-fork-android.mjs
           node scripts/prepare-paddle-android.mjs --test-models
           pnpm exec cap sync android
+          mkdir -p android/app/src/debug
+          echo '<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools"><application android:usesCleartextTraffic="true" tools:replace="android:usesCleartextTraffic" /></manifest>' > android/app/src/debug/AndroidManifest.xml
           chmod +x android/gradlew
           cd android && ./gradlew :app:assembleDebug --no-daemon
       - name: Enable emulator acceleration

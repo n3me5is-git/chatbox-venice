@@ -7,6 +7,8 @@ import { collaboration } from '@/packages/collaboration/runtime'
 import { collaborationError } from '@/packages/collaboration/errors'
 import { Drawer } from '@/components/layout/Overlay'
 import { MarkdownFilePreview } from '@/components/session-resources/MarkdownFilePreview'
+import {PdfDocumentViewer} from '@/components/common/PdfDocumentViewer'
+import {OfficeDocumentViewer,isOfficePreview} from '@/components/common/OfficeDocumentViewer'
 import { buildWorkArtifactPreview } from '@shared/mobile-work/artifact-preview'
 import { forkT as ft } from '@/i18n/fork'
 import platform from '@/platform'
@@ -37,7 +39,7 @@ export function RemoteFiles({room,opened,initial,onClose}:{room:GuestShare;opene
     void read(current,controller.signal).then(async blob=>{
       if(controller.signal.aborted)return
       if(current.mime.startsWith('text/')||/\.(md|markdown|json|js|ts|py|csv|yaml|yml|txt|html)$/i.test(current.name)){if(blob.size>2*1024*1024)throw Error('File is too large for text preview');const text=await blob.text();if(!controller.signal.aborted)setPreview({text})}
-      else if(/^(image|audio|video)\//.test(current.mime)||current.mime==='application/pdf'){url=URL.createObjectURL(blob);setPreview({url})}
+      else if(/^(image|audio|video)\//.test(current.mime)||current.mime==='application/pdf'||isOfficePreview(current.name)){url=URL.createObjectURL(blob);setPreview({url})}
       else throw Error('Clone this chat to open this file with your device.')
     }).catch(error=>{if(!controller.signal.aborted)setError(collaborationError(error))}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>{controller.abort();if(url)URL.revokeObjectURL(url)}
@@ -53,7 +55,7 @@ export function RemoteFiles({room,opened,initial,onClose}:{room:GuestShare;opene
       {current&&<Group justify="space-between"><Text fw={600} style={{overflowWrap:'anywhere',minWidth:0}}>{current.name}</Text><Button variant="subtle" onClick={()=>{active.current?.abort();setSelected(undefined)}}>{ft('Close preview')}</Button></Group>}
       {loading&&<Loader aria-label={ft('Loading file')}/>}{error&&<Alert color="red" role="alert">{ft(error)}</Alert>}
       {current&&preview?.text!==undefined? /\.(md|markdown)$/i.test(current.name)?<MarkdownFilePreview source={preview.text} path={current.path} resolveImage={resolveImage} openFile={path=>setSelected(files.find(file=>file.path===path))} openExternal={url=>void platform.openLink(url)}/>:current.mime==='text/html'?<iframe title={ft('Local file preview')} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={buildWorkArtifactPreview(preview.text)} style={{width:'100%',height:'60dvh',border:0}}/>:<pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{preview.text}</pre>
-        :current&&preview?.url?current.mime.startsWith('image/')?<Image src={preview.url} alt={current.name} fit="contain" mah="65dvh"/>:current.mime.startsWith('audio/')?<audio src={preview.url} controls style={{width:'100%'}}/>:current.mime.startsWith('video/')?<video src={preview.url} controls style={{maxWidth:'100%',maxHeight:'65dvh'}}/>:<iframe title={current.name} sandbox="" src={preview.url} style={{width:'100%',height:'65dvh',border:0}}/>:null}
+        :current&&preview?.url?current.mime.startsWith('image/')?<Image src={preview.url} alt={current.name} fit="contain" mah="65dvh"/>:current.mime.startsWith('audio/')?<audio src={preview.url} controls style={{width:'100%'}}/>:current.mime.startsWith('video/')?<video src={preview.url} controls style={{maxWidth:'100%',maxHeight:'65dvh'}}/>:current.mime==='application/pdf'?<PdfDocumentViewer url={preview.url} name={current.name}/>:<OfficeDocumentViewer url={preview.url} name={current.name}/>:null}
     </Stack>
   </Drawer>
 }

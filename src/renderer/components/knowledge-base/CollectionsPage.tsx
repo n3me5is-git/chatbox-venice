@@ -77,7 +77,7 @@ export default function CollectionsPage({service=defaultStore}:{service?:Knowled
  return <SettingsPage title={ft('Knowledge Base')} description={!selected?ft('Keep documents in collections and use them in any chat.'):undefined}>
  <div className="feature-panel"><Stack gap="md">
  {error&&<Alert color="red" role="alert">{ft(error)}</Alert>}
- {indexJob&&<IndexingStatus job={indexJob} providers={progressProviders} onCancel={()=>store.cancel(selected!)}/>}
+ {indexJob&&!locked&&!!detail&&<IndexingStatus job={indexJob} providers={progressProviders} onCancel={()=>store.cancel(selected!)}/>}
  {busy&&!indexJob&&<Group role="status" wrap="wrap"><Loader size="sm"/><Text size="sm">{progress?ft('Indexing file')+': '+progress:ft('Working…')}</Text>{selected&&store.running(selected)&&<Button variant="subtle" color="red" onClick={()=>store.cancel(selected)}>{ft('Stop indexing')}</Button>}</Group>}
  {!selected&&<SimpleGrid cols={{base:1,sm:2}} spacing="xs" data-testid="knowledge-overview-actions"><Button fullWidth leftSection={<IconPlus size={18}/>} onClick={openCreate} disabled={busy}>{ft('New collection')}</Button>{knowledgeFolderAvailable()&&<Button fullWidth variant="default" disabled={busy} onClick={()=>{setWriteMount(false);setMountDialog(true)}}>{ft('Open folder collection')}</Button>}</SimpleGrid>}
  {!selected&&entries.filter(entry=>store.running(entry.id)&&!collectionLocked(entry)).map(entry=><Card withBorder key={'progress-'+entry.id}><Stack gap="sm"><Text fw={600}>{entry.name}</Text><Button variant="light" onClick={()=>select(entry.id)}>{ft('Open indexing progress')}</Button></Stack></Card>)}

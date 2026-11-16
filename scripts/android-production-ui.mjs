@@ -1,3 +1,4 @@
+import {createServer} from 'node:http'
 import assert from 'node:assert/strict'
 import {execFileSync} from 'node:child_process'
 import {mkdir,writeFile} from 'node:fs/promises'
@@ -9,29 +10,36 @@ adb('install','-r','android/app/build/outputs/apk/debug/app-debug.apk')
 adb('shell','pm','grant',app,'android.permission.POST_NOTIFICATIONS')
 adb('shell','am','start','-n',app+'/.MainActivity')
 let socket,serial=0,pending=new Map(),cdp,evaluate,embeddingRequest,started,requestAt
+const server=createServer(async(request,response)=>{let body='';for await(const chunk of request){body+=chunk;if(body.length>1024*1024){response.writeHead(413).end();return}}response.setHeader('Content-Type','application/json');if(request.url.includes('/embeddings')){embeddingRequest={response,body:JSON.parse(body)};requestAt=Date.now()}else response.end(JSON.stringify({data:[{id:'fixture-embedding',type:'embedding',model_spec:{name:'Fixture embedding',privacy:'private'}}]}))});await new Promise(resolve=>server.listen(4176,'127.0.0.1',resolve))
 const report={device:'Android emulator API35',actualProductionApp:true,syntheticProvider:true,cloudModelCalls:0},errors=[]
 async function wait(check,message,timeout=60000){const end=Date.now()+timeout;while(Date.now()<end){try{const value=await check();if(value)return value}catch{}await delay(150)}throw Error(message)}
 const snap=async name=>{await writeFile(output+'/'+name+'.png',Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))}
 try{
+ const connect=async()=>{
  const pid=await wait(()=>adb('shell','pidof',app),'App process did not start')
  adb('forward','tcp:9223','localabstract:webview_devtools_remote_'+pid)
  const target=await wait(async()=>{const rows=await(await fetch('http://127.0.0.1:9223/json')).json();return rows.find(row=>row.type==='page')},'Production WebView debugger unavailable')
  socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject})
  cdp=(method,params={})=>new Promise((resolve,reject)=>{const id=++serial,timer=setTimeout(()=>{pending.delete(id);reject(Error('CDP timeout '+method))},25000);pending.set(id,{resolve:value=>{clearTimeout(timer);resolve(value)},reject:error=>{clearTimeout(timer);reject(error)}});socket.send(JSON.stringify({id,method,params}))})
  socket.onmessage=event=>{const message=JSON.parse(event.data);if(message.id){const task=pending.get(message.id);if(task){pending.delete(message.id);message.error?task.reject(Error(message.error.message)):task.resolve(message.result)}}
-  if(message.method==='Runtime.exceptionThrown')errors.push(message.params.exceptionDetails.text)
+  if(message.method==='Runtime.exceptionThrown')errors.push(message.params.exceptionDetails.exception?.description||message.params.exceptionDetails.text)
+  if(message.method==='Runtime.consoleAPICalled'&&message.params.type==='error')errors.push(message.params.args.map(arg=>arg.value||arg.description||arg.type).join(' '))
   if(message.method==='Fetch.requestPaused'){const {requestId,request}=message.params;if(request.url.includes('fixture.invalid')){
     if(request.url.includes('/embeddings')){embeddingRequest={requestId,body:JSON.parse(request.postData)};requestAt=Date.now()}
     else void cdp('Fetch.fulfillRequest',{requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'application/json'}],body:Buffer.from(JSON.stringify({data:[{id:'fixture-embedding',type:'embedding',model_spec:{name:'Fixture embedding',privacy:'private'}}]})).toString('base64')})
    }else void cdp('Fetch.continueRequest',{requestId})}
  }
  evaluate=async expression=>{const result=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text);return result.result.value}
- await cdp('Runtime.enable');await cdp('Page.enable');await cdp('Fetch.enable',{patterns:[{urlPattern:'https://fixture.invalid/*'}]})
+ await cdp('Runtime.enable');await cdp('Page.enable')
+ }
+ await connect()
  await wait(()=>evaluate(`!!window.Capacitor?.nativePromise&&document.body.innerText.length>30`),'Production renderer did not initialize',90000)
  await delay(2000)
  // Seed only this disposable app's real SQLite settings, never production source/test hooks.
- await evaluate(`(async()=>{const call=(method,args)=>window.Capacitor.nativePromise('CapacitorSQLite',method,args);const rows=await call('query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]});if(!rows.values?.length)throw Error('Real settings row missing');const settings=JSON.parse(rows.values[0].value);Object.assign(settings,{language:'it-IT',theme:'dark',defaultEmbeddingModel:{provider:'venice',model:'fixture-embedding'}});settings.providers={...settings.providers,venice:{apiKey:'SYNTHETIC-UI-FIXTURE',apiHost:'https://fixture.invalid/api/v1',models:[{modelId:'fixture-embedding',type:'embedding'}],venice:{enabled:true}}};await call('run',{database:'chatbox.db',statement:"UPDATE key_value SET value=? WHERE key='settings'",values:[JSON.stringify(settings)]});location.reload()})()`)
- await wait(()=>evaluate(`document.readyState==='complete'&&!!window.Capacitor?.nativePromise&&document.body.innerText.length>30`),'App did not reload')
+ await evaluate(`(async()=>{const call=(method,args)=>window.Capacitor.nativePromise('CapacitorSQLite',method,args);const rows=await call('query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]});if(!rows.values?.length)throw Error('Real settings row missing');const settings=JSON.parse(rows.values[0].value);Object.assign(settings,{language:'it-IT',theme:'dark',defaultEmbeddingModel:{provider:'venice',model:'fixture-embedding'}});settings.providers={...settings.providers,venice:{apiKey:'SYNTHETIC-UI-FIXTURE',apiHost:'http://10.0.2.2:4176/api/v1',models:[{modelId:'fixture-embedding',type:'embedding'}],venice:{enabled:true}}};await call('run',{database:'chatbox.db',statement:"UPDATE key_value SET value=? WHERE key='settings'",values:[JSON.stringify(settings)]});})()`)
+ socket.close();adb('shell','am','force-stop',app);adb('shell','am','start','-n',app+'/.MainActivity');await connect()
+ await wait(()=>evaluate(`!!document.querySelector('.startup-error')||document.readyState==='complete'&&document.body.innerText.length>30`),'App did not restart')
+ assert.equal(await evaluate(`!!document.querySelector('.startup-error')`),false,'Production app startup failed: '+errors.join(' | '))
  await delay(2000);await evaluate(`location.hash='/settings/knowledge-base'`)
  await wait(()=>evaluate(`!![...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='Nuova raccolta')`),'Actual native KB did not open',90000)
  const buttons=await evaluate(`['Nuova raccolta','Apri collezione da cartella'].map(text=>{const e=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===text);if(!e)return null;const r=e.getBoundingClientRect();return {text,x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom}})`)
@@ -44,7 +52,7 @@ try{
  const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 560] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'],text='BT /F1 20 Tf 40 500 Td (Native PDF fixture) Tj ET';objects.push('<< /Length '+text.length+' >>\nstream\n'+text+'\nendstream');let pdf='%PDF-1.4\n';const offsets=[0];objects.forEach((object,i)=>{offsets.push(pdf.length);pdf+=(i+1)+' 0 obj\n'+object+'\nendobj\n'});const xref=pdf.length;pdf+='xref\n0 '+offsets.length+'\n0000000000 65535 f \n'+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')+'trailer\n<< /Size '+offsets.length+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF'
  await evaluate(`(()=>{const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(pdf)}],'native-fixture.pdf',{type:'application/pdf'}));const input=document.querySelector('[data-testid="collection-documents"] input[type="file"]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))})()`)
  await wait(()=>evaluate(`document.body.innerText.includes('native-fixture.pdf')`),'Native source import failed')
- await click('Leggi documento');await wait(()=>evaluate(`!!document.querySelector('[data-testid="pdf-document-viewer"] canvas')&&document.querySelector('[data-testid="pdf-document-viewer"] canvas').width>100&&!document.querySelector('[data-testid="pdf-document-viewer"] [aria-label="Loading document"]')`),'Actual Android PDF did not render')
+ await click('Leggi documento');await wait(()=>evaluate(`!!document.querySelector('[data-testid="pdf-document-viewer"] canvas')&&document.querySelector('[data-testid="pdf-document-viewer"] canvas').width>100&&document.querySelector('[data-testid="pdf-document-viewer"]').getAttribute('aria-busy')==='false'`),'Actual Android PDF did not render')
  assert.ok(await evaluate(`(()=>{const c=document.querySelector('[data-testid="pdf-document-viewer"] canvas'),p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;return p.some((v,i)=>i%4!==3&&v<100)})()`),'PDF canvas has no dark content');await snap('native-pdf-source');report.originalPdfRendered=true
  await evaluate(`[...document.querySelectorAll('[role="dialog"]')].at(-1).querySelector('button[aria-label="Close" i]').click()`)
  started=Date.now();await click('Indicizza ora');await wait(()=>embeddingRequest,'Actual index did not request embeddings')
@@ -52,8 +60,8 @@ try{
  const foreground=await evaluate(`window.Capacitor.nativePromise('KnowledgeIndexingBackground','status',{}).then(v=>v.active)`);assert.equal(foreground,true,'Indexing foreground service did not start')
  adb('shell','input','keyevent','3');await delay(1500)
  assert.equal(await evaluate(`window.Capacitor.nativePromise('KnowledgeIndexingBackground','status',{}).then(v=>v.active)`),true,'Foreground service stopped on HOME')
- await cdp('Fetch.fulfillRequest',{requestId:embeddingRequest.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'application/json'}],body:Buffer.from(JSON.stringify({data:embeddingRequest.body.input.map((_,index)=>({index,embedding:[1,0]})),usage:{total_tokens:20}})).toString('base64')})
+ embeddingRequest.response.end(JSON.stringify({data:embeddingRequest.body.input.map((_,index)=>({index,embedding:[1,0]})),usage:{total_tokens:20}}))
  await wait(()=>evaluate(`!!document.querySelector('[data-testid="indexing-status"]')&&document.querySelector('[data-testid="indexing-status"]').innerText.includes('Indicizzato')`),'Background indexing did not complete')
  assert.equal(await evaluate(`window.Capacitor.nativePromise('KnowledgeIndexingBackground','status',{}).then(v=>v.active)`),false,'Foreground service was not released after completion')
  adb('shell','am','start','-n',app+'/.MainActivity');await delay(500);await snap('native-indexing-completed');report.backgroundIndexingCompleted=true;report.actualKeystoreAndSQLite=true;report.passed=true
-}catch(error){report.passed=false;report.error=String(error);try{if(cdp)await snap('failure');if(evaluate)report.body=await evaluate('document.body.innerText')}catch{}throw error}finally{report.browserErrors=errors;await writeFile(output+'/report.json',JSON.stringify(report,null,2));socket?.close()}
+}catch(error){report.passed=false;report.error=String(error);try{if(cdp)await snap('failure');if(evaluate)report.body=await evaluate('document.body.innerText');report.logcat=adb('logcat','-d','-t','300').slice(-30000)}catch{}throw error}finally{report.browserErrors=errors;await writeFile(output+'/report.json',JSON.stringify(report,null,2));socket?.close();if(embeddingRequest?.response&&!embeddingRequest.response.writableEnded)embeddingRequest.response.end('{}');server.close()}

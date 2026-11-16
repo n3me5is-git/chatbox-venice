@@ -46,6 +46,12 @@ describe('Venice encrypted text transport (simulated enclave)',()=>{
   expect(()=>encryptConversation([{role:'user',content:[{type:'image_url',image_url:{url:'private'}}]}],key.publicKeyHex)).toThrow('attachments')
   expect(()=>encryptConversation([{role:'assistant',content:'text',tool_calls:[{}]}],key.publicKeyHex)).toThrow('tool calls')
  })
+ it('reports network activity for text RAG without releasing unverified data',async()=>{
+  const activity=vi.fn(),f=fixture(),messages=[{role:'user',content:'Source excerpt from a local PDF: Project Aurora has client Acme.'}]
+  const result=await secureVeniceChat(f.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{}, {...body,messages},'e2ee',false,false,activity)
+  expect(activity).toHaveBeenCalled();expect(f.sent()).not.toContain('Project Aurora');expect(f.decrypted.join('\n')).toContain('Project Aurora');expect(await result.text()).toContain('Encrypted reply')
+  const invalid=fixture({badSignature:true});await expect(secureVeniceChat(invalid.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{}, {...body,messages},'e2ee',false,false,activity)).rejects.toThrow()
+ })
  it.each([['private result body'],[''],[null],[[{type:'text',text:'private result body'}]]])('protects pending native tool bodies and preserves empty content: %j',async content=>{
   const f=fixture()
   const messages=[...body.messages,{role:'assistant',content:null,tool_calls:[{id:'pending-1',type:'function',function:{name:'local_echo',arguments:'{"text":"public argument"}'}}]},{role:'tool',name:'local_echo',tool_call_id:'pending-1',content}]

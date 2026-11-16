@@ -21,6 +21,7 @@ export function CollectionDocuments({ id, data, index, busy, readOnly, dirty, st
   const [filter, setFilter] = useState(''), [requestedPage, setPage] = useState(0)
   const matching = useMemo(() => data.files.filter(file => (file.linkedPath || file.name).toLocaleLowerCase().includes(filter.toLocaleLowerCase())), [data.files, filter])
   const pages = Math.max(1, Math.ceil(matching.length / 50)), page = Math.min(requestedPage, pages - 1)
+  const indexedFiles=useMemo(()=>new Map(index?.files.map(file=>[file.path,file])||[]),[index]),failedFiles=useMemo(()=>new Set(index?.errors.map(file=>file.path)||[]),[index]),indexCurrent=index?.fingerprint===ragFingerprint(data.settings)
   const indexDisabled = busy || readOnly || dirty
   return <Stack gap="md" data-testid="collection-documents">
     <Group gap="xs"><Badge variant="light">{data.files.length} {ft('Documents')}</Badge><Badge variant="light">{index?.files.reduce((sum, file) => sum + file.chunks, 0) || 0} {ft('Passages')}</Badge></Group>
@@ -43,7 +44,7 @@ export function CollectionDocuments({ id, data, index, busy, readOnly, dirty, st
     {matching.slice(page * 50, page * 50 + 50).map(file => <Card key={file.id} withBorder padding="sm" radius="md" style={{ overflow: 'visible' }}>
       <Stack gap="sm">
         <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>{file.linkedPath || file.name}</Text>
-        <Group gap="xs"><Badge variant="light" color={index?.errors.some(error=>error.path===file.path)?"red":"gray"}>{ft(store.progress?.get(id)?.files[file.path]&&store.running(id)?indexStageLabel[store.progress.get(id)!.files[file.path].stage]:index?.errors.some(error=>error.path===file.path)?'Indexing failed':index?.files.some(entry=>entry.path===file.path&&(!file.hash||entry.hash===file.hash))&&index.fingerprint===ragFingerprint(data.settings)?'Indexed':index?.files.some(entry=>entry.path===file.path)?'Needs update':'Not indexed')}</Badge></Group>
+        <Group gap="xs"><Badge variant="light" color={failedFiles.has(file.path)?"red":"gray"}>{ft(store.progress?.get(id)?.files[file.path]&&store.running(id)?indexStageLabel[store.progress.get(id)!.files[file.path].stage]:failedFiles.has(file.path)?'Indexing failed':indexedFiles.has(file.path)&&(!file.hash||indexedFiles.get(file.path)?.hash===file.hash)&&indexCurrent?'Indexed':indexedFiles.has(file.path)?'Needs update':'Not indexed')}</Badge></Group>
         <Group wrap="nowrap" gap="xs">
           <Button variant="default" style={{ flex: 1 }} disabled={busy} onClick={() => {if(file.mime==='application/pdf'||isOfficePreview(file.name))onReadSource(file.id);else void run(async () => { const document = await store.documentText(id, file.id); onPreview(document.text, 'parsed') })}}>{ft('Read document')}</Button>
           <Menu withinPortal={false} position="bottom-end" width={260}>

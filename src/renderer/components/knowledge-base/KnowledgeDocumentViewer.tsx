@@ -11,7 +11,7 @@ export function KnowledgeDocumentViewer({store,id,fileId,onText}:{store:Knowledg
  const current=state?.revision===revision?state:undefined
  if(!current)return <Loader aria-label={ft('Loading document')}/>
  return <Stack gap="sm">{current.error&&<Alert role="alert" color="red">{ft(current.error)}</Alert>}{current.url&&(current.mime==='application/pdf'?<PdfDocumentViewer url={current.url} name={current.name||ft('Original document')}/>:<OfficeDocumentViewer url={current.url} name={current.name||'document.docx'}/>)}
-  <Button variant="default" loading={loadingText} onClick={()=>{setLoadingText(true);void store.documentText(id,fileId).then(result=>onText(result.text)).catch(error=>setState({revision,error:(error as Error).message})).finally(()=>setLoadingText(false))}}>{ft('View extracted text')}</Button>
+  <Button variant="default" loading={loadingText} onClick={()=>{setLoadingText(true);void store.documentText(id,fileId).then(async result=>{await store.assert(id);if(store.vault.keys.snapshot()===revision)onText(result.text)}).catch(error=>{if(store.vault.keys.snapshot()===revision)setState({revision,error:(error as Error).message})}).finally(()=>{if(store.vault.keys.snapshot()===revision)setLoadingText(false)})}}>{ft('View extracted text')}</Button>
   <Text size="xs" c="dimmed">{ft('The original document is rendered locally. Extracted text is the representation used for search.')}</Text>
  </Stack>
 }

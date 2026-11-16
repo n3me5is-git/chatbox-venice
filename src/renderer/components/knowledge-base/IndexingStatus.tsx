@@ -18,12 +18,12 @@ export function indexCost(job:IndexJobProgress,providers:Record<string,ProviderS
 export function IndexingStatus({job,providers,onCancel}:{job:IndexJobProgress;providers?:Record<string,ProviderSettings>;onCancel:()=>void}){
  const [now,setNow]=useState(Date.now),active=!['done','failed','cancelled'].includes(job.stage)
  useEffect(()=>{if(!active)return;const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer)},[active])
- const files=Object.values(job.files),ready=files.filter(file=>['vectors-ready','reused','done'].includes(file.stage)).length,current=job.path?job.files[job.path]:undefined,cost=indexCost(job,providers),calls=Object.values(job.usage).reduce((sum,row)=>sum+row.calls,0)
+ const total=job.totalFiles,ready=job.readyFiles,current=job.path?job.files[job.path]:undefined,cost=indexCost(job,providers),calls=Object.values(job.usage).reduce((sum,row)=>sum+row.calls,0)
  return <Card withBorder radius="md" data-testid="indexing-status"><Stack gap="sm">
   <Group justify="space-between"><Text fw={600}>{ft(indexStageLabel[job.stage])}</Text><Badge variant="light">{Math.round(((active?now:job.updated)-job.started)/1000)} s</Badge></Group>
   {job.path&&<Text size="sm" style={{overflowWrap:'anywhere'}}>{job.path}</Text>}
-  <Text size="sm">{ft('Documents with embeddings')}: {ready} / {files.length}{current?.page?' · '+ft('Page')+' '+current.page+(current.pages?' / '+current.pages:''):''}{current?.batch?' · '+ft('Batch')+' '+current.batch+(current.batches?' / '+current.batches:''):''}</Text>
-  <Progress value={job.stage==='done'?100:files.length?100*ready/files.length:0} animated={active}/>
+  <Text size="sm">{ft('Documents with embeddings')}: {ready} / {total}{current?.page?' · '+ft('Page')+' '+current.page+(current.pages?' / '+current.pages:''):''}{current?.batch?' · '+ft('Batch')+' '+current.batch+(current.batches?' / '+current.batches:''):''}</Text>
+  <Progress value={job.stage==='done'?100:total?100*ready/total:0} animated={active}/>
   {job.stage==='analyzing'&&<Text size="xs" c="dimmed">{ft('Embeddings are ready. The optional knowledge model is extracting summaries and relations; this adds model calls.')}</Text>}
   <details><summary>{ft('Model usage and estimated cost')}</summary><Stack gap="xs" mt="xs">
    <Text size="sm">{ft('Completed model calls')}: {calls}</Text>

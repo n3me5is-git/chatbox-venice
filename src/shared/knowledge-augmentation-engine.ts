@@ -22,7 +22,7 @@ export class KnowledgeAugmentationEngine{
   const settings=KnowledgeAugmentationSchema.parse(options);if(!settings.enabled||!settings.model)throw Error('Choose a knowledge extraction model first')
   signal.throwIfAborted();await this.port.check()
   const fingerprint=await hashText(JSON.stringify([KNOWLEDGE_ANALYSIS_VERSION,settings])),stored=await this.port.get<KnowledgeAnalysisManifest>(MANIFEST),old=stored?KnowledgeAnalysisManifestSchema.parse(stored):null,previous=new Map((old?.files||[]).map(file=>[file.fileId,file])),files:KnowledgeAnalysisRef[]=[],created:string[]=[],seen=new Set<string>(),stats={extractedWindows:0,reusedWindows:0,unchangedDocuments:0,reboundDocuments:0}
-  let lastCheckpoint=Date.now();const checkpoint=async(force=false)=>{if(this.port.checkpoint&&(force||Date.now()-lastCheckpoint>=10000)){await this.port.checkpoint({version:1,updated:Date.now(),files:[...files],stats:{...stats}});lastCheckpoint=Date.now()}}
+  const checkpointAliases=new Set<string>();let lastCheckpoint=Date.now();const checkpoint=async(force=false)=>{if(this.port.checkpoint&&(force||Date.now()-lastCheckpoint>=10000)){for(const file of files)checkpointAliases.add(file.alias);await this.port.checkpoint({version:1,updated:Date.now(),files:[...files],stats:{...stats}});lastCheckpoint=Date.now()}}
   try{for await(const document of documents){signal.throwIfAborted();await this.port.check()
     if(files.length>=10000||!document.fileId||document.fileId.length>128||seen.has(document.fileId)||!/^[a-f0-9]{64}$/.test(document.sourceHash))throw Error('Invalid knowledge document identity');seen.add(document.fileId)
     const documentFingerprint=await hashText(fingerprint+'|'+!!document.retainText),cached=previous.get(document.fileId)
@@ -72,7 +72,7 @@ export class KnowledgeAugmentationEngine{
    // An adapter can report an I/O error after its manifest write committed. Never
    // remove a new shard still referenced by that published generation. If the
    // manifest is unreadable, retain owned orphans for later reconciliation.
-   try{const saved=await this.port.get<KnowledgeAnalysisManifest>(MANIFEST),retained=new Set((saved?KnowledgeAnalysisManifestSchema.parse(saved).files:[]).map(file=>file.alias));for(const alias of created)if(!retained.has(alias))await this.port.remove(alias).catch(()=>{})}catch{/* ambiguous storage state: do not delete */}
+   try{const saved=await this.port.get<KnowledgeAnalysisManifest>(MANIFEST),retained=new Set((saved?KnowledgeAnalysisManifestSchema.parse(saved).files:[]).map(file=>file.alias));for(const alias of checkpointAliases)retained.add(alias);for(const alias of created)if(!retained.has(alias))await this.port.remove(alias).catch(()=>{})}catch{/* ambiguous storage state: do not delete */}
    throw error
   }
  }
