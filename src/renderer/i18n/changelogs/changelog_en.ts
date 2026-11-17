@@ -1,4 +1,12 @@
 const changelog = `
+## Chatbox Venice 1.52.0
+1. Configure collections and source review together, or mention a collection with @ for one request
+2. Read per-statement assessments, conflicting evidence and provider-returned checker reasoning
+3. Use compact source chips, desktop hover excerpts and source-text search
+4. Scroll PDFs continuously and search their text locally
+5. Browse extracted Markdown and saved document image assets by page
+6. Add desktop file drops, wider collection forms and configurable parallel indexing
+
 ## Chatbox Venice 1.51.0
 1. Read original PDFs and local Office content previews in chat files and knowledge collections
 2. Fix mobile collection actions and improve feature panels on small screens

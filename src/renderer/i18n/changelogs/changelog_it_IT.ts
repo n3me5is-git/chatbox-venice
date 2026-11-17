@@ -1,4 +1,12 @@
 const changelog = `
+## Chatbox Venice 1.52.0
+1. Configura raccolte e verifica delle fonti insieme oppure cita una raccolta con @ per una richiesta
+2. Consulta verifiche per affermazione, fonti discordanti e ragionamento restituito dal checker
+3. Usa riferimenti compatti, anteprime al passaggio del mouse e ricerca nel testo delle fonti
+4. Scorri i PDF in modo continuo e cerca il testo sul dispositivo
+5. Esplora Markdown estratto e immagini derivate per documento e pagina
+6. Aggiunge trascinamento dei file desktop, moduli più ampi e indicizzazione parallela configurabile
+
 ## Chatbox Venice 1.51.0
 1. Leggi i PDF originali e le anteprime locali dei contenuti Office nei file delle chat e nelle raccolte
 2. Corregge le azioni delle raccolte e migliora i pannelli sugli schermi piccoli

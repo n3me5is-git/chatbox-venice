@@ -10,7 +10,7 @@ beforeEach(()=>{vi.clearAllMocks();vi.useFakeTimers();Object.defineProperty(wind
 afterEach(()=>{cleanup();vi.useRealTimers();vi.unstubAllGlobals()})
 it('previews already authorized source text without unlocking, and erases it when keys change',async()=>{
  render(<MantineProvider><KnowledgeCitation href={href}/></MantineProvider>);fireEvent.focus(screen.getByRole('link',{name:'Open source excerpt'}));await act(async()=>{await vi.advanceTimersByTimeAsync(350)})
- expect(screen.getByText('Exact private excerpt')).toBeTruthy();expect(f.authorize).not.toHaveBeenCalled();expect(f.assert).toHaveBeenCalledWith(-1)
+ vi.useRealTimers();expect(await screen.findByText('Exact private excerpt')).toBeTruthy();expect(f.authorize).not.toHaveBeenCalled();expect(f.assert).toHaveBeenCalledWith(-1)
  act(()=>f.notify());expect(screen.queryByText('Exact private excerpt')).toBeNull();expect(f.unsub).toHaveBeenCalled()
 })
 it('ignores an excerpt that completes after hover closes',async()=>{

@@ -6,5 +6,5 @@ it('honors explicit global defaults and uses private configured Venice only as a
  expect(defaultRagSettings()).toMatchObject({provider:'other',model:'existing-default'})
  state.settings.providers.venice={apiKey:'test',models:[{modelId:'anonymous',type:'embedding',vendorMetadata:{privacy:'anonymized'}},{modelId:'private',type:'embedding',vendorMetadata:{privacy:'private'}}]}
  expect(defaultRagSettings()).toMatchObject({provider:'other',model:'existing-default'});delete state.settings.defaultEmbeddingModel
- expect(defaultRagSettings()).toMatchObject({provider:'venice',model:'private'});state.settings.providers.venice.venice={enabled:false};expect(defaultRagSettings().provider).toBeUndefined()
+ expect(defaultRagSettings()).toMatchObject({provider:'venice',model:'private'});state.settings.providers.venice.venice={enabled:false};expect(defaultRagSettings().provider).toBe('')
 })

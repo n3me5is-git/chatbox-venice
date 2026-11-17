@@ -61,7 +61,8 @@ import {settingsStore} from '../../src/renderer/stores/settingsStore'
 import {RagSettingsSchema} from '../../src/shared/session-rag'
 
 const params=new URLSearchParams(location.search),screen=params.get('screen')||'knowledge-base',language=params.get('lang')||'it-IT',dark=params.get('theme')!=='light'
-platform.type=screen.startsWith('mcp-')?'desktop':'mobile'
+platform.type=params.get('desktop')==='1'||screen.startsWith('mcp-')?'desktop':'mobile'
+platform.isDesktopLike=params.get('desktop')==='1'
 Object.defineProperty(Capacitor,'getPlatform',{configurable:true,value:()=> 'android'})
 ;(window as any).electronAPI={invoke:async(channel:string,action:string)=>channel==='local-mcp:control'?(action==='list'?[]:{running:false}):null}
 Object.assign(document.documentElement.dataset,{theme:dark?'dark':'light'})

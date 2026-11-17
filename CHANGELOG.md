@@ -1,5 +1,15 @@
 # Changelog — Chatbox Venice
 
+## 1.52.0
+
+- Unify chat collections, source review and contextual @ mentions.
+- Improve statement-level source assessments, conflict details and checker reasoning visibility.
+- Add compact source chips, desktop hover previews and source-text search.
+- Scroll PDFs continuously with local text search.
+- Retain and browse document image derivatives alongside extracted Markdown.
+- Add desktop document drops, wider collection forms and global model defaults.
+- Bound concurrent indexing requests across parallel pages and files.
+
 ## 1.51.0
 
 - Render original PDFs locally in chat files, shared files and knowledge collections, with page and zoom controls.

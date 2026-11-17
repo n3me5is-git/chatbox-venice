@@ -158,7 +158,7 @@ function Markdown(props: {
     onPreviewWebpage,
   } = props
 
-  const review=useContext(KnowledgeReviewContext),fullAnswer=useContext(KnowledgeAnswerContext),reviewOffset=fullAnswer.indexOf(children)
+  const review=useContext(KnowledgeReviewContext),fullAnswer=useContext(KnowledgeAnswerContext),reviewOffset=fullAnswer===children?0:fullAnswer.indexOf(children)===fullAnswer.lastIndexOf(children)?fullAnswer.indexOf(children):-1
   const fallbackId = useId()
   const processedChildren = useMemo(
     () => (enableLaTeXRendering ? latex.processLaTeX(children) : children),
@@ -214,7 +214,7 @@ function Markdown(props: {
               // Models sometimes hand-write sandbox "download links" (sandbox:/mnt/data/...)
               // instead of calling create_download. Those hrefs are dead — render a file
               // chip that rescues the file from the session sandbox instead.
-              const claim=/^#knowledge-claim-(\d+)$/.exec(href||'');if(claim)return <ClaimReviewBadge index={Number(claim[1])}/>
+              const claim=/^#knowledge-claim-(\d+)$/.exec(href||'');if(claim)return node?.properties?.['data-knowledge-claim']===claim[1]?<ClaimReviewBadge index={Number(claim[1])}/>:<span>{linkChildren}</span>
               const knowledgeReference=parseKnowledgeEvidenceUrl(href)
               if(knowledgeReference)return <><KnowledgeCitation href={href!}/><CitationReviewBadge href={href}/></>
               if(/^https?:\/\/(?:[^/]*@)?chatbox\.invalid(?:[/:]|$)/i.test(href||''))return <span>{linkChildren}</span>

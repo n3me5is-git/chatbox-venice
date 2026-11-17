@@ -1,4 +1,9 @@
 export const knowledgeWorkflowItalian:Record<string,string>={
+ 'Derived files stay with this collection and follow its protection. Images load only for the selected page.':'I file derivati restano nella raccolta e ne seguono la protezione. Le immagini vengono caricate solo per la pagina selezionata.',
+ 'Some derived images exceeded the preview storage limit. Open the original document for complete content.':'Alcune immagini derivate superano il limite delle anteprime. Apri il documento originale per il contenuto completo.',
+ 'The verifier did not assess this statement.':'Il verificatore non ha valutato questa affermazione.',
+ 'The verifier returned an unknown or repeated statement ID':'Il verificatore ha restituito un identificatore di affermazione sconosciuto o ripetuto',
+ 'The verifier returned an unknown source ID':'Il verificatore ha restituito un identificatore di fonte sconosciuto',
  'Updating collection protection…':'Aggiornamento della protezione della raccolta…',
  'Choose folder':'Scegli cartella',
  'Convert a recording':'Converti una registrazione',
