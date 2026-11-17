@@ -27,7 +27,7 @@ function isPdfTextItem(item: unknown): item is PdfTextItem {
   )
 }
 
-async function loadPdfjs() {
+export async function loadPdfjs() {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
   return pdfjs
@@ -35,7 +35,7 @@ async function loadPdfjs() {
 
 export async function parsePdfFileLocally(
   file: File,
-  options: { signal?: AbortSignal; failOnPageError?: boolean; metadataOnly?: boolean; onMetadata?:(value:Record<string,unknown>)=>void } = {}
+  options: { signal?: AbortSignal; failOnPageError?: boolean; metadataOnly?: boolean; onMetadata?:(value:Record<string,unknown>)=>void; onPage?:(page:number,total:number)=>void; onPageGraphics?:(page:number,visual:boolean)=>void } = {}
 ): Promise<string> {
   const { signal } = options
   signal?.throwIfAborted()
@@ -47,7 +47,7 @@ export async function parsePdfFileLocally(
     throw new Error(LOCAL_PARSER_FILE_TOO_LARGE_ERROR)
   }
 
-  const { getDocument } = await loadPdfjs()
+  const pdfjs = await loadPdfjs(), {getDocument} = pdfjs
   signal?.throwIfAborted()
   const data = new Uint8Array(await file.arrayBuffer())
   signal?.throwIfAborted()
@@ -73,6 +73,7 @@ export async function parsePdfFileLocally(
     const pageTexts: string[] = []
 
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+      options.onPage?.(pageNumber,document.numPages)
       signal?.throwIfAborted()
       try {
         const page = await Promise.race([document.getPage(pageNumber), canceled])
@@ -108,6 +109,7 @@ export async function parsePdfFileLocally(
           }
 
           pageTexts.push(pageText.trim())
+          if(options.onPageGraphics){const {OPS}=pdfjs,operations=await Promise.race([page.getOperatorList(),canceled]),imageOps=new Set([OPS.paintImageXObject,OPS.paintInlineImageXObject,OPS.paintImageMaskXObject,OPS.paintImageXObjectRepeat]);const paths=operations.fnArray.filter(op=>op===OPS.constructPath).length;options.onPageGraphics(pageNumber,operations.fnArray.some(op=>imageOps.has(op))||paths>=4)}
         } finally {
           page.cleanup()
         }
@@ -139,5 +141,5 @@ export async function parsePdfFileLocally(
 export async function* pdfPagesForOcr(file:File,signal:AbortSignal,pages?:ReadonlySet<number>){
  const pdfjs=await loadPdfjs(),task=pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())})
  const abort=()=>{void task.destroy()};signal.addEventListener('abort',abort,{once:true})
- try{const doc=await task.promise;if((pages?.size??doc.numPages)>50)throw Error('OCR supports up to 50 PDF pages per file');for(let n=1;n<=doc.numPages;n++){signal.throwIfAborted();if(pages&&!pages.has(n))continue;const page=await doc.getPage(n),original=page.getViewport({scale:1}),viewport=page.getViewport({scale:Math.min(2,1600/Math.max(original.width,original.height))}),canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);try{const context=canvas.getContext('2d');if(!context)throw Error('Unable to render PDF page');await page.render({canvas,canvasContext:context,viewport}).promise;signal.throwIfAborted();yield {page:n,dataUrl:canvas.toDataURL('image/png')}}finally{canvas.width=0;canvas.height=0;page.cleanup()}}}finally{signal.removeEventListener('abort',abort);await task.destroy()}
+ try{const doc=await task.promise;if((pages?.size??doc.numPages)>50)throw Error('OCR supports up to 50 PDF pages per file');for(let n=1;n<=doc.numPages;n++){signal.throwIfAborted();if(pages&&!pages.has(n))continue;const page=await doc.getPage(n),original=page.getViewport({scale:1}),viewport=page.getViewport({scale:Math.min(2,1600/Math.max(original.width,original.height))}),canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);try{const context=canvas.getContext('2d');if(!context)throw Error('Unable to render PDF page');await page.render({canvas,canvasContext:context,viewport}).promise;signal.throwIfAborted();yield {page:n,pages:doc.numPages,dataUrl:canvas.toDataURL('image/png')}}finally{canvas.width=0;canvas.height=0;page.cleanup()}}}finally{signal.removeEventListener('abort',abort);await task.destroy()}
 }

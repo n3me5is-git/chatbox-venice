@@ -1,5 +1,14 @@
 # Changelog — Chatbox Venice
 
+## 1.51.0
+
+- Render original PDFs locally in chat files, shared files and knowledge collections, with page and zoom controls.
+- Add local read-only Office content previews while retaining text editing and rendered Markdown exports.
+- Fix mobile collection actions and improve narrow-screen feature panels.
+- Show indexing phases, pages, document readiness, elapsed time and tracked usage estimates.
+- Continue Android indexing in the background, and resume completed vector and metadata work after model failures.
+- Apply concise processing settings to actual OCR and knowledge-model requests; explain encrypted Vision transport limits.
+
 ## 1.50.0
 
 - Open knowledge collections in dedicated Documents, Search and Settings views, with direct access from sidebar tools.

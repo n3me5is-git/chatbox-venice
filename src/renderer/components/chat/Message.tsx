@@ -1335,7 +1335,7 @@ const _Message: FC<Props> = (props) => {
             )}
           >
             {messageContent}
-            {(msg.files || msg.links) && <MessageAttachmentGrid files={msg.files} links={msg.links} align="end" />}
+            {(msg.files || msg.links) && <MessageAttachmentGrid sessionId={sessionId} files={msg.files} links={msg.links} align="end" />}
             {meta}
             {actionButtons}
           </Flex>
@@ -1392,7 +1392,7 @@ const _Message: FC<Props> = (props) => {
           <Flex direction="column" align="flex-start" className="min-w-0 flex-1 max-w-full">
             {stackedAssistantAvatar}
             {messageContent}
-            {(msg.files || msg.links) && <MessageAttachmentGrid files={msg.files} links={msg.links} align="start" />}
+            {(msg.files || msg.links) && <MessageAttachmentGrid sessionId={sessionId} files={msg.files} links={msg.links} align="start" />}
             {meta}
             {messageActions}
           </Flex>
@@ -1463,7 +1463,7 @@ const _Message: FC<Props> = (props) => {
             {stackedAssistantAvatar}
             {messageContent}
             {(msg.files || msg.links) && (
-              <MessageAttachmentGrid files={msg.files} links={msg.links} align={isUserBubble ? 'end' : 'start'} />
+              <MessageAttachmentGrid sessionId={sessionId} files={msg.files} links={msg.links} align={isUserBubble ? 'end' : 'start'} />
             )}
             {meta}
             {messageActions}

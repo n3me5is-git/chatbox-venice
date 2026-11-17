@@ -22,6 +22,10 @@ it('refuses invented quotes/relations and preserves the previous committed gener
  f.extract.mockResolvedValue({summary:'invented',entities:[{name:'Acme',type:'client',quote:'THIS DOES NOT EXIST'}],relations:[],tags:[]})
  await expect(f.engine.index([await doc('a','Apollo still has client Acme.')],settings,new AbortController().signal)).rejects.toThrow('absent');expect(f.data.get('.chatbox/knowledge/index.json')).toBe(before)
 })
+it('omits a tag that joins separated source spans while preserving valid anchored records',async()=>{
+ const f=fixture(),source=await doc('a','Apollo has client Acme.\n\nA separate paragraph describes the schedule.');f.revisions.set('a',source.sourceHash);f.extract.mockResolvedValue({summary:'Project source',entities:[{name:'Apollo',type:'project',quote:'Apollo has client Acme.'}],relations:[],tags:[{key:'valid',value:'client',quote:'Apollo has client Acme.'},{key:'joined',value:'schedule',quote:'Apollo has client Acme. A separate paragraph describes the schedule.'}]})
+ const manifest=await f.engine.index([source],settings,new AbortController().signal);expect(manifest.files[0].warningCount).toBe(1);const result=await f.engine.query({},new AbortController().signal);expect(result.results[0].tags.map(tag=>tag.key)).toEqual(['valid']);expect(result.results[0].omittedTags).toBe(1);expect(result.results[0].omittedRelations).toBe(0)
+})
 it('excludes changed source revisions at query time and checks protection after the last awaited read',async()=>{
  const f=fixture(),a=await doc('a','Apollo has client Acme.');f.revisions.set('a',a.sourceHash);await f.engine.index([a],settings,new AbortController().signal);f.revisions.set('a','changed')
  expect(await f.engine.query({},new AbortController().signal)).toMatchObject({results:[],stale:['a']})
@@ -31,6 +35,16 @@ it('excludes changed source revisions at query time and checks protection after 
 it('cancels without publishing partial metadata or leaking uncommitted aliases',async()=>{
  const f=fixture(),controller=new AbortController();f.extract.mockImplementation(async text=>{controller.abort();return {summary:'',entities:[],relations:[],tags:[]}})
  await expect(f.engine.index([await doc('a','Apollo has client Acme.')],settings,controller.signal)).rejects.toThrow();expect(f.data.size).toBe(0)
+})
+it('keeps completed checkpoint records available after a later failure with immediate-deletion storage',async()=>{
+ const f=fixture(),a=await doc('a','Apollo has client Acme.'),b=await doc('b','Acme is a client of Apollo.');let checkpoint:any
+ const engine=new KnowledgeAugmentationEngine({...f.port,checkpoint:async value=>{checkpoint=structuredClone(value)}})
+ f.extract.mockRejectedValueOnce(Error('retry first')).mockImplementation(async text=>({summary:'Project summary',entities:[],relations:[],tags:[]}))
+ await expect(engine.index([a],settings,new AbortController().signal)).rejects.toThrow('retry first')
+ f.extract.mockClear();f.extract.mockResolvedValueOnce({summary:'Complete first document',entities:[],relations:[],tags:[]}).mockRejectedValueOnce(Error('second timed out'))
+ await expect(engine.index([a,b],settings,new AbortController().signal)).rejects.toThrow('second timed out')
+ expect(checkpoint.files).toHaveLength(1);expect(f.data.has(checkpoint.files[0].alias)).toBe(true);expect(f.data.has('.chatbox/knowledge/index.json')).toBe(false)
+ f.data.set('.chatbox/knowledge/index.json',checkpoint);f.extract.mockClear();await engine.index([a],settings,new AbortController().signal);expect(f.extract).not.toHaveBeenCalled()
 })
 it('covers the entire parsed text in bounded windows, preserves surrogate pairs, and refuses silent truncation',()=>{
  const text='start\n'+'a'.repeat(1993)+'😀'+'b'.repeat(4200),windows=knowledgeWindows(text,2000)

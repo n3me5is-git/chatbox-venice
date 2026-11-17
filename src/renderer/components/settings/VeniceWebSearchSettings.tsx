@@ -12,7 +12,7 @@ export function VeniceWebSearchSettings({ value, onChange }: { value: SearchSett
     <SettingSwitchRow id="venice-global-search-tools" label={ft('Expose separate search engines')}
       description={ft('Give the model separate Brave, Google and Exa search tools through Venice. This applies to Chatbox web search independently of Venice model search.')}
       checked={separate} onChange={enabled => onChange({ veniceSearchToolMode: enabled ? 'separate' : 'selected' })}/>
-    <SettingRow id="venice-search" label={ft('Search engine through Venice')}
+    <SettingRow id="venice-search" label={ft('Search engine through Venice')} controlLayout="block"
       description={ft(separate ? 'Brave, Google and Exa are available as separate tools. The selected engine remains the default for search checks and clients using a single search action.' : 'Uses your Venice provider key. Searches go through Venice and may incur a cost.')}
       control={fieldId => <Select id={fieldId} aria-label={ft('Search engine through Venice')} allowDeselect={false}
         comboboxProps={{ withinPortal: false }} value={value.veniceSearchProvider || 'brave'}

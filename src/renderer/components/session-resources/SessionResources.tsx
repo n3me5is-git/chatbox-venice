@@ -1,3 +1,5 @@
+import {OfficeDocumentViewer,isOfficePreview} from '@/components/common/OfficeDocumentViewer'
+import {PdfDocumentViewer} from '@/components/common/PdfDocumentViewer'
 import { ActionIcon, Alert, Badge, Button, Checkbox, FileButton, FileInput, Group, Loader, MultiSelect, PasswordInput, Stack, Text, Textarea, TextInput } from '@mantine/core'
 import { IconArrowLeft, IconDownload, IconFile, IconFilePlus, IconFolder, IconRefresh, IconTrash, IconUpload } from '@tabler/icons-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -16,7 +18,7 @@ import { LocalMCPSettings } from './LocalMCPSettings'
 import { LocalMediaViewer } from './LocalMediaViewer'
 
 type API=typeof sessionResourceAPI
-export function SessionResources({sessionId,api=sessionResourceAPI,restricted=false,initialPath}:{sessionId:string;api?:API;restricted?:boolean;initialPath?:string}){
+export function SessionResources({sessionId,api=sessionResourceAPI,restricted=false,initialPath,initialResource}:{sessionId:string;api?:API;restricted?:boolean;initialPath?:string;initialResource?:{id:string;key?:string}}){
   useTranslation()
   const [items,setItems]=useState<SessionResource[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[truncated,setTruncated]=useState(false)
   const [selected,setSelected]=useState<SessionResource>(),[text,setText]=useState(''),[url,setUrl]=useState(''),[opening,setOpening]=useState(false),[editing,setEditing]=useState(false),[draft,setDraft]=useState('')
@@ -50,7 +52,7 @@ export function SessionResources({sessionId,api=sessionResourceAPI,restricted=fa
     return()=>{active=false;if(owned)URL.revokeObjectURL(owned);back()}
   },[api,sessionId,selected,clear])
   const initialOpened=useRef<string>()
-  useEffect(()=>{if(initialPath&&!loading&&initialOpened.current!==sessionId+initialPath){initialOpened.current=sessionId+initialPath;setSelected(items.find(item=>item.path===initialPath))}},[initialPath,loading,sessionId,items])
+  useEffect(()=>{const target=initialResource?.id||initialPath;if(target&&!loading&&initialOpened.current!==sessionId+target){initialOpened.current=sessionId+target;const resource=initialResource?items.find(item=>item.id===initialResource.id||initialResource.key&&item.key===initialResource.key):items.find(item=>item.path===initialPath);if(resource)setSelected(resource);else setError('Session file not found')}},[initialPath,initialResource,loading,sessionId,items])
   const run=async(work:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await work();load()}catch(reason){setError(String((reason as Error)?.message||reason))}finally{setBusy(false)}}
   const resolveImage=useCallback(async(path:string)=>{
     const item=items.find(item=>item.path===path)
@@ -87,7 +89,8 @@ export function SessionResources({sessionId,api=sessionResourceAPI,restricted=fa
         :selected.mime==='text/html'?<iframe title={ft('Local file preview')} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={buildWorkArtifactPreview(text)} style={{width:'100%',height:'65vh',border:0}}/>
         :isTextResource(selected)?<pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',margin:0}}>{text}</pre>
         :/^(image|audio|video)\//.test(selected.mime)&&url?<LocalMediaViewer name={selected.name} mime={selected.mime} url={url}/>
-        :selected.mime==='application/pdf'&&platform.isDesktopLike&&url?<iframe title={ft('Local file preview')} src={url} style={{width:'100%',height:'65vh',border:0}}/>
+        :selected.mime==='application/pdf'&&url?<PdfDocumentViewer url={url} name={selected.name}/>
+        :isOfficePreview(selected.name)&&url?<OfficeDocumentViewer url={url} name={selected.name}/>
         :<Text c="dimmed">{ft('Export this file to open it in another app.')}</Text>}
       </div>}
     </>:<>

@@ -80,7 +80,7 @@ export function getVeniceParameters(settings: VeniceSettings = {}) {
 }
 
 // Add vendor options after SDK serialization, for both chat transports and tool calls.
-export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: VeniceSettings, extra?: ProviderModelInfo['extraBody'], model?: ProviderModelInfo, onVerified?: (evidence: ResponseSecurity) => void): typeof globalThis.fetch {
+export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: VeniceSettings, extra?: ProviderModelInfo['extraBody'], model?: ProviderModelInfo, onVerified?: (evidence: ResponseSecurity) => void,onActivity?:()=>void): typeof globalThis.fetch {
   return async (url, init) => {
     assertVeniceEnabled(settings || {})
     const endpoint = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
@@ -102,7 +102,7 @@ export function createVeniceFetch(fetch: typeof globalThis.fetch, settings?: Ven
       requireModelPrivacy(model?.vendorMetadata, settings?.privacyFilter)
       const toolMode=(settings?.e2eeToolsEnabled??((settings?.textPrivacy??'auto')==='auto'&&mode==='e2ee'))?settings?.e2eeToolMode||'encrypted-text':false
       if(mode==='e2ee'&&toolMode==='native'&&Array.isArray(body.tools)&&body.tools.length&&(model?.vendorMetadata?.capabilities as Record<string,unknown>|undefined)?.supportsFunctionCalling!==true)throw new ApiError('This model does not declare native function calling. Choose encrypted text tools or another model.')
-      const response = mode ? await secureVeniceChat(fetch, endpoint, init || {}, body, mode, toolMode, settings?.secureReceiptCompatibility===true) : await fetch(url, { ...init, body: JSON.stringify(body) })
+      const response = mode ? await secureVeniceChat(fetch, endpoint, init || {}, body, mode, toolMode, settings?.secureReceiptCompatibility===true,onActivity) : await fetch(url, { ...init, body: JSON.stringify(body) })
       if (mode && response.ok) {
         const receipt = response.headers.get('X-Chatbox-Secure-Receipt')
         if (receipt === 'payload-bound' || receipt === 'gateway-signature-only') onVerified?.({ mode, receipt, modelId: model?.modelId || String(body.model), tools: mode === 'e2ee' && Array.isArray(body.tools) && body.tools.length ? toolMode || 'none' : 'none', verifiedAt: Date.now(), responses: 1 })
@@ -137,7 +137,7 @@ export default class Venice extends OpenAICompatible {
     this.options = resolved
   }
   protected override getRequestFetch(options?: CallChatCompletionOptions) {
-    return createVeniceFetch(this.options.customFetch || createFetchWithProxy(false, this.dependencies), this.options.venice, this.options.model.extraBody, this.options.model, options?.onSecurityVerification)
+    return createVeniceFetch(this.options.customFetch || createFetchWithProxy(false, this.dependencies), this.options.venice, this.options.model.extraBody, this.options.model, options?.onSecurityVerification,options?.onTransportActivity)
   }
 
   public override async chat(messages: ModelMessage[], options: CallChatCompletionOptions) {

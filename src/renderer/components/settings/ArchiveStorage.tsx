@@ -6,7 +6,7 @@ import platform from '@/platform'
 import { archiveRuntimeFor } from '@/packages/archive-storage/runtime'
 import type { ArchiveState } from '@/packages/archive-storage/engine'
 import { SettingsSection } from './SettingsLayout'
-export function ArchiveStorage(){useTranslation();const runtime=archiveRuntimeFor(platform),[state,setState]=useState<ArchiveState>(),[name,setName]=useState(''),[available,setAvailable]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[selection,setSelection]=useState('internal')
+export function ArchiveStorage({runtime=archiveRuntimeFor(platform)}:{runtime?:ReturnType<typeof archiveRuntimeFor>}={}){useTranslation();const [state,setState]=useState<ArchiveState>(),[name,setName]=useState(''),[available,setAvailable]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[selection,setSelection]=useState('internal')
   const refresh=async()=>{if(!runtime)return;const state=await runtime.engine.state();setState(state);const status=await runtime.disk.status(state.root);setAvailable(status.available);setName(status.name)}
   useEffect(()=>{if(!runtime)return;const notice=sessionStorage.getItem('archive-storage-notice');if(notice){setError(notice);sessionStorage.removeItem('archive-storage-notice')}void refresh().then(()=>runtime.engine.state()).then(state=>setSelection(state.root==='internal'?'internal':'external')).catch(error=>setError(error.message));return runtime.subscribe(()=>{void refresh().catch(error=>setError(error.message))})},[runtime])
   if(!runtime)return null
@@ -33,4 +33,3 @@ export function ArchiveStorage(){useTranslation();const runtime=archiveRuntimeFo
     </>}{error&&<Alert color="red">{ft(error)}</Alert>}
   </Stack></SettingsSection>
 }
-

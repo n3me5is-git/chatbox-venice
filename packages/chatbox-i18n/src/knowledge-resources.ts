@@ -1,3 +1,4 @@
+import {knowledgeWorkflowItalian} from './knowledge-workflow-resources'
 export const knowledgeItalian:Record<string,string>={
  'Collections':'Raccolte',
  'Read document':'Leggi documento',
@@ -63,4 +64,5 @@ export const knowledgeItalian:Record<string,string>={
  'Legacy desktop collections must be migrated on their original device':'Le vecchie raccolte desktop devono essere migrate sul dispositivo originale','Use the encrypted knowledge collection file picker':'Usa il selettore dei documenti della raccolta cifrata','Open legacy desktop manager':'Apri il gestore desktop precedente',
  'Reranking (optional)':'Reranking (facoltativo)','No reranking':'Nessun reranking','The reranker receives your query and matching passages. Changing it requires saving provider consent.':'Il reranker riceve la domanda e i passaggi trovati. Se lo modifichi, devi salvare il consenso all’elaborazione del provider.',
 }
+Object.assign(knowledgeItalian,knowledgeWorkflowItalian)
 export const knowledgeEnglish:Record<string,string>=Object.fromEntries(Object.keys(knowledgeItalian).map(key=>[key,key]))

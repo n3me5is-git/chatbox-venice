@@ -24,15 +24,15 @@ export function encryptConversation(messages: Body[], key: string) {
   return [...system, { role: 'user', content: encryptMessage(content, key) }]
 }
 
-async function boundedText(response: Response) {
+async function boundedText(response: Response,onActivity?:()=>void) {
   if (!response.body) throw new Error('Empty secure response')
   const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let size = 0
-  try { while (true) { const next = await reader.read(); if (next.done) break; size += next.value.byteLength; if (size > MAX_RESPONSE) throw new Error('Secure response exceeds the local verification limit'); chunks.push(next.value) } }
+  try { while (true) { const next = await reader.read();if(!next.done)onActivity?.(); if (next.done) break; size += next.value.byteLength; if (size > MAX_RESPONSE) throw new Error('Secure response exceeds the local verification limit'); chunks.push(next.value) } }
   catch (error) { await reader.cancel().catch(() => {}); throw error }
   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length }
   return new TextDecoder().decode(bytes)
 }
-export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint: string, init: RequestInit, body: Body, mode: 'tee' | 'e2ee', toolMode: false | 'encrypted-text' | 'native' = false, receiptCompatibility = false) {
+export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint: string, init: RequestInit, body: Body, mode: 'tee' | 'e2ee', toolMode: false | 'encrypted-text' | 'native' = false, receiptCompatibility = false,onActivity?:()=>void) {
   const base = endpoint.replace(/\/chat\/completions(?:\?.*)?$/, '')
   const headers = new Headers(init.headers); headers.delete('content-length')
   const nonce = bytesToHex(crypto.getRandomValues(new Uint8Array(32)))
@@ -49,6 +49,10 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     const tools = Array.isArray(body.tools) ? body.tools : []
     const toolChoice = body.tool_choice
     if (pair) {
+      // The encrypted gateway can ignore the legacy max_tokens field. Use the
+      // documented completion budget, including reasoning, before signing bytes.
+      if (request.max_completion_tokens === undefined && typeof request.max_tokens === 'number') request.max_completion_tokens = request.max_tokens
+      delete request.max_tokens
       if (toolMode==='encrypted-text') { delete request.tools; delete request.tool_choice; delete request.parallel_tool_calls }
       if (Object.keys(request).some(key => !safeOptions.has(key) && !(toolMode==='native'&&['tools','tool_choice','parallel_tool_calls'].includes(key)))) throw new Error('E2EE does not allow tool definitions, schemas or additional request fields')
       if(toolMode==='native'){
@@ -66,13 +70,13 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
         const privateMessages = encryptedToolMessages(native.privateMessages, tools, toolChoice)
         request.messages=[...encryptConversation(privateMessages,evidence.signingKey!),...pending]
       }else request.messages = encryptConversation(toolMode==='encrypted-text' ? encryptedToolMessages(body.messages, tools, toolChoice) : body.messages, evidence.signingKey!)
-      request.venice_parameters = { enable_e2ee: true, include_venice_system_prompt: false, enable_web_search: 'off', enable_web_scraping: false, enable_x_search: false, enable_web_citations: false, include_search_results_in_stream: false, strip_thinking_response: true }
+      request.venice_parameters = { enable_e2ee: true, include_venice_system_prompt: false, enable_web_search: 'off', enable_web_scraping: false, enable_x_search: false, enable_web_citations: false, include_search_results_in_stream: false, strip_thinking_response: true, ...(typeof body.venice_parameters?.disable_thinking==='boolean'?{disable_thinking:body.venice_parameters.disable_thinking}:{}) }
       headers.set('X-Venice-TEE-Client-Pub-Key', pair.publicKeyHex); headers.set('X-Venice-TEE-Model-Pub-Key', evidence.signingKey!); headers.set('X-Venice-TEE-Signing-Algo', 'ecdsa')
     }
     const sent = JSON.stringify(request)
     const response = await fetch(endpoint, { ...init, headers, body: sent })
     if (!response.ok) throw new Error(`Venice secure chat failed (HTTP ${response.status}); no plaintext retry was attempted`)
-    const raw = await boundedText(response)
+    const raw = await boundedText(response,onActivity)
     const streaming = (response.headers.get('content-type') || '').includes('text/event-stream')
     let completionId = ''; let plain = '';let encryptedContent=''
     const nativeCalls=new Map<number,Body>()

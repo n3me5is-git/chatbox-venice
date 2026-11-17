@@ -1,4 +1,5 @@
 import { Button } from '@mantine/core'
+import {auditPdf} from './pdf-fixture'
 import { useState } from 'react'
 import { SessionResources } from '../../src/renderer/components/session-resources/SessionResources'
 import { SessionFileStore } from '../../src/shared/session-file-store'
@@ -29,6 +30,8 @@ export function SessionWorkspaceSimulation(){
   const open=async()=>{
     for(const [path,text]of Object.entries({'docs/report.md':initial,'input/data.txt':'Local reference data','scripts/report.js':script,'scripts/analysis.py':'import numpy as np\nfrom pathlib import Path\nprint(float(np.mean([2, 4, 6])))\nPath("python-result.md").write_text("# Python result\\n\\nMean: 4.0")'}))await store.write('workspace-simulation',path,new TextEncoder().encode(text))
     await store.write('workspace-simulation','images/reference.png',Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO/a3k8AAAAASUVORK5CYII='),c=>c.charCodeAt(0)),{mime:'image/png'})
+    await store.write('workspace-simulation','docs/enterprise.pdf',auditPdf(),{mime:'application/pdf'})
+    await store.write('workspace-simulation','docs/office-note.rtf',new TextEncoder().encode('{\\rtf1\\ansi Enterprise Office preview.\\par Local document content.}'),{mime:'application/rtf'})
     ;(window as any).__workspaceCiphertext=()=>[...blobs.values()].join('')
     setOpened(true)
   }

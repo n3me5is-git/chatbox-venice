@@ -1,3 +1,6 @@
+import {IndexingStatus} from './IndexingStatus'
+import {useSettingsStore} from '@/stores/settingsStore'
+import {KnowledgeDocumentViewer} from './KnowledgeDocumentViewer'
 import {collectionDirectories} from '@/packages/knowledge-collections/service'
 import {knowledgeFolderAvailable} from '@/packages/knowledge-collections/linked-folder'
 import {CollectionFolder} from './CollectionFolder'
@@ -32,23 +35,29 @@ import {legacyKnowledgeController} from '@/platform/knowledge-base/portable-cont
 import {lazy,Suspense} from 'react'
 const LegacyManager=lazy(()=>import('./KnowledgeBase'))
 
+const idleSubscribe=()=>()=>{},idleSnapshot=()=>0
 export default function CollectionsPage({service=defaultStore}:{service?:KnowledgeCollections}={}){
+ const [sourceFile,setSourceFile]=useState<number>()
  const [workspaceTab,setWorkspaceTab]=useState<string|null>('documents'),[homeTab,setHomeTab]=useState<string|null>('collections'),[previewKind,setPreviewKind]=useState<'parsed'|'passages'>('passages')
  const [createMode,setCreateMode]=useState('new'),[createFolder,setCreateFolder]=useState(false),[createEncrypted,setCreateEncrypted]=useState(true)
  const store=service
+ useSyncExternalStore(store.progress?.subscribe||idleSubscribe,store.progress?.snapshot||idleSnapshot,store.progress?.snapshot||idleSnapshot)
+ const progressProviders=useSettingsStore(state=>state.providers)
  useTranslation();const client=useQueryClient(),revision=useSyncExternalStore(store.vault.keys.subscribe,store.vault.keys.snapshot,store.vault.keys.snapshot)
  const [intelligence,setIntelligence]=useState(()=>collectionIntelligence({}))
  const [rerankMode,setRerankMode]=useState<'api'|'llm'>('api')
  const [rerankProvider,setRerankProvider]=useState(''),[rerankModel,setRerankModel]=useState('')
  const [graph,setGraph]=useState(false),[mountDialog,setMountDialog]=useState(false),[writeMount,setWriteMount]=useState(false),[allGraphs,setAllGraphs]=useState(false),[graphIds,setGraphIds]=useState<number[]>([]),[globalQuery,setGlobalQuery]=useState(''),[globalResults,setGlobalResults]=useState<Awaited<ReturnType<KnowledgeCollections['searchAcross']>>>()
  const [legacyManager,setLegacyManager]=useState(false)
- const [entries,setEntries]=useState<CollectionSummary[]>([]),[selected,setSelected]=useState<number>(),[detail,setDetail]=useState<CollectionData>(),[index,setIndex]=useState<RagIndex|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[progress,setProgress]=useState(''),[creating,setCreating]=useState(false),[name,setName]=useState(''),[settings,setSettings]=useState<RagSettings>(defaultRagSettings),[ack,setAck]=useState(false),[protection,setProtection]=useState(false),[preview,setPreview]=useState(''),[query,setQuery]=useState(''),[results,setResults]=useState<Awaited<ReturnType<typeof store.search>>>(),[legacy,setLegacy]=useState<KnowledgeBase[]>([])
+ const [entries,setEntries]=useState<CollectionSummary[]>([]),[selected,setSelected]=useState<number>(),[detail,setDetail]=useState<CollectionData>(),[index,setIndex]=useState<RagIndex|null>(null),[error,setError]=useState(''),[operationBusy,setBusy]=useState(false),[progress,setProgress]=useState(''),[creating,setCreating]=useState(false),[name,setName]=useState(''),[settings,setSettings]=useState<RagSettings>(defaultRagSettings),[ack,setAck]=useState(false),[protection,setProtection]=useState(false),[preview,setPreview]=useState(''),[query,setQuery]=useState(''),[results,setResults]=useState<Awaited<ReturnType<typeof store.search>>>(),[legacy,setLegacy]=useState<KnowledgeBase[]>([])
+ const [protectionBusy,setProtectionBusy]=useState(false)
+ const busy=protectionBusy||operationBusy||(selected?store.running(selected):false),indexJob=selected?store.progress?.get(selected):undefined
  useEffect(()=>{let active=true;const update=()=>{if(selected)void Promise.all([store.data(selected),store.indexStatus(selected)]).then(async([data,index])=>{await store.assert(selected);if(active){setDetail(data);setIndex(index)}}).catch(()=>{})};window.addEventListener('knowledge-collections:changed',update);return()=>{active=false;window.removeEventListener('knowledge-collections:changed',update)}},[selected,store])
  const collectionLocked=(entry:CollectionSummary)=>entry.locked||[entry.scope,...entry.pendingScopes||[]].some(scope=>!store.vault.keys.isUnlocked(scope))
  const current=entries.find(item=>item.id===selected),locked=!!current&&(collectionLocked(current)||!!current.directory&&!store.directoryUnlocked(selected!)),readOnly=!!current?.directory&&!current.directory.writable
  const refresh=async()=>{setEntries(await store.list());await client.invalidateQueries({queryKey:['knowledge-bases']})}
  const load=async(id:number,keepDraft=false)=>{const [data,index]=await Promise.all([store.data(id),store.indexStatus(id)]);await store.assert(id);setDetail(data);if(!keepDraft){setName(data.name);setSettings(data.settings);setIntelligence(collectionIntelligence(data));setRerankProvider(data.rerankProvider||'');setRerankModel(data.rerankModel||'');setRerankMode(data.rerankMode||'api');setAck(false)}setIndex(index)}
- useEffect(()=>{let active=true;setDetail(undefined);setPreview('');setResults(undefined);setProtection(false);if(!allGraphs)setGraph(false);void store.list().then(items=>{if(active)setEntries(items)}).catch(error=>{if(active)setError((error as Error).message)});if(selected)void store.data(selected).then(async data=>{const index=await store.indexStatus(selected);if(active){setDetail(data);setName(data.name);setSettings(data.settings);setIndex(index)}}).catch(()=>{});return()=>{active=false}},[selected,revision])
+ useEffect(()=>{let active=true;setDetail(undefined);setSourceFile(undefined);setPreview('');setResults(undefined);setProtection(false);if(!allGraphs)setGraph(false);void store.list().then(items=>{if(active)setEntries(items)}).catch(error=>{if(active)setError((error as Error).message)});if(selected)void store.data(selected).then(async data=>{const index=await store.indexStatus(selected);if(active){setDetail(data);setName(data.name);setSettings(data.settings);setIndex(index)}}).catch(()=>{});return()=>{active=false}},[selected,revision])
  const run=async(work:()=>Promise<void>)=>{setBusy(true);setError('');try{await work();await refresh()}catch(error){setError((error as Error).message)}finally{setBusy(false);setProgress('')}}
  const select=(id:number)=>void run(async()=>{await store.authorize(id);setWorkspaceTab('documents');setSelected(id);await load(id)})
  const addFiles=(files:FileList|null)=>{if(!files||!selected)return;const copied=Array.from(files);void run(async()=>{await store.addMany(selected,copied);await load(selected,true)})}
@@ -63,13 +72,16 @@ export default function CollectionsPage({service=defaultStore}:{service?:Knowled
 
  const dirty=!!detail&&(name!==detail.name||JSON.stringify(settings)!==JSON.stringify(detail.settings)||rerankProvider!==(detail.rerankProvider||'')||rerankModel!==(detail.rerankModel||'')||rerankMode!==(detail.rerankMode||'api')||JSON.stringify(intelligence)!==JSON.stringify(collectionIntelligence(detail)))
  const closeCollection=()=>{if(dirty&&!window.confirm(ft('Discard unsaved collection settings?')))return;setSelected(undefined);setDetail(undefined);setResults(undefined);setPreview('')}
- useOverlayManager(!!selected&&!graph&&!creating&&!protection&&!preview&&!busy,closeCollection)
+ useOverlayManager(!!selected&&!graph&&!creating&&!protection&&!preview&&sourceFile===undefined,closeCollection)
  const removeCollection=()=>{if(selected&&window.confirm(ft(current?.directory?'Unmount this collection? Its folder, sources and database will be kept.':'Delete this collection and all its encrypted documents and vectors?')))void run(async()=>{await store.remove(selected);setSelected(undefined);setDetail(undefined)})}
 
- return <SettingsPage title={ft('Knowledge Base')} description={!selected?ft('Keep documents in collections and use them in any chat.'):undefined} action={!selected?<Group className="feature-panel" gap="xs" grow wrap="wrap"><Button leftSection={<IconPlus size={18}/>} style={{flex:1}} onClick={openCreate} disabled={busy}>{ft('New collection')}</Button>{knowledgeFolderAvailable()&&<Button variant="default" disabled={busy} onClick={()=>{setWriteMount(false);setMountDialog(true)}}>{ft('Open folder collection')}</Button>}</Group>:undefined}>
+ return <SettingsPage title={ft('Knowledge Base')} description={!selected?ft('Keep documents in collections and use them in any chat.'):undefined}>
  <div className="feature-panel"><Stack gap="md">
  {error&&<Alert color="red" role="alert">{ft(error)}</Alert>}
- {busy&&<Group role="status" wrap="wrap"><Loader size="sm"/><Text size="sm">{progress?ft('Indexing file')+': '+progress:ft('Working…')}</Text>{selected&&store.running(selected)&&<Button variant="subtle" color="red" onClick={()=>store.cancel(selected)}>{ft('Stop indexing')}</Button>}</Group>}
+ {indexJob&&!locked&&!!detail&&<IndexingStatus job={indexJob} fileName={detail.files.find(file=>file.path===indexJob.path)?.name} providers={progressProviders} onCancel={()=>store.cancel(selected!)}/>}
+ {busy&&!indexJob&&<Group role="status" wrap="wrap"><Loader size="sm"/><Text size="sm">{protectionBusy?ft('Updating collection protection…'):progress?ft('Indexing file')+': '+progress:ft('Working…')}</Text>{selected&&store.running(selected)&&<Button variant="subtle" color="red" onClick={()=>store.cancel(selected)}>{ft('Stop indexing')}</Button>}</Group>}
+ {!selected&&<SimpleGrid cols={{base:1,sm:2}} spacing="xs" data-testid="knowledge-overview-actions"><Button fullWidth leftSection={<IconPlus size={18}/>} onClick={openCreate} disabled={busy}>{ft('New collection')}</Button>{knowledgeFolderAvailable()&&<Button fullWidth variant="default" disabled={busy} onClick={()=>{setWriteMount(false);setMountDialog(true)}}>{ft('Open folder collection')}</Button>}</SimpleGrid>}
+ {!selected&&entries.filter(entry=>store.running(entry.id)&&!collectionLocked(entry)).map(entry=><Card withBorder key={'progress-'+entry.id}><Stack gap="sm"><Text fw={600}>{entry.name}</Text><Button variant="light" onClick={()=>select(entry.id)}>{ft('Open indexing progress')}</Button></Stack></Card>)}
  {!selected&&<Tabs value={homeTab} onChange={setHomeTab} keepMounted={false}>
   <Tabs.List grow><Tabs.Tab value="collections">{ft('Collections')}</Tabs.Tab><Tabs.Tab value="search">{ft('Search across collections')}</Tabs.Tab></Tabs.List>
   <Tabs.Panel value="collections" pt="md"><Stack gap="md">
@@ -85,7 +97,7 @@ export default function CollectionsPage({service=defaultStore}:{service?:Knowled
  </Tabs>}
  {selected&&detail&&!locked&&<Stack gap="md">
   <Group gap="xs" wrap="nowrap">
-   <ActionIcon size={44} variant="default" aria-label={ft('Back to collections')} disabled={busy} onClick={closeCollection}><IconArrowLeft size={20}/></ActionIcon>
+   <ActionIcon size={44} variant="default" aria-label={ft('Back to collections')} disabled={busy&&!store.running(selected!)} onClick={closeCollection}><IconArrowLeft size={20}/></ActionIcon>
    <Text fw={600} style={{flex:1,minWidth:0,overflowWrap:'anywhere'}}>{detail.name}</Text>
    <Menu withinPortal={false} position="bottom-end" width={260}>
     <Menu.Target><ActionIcon size={44} variant="subtle" aria-label={ft('Collection actions')} disabled={busy}><IconDots size={20}/></ActionIcon></Menu.Target>
@@ -100,7 +112,7 @@ export default function CollectionsPage({service=defaultStore}:{service?:Knowled
   {detail.consented===false&&<Alert color="yellow"><Stack gap="xs"><Text size="sm">{ft('Save provider consent on this device before using this collection')}</Text><Button variant="subtle" onClick={()=>setWorkspaceTab('settings')}>{ft('Review settings')}</Button></Stack></Alert>}
   <Tabs value={workspaceTab} onChange={setWorkspaceTab} keepMounted={false}>
    <Tabs.List grow><Tabs.Tab value="documents">{ft('Documents')}</Tabs.Tab><Tabs.Tab value="search">{ft('Search')}</Tabs.Tab><Tabs.Tab value="settings">{ft('Settings')}</Tabs.Tab></Tabs.List>
-   <Tabs.Panel value="documents" pt="md"><CollectionDocuments key={selected} id={selected} data={detail} index={index} busy={busy} readOnly={readOnly} dirty={dirty} store={store} run={run} reload={()=>load(selected,true)} addFiles={addFiles} onProgress={setProgress} onSettings={()=>setWorkspaceTab('settings')} onPreview={(text,kind)=>{setPreviewKind(kind);setPreview(text||ft('Build the index first'))}}/></Tabs.Panel>
+   <Tabs.Panel value="documents" pt="md"><CollectionDocuments key={selected} id={selected} data={detail} index={index} busy={busy||store.running(selected)} readOnly={readOnly} dirty={dirty} store={store} run={run} reload={()=>load(selected,true)} addFiles={addFiles} onReadSource={setSourceFile} onProgress={setProgress} onSettings={()=>setWorkspaceTab('settings')} onPreview={(text,kind)=>{setPreviewKind(kind);setPreview(text||ft('Build the index first'))}}/></Tabs.Panel>
    <Tabs.Panel value="search" pt="md"><Stack gap="sm">
     <TextInput label={ft('Try semantic search')} value={query} onChange={event=>setQuery(event.currentTarget.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();if(!busy&&query.trim())void run(async()=>setResults(await store.search(selected,query)))}}}/>
     <Button disabled={busy||!query.trim()} variant="light" onClick={()=>void run(async()=>setResults(await store.search(selected,query)))}>{ft('Search indexed files')}</Button>
@@ -136,7 +148,8 @@ export default function CollectionsPage({service=defaultStore}:{service?:Knowled
  {createFolder&&!createEncrypted&&<Alert color="orange">{ft('This folder collection is not encrypted. Anyone with the folder can read its documents and index without a passphrase. App PIN and biometrics only restrict access inside this app.')}</Alert>}
  <Button disabled={busy||!ack||!name.trim()} onClick={()=>void run(async()=>{const id=await store.create(name,settings);if(createFolder){try{await collectionDirectories.migrate(id,{encrypted:createEncrypted});if(!(await store.directoryEntry(id)).directory){await store.remove(id);return}}catch(error){if(!(await store.directoryEntry(id)).directory)await store.remove(id);throw error}}setCreating(false);setSelected(id);await load(id)})}>{ft('Create collection')}</Button></>}
  </Stack></AdaptiveModal>
- <AdaptiveModal opened={protection&&!locked&&!!detail} onClose={()=>setProtection(false)} title={ft('Collection protection')}>{selected&&<CollectionProtection service={store} id={selected} onChanged={()=>{setProtection(false);void run(async()=>{await load(selected)})}}/>}</AdaptiveModal>
+ <AdaptiveModal opened={protection&&!locked&&!!detail} onClose={()=>setProtection(false)} title={ft('Collection protection')}>{selected&&<CollectionProtection service={store} id={selected} onBusyChange={setProtectionBusy} onChanged={async()=>{setProtection(false);await run(async()=>{await load(selected)})}}/>}</AdaptiveModal>
+<AdaptiveModal opened={sourceFile!==undefined&&!locked&&!!detail} onClose={()=>setSourceFile(undefined)} title={ft('Read document')} size="xl">{selected&&sourceFile!==undefined&&!locked&&detail&&<KnowledgeDocumentViewer store={store} id={selected} fileId={sourceFile} onText={text=>{setSourceFile(undefined);setPreviewKind('parsed');setPreview(text)}}/>}</AdaptiveModal>
  <AdaptiveModal opened={!!preview&&!locked&&!!detail} onClose={()=>setPreview('')} title={ft(previewKind==='parsed'?'Open parsed document':'Preview passages')} size="lg">{previewKind==='parsed'&&<Text size="xs" c="dimmed" mb="sm">{ft('Extracted text used for search.')}</Text>}<Text style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{preview}</Text></AdaptiveModal>
  </div></SettingsPage>
 }

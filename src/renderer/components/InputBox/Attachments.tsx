@@ -389,6 +389,7 @@ export function MessageAttachment(props: {
   recoveryAction?: AttachmentRecoveryAction
   onRecover?: () => void
   recovering?: boolean
+  onOpen?: () => void
 }) {
   const {
     label,
@@ -418,6 +419,7 @@ export function MessageAttachment(props: {
   const recoveryLabel = recoveryAction ? (t(recoveryTranslationKey) ?? recoveryTranslationKey) : undefined
 
   const handleClick = async () => {
+    if (props.onOpen) { props.onOpen(); return }
     if (storageKey) {
       let title: string
       if (filename) {
@@ -440,7 +442,7 @@ export function MessageAttachment(props: {
     }
   }
 
-  const isClickable = !!storageKey
+  const isClickable = !!storageKey || !!props.onOpen
   const typeLabel = filename ? getFileTypeLabel(filename, fileType) : ''
   const sizeLabel = formatFileSize(byteLength)
   const parserLabel = filename ? getParserTypeLabel(parserType, t) : undefined
@@ -484,6 +486,8 @@ export function MessageAttachment(props: {
       ? `${label}\n${sessionAttachmentBlockedReason}`
       : showStatus && effectiveIndexStatus === 'failed' && sessionAttachmentError
         ? `${label}\n${sessionAttachmentError}`
+        : props.onOpen
+          ? t('Original document')
         : isClickable
           ? t('Click to view parsed content')
           : label

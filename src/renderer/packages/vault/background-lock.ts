@@ -30,11 +30,13 @@ export function installBackgroundLock({ delaySeconds, lock, trackWindowFocus = t
   }
   const blur = () => { blurred = true; leave() }
   const focus = () => { blurred = false; if (document.visibilityState !== 'hidden') resume() }
+  const workEnded=()=>{if(document.visibilityState==='hidden'){leftAt=undefined;leave()}}
+  window.addEventListener('chatbox:background-work-ended',workEnded)
   document.addEventListener('visibilitychange', visibility)
   if (trackWindowFocus) { window.addEventListener('blur', blur); window.addEventListener('focus', focus) }
   if (document.visibilityState === 'hidden' || blurred) leave()
   return () => {
-    clear(); document.removeEventListener('visibilitychange', visibility)
+    clear();window.removeEventListener('chatbox:background-work-ended',workEnded); document.removeEventListener('visibilitychange', visibility)
     window.removeEventListener('blur', blur); window.removeEventListener('focus', focus)
   }
 }
