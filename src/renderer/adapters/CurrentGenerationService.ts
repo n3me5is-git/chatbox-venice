@@ -187,7 +187,7 @@ async function buildToolsForPausedToolCall(
 
 const dependencies: GenerationServiceDependencies<ModelDependencies> = {
   sessions,
-  publication:{create:async(id,settings,signal)=>settings.knowledgeVerification?.enabled?(await import('@/packages/knowledge-collections/publication')).createChatKnowledgePublication(id,settings,signal):undefined},
+  publication:{create:async(id,settings,signal,prompt)=>settings.knowledgeVerification?.enabled?(await import('@/packages/knowledge-collections/publication')).createChatKnowledgePublication(id,settings,signal,{check:async()=>{},mentionedCollectionIds:prompt&&!prompt.collaborationRequester&&!prompt.collaborationAuthor?(await import('@shared/prompt-mentions')).mentionedKnowledgeIds((await import('@shared/utils/message')).getMessageText(prompt)):[]}):undefined},
   settings: settingsService,
   models: {
     createModel(settings) {

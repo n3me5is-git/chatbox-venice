@@ -1,3 +1,4 @@
+import {pdfPageImages} from './pdf-page-images'
 import { isPdfFilePath } from '@shared/file-extensions'
 import {
   LOCAL_PARSER_FILE_TOO_LARGE_ERROR,
@@ -138,8 +139,8 @@ export async function parsePdfFileLocally(
 }
 
 /** Render bounded scanned pages only when the session owner explicitly enables OCR. */
-export async function* pdfPagesForOcr(file:File,signal:AbortSignal,pages?:ReadonlySet<number>){
+export async function* pdfPagesForOcr(file:File,signal:AbortSignal,pages?:ReadonlySet<number>,options?:{images?:boolean;onlyGraphics?:boolean}){
  const pdfjs=await loadPdfjs(),task=pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())})
  const abort=()=>{void task.destroy()};signal.addEventListener('abort',abort,{once:true})
- try{const doc=await task.promise;if((pages?.size??doc.numPages)>50)throw Error('OCR supports up to 50 PDF pages per file');for(let n=1;n<=doc.numPages;n++){signal.throwIfAborted();if(pages&&!pages.has(n))continue;const page=await doc.getPage(n),original=page.getViewport({scale:1}),viewport=page.getViewport({scale:Math.min(2,1600/Math.max(original.width,original.height))}),canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);try{const context=canvas.getContext('2d');if(!context)throw Error('Unable to render PDF page');await page.render({canvas,canvasContext:context,viewport}).promise;signal.throwIfAborted();yield {page:n,pages:doc.numPages,dataUrl:canvas.toDataURL('image/png')}}finally{canvas.width=0;canvas.height=0;page.cleanup()}}}finally{signal.removeEventListener('abort',abort);await task.destroy()}
+ try{const doc=await task.promise;if(!options?.onlyGraphics&&(pages?.size??doc.numPages)>50)throw Error('OCR supports up to 50 PDF pages per file');for(let n=1;n<=doc.numPages;n++){signal.throwIfAborted();if(pages&&!pages.has(n))continue;const page=await doc.getPage(n);if(options?.onlyGraphics){const operations=await page.getOperatorList(),imageOps=new Set([pdfjs.OPS.paintImageXObject,pdfjs.OPS.paintInlineImageXObject,pdfjs.OPS.paintImageMaskXObject,pdfjs.OPS.paintImageXObjectRepeat]);if(!operations.fnArray.some(op=>imageOps.has(op))&&operations.fnArray.filter(op=>op===pdfjs.OPS.constructPath).length<4){page.cleanup();continue}}const original=page.getViewport({scale:1}),viewport=page.getViewport({scale:Math.min(2,1600/Math.max(original.width,original.height))}),canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);try{const context=canvas.getContext('2d');if(!context)throw Error('Unable to render PDF page');await page.render({canvas,canvasContext:context,viewport}).promise;signal.throwIfAborted();yield {page:n,pages:doc.numPages,dataUrl:canvas.toDataURL('image/png'),...(options?.images?{images:await pdfPageImages(page,pdfjs.OPS,signal)}:{})}}finally{canvas.width=0;canvas.height=0;page.cleanup()}}}finally{signal.removeEventListener('abort',abort);await task.destroy()}
 }

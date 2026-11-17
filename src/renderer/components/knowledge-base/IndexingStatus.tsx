@@ -23,6 +23,7 @@ export function IndexingStatus({job,providers,fileName,onCancel}:{job:IndexJobPr
   <Group justify="space-between"><Text fw={600}>{ft(indexStageLabel[job.stage])}</Text><Badge variant="light">{Math.round(((active?now:job.updated)-job.started)/1000)} s</Badge></Group>
   {job.path&&<Text size="sm" style={{overflowWrap:'anywhere'}}>{fileName||job.path}</Text>}
   <Text size="sm">{ft('Documents with embeddings')}: {ready} / {total}{current?.page?' · '+ft('Page')+' '+current.page+(current.pages?' / '+current.pages:''):''}{current?.batch?' · '+ft('Batch')+' '+current.batch+(current.batches?' / '+current.batches:''):''}</Text>
+  {active&&job.requestLimit!==undefined&&<Text size="xs">{ft('Active model requests')}: {job.activeRequests||0} / {job.requestLimit} · {ft('Queued requests')}: {job.queuedRequests||0}</Text>}
   <Progress value={job.stage==='done'?100:total?100*ready/total:0} animated={active}/>
   {job.stage==='analyzing'&&<Text size="xs" c="dimmed">{ft('Embeddings are ready. The optional knowledge model is extracting summaries and relations; this adds model calls.')}</Text>}
   <details><summary>{ft('Model usage and estimated cost')}</summary><Stack gap="xs" mt="xs">

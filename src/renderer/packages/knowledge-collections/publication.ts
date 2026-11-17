@@ -13,12 +13,12 @@ import {checkKnowledgeAnswer} from './verify'
 
 /** Each run snapshots its declared verifier and selected collections. It never
  * promotes draft URLs or arbitrary MCP/file output into trusted evidence. */
-export interface KnowledgeReviewBoundary {check():Promise<void>;collectionIds?:readonly number[];security?:SessionSettings['veniceSecurity'];approve?(model:NonNullable<SessionSettings['knowledgeVerification']>['model'],answer:string,sources:readonly KnowledgeCheckSource[],correct:boolean):Promise<void>}
+export interface KnowledgeReviewBoundary {check():Promise<void>;mentionedCollectionIds?:readonly number[];collectionIds?:readonly number[];security?:SessionSettings['veniceSecurity'];approve?(model:NonNullable<SessionSettings['knowledgeVerification']>['model'],answer:string,sources:readonly KnowledgeCheckSource[],correct:boolean):Promise<void>}
 export async function createChatKnowledgePublication(sessionId:string,settings:SessionSettings,signal:AbortSignal,boundary?:KnowledgeReviewBoundary){
  if(!settings.knowledgeVerification?.enabled)return undefined
  const cfg=KnowledgeVerificationSettingsSchema.parse(settings.knowledgeVerification)
  if(!cfg.consented||!cfg.model)throw Error('Choose and approve a knowledge verifier first')
- const binding=JSON.stringify(settingsStore.getState().getSettings().providers?.[cfg.model.provider]),primary=uiStore.getState().sessionKnowledgeBaseMap[sessionId]?.id,allowed=new Set([primary,...settings.knowledgeCollectionIds||[]].filter((id):id is number=>typeof id==='number'&&id<0)),policy=JSON.stringify(settings.knowledgeVerification)
+ const binding=JSON.stringify(settingsStore.getState().getSettings().providers?.[cfg.model.provider]),primary=uiStore.getState().sessionKnowledgeBaseMap[sessionId]?.id,allowed=new Set([primary,...settings.knowledgeCollectionIds||[],...boundary?.mentionedCollectionIds||[]].filter((id):id is number=>typeof id==='number'&&id<0)),policy=JSON.stringify(settings.knowledgeVerification)
  const check=async()=>{signal.throwIfAborted();await boundary?.check();const header=(await rendererApplication.sessions.getSessionHeader(sessionId))?.header;if(!header)throw Error('This chat is unavailable');if(JSON.stringify(header.settings?.knowledgeVerification)!==policy)throw Error('Knowledge verification settings changed; retry explicitly');if(JSON.stringify(settingsStore.getState().getSettings().providers?.[cfg.model!.provider])!==binding)throw Error('Knowledge model settings changed; retry explicitly');if(uiStore.getState().sessionKnowledgeBaseMap[sessionId]?.id!==primary||JSON.stringify(header.settings?.knowledgeCollectionIds)!==JSON.stringify(settings.knowledgeCollectionIds))throw Error('Knowledge collections changed; retry explicitly')}
  await check()
  return createKnowledgePublication(async(parts:MessageContentParts)=>{

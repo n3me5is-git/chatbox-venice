@@ -1,3 +1,4 @@
+import {mentionedKnowledgeIds} from '@shared/prompt-mentions'
 import {getFederatedKnowledgeToolSet} from '@/packages/model-calls/toolsets/knowledge-federation'
 import {selectedKnowledgeCollections} from '@shared/knowledge-federation'
 import type { PausedMemoryContext } from '@chatbox/core/application/memory'
@@ -361,7 +362,8 @@ export async function buildToolsForSession(
   const needFileToolSet =
     (hasInlineFileOrLink || hasStoredToolResults || options.fileResourceKeys) && model.isSupportToolUse('read-file')
   const needSessionAttachmentRagToolSet = sessionAttachmentIds.length > 0 && model.isSupportToolUse('read-file')
-  const knowledgeIds=selectedKnowledgeCollections(knowledgeBase?.id,options.sessionSettings?.knowledgeCollectionIds)
+  const mentionMessage=[...messages].reverse().find(message=>message.role==='user'),mentionIds=requester==='owner'&&mentionMessage?mentionedKnowledgeIds(getMessageText(mentionMessage)):[]
+  const knowledgeIds=selectedKnowledgeCollections(knowledgeBase?.id,[...mentionIds,...options.sessionSettings?.knowledgeCollectionIds||[]])
   const kbSupported = knowledgeIds.length>0 && model.isSupportToolUse('knowledge-base')
   const webSupported = !model.usesNativeWebSearch && webBrowsing && model.isSupportToolUse('web-browsing')
   const searchProvider = settingActions.getExtensionSettings().webSearch.provider

@@ -1,5 +1,5 @@
 import {knowledgeJudgePayload,resolveKnowledgeClaimUnits,knowledgeUnitJudgeInstruction} from '@shared/knowledge-claim-units'
-import {knowledgeJudgeInstruction,knowledgeRevisionInstruction,verifyKnowledgeAnswer,type KnowledgeCheckSource,type KnowledgeVerificationSettings} from '@shared/knowledge-verification'
+import {knowledgeRevisionInstruction,verifyKnowledgeAnswer,type KnowledgeCheckSource,type KnowledgeVerificationSettings} from '@shared/knowledge-verification'
 import type {SessionSettings} from '@shared/types'
 import {knowledgeJson} from './llm'
 /** Shared provider adapter for app chat and desktop MCP. No tools or web search in the judge. */

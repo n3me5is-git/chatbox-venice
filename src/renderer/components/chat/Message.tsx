@@ -832,7 +832,7 @@ const _Message: FC<Props> = (props) => {
       )}
     </Box>
   )
-  const statusElements = <MessageStatuses statuses={leadingStatuses} />
+  const statusElements = <MessageStatuses statuses={leadingStatuses} sessionId={sessionId} />
   const errorTipsElement = (
     <MessageErrTips
       msg={msg}

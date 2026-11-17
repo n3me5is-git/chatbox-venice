@@ -1,0 +1,5 @@
+import {expect,it} from 'vitest'
+import {DerivedImageSchema,derivedAssetRoot,derivativeMarkdown,retainedDerivedAsset} from './knowledge-derivatives'
+const owner='11111111-1111-4111-8111-111111111111',alias='.chatbox/knowledge/text/'+owner+'.json',id='a'.repeat(64),image=DerivedImageSchema.parse({id,alias:derivedAssetRoot(alias)+id+'.json',mime:'image/png',bytes:100,kind:'image',page:2})
+it('preserves image ownership during atomic publication and rejects arbitrary paths',()=>{expect(retainedDerivedAsset(image.alias,new Set([alias]))).toBe(true);expect(retainedDerivedAsset(image.alias,new Set())).toBe(false);expect(()=>DerivedImageSchema.parse({...image,alias:'../../secret.png'})).toThrow()})
+it('renders only selected-page image links and does not modify the canonical text',()=>{const text='Exact source quote.',other={...image,page:1,id:'b'.repeat(64)};expect(derivativeMarkdown(text,[image,other],2)).toContain('assets/'+id+'.png');expect(derivativeMarkdown(text,[image,other],2)).not.toContain('b'.repeat(64));expect(text).toBe('Exact source quote.')})

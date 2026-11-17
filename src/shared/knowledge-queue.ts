@@ -5,6 +5,7 @@ type Work<T> = () => Promise<T>
  * Queued work owns no request; abort removes it before dispatch. */
 export class KnowledgeQueue {
  private active=0
+ private paused:unknown
  private waiting:{start:()=>void;reject:(error:unknown)=>void}[]=[]
  constructor(readonly limit:number,private signal:AbortSignal,private report?:IndexProgressReporter){
   if(!Number.isInteger(limit)||limit<1||limit>8)throw Error('Choose between 1 and 8 parallel requests')
@@ -12,11 +13,11 @@ export class KnowledgeQueue {
  }
  private update(){this.report?.({stage:'queue',activeRequests:this.active,queuedRequests:this.waiting.length,requestLimit:this.limit})}
  async run<T>(work:Work<T>):Promise<T>{
-  this.signal.throwIfAborted()
+  this.signal.throwIfAborted();if(this.paused)throw this.paused
   await new Promise<void>((resolve,reject)=>{this.waiting.push({start:()=>{this.active++;resolve()},reject});this.pump()})
-  try{this.signal.throwIfAborted();return await work()}finally{this.active--;this.pump()}
+  try{this.signal.throwIfAborted();return await work()}catch(error){const status=(error as {status?:number;statusCode?:number})?.statusCode||(error as {status?:number})?.status;if(status===429){this.paused=error;for(const row of this.waiting.splice(0))row.reject(error)}throw error}finally{this.active--;this.pump()}
  }
- private pump(){while(!this.signal.aborted&&this.active<this.limit&&this.waiting.length)this.waiting.shift()!.start();this.update()}
+ private pump(){while(!this.signal.aborted&&!this.paused&&this.active<this.limit&&this.waiting.length)this.waiting.shift()!.start();this.update()}
 }
 const runtimes=new WeakMap<AbortSignal,KnowledgeQueue>()
 export const runKnowledgeRequest=<T>(signal:AbortSignal,work:Work<T>)=>runtimes.get(signal)?.run(work)??work()

@@ -350,7 +350,7 @@ export interface GenerationServiceDependencies<TContext> {
   sessions: GenerationSessionPort
   settings: Pick<SettingsRepositoryPort, 'getSettings' | 'updateSettings'>
   models: GenerationModelFactoryPort<TContext>
-  publication?: {create(sessionId:string,settings:SessionSettings,signal:AbortSignal):Promise<KnowledgePublicationPort|undefined>}
+  publication?: {create(sessionId:string,settings:SessionSettings,signal:AbortSignal,prompt?:Message):Promise<KnowledgePublicationPort|undefined>}
   preparation: GenerationPreparationPort<TContext>
   tools: GenerationToolExecutionPort
   coordination: GenerationCoordinationPort
@@ -585,7 +585,7 @@ export class GenerationService<TContext> {
         return
       }
 
-      publication=await this.dependencies.publication?.create(sessionId,settings,controller.signal)
+      publication=await this.dependencies.publication?.create(sessionId,settings,controller.signal,lastUserMessage)
       targetMessage = await sessions.initializeTargetMessage(
         initialTargetMessage,
         settings,

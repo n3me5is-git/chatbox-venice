@@ -1,4 +1,5 @@
 import {forEachKnowledge,withKnowledgeQueue,runKnowledgeRequest,KnowledgeSourceBudget} from './knowledge-queue'
+import type {DerivedImage,DerivedImageSink} from './knowledge-derivatives'
 import type {IndexProgressReporter} from './knowledge-index-progress'
 import {KNOWLEDGE_BASE_MAX_FILE_SIZE,KNOWLEDGE_SOURCE_TOO_LARGE} from './knowledge-base'
 import {ocrFallbackFingerprint} from './virtual-ocr'
@@ -7,7 +8,7 @@ import { RAG_ROOT, RAG_MAX_FILES, RAG_MAX_CHUNKS, RagIndexSchema, chunkRagText, 
 import { RAG_CHUNKER_VERSION } from './rag-chunker'
 export interface RagSource {path:string;name?:string;mime:string;bytes?:number}
 export interface RagInput {text?:string;data?:Uint8Array;mime?:string}
-export interface RagExtracted{text?:string;media?:boolean;warning?:string;kind?:'parsed'|'ocr'|'transcript'|'description'|'metadata'}
+export interface RagExtracted{text?:string;media?:boolean;warning?:string;kind?:'parsed'|'ocr'|'transcript'|'description'|'metadata';assets?:DerivedImage[];assetsVersion?:1;assetWarning?:string}
 export interface RagEnginePort {
   report?:IndexProgressReporter
   sourceMaxBytes?:number
@@ -16,8 +17,9 @@ export interface RagEnginePort {
   portableSpace?:string
   portableDescriptor?:Record<string,unknown>
   list():Promise<RagSource[]>;read(path:string):Promise<Uint8Array>;get(path:string):Promise<unknown|null>;put(path:string,value:unknown):Promise<void>;remove(path:string):Promise<void>
-  extract(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal,authorize?:()=>Promise<void>,report?:IndexProgressReporter):Promise<RagExtracted>
+  extract(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal,authorize?:()=>Promise<void>,report?:IndexProgressReporter,images?:DerivedImageSink):Promise<RagExtracted>
   embed(input:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal,report?:IndexProgressReporter):Promise<number[][]>
+  deriveAssets?(source:RagSource,bytes:Uint8Array,settings:RagSettings,signal:AbortSignal,sink:DerivedImageSink):Promise<{assets:DerivedImage[];assetsVersion:1;assetWarning?:string}>
   revision?(path:string):Promise<string|null>
   check():Promise<void>
 }
@@ -51,7 +53,7 @@ export class SessionRagEngine {
           const textParts=chunkRagText(extracted.text||'').map(part=>({...part,media:false})),parts=extracted.media?[{text:'',line:1,endLine:1,page:undefined as number|undefined,media:true},...textParts]:textParts
           if(!parts.length)return
           reserve(parts.length);reserved=parts.length
-          const entry:RagFile={path:source.path,hash,shards:[],chunks:parts.length,warning:extracted.warning}
+          const entry:RagFile={path:source.path,hash,shards:[],chunks:parts.length,warning:extracted.warning,...(settings.retainImages&&extracted.assetsVersion===1?{imageAssetsVersion:1 as const}:{})}
           // Cache only hashes and shard locations. Old vectors are loaded one shard at
           // a time; a large collection is never duplicated in RAM to save API calls.
           const reusable=new Map<string,{shard:string;id:string;sourceHash:string}>()
