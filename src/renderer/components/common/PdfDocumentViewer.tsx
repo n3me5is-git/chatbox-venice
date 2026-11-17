@@ -1,4 +1,5 @@
-import {Alert,Button,Group,Loader,NumberInput,Stack,Text,TextInput} from '@mantine/core'
+import {IconChevronLeft,IconChevronRight} from '@tabler/icons-react'
+import {Alert,ActionIcon,Button,Group,Loader,NumberInput,Stack,Text,TextInput} from '@mantine/core'
 import {useEffect,useRef,useState} from 'react'
 import type {PDFDocumentProxy,RenderTask} from 'pdfjs-dist'
 import {loadPdfjs} from '@/packages/pdf-parser'
@@ -30,7 +31,7 @@ export function PdfDocumentViewer({url,name,initialPage=1}:{url:string;name:stri
  },[query,pdf])
  return <Stack gap="sm" data-testid="pdf-document-viewer" aria-busy={busy} data-page={page}><Text fw={600} style={{overflowWrap:'anywhere'}}>{name}</Text>
   <Group gap="sm" grow><NumberInput label={ft('Page')} min={1} max={pdf?.numPages||1} value={page} disabled={!pdf} onChange={n=>{if(typeof n==='number'&&Number.isInteger(n))jump(n)}}/><NumberInput label={ft('Zoom (%)')} min={50} max={250} step={25} value={zoom*100} onChange={n=>{if(typeof n==='number')setZoom(Math.min(2.5,Math.max(.5,n/100)))}}/></Group>
-  <Group gap="xs"><Button size="xs" variant="default" disabled={!pdf||page<=1} onClick={()=>jump(page-1)}>{ft('Previous page')}</Button><Text size="xs">{ft('Page')} {page} / {pdf?.numPages||'…'}</Text><Button size="xs" variant="default" disabled={!pdf||page>=pdf.numPages} onClick={()=>jump(page+1)}>{ft('Next page')}</Button></Group>
+  <Group justify="space-between" wrap="nowrap" gap="xs"><ActionIcon size={40} variant="default" aria-label={ft('Previous page')} title={ft('Previous page')} disabled={!pdf||page<=1} onClick={()=>jump(page-1)}><IconChevronLeft size={18}/></ActionIcon><Text size="xs">{ft('Page')} {page} / {pdf?.numPages||'…'}</Text><ActionIcon size={40} variant="default" aria-label={ft('Next page')} title={ft('Next page')} disabled={!pdf||page>=pdf.numPages} onClick={()=>jump(page+1)}><IconChevronRight size={18}/></ActionIcon></Group>
   <TextInput label={ft('Search in document')} value={query} onChange={event=>setQuery(event.currentTarget.value)} rightSection={searching?<Loader size="xs"/>:undefined}/>
   {query.trim()&&!searching&&<Stack gap={4}><Text size="xs">{matches.length?ft('Matching pages')+': '+matches.length:ft('No matching text. Scanned pages may require the extracted OCR text.')}</Text>{matches.length>0&&<><Group gap="xs"><Button size="xs" variant="subtle" disabled={match===0} onClick={()=>{setMatch(match-1);jump(matches[match-1].page)}}>{ft('Previous')}</Button><Text size="xs">{match+1} / {matches.length}</Text><Button size="xs" variant="subtle" disabled={match+1>=matches.length} onClick={()=>{setMatch(match+1);jump(matches[match+1].page)}}>{ft('Next')}</Button></Group><Text size="xs">{matches[match]?.excerpt}</Text></>}</Stack>}
   {busy&&<Loader size="sm" aria-label={ft('Loading document')}/>} {error&&<Alert role="alert" color="red">{error}</Alert>}

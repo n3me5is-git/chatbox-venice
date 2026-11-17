@@ -1,4 +1,4 @@
-import {remarkKnowledgeClaims} from '@shared/knowledge-claim-markdown'
+import {remarkKnowledgeClaims,displayKnowledgeClaims} from '@shared/knowledge-claim-markdown'
 import {KnowledgeAnswerContext,KnowledgeReviewContext,ClaimReviewBadge} from '@/components/knowledge-base/KnowledgeReviewStatus'
 import {KnowledgeCitation} from '@/components/knowledge-base/KnowledgeCitation'
 import {CitationReviewBadge} from '@/components/knowledge-base/KnowledgeReviewStatus'
@@ -171,7 +171,7 @@ function Markdown(props: {
         : [remarkGfm, remarkBreaks, [remarkAddCodeIndex, { generating }]],
     [enableLaTeXRendering, generating]
   )
-  const annotatedPlugins=useMemo<RemarkPlugins>(()=>review&&reviewOffset>=0&&processedChildren===children?[...remarkPlugins,[remarkKnowledgeClaims,{claims:review.claims,offset:reviewOffset}]]:remarkPlugins,[remarkPlugins,review,reviewOffset,processedChildren,children])
+  const annotatedPlugins=useMemo<RemarkPlugins>(()=>review&&reviewOffset>=0?[...remarkPlugins,[remarkKnowledgeClaims,{claims:displayKnowledgeClaims(children,processedChildren,review.claims,reviewOffset,latex.processLaTeX),offset:0,source:processedChildren}]]:remarkPlugins,[remarkPlugins,review,reviewOffset,processedChildren,children])
   const streamingSegments = useStreamingTextSegments(processedChildren, generating, uniqueId)
   const rehypePlugins = useMemo<RehypePlugins>(() => {
     const plugins: RehypePlugins = [rehypeKatex]
