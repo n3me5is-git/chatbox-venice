@@ -1,6 +1,10 @@
+import {ChatKnowledgeSettings} from '../../src/renderer/components/knowledge-base/ChatKnowledgeSettings'
+import {CollectionDerivatives} from '../../src/renderer/components/knowledge-base/CollectionDerivatives'
+import {KnowledgeReviewActivity} from '../../src/renderer/components/knowledge-base/KnowledgeReviewActivity'
+import {reviewActivity} from '../../src/renderer/packages/knowledge-collections/review-activity'
 import {VeniceStudio} from '../../src/renderer/components/venice/VeniceStudio'
 import mediaFixture from '../../test/fixtures/venice/catalog-2026-11-08.json'
-import {auditPdf} from './pdf-fixture'
+import {auditPdf,auditImagePdf} from './pdf-fixture'
 import {PdfDocumentViewer} from '../../src/renderer/components/common/PdfDocumentViewer'
 import type {ProviderSettings} from '../../src/shared/types'
 import {seedLibrary} from './mobile-review'
@@ -73,6 +77,9 @@ function ControlledScreen(){
  const [value,setValue]=useState<any>({}),[intel,setIntel]=useState(()=>collectionIntelligence({augmentation:{enabled:true,keepMarkdown:true,model:{provider:'venice',model:'fixture-private'},windowChars:8000,mediaText:false},retrievalMode:'hybrid'})),[privacy,setPrivacy]=useState<any>(),[enabled,setEnabled]=useState(true)
  if(screen.startsWith('studio-'))return <VeniceStudio service={studioService} options={{audioEnabled:true,videoEnabled:true,musicEnabled:true}} initialKind={screen.slice(7) as any}/>
  switch(screen){
+ case 'knowledge-chat-controls':return <ChatKnowledgeSettings sessionId="new" settings={value} onChange={patch=>setValue({...value,...patch})} primaryId={value.primaryId} onPrimarySelect={kb=>setValue({...value,primaryId:kb?.id})}/>
+ case 'knowledge-checker-trace':return <KnowledgeReviewActivity sessionId="screen-audit"/>
+ case 'knowledge-derived-assets':return <CollectionDerivatives store={knowledgeSimulationStore} id={graphCollection!} fileId={graphFile!}/>
  case 'knowledge-base':return <CollectionsPage service={knowledgeSimulationStore}/>
  case 'pdf-viewer':return <PdfDocumentViewer url={URL.createObjectURL(new Blob([Uint8Array.from(auditPdf()).buffer],{type:'application/pdf'}))} name="Enterprise report.pdf"/>
  case 'knowledge-models':return <KnowledgeModelDefaults/>
@@ -109,6 +116,10 @@ let graphCollection:number|undefined,graphFile:number|undefined,graphEvidence:st
 if(screen==='knowledge-graph'||screen==='knowledge-evidence'){
  graphCollection=await knowledgeSimulationStore.create('Project graph fixture',RagSettingsSchema.parse({provider:'venice',model:'fixture-private-embedding',enabled:true}));graphFile=await knowledgeSimulationStore.add(graphCollection,new File(['Project Aurora has client Acme.'],'project.md',{type:'text/markdown'}));const data=await knowledgeSimulationStore.data(graphCollection);await knowledgeSimulationStore.configure(graphCollection,data.name,data.settings,undefined,undefined,undefined,{augmentation:{enabled:true,keepMarkdown:true,model:{provider:'venice',model:'fixture-private'},windowChars:8000,mediaText:false},retrievalMode:'hybrid'});await knowledgeSimulationStore.index(graphCollection);const row=(await knowledgeSimulationStore.metadata(graphCollection,{})).results[0],anchor=row.relations[0].anchor;graphEvidence=(await knowledgeSimulationStore.citeAnchors(graphCollection,[{fileId:graphFile,sourceHash:row.sourceHash,textHash:row.textHash,start:anchor.start,end:anchor.end}],new AbortController().signal))[0].id
 }
+Object.assign(platform,{getKnowledgeBaseController:()=>({list:async()=>knowledgeSimulationStore.list()})})
+if(screen==='knowledge-chat-controls')await knowledgeSimulationStore.create('Enterprise manuals',RagSettingsSchema.parse({provider:'venice',model:'fixture-embedding'}))
+if(screen==='knowledge-checker-trace')reviewActivity.set('screen-audit','checking','Provider-returned synthetic trace: compare the claim with the quoted source; check whether the dates and amounts match. This is fixture data, not a real provider call.')
+if(screen==='knowledge-derived-assets'){graphCollection=await knowledgeSimulationStore.create('Image derivatives',RagSettingsSchema.parse({provider:'venice',model:'fixture-embedding',enabled:true,retainImages:true}));graphFile=await knowledgeSimulationStore.add(graphCollection,new File([Uint8Array.from(auditImagePdf()).buffer],'diagram.pdf',{type:'application/pdf'}));await knowledgeSimulationStore.index(graphCollection)}
 const modalScreens=new Set(['knowledge-graph','knowledge-evidence','questions','generation-failure','collaboration','transfer','agent-transcript','mcp-session','mcp-application'])
 function Content(){return screen==='knowledge-base'?<ControlledScreen/>:modalScreens.has(screen)?<AdaptiveModal opened onClose={noop} title={ft(screen==='collaboration'?'Collaborative chats':screen==='transfer'?'Send to another device':screen==='questions'?'Question for you':screen==='generation-failure'?'Generation needs attention':screen==='agent-transcript'?'Multi-agent work':screen==='knowledge-evidence'?'Knowledge source':screen==='knowledge-graph'?'Knowledge graph':'MCP server')}><div className="feature-panel"><ControlledScreen/></div></AdaptiveModal>:<SettingsPage title={screen} titleOnTouch><div className="feature-panel"><Stack><ControlledScreen/></Stack></div></SettingsPage>}
 const root=createRootRoute({component:Outlet}),settings=createRoute({getParentRoute:()=>root,path:'/settings',component:SettingsRoute}),page=createRoute({getParentRoute:()=>settings,path:screen,component:Content})

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import {writeFile} from 'node:fs/promises'
 import path from 'node:path'
 
-export const auditedScreens=['knowledge-base','pdf-viewer','studio-speech','studio-transcription','studio-video','studio-music','studio-sound-effects','studio-voice-conversion','knowledge-models','knowledge-intelligence','knowledge-review','knowledge-graph','knowledge-evidence','venice-search','venice-image-settings','venice-modules','venice-profile','subscription','web-search','chat-privacy','e2ee-tools','receipts','approvals','questions','generation-failure','multi-agent-settings','agent-calling-details','agent-transcript','security','library-settings','archive-storage','collaboration','transfer','mcp-session','mcp-application']
+export const auditedScreens=['knowledge-chat-controls','knowledge-checker-trace','knowledge-derived-assets','knowledge-base','pdf-viewer','studio-speech','studio-transcription','studio-video','studio-music','studio-sound-effects','studio-voice-conversion','knowledge-models','knowledge-intelligence','knowledge-review','knowledge-graph','knowledge-evidence','venice-search','venice-image-settings','venice-modules','venice-profile','subscription','web-search','chat-privacy','e2ee-tools','receipts','approvals','questions','generation-failure','multi-agent-settings','agent-calling-details','agent-transcript','security','library-settings','archive-storage','collaboration','transfer','mcp-session','mcp-application']
 
 export async function runMobilePages({cdp,evaluate,click,wait,output,openPage,onStep=()=>{}}){
  const report=[],failures=[]
@@ -31,7 +31,7 @@ export async function runMobilePages({cdp,evaluate,click,wait,output,openPage,on
    if(screen==='pdf-viewer'){
     await wait(()=>evaluate(`document.querySelector('[data-testid="pdf-document-viewer"]')?.getAttribute('aria-busy')==='false'`),'Actual PDF rendering did not finish')
     assert.ok(await evaluate(`(()=>{const c=document.querySelector('[data-testid="pdf-document-viewer"] canvas');if(!c||c.width<=100)return false;const p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;return p.some((v,i)=>i%4!==3&&v<100&&p[i-i%4+3]===255)})()`),'PDF canvas must contain rendered text')
-    const next=variant.lang==='en'?'Next page':'Pagina successiva'
+    const searchLabel=variant.lang==='en'?'Search in document':'Cerca nel documento';await evaluate(`(()=>{const label=[...document.querySelectorAll('label')].find(e=>e.textContent===${JSON.stringify(searchLabel)}),input=document.getElementById(label.htmlFor);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'page 3');input.dispatchEvent(new Event('input',{bubbles:true}))})()`);await wait(()=>evaluate(`document.querySelector('[data-testid="pdf-document-viewer"]').dataset.page==='3'`),'PDF text search did not jump to page 3');await evaluate(`(()=>{const region=document.querySelector('[aria-label="'+(variant.lang==='en'?'Original document':'Documento originale')+'"]');region.scrollTop=0;region.dispatchEvent(new Event('scroll'))})()`);await wait(()=>evaluate(`document.querySelector('[data-testid="pdf-document-viewer"]').dataset.page==='1'`),'Continuous PDF did not return to page1 on scroll');const next=variant.lang==='en'?'Next page':'Pagina successiva'
     await click(find(next));await wait(()=>evaluate(`document.querySelector('[data-testid="pdf-document-viewer"]')?.dataset.page==='2'&&document.querySelector('[data-testid="pdf-document-viewer"]').getAttribute('aria-busy')==='false'`),'PDF page navigation did not render page 2')
    }
    if(screen==='knowledge-graph'){
@@ -40,6 +40,8 @@ export async function runMobilePages({cdp,evaluate,click,wait,output,openPage,on
     await click(`document.querySelector('svg [role="button"]')`)
    }
    if(screen==='knowledge-evidence')await wait(()=>evaluate(`!!document.querySelector('mark')`),'Source quote did not render')
+   if(screen==='knowledge-checker-trace'){await click('document.querySelector(\'summary\')');assert.ok(await evaluate("document.body.innerText.includes('Provider-returned synthetic trace')"),'Checker trace did not expand')}
+   if(screen==='knowledge-derived-assets'){await wait(()=>evaluate("!!document.querySelector('[data-markdown-file] img')&&document.querySelector('[data-markdown-file] img').naturalWidth>0"),'Actual PDF raster derivative did not render from encrypted local storage')}
    if(screen==='knowledge-review'){await click(`document.querySelector('.mantine-Switch-label')`);await wait(()=>evaluate(`!!document.querySelector('.mantine-Checkbox-input')`),'Source review consent controls did not open')}
    if(screen==='venice-image-settings'){await click(find(variant.lang==='en'?'Venice images':'Immagini Venice'));await click(find(variant.lang==='en'?'Advanced image options':'Opzioni avanzate delle immagini'))}
    if(screen==='web-search')assert.ok(await evaluate(`(()=>{const e=document.querySelector('[data-setting-id="venice-search"]'),label=e.querySelector('.settings-row-label').getBoundingClientRect(),control=e.querySelector('.settings-row-control').getBoundingClientRect();return label.width>=innerWidth*.65&&control.y>=label.bottom-1})()`),'Search engine label must remain readable above its control')

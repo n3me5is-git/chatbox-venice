@@ -8,6 +8,7 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({t: (key:string) => key
 vi.mock('@/i18n/fork', () => ({forkT:(key:string)=>key}))
 afterEach(() => {cleanup(); reviewActivity.clear('chat'); reviewActivity.clear('other'); vi.useRealTimers()})
 it('shows only this chat’s provider trace and clears it after review', () => {
+  Object.defineProperty(window,'matchMedia',{configurable:true,value:()=>({matches:false,addEventListener(){},removeEventListener(){}})})
   vi.useFakeTimers()
   reviewActivity.set('other','checking','Another chat’s private trace')
   const view = render(<MantineProvider><KnowledgeReviewActivity sessionId="chat" /></MantineProvider>)

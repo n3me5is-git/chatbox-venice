@@ -31,7 +31,7 @@ export function KnowledgeReviewStatus({value,answer}:{value:unknown;answer:strin
  useEffect(()=>{let active=true;setMatch(undefined);if(report)void knowledgeAnswerHash(answer).then(hash=>{if(active)setMatch(hash===report.answerHash?answer:undefined)});return()=>{active=false}},[answer,report?.answerHash])
  if(!report)return null
  const valid=match===answer
- return <Group gap="xs" wrap="wrap"><Button variant="light" size="xs" color={valid&&report.status==='checked'?'teal':'yellow'} onClick={()=>void openKnowledgeReview(valid?report:{...report,status:'unverified',reason:'invalid_judgment'})}>{valid&&report.status==='checked'?'✅':'❔'} {ft(valid&&report.status==='checked'?'Checked against sources':'Review needs attention')}</Button>{report.revised&&<Text size="xs" c="dimmed">{ft('Answer revised after review')}</Text>}</Group>
+ return <Group gap="xs" wrap="wrap"><Button variant="light" size="xs" color={valid&&report.status==='checked'?'teal':'yellow'} onClick={()=>void openKnowledgeReview(valid?report:{...report,status:'unverified',reason:'invalid_judgment'})}>{valid&&report.status==='checked'?'✅':'❔'} {ft(valid&&report.status==='checked'?'Checked against sources':valid&&report.status==='incomplete'?'Partially checked against sources':'Review needs attention')}</Button>{report.revised&&<Text size="xs" c="dimmed">{ft('Answer revised after review')}</Text>}</Group>
 }
 export function CitationReviewBadge({href}:{href:string|undefined}){
  useTranslation();const report=useContext(KnowledgeReviewContext);if(!report||!href||!/^https?:\/\//.test(href))return null

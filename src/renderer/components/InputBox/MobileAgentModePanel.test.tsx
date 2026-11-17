@@ -67,7 +67,7 @@ vi.mock('@/stores/session/agent-mode', () => ({
 vi.mock('@/stores/uiStore', () => ({
   uiStore: {getState:()=>({newSessionState:mocks.draft,setNewSessionState:mocks.setDraft})},
   useUIStore: (selector: (state: unknown) => unknown) =>
-    selector({ newSessionState: mocks.draft, setNewSessionState: mocks.setDraft, setAgentModeLastSelected: vi.fn() }),
+    selector({ sessionKnowledgeBaseMap:{},newSessionState: mocks.draft, setNewSessionState: mocks.setDraft, setAgentModeLastSelected: vi.fn() }),
 }))
 vi.mock('@/stores/settingsStore', () => ({
   useSettingsStore: (selector: (state: unknown) => unknown) =>

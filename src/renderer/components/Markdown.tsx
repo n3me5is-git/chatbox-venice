@@ -1,4 +1,3 @@
-import {useContext} from 'react'
 import {remarkKnowledgeClaims} from '@shared/knowledge-claim-markdown'
 import {KnowledgeAnswerContext,KnowledgeReviewContext,ClaimReviewBadge} from '@/components/knowledge-base/KnowledgeReviewStatus'
 import {KnowledgeCitation} from '@/components/knowledge-base/KnowledgeCitation'

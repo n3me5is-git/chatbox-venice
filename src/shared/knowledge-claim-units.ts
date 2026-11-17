@@ -2,14 +2,15 @@ import {z} from 'zod'
 import {unified} from 'unified'
 import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import {knowledgeCoverageMask} from './knowledge-coverage'
 import type {KnowledgeCheckSource} from './knowledge-verification'
 
 /** The client assigns exact spans. A verifier returns short IDs, never offsets
  * or a rewritten copy of Markdown. Hashes still bind the original answer. */
 export function knowledgeClaimUnits(answer:string,sources:readonly KnowledgeCheckSource[]){
- const mask=knowledgeCoverageMask(answer,sources),tree=unified().use(remarkParse).use(remarkGfm).parse(answer),ranges:{start:number;end:number}[]=[]
- const walk=(node:any)=>{if(['paragraph','heading','code'].includes(node.type)&&node.position){const start=node.position.start.offset,end=node.position.end.offset,raw=answer.slice(start,end);let from=0;for(const match of raw.matchAll(/[.!?](?:["')*\]]+)?(?=\s|$)|\n\n|$/g)){let a=start+from,b=start+match.index!+match[0].length;from=match.index!+match[0].length;while(a<b&&!mask[a])a++;while(b>a&&!mask[b-1])b--;if(a<b)ranges.push({start:a,end:b})}return}for(const child of node.children||[])walk(child)};walk(tree)
+ const mask=knowledgeCoverageMask(answer,sources),tree=unified().use(remarkParse).use(remarkGfm).use(remarkMath).parse(answer),ranges:{start:number;end:number}[]=[]
+ const walk=(node:any)=>{if(['paragraph','heading','code','tableCell','math','html'].includes(node.type)&&node.position){const start=node.position.start.offset,end=node.position.end.offset,raw=answer.slice(start,end);let from=0;for(const match of raw.matchAll(/[.!?](?:["')*\]]+)?(?=\s|$)|\n\n|$/g)){let a=start+from,b=start+match.index!+match[0].length;from=match.index!+match[0].length;while(a<b&&!mask[a])a++;while(b>a&&!mask[b-1])b--;if(a<b)ranges.push({start:a,end:b})}return}for(const child of node.children||[])walk(child)};walk(tree)
  // Group overflow instead of silently omitting the end of a long answer.
  const grouped:{start:number;end:number}[]=[];const size=Math.max(1,Math.ceil(ranges.length/32));for(let i=0;i<ranges.length;i+=size)grouped.push({start:ranges[i].start,end:ranges[Math.min(ranges.length-1,i+size-1)].end})
  return grouped.map((span,index)=>({...span,id:'C'+(index+1),text:answer.slice(span.start,span.end)}))
