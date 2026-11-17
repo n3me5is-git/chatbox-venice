@@ -41,6 +41,9 @@ jobs:
           node scripts/configure-fork-android.mjs
           node scripts/prepare-paddle-android.mjs --test-models
           pnpm exec cap sync android
+          # The disposable provider is an HTTP service on the emulator host.
+          # This fixture-only asset is rebuilt normally for signed releases.
+          node -e "const fs=require('fs'),p='android/app/src/main/assets/capacitor.config.json',c=JSON.parse(fs.readFileSync(p,'utf8'));c.android={...c.android,allowMixedContent:true};fs.writeFileSync(p,JSON.stringify(c))"
           mkdir -p android/app/src/debug
           echo '<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools"><application android:usesCleartextTraffic="true" tools:replace="android:usesCleartextTraffic" /></manifest>' > android/app/src/debug/AndroidManifest.xml
           chmod +x android/gradlew

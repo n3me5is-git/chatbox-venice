@@ -16,8 +16,9 @@ adb('install','-r','android/app/build/outputs/apk/debug/app-debug.apk')
 adb('shell','pm','grant',app,'android.permission.POST_NOTIFICATIONS')
 adb('shell','am','start','-n',app+'/.MainActivity')
 let socket,serial=0,pending=new Map(),cdp,evaluate,embeddingRequest,started,requestAt
-const server=createServer(async(request,response)=>{let body='';for await(const chunk of request){body+=chunk;if(body.length>1024*1024){response.writeHead(413).end();return}}response.setHeader('Content-Type','application/json');if(request.url.includes('/embeddings')){embeddingRequest={response,body:JSON.parse(body)};requestAt=Date.now()}else response.end(JSON.stringify({data:[{id:'fixture-embedding',type:'embedding',model_spec:{name:'Fixture embedding',privacy:'private'}}]}))});await new Promise(resolve=>server.listen(4176,'127.0.0.1',resolve))
-const report={device:'Android emulator API35',actualProductionApp:true,syntheticProvider:true,cloudModelCalls:0},errors=[]
+const fixtureRequests=[]
+const server=createServer(async(request,response)=>{fixtureRequests.push({method:request.method,path:request.url});response.setHeader('Access-Control-Allow-Origin','*');response.setHeader('Access-Control-Allow-Private-Network','true');response.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');response.setHeader('Access-Control-Allow-Headers',request.headers['access-control-request-headers']||'Authorization, Content-Type');if(request.method==='OPTIONS'){response.writeHead(204).end();return}let body='';for await(const chunk of request){body+=chunk;if(body.length>1024*1024){response.writeHead(413).end();return}}response.setHeader('Content-Type','application/json');if(request.url.includes('/embeddings')){embeddingRequest={response,body:JSON.parse(body)};requestAt=Date.now()}else response.end(JSON.stringify({data:[{id:'fixture-embedding',type:'embedding',model_spec:{name:'Fixture embedding',privacy:'private'}}]}))});await new Promise(resolve=>server.listen(4176,'127.0.0.1',resolve))
+const report={device:'Android emulator API35',actualProductionApp:true,syntheticProvider:true,cloudModelCalls:0,fixtureRequests,networkErrors:[]},errors=[]
 async function wait(check,message,timeout=60000){const end=Date.now()+timeout;while(Date.now()<end){try{const value=await check();if(value)return value}catch{}await delay(150)}throw Error(message)}
 const snap=async name=>{await writeFile(output+'/'+name+'.png',execFileSync('adb',['exec-out','screencap','-p'],{timeout:30000}))}
 try{
@@ -29,6 +30,7 @@ try{
  cdp=(method,params={})=>new Promise((resolve,reject)=>{const id=++serial,timer=setTimeout(()=>{pending.delete(id);reject(Error('CDP timeout '+method))},25000);pending.set(id,{resolve:value=>{clearTimeout(timer);resolve(value)},reject:error=>{clearTimeout(timer);reject(error)}});socket.send(JSON.stringify({id,method,params}))})
  socket.onmessage=event=>{const message=JSON.parse(event.data);if(message.id){const task=pending.get(message.id);if(task){pending.delete(message.id);message.error?task.reject(Error(message.error.message)):task.resolve(message.result)}}
   if(message.method==='Runtime.exceptionThrown')errors.push(message.params.exceptionDetails.exception?.description||message.params.exceptionDetails.text)
+  if(message.method==='Network.loadingFailed')report.networkErrors.push({error:message.params.errorText,blockedReason:message.params.blockedReason,cors:message.params.corsErrorStatus})
   if(message.method==='Runtime.consoleAPICalled'&&message.params.type==='error'){errors.push(message.params.args.map(arg=>arg.value||arg.description||arg.type).join(' '));for(const arg of message.params.args)if(arg.objectId)void cdp('Runtime.callFunctionOn',{objectId:arg.objectId,functionDeclaration:'function(){try{return this instanceof Error?this.stack:JSON.stringify(this)}catch{return String(this)}}',returnByValue:true}).then(result=>errors.push(String(result.result.value).slice(0,3000))).catch(()=>{})}
   if(message.method==='Fetch.requestPaused'){const {requestId,request}=message.params;if(request.url.includes('fixture.invalid')){
     if(request.url.includes('/embeddings')){embeddingRequest={requestId,body:JSON.parse(request.postData)};requestAt=Date.now()}
@@ -36,7 +38,7 @@ try{
    }else void cdp('Fetch.continueRequest',{requestId})}
  }
  evaluate=async expression=>{const result=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text);return result.result.value}
- await cdp('Runtime.enable');await cdp('Page.enable')
+ await cdp('Runtime.enable');await cdp('Page.enable');await cdp('Network.enable')
  }
  await connect()
  await wait(()=>evaluate(`!!window.Capacitor?.nativePromise&&!!document.getElementById('root')?.children.length&&!document.querySelector('.startup-error')`),'Production renderer did not initialize',90000)
@@ -80,7 +82,6 @@ try{
  adb('shell','input','keyevent','3');await delay(1500)
  assert.equal(await evaluate(`window.Capacitor.nativePromise('KnowledgeIndexingBackground','status',{}).then(v=>v.active)`),true,'Foreground service stopped on HOME')
  embeddingRequest.response.end(JSON.stringify({data:embeddingRequest.body.input.map((_,index)=>({index,embedding:[1,0]})),usage:{total_tokens:20}}))
- await wait(()=>evaluate(`!!document.querySelector('[data-testid="indexing-status"]')&&document.querySelector('[data-testid="indexing-status"]').innerText.includes('Indicizzato')`),'Background indexing did not complete')
- assert.equal(await evaluate(`window.Capacitor.nativePromise('KnowledgeIndexingBackground','status',{}).then(v=>v.active)`),false,'Foreground service was not released after completion')
- adb('shell','am','start','-n',app+'/.MainActivity');await delay(500);await snap('native-indexing-completed');report.backgroundIndexingCompleted=true;report.actualKeystoreAndSQLite=true;report.passed=true
+ await wait(()=>evaluate(`window.Capacitor.nativePromise('KnowledgeIndexingBackground','status',{}).then(v=>!v.active)`),'Foreground indexing did not finish while the app was hidden')
+ adb('shell','am','start','-n',app+'/.MainActivity');await wait(()=>evaluate(`!!document.querySelector('[data-testid="indexing-status"]')&&document.querySelector('[data-testid="indexing-status"]').innerText.includes('Indicizzato')`),'Completed background index was not published');await snap('native-indexing-completed');report.backgroundIndexingCompleted=true;report.actualKeystoreAndSQLite=true;report.passed=true
 }catch(error){report.passed=false;report.error=String(error);try{if(cdp)await snap('failure');if(evaluate)report.body=await evaluate('document.body.innerText');report.logcat=adb('logcat','-d','-t','300').slice(-30000)}catch{}throw error}finally{report.browserErrors=errors;await writeFile(output+'/report.json',JSON.stringify(report,null,2));socket?.close();if(embeddingRequest?.response&&!embeddingRequest.response.writableEnded)embeddingRequest.response.end('{}');server.close()}

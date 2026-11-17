@@ -1,4 +1,5 @@
 export const knowledgeWorkflowItalian:Record<string,string>={
+ 'Choose folder':'Scegli cartella',
  'Convert a recording':'Converti una registrazione',
  'Some models continue reasoning despite this request. Productive model streams can run for up to 10 minutes; a silent request stops after 60 seconds. Stop indexing to cancel.':'Alcuni modelli continuano a ragionare nonostante questa richiesta. Una risposta in corso può proseguire fino a 10 minuti; una richiesta senza attività si interrompe dopo 60 secondi. Usa Interrompi indicizzazione per annullare.',
  'Embedding dimensions (optional)':'Dimensioni embedding (facoltative)',
