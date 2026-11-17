@@ -1,3 +1,4 @@
+import {SessionKnowledgeControl} from '@/components/knowledge-base/ChatKnowledgeSettings'
 import { VeniceSearchControl } from '@/components/venice/VeniceSearchControl'
 import { modelPrivacySettings } from '@shared/providers/definitions/models/venice/privacy'
 import { SessionVeniceTools } from '@/components/venice/SessionVeniceTools'
@@ -980,45 +981,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
         <>
           <SubPanelHeader title={t('Knowledge Base')} settingsPath="/knowledge-base" />
           <Divider my={4} />
-          {knowledgeBases && knowledgeBases.length > 0 ? (
-            knowledgeBases.map((kb) => (
-              <Flex
-                key={kb.id}
-                justify="space-between"
-                align="center"
-                px="sm"
-                py={6}
-                className="rounded cursor-pointer hover:bg-[var(--mantine-color-gray-0)] dark:hover:bg-[var(--mantine-color-dark-5)]"
-                onClick={() => {
-                  onKnowledgeBaseSelect(kb.id === currentKnowledgeBaseId ? null : kb)
-                  onClose()
-                }}
-              >
-                <Flex gap="xs" align="center">
-                  <IconFile size={14} />
-                  <Text size="sm" c={kb.id === currentKnowledgeBaseId ? 'chatbox-brand' : ''}>
-                    {kb.name}
-                  </Text>
-                </Flex>
-                {kb.id === currentKnowledgeBaseId && <IconCheck size={14} color="var(--chatbox-tint-brand)" />}
-              </Flex>
-            ))
-          ) : (
-            <Group justify="center" py="md">
-              <Link to="/settings/knowledge-base">
-                <Button
-                  size="xs"
-                  variant="light"
-                  onClick={() => {
-                    onClose()
-                  }}
-                >
-                  <PlusIcon size={14} className="mr-1" />
-                  {t('Create')}
-                </Button>
-              </Link>
-            </Group>
-          )}
+          <SessionKnowledgeControl sessionId={sessionId} primaryId={currentKnowledgeBaseId} onPrimarySelect={onKnowledgeBaseSelect}/>
         </>
       )
     }

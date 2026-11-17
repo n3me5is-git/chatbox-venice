@@ -1,4 +1,4 @@
-export type PromptMentionKind='agent'|'file'|'chat'|'tool'
+export type PromptMentionKind='agent'|'file'|'chat'|'tool'|'knowledge'
 export interface PromptMention {id:string;kind:PromptMentionKind;name:string;description?:string;insert:string}
 export function promptMentionQuery(value:string,cursor:number){
   const before=value.slice(0,cursor),match=/(?:^|[\s(])@([^\s@\[\]()]{0,100})$/.exec(before)
@@ -8,3 +8,5 @@ export function insertPromptMention(value:string,range:{start:number;end:number}
 export function mentionedChatIds(text:string){return [...new Set([...text.matchAll(/\[@[^\]\n]{1,240}\]\(chatbox:chat\/([a-zA-Z0-9_-]{1,100})\)/g)].map(match=>match[1]))].slice(0,8)}
 export function mentionLink(name:string,url:string){return '[@'+name.replace(/[\[\]\n]/g,' ').slice(0,180)+']('+url+')'}
 export function filterPromptMentions(items:PromptMention[],query:string){const search=query.toLowerCase();return items.filter(item=>(item.name+' '+(item.description||'')+' '+item.kind).toLowerCase().includes(search)).slice(0,40)}
+
+export function mentionedKnowledgeIds(text:string){return [...new Set([...text.matchAll(/\[@[^\]\n]{1,240}\]\(chatbox:knowledge\/(-[1-9][0-9]{0,15})\)/g)].map(match=>Number(match[1])).filter(id=>Number.isSafeInteger(id)&&id<0))].slice(0,8)}

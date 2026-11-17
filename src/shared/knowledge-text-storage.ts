@@ -1,7 +1,8 @@
+import {DerivedImageSchema} from './knowledge-derivatives'
 import {z} from 'zod'
 
 const digest=z.string().regex(/^[a-f0-9]{64}$/)
-const fields={kind:z.enum(['parsed','ocr','transcript','description','metadata']),sourceHash:digest,textHash:digest,fingerprint:digest,warning:z.string().max(500).optional()}
+const fields={assets:z.array(DerivedImageSchema).max(96).optional(),assetsVersion:z.literal(1).optional(),assetWarning:z.string().max(500).optional(),kind:z.enum(['parsed','ocr','transcript','description','metadata']),sourceHash:digest,textHash:digest,fingerprint:digest,warning:z.string().max(500).optional()}
 export const KnowledgeTextSchema=z.object({version:z.literal(1),text:z.string().max(512000),...fields}).strict()
 export type KnowledgeText=z.infer<typeof KnowledgeTextSchema>
 const PackedTextSchema=z.object({version:z.literal(2),encoding:z.literal('gzip-base64-v1'),utf8Bytes:z.number().int().min(1).max(2048000),data:z.string().min(1).max(2730700),...fields}).strict()

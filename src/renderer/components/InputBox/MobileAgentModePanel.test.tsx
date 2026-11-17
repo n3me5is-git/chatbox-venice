@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   trackMemory: vi.fn(),
 }))
 vi.mock('@/components/mcp/MCPConnectionSummary', () => ({ MCPConnectionSummary: () => null }))
+vi.mock('@/components/knowledge-base/ChatKnowledgeReview',()=>({ChatKnowledgeReview:()=>null}))
 vi.mock('@/hooks/knowledge-base', () => ({useKnowledgeBases:()=>({data:[]})}))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@capacitor/core', () => ({
@@ -64,8 +65,9 @@ vi.mock('@/stores/session/agent-mode', () => ({
   setSessionAgentMode: mocks.saveMode,
 }))
 vi.mock('@/stores/uiStore', () => ({
+  uiStore: {getState:()=>({newSessionState:mocks.draft,setNewSessionState:mocks.setDraft})},
   useUIStore: (selector: (state: unknown) => unknown) =>
-    selector({ newSessionState: mocks.draft, setNewSessionState: mocks.setDraft, setAgentModeLastSelected: vi.fn() }),
+    selector({ sessionKnowledgeBaseMap:{},newSessionState: mocks.draft, setNewSessionState: mocks.setDraft, setAgentModeLastSelected: vi.fn() }),
 }))
 vi.mock('@/stores/settingsStore', () => ({
   useSettingsStore: (selector: (state: unknown) => unknown) =>

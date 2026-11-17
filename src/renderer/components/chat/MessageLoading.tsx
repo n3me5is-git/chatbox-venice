@@ -1,4 +1,4 @@
-import {forkT as ft} from '@/i18n/fork'
+import {KnowledgeReviewActivity} from '@/components/knowledge-base/KnowledgeReviewActivity'
 import { Group, Text } from '@mantine/core'
 import { Typography } from '@mui/material'
 import type { Message } from '@shared/types'
@@ -13,21 +13,22 @@ import * as settingActions from '@/stores/settingActions'
 import LinkTargetBlank from '../common/Link'
 import { RetryingIndicator } from './RetryingIndicator'
 
-export default function MessageStatuses(props: { statuses: Message['status'] }) {
+export default function MessageStatuses(props: { statuses: Message['status'];sessionId?:string }) {
   const { statuses } = props
+  const currentSessionId=useAtomValue(atoms.currentSessionIdAtom)
   if (!statuses || statuses.length === 0) {
     return null
   }
   return (
     <>
       {statuses.map((status, index) => (
-        <MessageStatus key={index} status={status} />
+        <MessageStatus key={index} status={status} sessionId={props.sessionId||currentSessionId||''}/>
       ))}
     </>
   )
 }
 
-function MessageStatus(props: { status: NonNullable<Message['status']>[number] }) {
+function MessageStatus(props: { status: NonNullable<Message['status']>[number];sessionId:string }) {
   const { status } = props
   const { t } = useTranslation()
   const remoteConfig = useAtomValue(atoms.remoteConfigAtom)
@@ -95,7 +96,7 @@ function MessageStatus(props: { status: NonNullable<Message['status']>[number] }
       </div>
     )
   }
-  if(status.type==='checking_sources')return <LoadingBubble>{ft('Checking sources')}</LoadingBubble>
+  if (status.type === 'checking_sources') return <KnowledgeReviewActivity sessionId={props.sessionId} />
   if (status.type === 'retrying') {
     return <RetryingIndicator status={status} />
   }

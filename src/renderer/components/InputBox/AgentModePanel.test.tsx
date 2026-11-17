@@ -130,6 +130,7 @@ vi.mock('@/analytics/agent-mode', () => ({
   trackWebSearchClick: mocks.trackWebSearchClickMock,
 }))
 
+vi.mock('@/components/knowledge-base/ChatKnowledgeReview',()=>({ChatKnowledgeReview:()=>null}))
 vi.mock('@/hooks/knowledge-base', () => ({
   useKnowledgeBases: mocks.useKnowledgeBasesMock,
 }))
@@ -192,6 +193,7 @@ vi.mock('@/stores/settingsStore', () => ({
 }))
 
 vi.mock('@/stores/uiStore', () => ({
+  uiStore: {getState:()=>mocks.uiState},
   useUIStore: (selector: (state: typeof mocks.uiState) => unknown) => selector(mocks.uiState),
 }))
 
@@ -218,6 +220,7 @@ function renderPanel(props: Partial<ComponentProps<typeof AgentModePanel>> = {})
 }
 
 beforeEach(() => {
+  vi.stubGlobal('ResizeObserver',class {observe(){}unobserve(){}disconnect(){}})
   vi.clearAllMocks()
   mocks.agentModeEntry.value = 'on'
   mocks.knowledgeBases.splice(0)
@@ -503,10 +506,11 @@ describe('AgentModePanel capability availability', () => {
     renderPanel({ onKnowledgeBaseSelect, onClose })
 
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'Knowledge Base' }))
-    fireEvent.click(screen.getByText('Product Docs'))
+    fireEvent.click(screen.getByRole('textbox',{name:'Primary knowledge collection'}))
+    fireEvent.click(screen.getByRole('option',{name:'Product Docs · Legacy'}))
 
     expect(onKnowledgeBaseSelect).toHaveBeenCalledWith({ id: 1, name: 'Product Docs' })
-    expect(onClose).toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   test('keeps all capability rows enabled in Work Mode', () => {

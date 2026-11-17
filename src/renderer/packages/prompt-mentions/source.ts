@@ -10,6 +10,8 @@ import platform from '@/platform'
 export async function loadPromptMentions(sessionId:string,work:boolean,query:string,signal:AbortSignal):Promise<PromptMention[]>{
   const items:PromptMention[]=[],vault=vaultRuntimeFor(platform),targetScope=await vault.projects.sessionScope(sessionId)
   signal.throwIfAborted()
+  // An unavailable KB backend must not disable existing agent/file/tool mentions.
+  try{for(const collection of await platform.getKnowledgeBaseController().list())if(collection.id<0)items.push({kind:'knowledge',id:String(collection.id),name:collection.name,description:'Knowledge collection',insert:mentionLink(collection.name,'chatbox:knowledge/'+collection.id)})}catch{signal.throwIfAborted()}
   if(work){
     for(const agent of await listDedicatedAgents())items.push({kind:'agent',id:agent.id,name:agent.name,description:agent.title,insert:'@'+agent.name})
     for(const [name,tool]of Object.entries(mcpController.getAvailableTools()))items.push({kind:'tool',id:name,name,description:typeof tool.description==='string'?tool.description.slice(0,200):undefined,insert:'@tool:'+name})

@@ -18,3 +18,7 @@ it('shows exact quote and context only after owner authentication and opens loca
 it('labels historical source revisions and removes decrypted content immediately when collection keys change',async()=>{
  store.readEvidence.mockResolvedValue({...source,stale:true});mount();await screen.findByText('Private evidence.');expect((screen.getByRole('button',{name:'Open parsed document'}) as HTMLButtonElement).disabled).toBe(true);expect(screen.getByText(/The source has changed/)).toBeTruthy();store.authorize.mockRejectedValue(Error('Unlock required'));await act(async()=>{revision++;notify()});await waitFor(()=>expect(screen.queryByText('Private evidence.')).toBeNull());expect(await screen.findByRole('alert')).toBeTruthy()
 })
+it('finds literal strings in the displayed excerpt and loaded parsed document',async()=>{
+ mount();await screen.findByText('Private evidence.');fireEvent.change(screen.getByRole('textbox',{name:'Search in displayed source'}),{target:{value:'evidence'}});expect(document.querySelector('mark[data-search-match]')||screen.getByText('evidence')).toBeTruthy()
+ fireEvent.click(screen.getByRole('button',{name:'Open parsed document'}));await screen.findByRole('region',{name:'Parsed document'});fireEvent.change(screen.getByRole('textbox',{name:'Search in displayed source'}),{target:{value:'Context after'}});expect(screen.getByRole('region',{name:'Parsed document'}).textContent).toContain('Context after')
+})

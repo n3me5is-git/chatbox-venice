@@ -1,3 +1,6 @@
+import {remarkKnowledgeClaims,displayKnowledgeClaims} from '@shared/knowledge-claim-markdown'
+import {KnowledgeAnswerContext,KnowledgeReviewContext,ClaimReviewBadge} from '@/components/knowledge-base/KnowledgeReviewStatus'
+import {KnowledgeCitation} from '@/components/knowledge-base/KnowledgeCitation'
 import {CitationReviewBadge} from '@/components/knowledge-base/KnowledgeReviewStatus'
 import {parseKnowledgeEvidenceUrl} from '@shared/knowledge-evidence'
 import { sanitizeUrl } from '@braintree/sanitize-url'
@@ -155,6 +158,7 @@ function Markdown(props: {
     onPreviewWebpage,
   } = props
 
+  const review=useContext(KnowledgeReviewContext),fullAnswer=useContext(KnowledgeAnswerContext),reviewOffset=fullAnswer===children?0:fullAnswer.indexOf(children)===fullAnswer.lastIndexOf(children)?fullAnswer.indexOf(children):-1
   const fallbackId = useId()
   const processedChildren = useMemo(
     () => (enableLaTeXRendering ? latex.processLaTeX(children) : children),
@@ -167,6 +171,7 @@ function Markdown(props: {
         : [remarkGfm, remarkBreaks, [remarkAddCodeIndex, { generating }]],
     [enableLaTeXRendering, generating]
   )
+  const annotatedPlugins=useMemo<RemarkPlugins>(()=>review&&reviewOffset>=0?[...remarkPlugins,[remarkKnowledgeClaims,{claims:displayKnowledgeClaims(children,processedChildren,review.claims,reviewOffset,latex.processLaTeX),offset:0,source:processedChildren}]]:remarkPlugins,[remarkPlugins,review,reviewOffset,processedChildren,children])
   const streamingSegments = useStreamingTextSegments(processedChildren, generating, uniqueId)
   const rehypePlugins = useMemo<RehypePlugins>(() => {
     const plugins: RehypePlugins = [rehypeKatex]
@@ -179,7 +184,7 @@ function Markdown(props: {
     <ImageViewer>
       <ReactMarkdown
         className={`break-words [overflow-wrap:anywhere] ${className || ''}`}
-        remarkPlugins={remarkPlugins}
+        remarkPlugins={annotatedPlugins}
         rehypePlugins={rehypePlugins}
         // react-markdown's default defaultUrlTransform will incorrectly encode query parameters in URLs (e.g. & becomes &amp;)
         // Use sanitizeUrl here to avoid that and to prevent XSS attacks
@@ -209,9 +214,11 @@ function Markdown(props: {
               // Models sometimes hand-write sandbox "download links" (sandbox:/mnt/data/...)
               // instead of calling create_download. Those hrefs are dead — render a file
               // chip that rescues the file from the session sandbox instead.
+              const claim=/^#knowledge-claim-(\d+)$/.exec(href||'');if(claim)return node?.properties?.['data-knowledge-claim']===claim[1]?<ClaimReviewBadge index={Number(claim[1])}/>:<span>{linkChildren}</span>
               const knowledgeReference=parseKnowledgeEvidenceUrl(href)
-              if(knowledgeReference)return <><a href={href} onClick={event=>{event.preventDefault();event.stopPropagation();void import('@/components/knowledge-base/KnowledgeEvidence').then(({openKnowledgeEvidence})=>openKnowledgeEvidence(knowledgeReference)).catch(()=>{})}}>{linkChildren}</a><CitationReviewBadge href={href}/></>
+              if(knowledgeReference)return <><KnowledgeCitation href={href!}/><CitationReviewBadge href={href}/></>
               if(/^https?:\/\/(?:[^/]*@)?chatbox\.invalid(?:[/:]|$)/i.test(href||''))return <span>{linkChildren}</span>
+              const kbReference=/^chatbox:knowledge\/(-[1-9][0-9]{0,15})$/.exec(href||'');if(kbReference)return <span style={{borderRadius:12,padding:'1px 6px',background:'var(--chatbox-background-tertiary)'}}>📚 {linkChildren}</span>
               const chatReference=/^chatbox:chat\/([a-zA-Z0-9_-]{1,100})$/.exec(href||'')
               if(chatReference)return <a href="#" onClick={event=>{event.preventDefault();event.stopPropagation();void import('@/router').then(({router})=>router.navigate({to:'/session/$sessionId',params:{sessionId:chatReference[1]}}))}}>{linkChildren}</a>
               const sandboxTarget = parseSandboxLinkHref(href)

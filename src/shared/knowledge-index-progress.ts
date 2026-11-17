@@ -1,12 +1,12 @@
-export type IndexStage='queued'|'reading'|'extracting'|'ocr'|'transcribing'|'chunking'|'embedding'|'analyzing'|'saving'|'vectors-ready'|'reused'|'done'|'failed'|'cancelled'|'usage'
+export type IndexStage='queued'|'reading'|'extracting'|'ocr'|'transcribing'|'chunking'|'embedding'|'analyzing'|'saving'|'vectors-ready'|'reused'|'done'|'failed'|'cancelled'|'usage'|'queue'
 export interface IndexProgressEvent{
- stage:IndexStage;path?:string;page?:number;pages?:number;batch?:number;batches?:number;chunks?:number
+ stage:IndexStage;activeRequests?:number;queuedRequests?:number;requestLimit?:number;path?:string;page?:number;pages?:number;batch?:number;batches?:number;chunks?:number
  provider?:string;model?:string;inputTokens?:number;outputTokens?:number;estimatedInputTokens?:number;message?:string
 }
 export type IndexProgressReporter=(event:IndexProgressEvent)=>void
 export interface IndexFileProgress{path:string;stage:IndexStage;started:number;updated:number;page?:number;pages?:number;batch?:number;batches?:number;chunks?:number;message?:string;embedded?:boolean}
 export interface IndexUsage{provider:string;model:string;inputTokens:number;outputTokens:number;estimatedInputTokens:number;calls:number;unreportedCalls:number}
-export interface IndexJobProgress{id:number;name:string;stage:IndexStage;started:number;updated:number;path?:string;totalFiles:number;readyFiles:number;files:Record<string,IndexFileProgress>;usage:Record<string,IndexUsage>;error?:string}
+export interface IndexJobProgress{id:number;name:string;stage:IndexStage;started:number;updated:number;path?:string;totalFiles:number;readyFiles:number;files:Record<string,IndexFileProgress>;usage:Record<string,IndexUsage>;activeRequests?:number;queuedRequests?:number;requestLimit?:number;error?:string}
 
 /** Runtime-only progress survives route changes. Content and filenames are never logged. */
 export class IndexProgressRegistry{
@@ -18,7 +18,8 @@ export class IndexProgressRegistry{
  all(){return [...this.jobs.values()]}
  start(id:number,name:string,paths:string[]){const now=Date.now();this.jobs.set(id,{id,name,stage:'queued',started:now,updated:now,totalFiles:paths.length,readyFiles:0,files:Object.fromEntries(paths.map(path=>[path,{path,stage:'queued' as const,started:0,updated:now}])),usage:{}});this.emit(true)}
  report(id:number,event:IndexProgressEvent){const current=this.jobs.get(id);if(!current)return;const now=Date.now(),job={...current,updated:now},path=event.path||current.path
-  if(event.stage==='usage'){const key=event.provider+':'+event.model,old=job.usage[key]||{provider:event.provider||'',model:event.model||'',inputTokens:0,outputTokens:0,estimatedInputTokens:0,calls:0,unreportedCalls:0};job.usage={...job.usage,[key]:{...old,inputTokens:old.inputTokens+(event.inputTokens||0),outputTokens:old.outputTokens+(event.outputTokens||0),estimatedInputTokens:old.estimatedInputTokens+(event.estimatedInputTokens||0),calls:old.calls+1,unreportedCalls:old.unreportedCalls+(event.inputTokens===undefined||event.outputTokens===undefined?1:0)}}}
+  if(event.stage==='queue'){job.activeRequests=event.activeRequests;job.queuedRequests=event.queuedRequests;job.requestLimit=event.requestLimit}
+  else if(event.stage==='usage'){const key=event.provider+':'+event.model,old=job.usage[key]||{provider:event.provider||'',model:event.model||'',inputTokens:0,outputTokens:0,estimatedInputTokens:0,calls:0,unreportedCalls:0};job.usage={...job.usage,[key]:{...old,inputTokens:old.inputTokens+(event.inputTokens||0),outputTokens:old.outputTokens+(event.outputTokens||0),estimatedInputTokens:old.estimatedInputTokens+(event.estimatedInputTokens||0),calls:old.calls+1,unreportedCalls:old.unreportedCalls+(event.inputTokens===undefined||event.outputTokens===undefined?1:0)}}}
   else{job.stage=event.stage;if(path){job.path=path;const old=job.files[path]||{path,started:now,updated:now,stage:event.stage};const embedded=old.embedded||['vectors-ready','reused','done'].includes(event.stage);if(embedded&&!old.embedded)job.readyFiles++;job.files[path]={...old,...event,path,embedded,started:old.started||now,updated:now}}}
   this.jobs.set(id,job);this.emit()
  }

@@ -1,3 +1,4 @@
+import {mentionedKnowledgeIds} from '@shared/prompt-mentions'
 import { collaborationRequester } from '@shared/collaboration'
 import { veniceToolsEnabled } from '@shared/providers/definitions/models/venice/tool-policy'
 import type { Message, SessionSettings, Settings } from '@shared/types'
@@ -44,7 +45,8 @@ export async function extendSessionWorkTools({ sessionId, settings, messages, ba
     if (Object.keys(images).length) instructions += '\nFor image generation in this ChatGPT subscription chat, prefer chatgpt_image. It uses the configured subscription image endpoint and asks for approval. Venice tools remain available when configured; use them if explicitly requested or after the user chooses them. Never switch providers automatically after a failure. Generated images belong to this conversation and its local library.\n'
   }
 
-  if(settings.knowledgeVerification?.enabled){const {getKnowledgeVerifierTools}=await import('./toolsets/knowledge-verifier');Object.assign(tools,await getKnowledgeVerifierTools(sessionId,settings))}
+  const text = messages.filter(message => message.role === 'user' && !message.backgroundTask).at(-1)?.contentParts.filter(part => part.type === 'text').map(part => part.text).join('\n') || ''
+  if(settings.knowledgeVerification?.enabled){const {getKnowledgeVerifierTools}=await import('./toolsets/knowledge-verifier');Object.assign(tools,await getKnowledgeVerifierTools(sessionId,settings,requester==='owner'&&!settings.multiAgentRun?mentionedKnowledgeIds(text):[]))}
 
   const { createAskUserTool } = await import('@shared/user-questions')
   const { requestUserAnswers } = await import('@/components/agent/UserQuestion')
@@ -54,7 +56,7 @@ export async function extendSessionWorkTools({ sessionId, settings, messages, ba
   Object.assign(tools, workspace)
   if (Object.keys(workspace).length) instructions += '\n' + sessionWorkspaceInstructions + '\n'
 
-  const text = messages.filter(message => message.role === 'user' && !message.backgroundTask).at(-1)?.contentParts.filter(part => part.type === 'text').map(part => part.text).join('\n') || ''
+
   if (requester === 'owner' && !settings.multiAgentRun && text.includes('chatbox:chat/')) {
     const { buildMentionedChatTools } = await import('@/packages/prompt-mentions/chat-tool')
     Object.assign(tools, buildMentionedChatTools(sessionId, text))
