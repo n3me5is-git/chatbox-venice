@@ -4,18 +4,20 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import platform from '@/platform'
+import {openSessionResourcePreview} from '@/components/session-resources/FilePreview'
 import * as toastActions from '@/stores/toastActions'
 import { MessageAttachment } from '../InputBox/Attachments'
 
 const COLLAPSED_MAX = 4
 
 interface MessageAttachmentGridProps {
+  sessionId?: string
   files?: MessageFile[]
   links?: MessageLink[]
   align?: 'start' | 'end'
 }
 
-export function MessageAttachmentGrid({ files, links, align = 'start' }: MessageAttachmentGridProps) {
+export function MessageAttachmentGrid({ files, links, sessionId, align = 'start' }: MessageAttachmentGridProps) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const [recoveringIds, setRecoveringIds] = useState<number[]>([])
@@ -135,6 +137,7 @@ export function MessageAttachmentGrid({ files, links, align = 'start' }: Message
                 byteLength={file.byteLength}
                 parserType={file.parserType}
                 storageKey={file.storageKey}
+                onOpen={sessionId && file.rawStorageKey ? () => openSessionResourcePreview(sessionId,{id:'attachment:'+file.id,key:file.rawStorageKey}) : undefined}
                 ragMode={file.ragMode}
                 sessionAttachmentAvailability={
                   file.sessionAttachmentId

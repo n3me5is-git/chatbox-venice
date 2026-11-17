@@ -18,7 +18,7 @@ import { LocalMCPSettings } from './LocalMCPSettings'
 import { LocalMediaViewer } from './LocalMediaViewer'
 
 type API=typeof sessionResourceAPI
-export function SessionResources({sessionId,api=sessionResourceAPI,restricted=false,initialPath}:{sessionId:string;api?:API;restricted?:boolean;initialPath?:string}){
+export function SessionResources({sessionId,api=sessionResourceAPI,restricted=false,initialPath,initialResource}:{sessionId:string;api?:API;restricted?:boolean;initialPath?:string;initialResource?:{id:string;key?:string}}){
   useTranslation()
   const [items,setItems]=useState<SessionResource[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[truncated,setTruncated]=useState(false)
   const [selected,setSelected]=useState<SessionResource>(),[text,setText]=useState(''),[url,setUrl]=useState(''),[opening,setOpening]=useState(false),[editing,setEditing]=useState(false),[draft,setDraft]=useState('')
@@ -52,7 +52,7 @@ export function SessionResources({sessionId,api=sessionResourceAPI,restricted=fa
     return()=>{active=false;if(owned)URL.revokeObjectURL(owned);back()}
   },[api,sessionId,selected,clear])
   const initialOpened=useRef<string>()
-  useEffect(()=>{if(initialPath&&!loading&&initialOpened.current!==sessionId+initialPath){initialOpened.current=sessionId+initialPath;setSelected(items.find(item=>item.path===initialPath))}},[initialPath,loading,sessionId,items])
+  useEffect(()=>{const target=initialResource?.id||initialPath;if(target&&!loading&&initialOpened.current!==sessionId+target){initialOpened.current=sessionId+target;const resource=initialResource?items.find(item=>item.id===initialResource.id||initialResource.key&&item.key===initialResource.key):items.find(item=>item.path===initialPath);if(resource)setSelected(resource);else setError('Session file not found')}},[initialPath,initialResource,loading,sessionId,items])
   const run=async(work:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await work();load()}catch(reason){setError(String((reason as Error)?.message||reason))}finally{setBusy(false)}}
   const resolveImage=useCallback(async(path:string)=>{
     const item=items.find(item=>item.path===path)

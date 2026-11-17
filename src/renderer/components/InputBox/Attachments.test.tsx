@@ -28,6 +28,12 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('FileMiniCard session attachment failure', () => {
+  test('opens a stored original through the chat resource viewer', () => {
+    const onOpen = vi.fn()
+    render(<MantineProvider><MessageAttachment label="source.pdf" filename="source.pdf" storageKey="parsed-source" onOpen={onOpen}/></MantineProvider>)
+    fireEvent.click(screen.getByText('source.pdf'))
+    expect(onOpen).toHaveBeenCalledOnce()
+  })
   test('shows the available action for a missing Chatbox AI account license', async () => {
     const onErrorClick = vi.fn()
     render(
