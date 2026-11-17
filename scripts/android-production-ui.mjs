@@ -55,14 +55,15 @@ try{
  const clickExpression=async expression=>{let box,previous;const end=Date.now()+10000;while(Date.now()<end){const value=await evaluate(`(async()=>{const e=${expression};if(!e||e.disabled)return null;e.scrollIntoView({block:'center',behavior:'instant'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2,hit=document.elementFromPoint(x,y);if(!r.width||!r.height||y<0||y>=innerHeight||!(hit===e||e.contains(hit)))return null;return{x,y}})()`);if(value&&previous&&Math.abs(value.x-previous.x)<.5&&Math.abs(value.y-previous.y)<.5){box=value;break}previous=value;await delay(60)}if(!box)throw Error('Native control missing, disabled or obscured: '+expression);await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[box]});await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})}
  const click=text=>clickExpression(`[...document.querySelectorAll('button')].findLast(e=>e.textContent.trim()===${JSON.stringify(text)})`)
  await click('Nuova raccolta');await wait(()=>evaluate(`!!document.querySelector('[role="dialog"] input')`),'Collection setup did not open')
- await clickExpression(`[...document.querySelectorAll('[role="dialog"] input')].find(e=>e.type==='text'&&e.getClientRects().length)`)
+ report.formInputs=await evaluate(`[...document.querySelectorAll('[role="dialog"] input')].map(e=>{const r=e.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {id:e.id,type:e.type,width:r.width,height:r.height,x:r.x,y:r.y,visibility:getComputedStyle(e).visibility,hit:hit?.tagName,hitClass:hit?.className,label:document.querySelector('label[for="'+CSS.escape(e.id)+'"]')?.textContent}})`)
+ await clickExpression(`[...document.querySelectorAll('[role="dialog"] label')].findLast(e=>e.textContent.trim()==='Nome della raccolta')`)
  await wait(()=>evaluate(`document.activeElement?.tagName==='INPUT'&&document.activeElement.type==='text'`),'Native text input did not gain focus')
  // WebView's CDP insertText acknowledges the command without entering text on
  // some Android system images. Send actual Android input events to its focused field.
  adb('shell','input','text','NativePDFFixture')
  await wait(()=>evaluate(`[...document.querySelectorAll('[role="dialog"] input')].some(e=>e.type==='text'&&e.value==='NativePDFFixture')`),'Native text input did not receive typing')
  await evaluate(`document.activeElement?.blur();window.Capacitor.nativePromise('Keyboard','hide',{}).catch(()=>{})`)
- await clickExpression(`[...document.querySelectorAll('[role="dialog"] .mantine-Checkbox-label')].find(e=>e.getClientRects().length)`)
+ await clickExpression(`[...document.querySelectorAll('[role="dialog"] .mantine-Checkbox-label')].findLast(e=>e.getClientRects().length)`)
  await wait(()=>evaluate(`[...document.querySelectorAll('button')].some(e=>e.textContent.trim()==='Crea raccolta'&&!e.disabled)`),'Native collection consent/name did not enable submission')
  await snap('native-create-ready')
  await click('Crea raccolta');await wait(()=>evaluate(`!!document.querySelector('[data-testid="collection-documents"]')`),'Native encrypted collection was not created')
