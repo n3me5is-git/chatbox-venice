@@ -65,7 +65,7 @@ try{
  adb('shell','input','text','NativePDFFixture')
  await wait(()=>evaluate(`[...document.querySelectorAll('[role="dialog"] input')].some(e=>e.type==='text'&&e.value==='NativePDFFixture')`),'Native text input did not receive typing')
  await evaluate(`document.activeElement?.blur();window.Capacitor.nativePromise('Keyboard','hide',{}).catch(()=>{})`)
- await clickExpression(`[...document.querySelectorAll('[role="dialog"] .mantine-Checkbox-label')].findLast(e=>e.getClientRects().length)`)
+ await clickExpression(`[...document.querySelectorAll('[role="dialog"] .mantine-Checkbox-label')].find(e=>e.textContent.startsWith('Consento ai provider selezionati per embedding/OCR/STT'))`)
  await wait(()=>evaluate(`[...document.querySelectorAll('button')].some(e=>e.textContent.trim()==='Crea raccolta'&&!e.disabled)`),'Native collection consent/name did not enable submission')
  await snap('native-create-ready')
  await click('Crea raccolta');await wait(()=>evaluate(`!!document.querySelector('[data-testid="collection-documents"]')`),'Native encrypted collection was not created')
