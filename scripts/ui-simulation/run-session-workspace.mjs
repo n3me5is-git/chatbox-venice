@@ -9,7 +9,7 @@ export async function runSessionWorkspace({click,evaluate,cdp,wait,byText,byLabe
   const file=name=>`[...document.querySelectorAll('[aria-label="Session file tree"] button')].find(e=>e.textContent.startsWith(${JSON.stringify(name)}))`
   await click(file('enterprise.pdf'))
   await wait(()=>evaluate(`document.querySelector('[data-testid="pdf-document-viewer"]')?.getAttribute('aria-busy')==='false'`),'Chat PDF did not finish rendering')
-  assert.ok(await evaluate(`(()=>{const c=document.querySelector('[data-testid="pdf-document-viewer"] canvas');return c?.width>100&&c.getContext('2d').getImageData(0,0,c.width,c.height).data.some((v,i)=>i%4!==3&&v<100)})()`),'Chat PDF has no rendered text')
+  assert.ok(await evaluate(`(()=>{const c=document.querySelector('[data-testid="pdf-document-viewer"] canvas');if(!c||c.width<=100)return false;const p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;return p.some((v,i)=>i%4!==3&&v<100&&p[i-i%4+3]===255)})()`),'Chat PDF has no rendered text')
   await click(byText('Next page'));await wait(()=>evaluate(`document.querySelector('[data-testid="pdf-document-viewer"]')?.dataset.page==='2'&&document.querySelector('[data-testid="pdf-document-viewer"]').getAttribute('aria-busy')==='false'`),'Chat PDF did not render its second page')
   await writeFile(path.join(output,'session-pdf-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
   await click(byText('All session files'));await click(file('office-note.rtf'))

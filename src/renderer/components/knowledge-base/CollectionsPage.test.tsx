@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import {MantineProvider} from '@mantine/core'
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query'
-import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
+import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {RagSettingsSchema} from '@shared/session-rag'
-const state=vi.hoisted(()=>({addMany:vi.fn(),mount:vi.fn(),migrate:vi.fn(),directoryEntry:vi.fn(),remove:vi.fn(),list:vi.fn(),create:vi.fn(),data:vi.fn(),authorize:vi.fn(),configure:vi.fn(),index:vi.fn(),lock:vi.fn(),status:vi.fn(),locked:false,revision:0,notify:()=>{}}))
+const state=vi.hoisted(()=>({addMany:vi.fn(),mount:vi.fn(),migrate:vi.fn(),directoryEntry:vi.fn(),remove:vi.fn(),list:vi.fn(),create:vi.fn(),data:vi.fn(),authorize:vi.fn(),configure:vi.fn(),index:vi.fn(),lock:vi.fn(),status:vi.fn(),locked:false,revision:0,notify:()=>{},finishProtection:async()=>{}}))
 vi.mock('@/stores/settingsStore',()=>({useSettingsStore:(selector:any)=>selector({providers:{}}),settingsStore:{getState:()=>({getSettings:()=>({defaultVirtualRerankModel:{provider:'private',model:'small-ranker'}})})}}))
 vi.mock('@/platform',()=>({default:{type:'mobile'}}))
 vi.mock('@/packages/session-rag/defaults',()=>({defaultRagSettings:()=>RagSettingsSchema.parse({provider:'venice',model:'private-embedding'})}))
@@ -14,7 +14,7 @@ vi.mock('@/components/settings/SettingsLayout',()=>({SettingsPage:({children,act
 vi.mock('@/components/common/AdaptiveModal',()=>({AdaptiveModal:({opened,children}:any)=>opened?<div role="dialog">{children}</div>:null}))
 vi.mock('@/packages/knowledge-collections/linked-folder',()=>({knowledgeFolderAvailable:()=>true}))
 vi.mock('./CollectionFolder',()=>({CollectionFolder:()=>null}))
-vi.mock('./CollectionProtection',()=>({CollectionProtection:({onChanged}:any)=><button onClick={onChanged}>Apply simulated protection</button>}))
+vi.mock('./CollectionProtection',()=>({CollectionProtection:({onChanged,onBusyChange}:any)=><><button onClick={onChanged}>Apply simulated protection</button><button onClick={()=>{onBusyChange?.(true);state.finishProtection=async()=>{await onChanged();onBusyChange?.(false)};state.revision++;state.notify()}}>Begin simulated rewrap</button></>}))
 vi.mock('@/components/ModelSelectorV2',()=>({ModelSelectorV2:({children,onSelect}:any)=><div>{children}<button onClick={()=>onSelect('gemini','gemini-embedding-2')}>Use native multimodal</button></div>}))
 import CollectionsPage from './CollectionsPage'
 beforeEach(()=>{vi.clearAllMocks();state.mount.mockResolvedValue(-2);state.migrate.mockResolvedValue(undefined);state.directoryEntry.mockResolvedValue({directory:{uuid:'fixture'}});state.remove.mockResolvedValue(undefined);state.authorize.mockResolvedValue(undefined);state.locked=false;state.revision=0;const settings=RagSettingsSchema.parse({provider:'venice',model:'private-embedding',enabled:true});state.list.mockResolvedValue([]);state.create.mockResolvedValue(-1);state.data.mockResolvedValue({version:1,name:'Manuals',settings,files:[]});state.status.mockResolvedValue(null);Object.defineProperty(window,'matchMedia',{configurable:true,value:()=>({matches:false,addListener(){},removeListener(){},addEventListener(){},removeEventListener(){}})});vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})})
@@ -71,4 +71,12 @@ it('blocks collection actions until protection changes have finished reloading',
  fireEvent.click(screen.getByRole('button',{name:'Apply simulated protection'}));expect((screen.getByRole('button',{name:'Collection actions'}) as HTMLButtonElement).disabled).toBe(true)
  complete({version:1,name:'Manuals',settings:RagSettingsSchema.parse({provider:'venice',model:'private-embedding',enabled:true}),files:[]})
  await waitFor(()=>expect((screen.getByRole('button',{name:'Collection actions'}) as HTMLButtonElement).disabled).toBe(false));expect(screen.queryByRole('status')).toBeNull()
+})
+
+it('retains protection busy ownership when key creation dismisses its panel before rewrap commits',async()=>{
+ state.list.mockResolvedValue([{id:-1,scope:'public',name:'Manuals',locked:false}]);mount();fireEvent.click(await screen.findByRole('button',{name:'Open collection'}));await screen.findByTestId('collection-documents');await waitFor(()=>expect(screen.queryByRole('status')).toBeNull())
+ fireEvent.click(screen.getByRole('button',{name:'Collection actions'}));fireEvent.click(await screen.findByRole('menuitem',{name:'Collection protection'}));fireEvent.click(await screen.findByRole('button',{name:'Begin simulated rewrap'}))
+ await waitFor(()=>expect(screen.queryByRole('button',{name:'Begin simulated rewrap'})).toBeNull());await screen.findByTestId('collection-documents');expect((screen.getByRole('button',{name:'Collection actions'}) as HTMLButtonElement).disabled).toBe(true);expect(screen.getByText('Updating collection protection…')).toBeTruthy()
+ state.list.mockResolvedValue([{id:-1,scope:'knowledge:-1',name:'Manuals',locked:false}]);await act(async()=>state.finishProtection())
+ await waitFor(()=>expect((screen.getByRole('button',{name:'Collection actions'}) as HTMLButtonElement).disabled).toBe(false));fireEvent.click(screen.getByRole('button',{name:'Collection actions'}));expect(await screen.findByRole('menuitem',{name:'Lock now'})).toBeTruthy()
 })

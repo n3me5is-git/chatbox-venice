@@ -30,7 +30,7 @@ export async function runMobilePages({cdp,evaluate,click,wait,output,openPage,on
    await wait(()=>evaluate(`window.__screenAuditReady===${JSON.stringify(screen)}&&!!document.querySelector('button,input,textarea,[role="tab"],details')`),'Production screen did not render: '+screen)
    if(screen==='pdf-viewer'){
     await wait(()=>evaluate(`document.querySelector('[data-testid="pdf-document-viewer"]')?.getAttribute('aria-busy')==='false'`),'Actual PDF rendering did not finish')
-    assert.ok(await evaluate(`(()=>{const c=document.querySelector('[data-testid="pdf-document-viewer"] canvas');return c?.width>100&&c.getContext('2d').getImageData(0,0,c.width,c.height).data.some((v,i)=>i%4!==3&&v<100)})()`),'PDF canvas must contain rendered text')
+    assert.ok(await evaluate(`(()=>{const c=document.querySelector('[data-testid="pdf-document-viewer"] canvas');if(!c||c.width<=100)return false;const p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;return p.some((v,i)=>i%4!==3&&v<100&&p[i-i%4+3]===255)})()`),'PDF canvas must contain rendered text')
     const next=variant.lang==='en'?'Next page':'Pagina successiva'
     await click(find(next));await wait(()=>evaluate(`document.querySelector('[data-testid="pdf-document-viewer"]')?.dataset.page==='2'&&document.querySelector('[data-testid="pdf-document-viewer"]').getAttribute('aria-busy')==='false'`),'PDF page navigation did not render page 2')
    }
