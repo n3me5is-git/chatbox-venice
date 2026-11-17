@@ -4,7 +4,7 @@ import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/reac
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 vi.mock('@/packages/knowledge-collections/service',()=>({knowledgeCollections:{}}))
 import {CollectionProtection} from './CollectionProtection'
-beforeEach(()=>{Object.defineProperty(window,'matchMedia',{configurable:true,value:()=>({matches:false,addEventListener(){},removeEventListener(){}})});vi.stubGlobal('ResizeObserver',class{observe(){}disconnect(){}})})
+beforeEach(()=>{Object.defineProperty(window,'matchMedia',{configurable:true,value:()=>({matches:false,addEventListener(){},removeEventListener(){}})});vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})})
 afterEach(()=>{cleanup();vi.unstubAllGlobals()})
 function deferred(){let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done});return{promise,resolve}}
 function service(protect:()=>Promise<void>){return{list:async()=>[{id:-1,scope:'public'}],protect,vault:{keys:{capabilities:async()=>({biometric:true}),status:async()=>({biometric:false}),isUnlocked:()=>true}}} as any}
