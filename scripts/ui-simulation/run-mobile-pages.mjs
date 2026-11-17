@@ -40,7 +40,7 @@ export async function runMobilePages({cdp,evaluate,click,wait,output,openPage,on
     await click(`document.querySelector('svg [role="button"]')`)
    }
    if(screen==='knowledge-evidence')await wait(()=>evaluate(`!!document.querySelector('mark')`),'Source quote did not render')
-   if(screen==='knowledge-review'){await click(`document.querySelector('input[role="switch"]')`);await wait(()=>evaluate(`!!document.querySelector('.mantine-Checkbox-input')`),'Source review consent controls did not open')}
+   if(screen==='knowledge-review'){await click(`document.querySelector('.mantine-Switch-label')`);await wait(()=>evaluate(`!!document.querySelector('.mantine-Checkbox-input')`),'Source review consent controls did not open')}
    if(screen==='venice-image-settings'){await click(find(variant.lang==='en'?'Venice images':'Immagini Venice'));await click(find(variant.lang==='en'?'Advanced image options':'Opzioni avanzate delle immagini'))}
    if(screen==='web-search')assert.ok(await evaluate(`(()=>{const e=document.querySelector('[data-setting-id="venice-search"]'),label=e.querySelector('.settings-row-label').getBoundingClientRect(),control=e.querySelector('.settings-row-control').getBoundingClientRect();return label.width>=innerWidth*.65&&control.y>=label.bottom-1})()`),'Search engine label must remain readable above its control')
    await capture(screen,variant.name)

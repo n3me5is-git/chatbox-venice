@@ -55,6 +55,10 @@ describe('Venice encrypted text transport (simulated enclave)',()=>{
  it('preserves explicit thinking controls through encryption while keeping remote search disabled',async()=>{
   const f=fixture();await secureVeniceChat(f.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{}, {...body,venice_parameters:{disable_thinking:true,enable_web_search:'on',enable_x_search:true}},'e2ee');expect(JSON.parse(f.sent()).venice_parameters).toMatchObject({disable_thinking:true,enable_web_search:'off',enable_x_search:false,enable_e2ee:true});expect(f.sent()).not.toContain('Private instructions')
  })
+ it('sends the E2EE completion budget before serializing the authenticated request',async()=>{
+  const f=fixture();await secureVeniceChat(f.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{}, {...body,max_tokens:512},'e2ee');expect(JSON.parse(f.sent()).max_completion_tokens).toBe(512);expect(JSON.parse(f.sent())).not.toHaveProperty('max_tokens')
+  const explicit=fixture();await secureVeniceChat(explicit.api as typeof fetch,'https://api.venice.ai/api/v1/chat/completions',{}, {...body,max_tokens:512,max_completion_tokens:256},'e2ee');expect(JSON.parse(explicit.sent()).max_completion_tokens).toBe(256);expect(JSON.parse(explicit.sent())).not.toHaveProperty('max_tokens')
+ })
  it.each([['private result body'],[''],[null],[[{type:'text',text:'private result body'}]]])('protects pending native tool bodies and preserves empty content: %j',async content=>{
   const f=fixture()
   const messages=[...body.messages,{role:'assistant',content:null,tool_calls:[{id:'pending-1',type:'function',function:{name:'local_echo',arguments:'{"text":"public argument"}'}}]},{role:'tool',name:'local_echo',tool_call_id:'pending-1',content}]

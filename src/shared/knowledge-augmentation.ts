@@ -4,7 +4,9 @@ export const KNOWLEDGE_ANALYSIS_VERSION=2
 export const KnowledgeAugmentationSchema=z.object({enabled:z.boolean().default(false),model:KnowledgeModelSchema.optional(),reasoning:z.enum(['auto','concise']).optional(),keepMarkdown:z.boolean().default(false),mediaText:z.boolean().default(false),windowChars:z.number().int().min(2000).max(12000).default(8000)}).strict()
 export type KnowledgeAugmentation=z.infer<typeof KnowledgeAugmentationSchema>
 const label=z.string().trim().min(1).max(160),quote=z.string().min(3).max(800)
-export const KnowledgeExtractionSchema=z.object({summary:z.string().max(600),entities:z.array(z.object({name:label,type:label,quote}).strict()).max(32),relations:z.array(z.object({subject:label,predicate:label,object:label,quote}).strict()).max(48),tags:z.array(z.object({key:label,value:label,quote}).strict()).max(32)}).strict()
+/** Summaries are bounded previews; exact evidence quotes are never shortened. */
+export function compactKnowledgeSummary(value:string){if(value.length<=600)return value;let prefix=value.slice(0,599);if(/[\uD800-\uDBFF]/.test(prefix.at(-1)||''))prefix=prefix.slice(0,-1);const sentence=Math.max(prefix.lastIndexOf('. '),prefix.lastIndexOf('! '),prefix.lastIndexOf('? '));if(sentence>=300)prefix=prefix.slice(0,sentence+1);else{const space=prefix.lastIndexOf(' ');if(space>=500)prefix=prefix.slice(0,space)}return prefix.trimEnd()+'…'}
+export const KnowledgeExtractionSchema=z.object({summary:z.string().max(12000).transform(compactKnowledgeSummary),entities:z.array(z.object({name:label,type:label,quote}).strict()).max(32),relations:z.array(z.object({subject:label,predicate:label,object:label,quote}).strict()).max(48),tags:z.array(z.object({key:label,value:label,quote}).strict()).max(32)}).strict()
 export type KnowledgeExtraction=z.infer<typeof KnowledgeExtractionSchema>
 export type KnowledgeAnchor={start:number;end:number;quote:string}
 export type KnowledgeEntity={id:string;name:string;type:string;anchor:KnowledgeAnchor}

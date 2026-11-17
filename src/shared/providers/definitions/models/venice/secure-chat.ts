@@ -49,6 +49,10 @@ export async function secureVeniceChat(fetch: typeof globalThis.fetch, endpoint:
     const tools = Array.isArray(body.tools) ? body.tools : []
     const toolChoice = body.tool_choice
     if (pair) {
+      // The encrypted gateway can ignore the legacy max_tokens field. Use the
+      // documented completion budget, including reasoning, before signing bytes.
+      if (request.max_completion_tokens === undefined && typeof request.max_tokens === 'number') request.max_completion_tokens = request.max_tokens
+      delete request.max_tokens
       if (toolMode==='encrypted-text') { delete request.tools; delete request.tool_choice; delete request.parallel_tool_calls }
       if (Object.keys(request).some(key => !safeOptions.has(key) && !(toolMode==='native'&&['tools','tool_choice','parallel_tool_calls'].includes(key)))) throw new Error('E2EE does not allow tool definitions, schemas or additional request fields')
       if(toolMode==='native'){
