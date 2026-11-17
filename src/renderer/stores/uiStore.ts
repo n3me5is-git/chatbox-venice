@@ -92,6 +92,8 @@ export const uiStore = createStore(
         currentWebBrowsingDisplay: { sessionId: '', value: false } as { sessionId: string; value: boolean },
         sessionKnowledgeBaseMap: {} as Record<string, Pick<KnowledgeBase, 'id' | 'name'> | undefined>,
         newSessionState: {} as {
+          knowledgeCollectionIds?: import('@shared/types').SessionSettings['knowledgeCollectionIds']
+          knowledgeVerification?: import('@shared/types').SessionSettings['knowledgeVerification']
           knowledgeBase?: Pick<KnowledgeBase, 'id' | 'name'>
           webBrowsing?: boolean
           veniceProfile?: import('@shared/types').SessionSettings['veniceProfile']

@@ -174,7 +174,7 @@ export class KnowledgeCollections {
     // Only cache shards owned by this authorized job reach this callback. Cleanup must
     // survive cancellation/locking; it neither decrypts nor deletes source documents.
     remove:async path=>{if(!/^\.chatbox\/rag\/data\/[a-f0-9-]+\.json$/.test(path))throw Error('Invalid RAG index');await (await this.records(id)).remove(prefix(id)+path)},
-    extract:(source,bytes,cfg,sig,_authorize,report)=>this.adapters.extract(source,bytes,cfg,sig,check,report),embed:async(inputs,query,cfg,sig)=>{await check();const result=await (query&&queryEmbed?queryEmbed:this.adapters.embed)(inputs,query,cfg,sig,port.report);await check();return result},
+    extract:(source,bytes,cfg,sig,_authorize,report)=>this.adapters.extract(source,bytes,cfg,sig,check,report),embed:async(inputs,query,cfg,sig,report)=>{await check();const result=await (query&&queryEmbed?queryEmbed:this.adapters.embed)(inputs,query,cfg,sig,report||port.report);await check();return result},
   };return port}
   private async engine(id:number,settings:RagSettings,signal:AbortSignal){return new SessionRagEngine(await this.ragPort(id,settings,signal,undefined,false,undefined,true))}
   private async pipeline(id:number,data:CollectionData,signal:AbortSignal,localOnly=false,queryEmbed?:RagEnginePort['embed'],track=false){

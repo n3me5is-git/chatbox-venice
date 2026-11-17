@@ -5,7 +5,7 @@ import {ragFingerprint} from '@shared/session-rag-engine'
 import { ActionIcon, Alert, Badge, Button, Card, Group, Stack, Text, TextInput } from '@mantine/core'
 import { FeatureMenu as Menu } from '@/components/common/FeatureMenu'
 import { IconChevronLeft, IconChevronRight, IconDots, IconFileText, IconPlus, IconSearch } from '@tabler/icons-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { forkT as ft } from '@/i18n/fork'
 import type { CollectionData, KnowledgeCollections } from '@/packages/knowledge-collections/store'
 import type { RagIndex } from '@shared/session-rag'
@@ -13,17 +13,20 @@ import type { RagIndex } from '@shared/session-rag'
 export function CollectionDocuments({ id, data, index, busy, readOnly, dirty, store, run, reload, addFiles, onPreview, onReadSource, onSettings, onProgress }: {
   id: number; data: CollectionData; index: RagIndex | null; busy: boolean; readOnly: boolean; dirty: boolean
   store: KnowledgeCollections; run: (work: () => Promise<void>) => Promise<void>; reload: () => Promise<void>
-  addFiles: (files: FileList | null) => void
+  addFiles: (files: FileList | File[] | null) => void
   onPreview: (text: string, kind: 'parsed' | 'passages') => void; onSettings: () => void
   onReadSource: (fileId: number) => void
   onProgress: (path: string) => void
 }) {
+  const [dragging,setDragging]=useState(false),dragDepth=useRef(0)
+  const filesDragged=(event:React.DragEvent)=>Array.from(event.dataTransfer.types).includes('Files')
   const [filter, setFilter] = useState(''), [requestedPage, setPage] = useState(0)
   const matching = useMemo(() => data.files.filter(file => (file.linkedPath || file.name).toLocaleLowerCase().includes(filter.toLocaleLowerCase())), [data.files, filter])
   const pages = Math.max(1, Math.ceil(matching.length / 50)), page = Math.min(requestedPage, pages - 1)
   const indexedFiles=useMemo(()=>new Map(index?.files.map(file=>[file.path,file])||[]),[index]),failedFiles=useMemo(()=>new Set(index?.errors.map(file=>file.path)||[]),[index]),indexCurrent=index?.fingerprint===ragFingerprint(data.settings)
   const indexDisabled = busy || readOnly || dirty
-  return <Stack gap="md" data-testid="collection-documents">
+  return <Stack gap="md" data-testid="collection-documents" onDragEnter={event=>{if(!filesDragged(event))return;event.preventDefault();dragDepth.current++;if(!busy&&!readOnly)setDragging(true)}} onDragOver={event=>{if(!filesDragged(event))return;event.preventDefault();event.dataTransfer.dropEffect=busy||readOnly?"none":"copy"}} onDragLeave={event=>{if(!filesDragged(event))return;event.preventDefault();if(--dragDepth.current<=0){dragDepth.current=0;setDragging(false)}}} onDrop={event=>{if(!filesDragged(event))return;event.preventDefault();event.stopPropagation();dragDepth.current=0;setDragging(false);if(!busy&&!readOnly)addFiles(Array.from(event.dataTransfer.files))}}>
+    {dragging&&<Alert color="blue" role="status">{ft('Drop documents to add them to this collection')}</Alert>}
     <Group gap="xs"><Badge variant="light">{data.files.length} {ft('Documents')}</Badge><Badge variant="light">{index?.files.reduce((sum, file) => sum + file.chunks, 0) || 0} {ft('Passages')}</Badge></Group>
     <div className="feature-actions">
       <Button component="label" leftSection={<IconPlus size={18}/>} disabled={busy || readOnly}>

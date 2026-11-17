@@ -1,0 +1,36 @@
+name: Knowledge workflow review
+on:
+  pull_request:
+    paths: ['src/shared/knowledge-claim-units*', 'src/shared/knowledge-queue*', 'scripts/knowledge-live/claim-units.ts', '.github/workflows/knowledge-workflow-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: knowledge-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build credential-free live verification module
+        run: |
+          mkdir -p test-results/knowledge-review
+          pnpm exec esbuild scripts/knowledge-live/claim-units.ts --bundle --platform=node --format=esm --target=node22 --outfile=test-results/knowledge-review/claims.mjs
+          printf '%s\n' "$GITHUB_SHA" > test-results/knowledge-review/source.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Knowledge-Review-Live-Module
+          path: test-results/knowledge-review/
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+      - name: Deterministic queue and statement verification regressions
+        run: pnpm exec vitest run src/shared/knowledge-queue.test.ts src/shared/knowledge-claim-units.test.ts src/shared/knowledge-verification.test.ts

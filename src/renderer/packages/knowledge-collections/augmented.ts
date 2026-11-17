@@ -1,3 +1,4 @@
+import {withKnowledgeQueue,runKnowledgeRequest} from '@shared/knowledge-queue'
 import {knowledgeWindowCache} from './window-cache'
 import {ocrFallbackFingerprint} from '@shared/virtual-ocr'
 import {z} from 'zod'
@@ -22,7 +23,8 @@ export class AugmentedCollectionIndex{
  constructor(private storage:AugmentedPort,private base:RagEnginePort,private files:{id:number;path:string;mime:string}[],private extract:(text:string,settings:KnowledgeAugmentation,signal:AbortSignal)=>Promise<unknown>){}
  async state(){await this.storage.check();const raw=await this.storage.get(CURRENT);return raw?KnowledgeStateSchema.parse(raw):null}
  vectorPort(snapshot:KnowledgeState|null):RagEnginePort{return {...this.base,get:path=>path===INDEX&&snapshot?Promise.resolve(snapshot.vector):this.base.get(path)}}
- async index(settings:RagSettings,configuration:KnowledgeAugmentation,signal:AbortSignal,progress:(path:string)=>void,rebuild=false){
+ async index(settings:RagSettings,configuration:KnowledgeAugmentation,signal:AbortSignal,progress:(path:string)=>void,rebuild=false){return withKnowledgeQueue(signal,settings.indexConcurrency??1,scoped=>this.build(settings,configuration,scoped,progress,rebuild),this.base.report)}
+ private async build(settings:RagSettings,configuration:KnowledgeAugmentation,signal:AbortSignal,progress:(path:string)=>void,rebuild:boolean){
   const cfg=KnowledgeAugmentationSchema.parse(configuration),previous=await this.state(),created=new Set<string>(),garbage=new Set<string>(),texts=new Map<string,z.infer<typeof TextRef>>(),previousText=new Map(previous?.derivatives.map(ref=>[ref.fileId,ref])||[]),parseFingerprint=await parsingFingerprint(settings),analysisFingerprint=await knowledgeAnalysisFingerprint(cfg)
   const rawAnalysis=await this.storage.get(ANALYSIS_STAGING),analysisStage=rawAnalysis?AnalysisStaging.parse(rawAnalysis):null
   const rawStage=await this.storage.get(STAGING),oldStage=rawStage?StagingSchema.parse(rawStage):null,stage=!rebuild&&oldStage?.vector.fingerprint===ragFingerprint(settings)&&oldStage.vector.embeddingSpace===this.base.embeddingSpace?oldStage:null
@@ -30,13 +32,13 @@ export class AugmentedCollectionIndex{
   let vector=stage?.vector||previous?.vector||null,metadata:KnowledgeAnalysisManifest|null=rebuild?null:previous?.metadata||null
   if(!rebuild&&analysisStage?.analysisFingerprint===analysisFingerprint){const rows=new Map((metadata?.files||[]).map(file=>[file.fileId,file]));for(const file of analysisStage.metadata.files)rows.set(file.fileId,file);metadata={...analysisStage.metadata,files:[...rows.values()]}}
   const put=async(path:string,value:unknown)=>{await this.storage.check();const stored=path.startsWith(ROOT+'text/')?await packKnowledgeText(value):value;signal.throwIfAborted();await this.storage.check();await this.storage.put(path,stored);created.add(path)}
-  const parsed=async(source:RagSource,bytes:Uint8Array,options:RagSettings):ReturnType<RagEnginePort['extract']>=>{
+  const parsed=async(source:RagSource,bytes:Uint8Array,options:RagSettings,_signal=signal,_authorize?:()=>Promise<void>,report=this.base.report):ReturnType<RagEnginePort['extract']>=>{
    const native=source.mime.startsWith('image/')&&options.images||source.mime.startsWith('audio/')&&options.audio;if(native&&!options.describeImages&&!options.fileMetadata)return {media:true}
    const sourceFingerprint=/\.pdf$/i.test(source.path)?await parsingFingerprint(options,true):parseFingerprint
    const incompleteNative=native&&(source.mime.startsWith('image/')?options.ocr&&!options.describeImages:options.stt),representationFingerprint=incompleteNative?await ragHash(new TextEncoder().encode(JSON.stringify([sourceFingerprint,'metadata-only-native-v1']))):sourceFingerprint
    const file=this.files.find(file=>file.path===source.path);if(!file)throw Error('Knowledge document not found');const fileId=String(file.id),sourceHash=await ragHash(bytes),old=texts.get(fileId)||previousText.get(fileId)
    if((texts.has(fileId)||!rebuild)&&old?.sourceHash===sourceHash&&old.fingerprint===representationFingerprint){const cached=await unpackKnowledgeText(await this.storage.get(old.alias));if(cached.fingerprint!==old.fingerprint||cached.kind!==old.kind||cached.textHash!==old.textHash||cached.sourceHash!==sourceHash||await ragHash(new TextEncoder().encode(cached.text))!==cached.textHash)throw Error('Invalid knowledge text revision');const ref={...old,retain:cfg.keepMarkdown||old.kind!=='parsed'};texts.set(fileId,ref);return {text:cached.text,warning:cached.warning,kind:cached.kind,...(native?{media:true}:{})}}
-   const extracted=await this.base.extract(source,bytes,options,signal,undefined,this.base.report),result={...extracted,...(extracted.text!==undefined?{text:extracted.text.replace(/\r\n?/g,'\n')}:{})};signal.throwIfAborted();await this.storage.check()
+   const extracted=await this.base.extract(source,bytes,options,signal,undefined,report),result={...extracted,...(extracted.text!==undefined?{text:extracted.text.replace(/\r\n?/g,'\n')}:{})};signal.throwIfAborted();await this.storage.check()
    if(result.text!==undefined){if(result.text.length>512000)throw Error('Knowledge text exceeds the analysis limit');const kind=result.kind||'parsed',retain=cfg.keepMarkdown||kind!=='parsed',textHash=await ragHash(new TextEncoder().encode(result.text))
     // Plain UTF-8 sources can be reparsed cheaply. Other parsers get a temporary
     // encrypted derivative, reused in this generation and discarded if not kept.
@@ -54,7 +56,7 @@ export class AugmentedCollectionIndex{
      const bytes=await base.read(file.path);try{if(await ragHash(bytes)!==file.hash)throw Error('Knowledge source changed during indexing');const options=native?{...settings,images:false,audio:false}:settings,result=await parsed(source,bytes,options);if(result.media||!result.text?.trim())continue;yield {fileId:String(source.id),sourceHash:file.hash,text:result.text,retainText:false}}finally{bytes.fill(0)}
     }}
     const cache=knowledgeWindowCache(this.storage)
-    const engine=new KnowledgeAugmentationEngine({checkpoint:async metadata=>{await this.storage.check();await this.storage.put(ANALYSIS_STAGING,{analysisFingerprint,metadata})},cachedWindow:rebuild?undefined:cache.get,cacheWindow:async(key,value,fileId)=>cache.put(key,KnowledgeExtractionSchema.parse(value),fileId),get:async<T>(path:string)=>path===META?metadata as T|null:this.storage.get<T>(path),put:async(path,value)=>{if(path===META)metadata=KnowledgeAnalysisManifestSchema.parse(value);else await put(path,value)},remove:async path=>{garbage.add(path)},check:()=>this.storage.check(),report:this.base.report,extract:this.extract,revision:async fileId=>vector!.files.find(file=>this.files.find(source=>String(source.id)===fileId)?.path===file.path)?.hash||null})
+    const engine=new KnowledgeAugmentationEngine({checkpoint:async metadata=>{await this.storage.check();await this.storage.put(ANALYSIS_STAGING,{analysisFingerprint,metadata})},cachedWindow:rebuild?undefined:cache.get,cacheWindow:async(key,value,fileId)=>cache.put(key,KnowledgeExtractionSchema.parse(value),fileId),get:async<T>(path:string)=>path===META?metadata as T|null:this.storage.get<T>(path),put:async(path,value)=>{if(path===META)metadata=KnowledgeAnalysisManifestSchema.parse(value);else await put(path,value)},remove:async path=>{garbage.add(path)},check:()=>this.storage.check(),report:this.base.report,extract:(text,cfg,sig)=>runKnowledgeRequest(sig,()=>this.extract(text,cfg,sig)),revision:async fileId=>vector!.files.find(file=>this.files.find(source=>String(source.id)===fileId)?.path===file.path)?.hash||null})
     // Text is stored once as a derivative, never duplicated in graph records.
     metadata=await engine.index(documents(),{...cfg,keepMarkdown:false},signal)
    }else metadata=null

@@ -1,0 +1,8 @@
+import {Button,Group,Stack,Switch,Text} from '@mantine/core'
+import {ModelSelectorV2} from '@/components/ModelSelectorV2'
+import {settingsStore} from '@/stores/settingsStore'
+import {forkT as ft} from '@/i18n/fork'
+export function globalCollectionReranker(){const settings=settingsStore.getState().getSettings(),ref=settings.defaultRerankModel||settings.defaultVirtualRerankModel;return{mode:settings.defaultRerankModel?'api' as const:'llm' as const,provider:ref?.provider||'',model:ref?.model||''}}
+export function CollectionReranking({mode,provider,model,onChange}:{mode:'api'|'llm';provider:string;model:string;onChange:(value:{mode:'api'|'llm';provider:string;model:string})=>void}){
+ return <Stack gap="sm"><Switch label={ft('Virtual reranking with LLM')} checked={mode==='llm'} onChange={event=>{const mode=event.currentTarget.checked?'llm':'api',global=settingsStore.getState().getSettings(),ref=mode==='llm'?global.defaultVirtualRerankModel:global.defaultRerankModel;onChange({mode,provider:ref?.provider||'',model:ref?.model||''})}}/><Text size="xs" c="dimmed">{ft('The reranker receives your query and matching passages. Changing it requires saving provider consent.')}</Text><Group><ModelSelectorV2 withinPortal={false} selectedProviderId={provider} selectedModelId={model} modelFilter={info=>mode==='llm'?(!info.type||info.type==='chat'):info.type==='rerank'} onSelect={(provider,model)=>onChange({mode,provider,model})}><Button variant="default" className="feature-model-button">{model||ft(mode==='llm'?'Choose a reranking LLM':'No reranking')}</Button></ModelSelectorV2>{model&&<Button variant="subtle" onClick={()=>onChange({mode,provider:'',model:''})}>{ft('Clear')}</Button>}</Group></Stack>
+}

@@ -288,6 +288,8 @@ function Index() {
           settings: {
             ...session.settings,
             ...options?.settingsPatch,
+            ...(newSessionState.knowledgeCollectionIds?{knowledgeCollectionIds:newSessionState.knowledgeCollectionIds}:{}),
+            ...(newSessionState.knowledgeVerification?{knowledgeVerification:newSessionState.knowledgeVerification}:{}),
             ...(newSessionState.veniceProfile ? {veniceProfile:newSessionState.veniceProfile} : {}),
             ...(newSessionState.veniceSecurity ? {veniceSecurity:newSessionState.veniceSecurity} : {}),
             ...(newSessionState.veniceToolsEnabled!==undefined?{veniceToolsEnabled:newSessionState.veniceToolsEnabled}:{}),
@@ -330,6 +332,8 @@ function Index() {
         addSessionKnowledgeBase(newSession.id, newSessionState.knowledgeBase)
       }
       if (
+        newSessionState.knowledgeCollectionIds !== undefined ||
+        newSessionState.knowledgeVerification !== undefined ||
         newSessionState.veniceProfile !== undefined ||
         newSessionState.veniceSecurity !== undefined ||
         newSessionState.veniceToolsEnabled !== undefined ||
@@ -365,6 +369,8 @@ function Index() {
       systemPrompt,
       folderId,
       addSessionKnowledgeBase,
+      newSessionState.knowledgeCollectionIds,
+      newSessionState.knowledgeVerification,
       newSessionState.veniceProfile,
       newSessionState.veniceSecurity,
       newSessionState.veniceToolsEnabled,

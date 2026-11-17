@@ -1,3 +1,4 @@
+import {forEachKnowledge,withKnowledgeQueue,runKnowledgeRequest,KnowledgeSourceBudget} from './knowledge-queue'
 import type {IndexProgressReporter} from './knowledge-index-progress'
 import {KNOWLEDGE_BASE_MAX_FILE_SIZE,KNOWLEDGE_SOURCE_TOO_LARGE} from './knowledge-base'
 import {ocrFallbackFingerprint} from './virtual-ocr'
@@ -26,7 +27,8 @@ function sameEmbedding(previous:RagIndex|null,current:string,space?:string){if(!
 function withoutPdfPolicy(raw:string){try{const value=JSON.parse(raw);if(!Array.isArray(value))return null;if(value.at(-1)==='pdf-ocr-all-v1')value.pop();return JSON.stringify(value)}catch{return null}}
 export class SessionRagEngine {
   constructor(private port:RagEnginePort){}
-  async index(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void=()=>{},rebuild=false){
+  async index(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void=()=>{},rebuild=false){return withKnowledgeQueue(signal,settings.indexConcurrency??1,scoped=>this.build(settings,scoped,progress,rebuild),this.port.report)}
+  private async build(settings:RagSettings,signal:AbortSignal,progress:(path:string)=>void,rebuild:boolean){
     const maximum=this.port.sourceMaxBytes??10*1024*1024;if(!Number.isSafeInteger(maximum)||maximum<1||maximum>KNOWLEDGE_BASE_MAX_FILE_SIZE)throw Error('Invalid knowledge source limit');const sizeError=maximum===KNOWLEDGE_BASE_MAX_FILE_SIZE?KNOWLEDGE_SOURCE_TOO_LARGE:'Session files must not exceed 10 MB'
     const stored=await this.port.get(RAG_ROOT+'index.json'),previous=stored?RagIndexSchema.parse(stored):null,fingerprint=ragFingerprint(settings),files:RagFile[]=[],errors:RagIndex['errors']=[],created:string[]=[],stats={embeddedChunks:0,reusedChunks:0,unchangedFiles:0}
     try{
@@ -34,20 +36,21 @@ export class SessionRagEngine {
       const reuseVectors=!rebuild&&sameEmbedding(previous,fingerprint,this.port.embeddingSpace),reuseExtraction=!rebuild&&previous?.fingerprint===fingerprint
       const nonPdfFingerprint=withoutPdfPolicy(fingerprint),reuseNonPdfExtraction=!rebuild&&!!previous&&nonPdfFingerprint!==null&&withoutPdfPolicy(previous.fingerprint)===nonPdfFingerprint
       let dimensions:number|undefined;if(reuseVectors&&previous?.files[0]?.shards[0])dimensions=(await this.shard(previous.files[0].shards[0]))[0]?.vector.length
-      const sources=await this.port.list();if(sources.length>RAG_MAX_FILES)throw Error('Session file count limit reached')
-      for(const source of sources){if(ragExcluded(source.path,settings))continue;signal.throwIfAborted();await this.port.check();progress(source.path);this.port.report?.({stage:"reading",path:source.path})
+      const priorFiles=new Map(previous?.files.map(file=>[file.path,file])||[]);const sources=await this.port.list();const sourceOrder=new Map(sources.map((s,i)=>[s.path,i]));if(sources.length>RAG_MAX_FILES)throw Error('Session file count limit reached')
+      const budget=new KnowledgeSourceBudget();let reservedChunks=0;const reserve=(n:number)=>{if(reservedChunks+n>RAG_MAX_CHUNKS)throw Error('RAG index chunk limit reached');reservedChunks+=n}
+      await forEachKnowledge(sources,Math.min(settings.indexConcurrency??1,2),signal,async source=>{if(ragExcluded(source.path,settings))return;await budget.run(source.bytes,signal,async()=>{const report:IndexProgressReporter=event=>this.port.report?.({...event,path:source.path});let reserved=0,committed=false;signal.throwIfAborted();await this.port.check();progress(source.path);report({stage:"reading",path:source.path})
         let bytes:Uint8Array|undefined
         try{
           if((source.bytes||0)>maximum)throw Error(sizeError)
-          const prior=reuseVectors?previous?.files.find(file=>file.path===source.path):undefined
+          const prior=reuseVectors?priorFiles.get(source.path):undefined
           const reuseSourceExtraction=reuseExtraction||reuseNonPdfExtraction&&!(/\.pdf$/i.test(source.path)||/^application\/pdf(?:;|$)/i.test(source.mime))
-          if(prior&&reuseSourceExtraction&&this.port.revision&&await this.port.revision(source.path)===prior.hash){await this.port.check();files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;this.port.report?.({stage:"reused",path:source.path,chunks:prior.chunks});continue}
+          if(prior&&reuseSourceExtraction&&this.port.revision&&await this.port.revision(source.path)===prior.hash){await this.port.check();reserve(prior.chunks);reserved=prior.chunks;files.push(prior);committed=true;stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;report({stage:"reused",path:source.path,chunks:prior.chunks});return}
           bytes=await this.port.read(source.path);if(bytes.byteLength>maximum)throw Error(sizeError);const hash=this.port.hashSource?await this.port.hashSource(bytes,signal):await ragHash(bytes)
-          if(prior?.hash===hash&&reuseSourceExtraction){files.push(prior);stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;this.port.report?.({stage:"reused",path:source.path,chunks:prior.chunks});continue}
-          this.port.report?.({stage:"extracting",path:source.path});const extracted=await this.port.extract(source,bytes,settings,signal,undefined,this.port.report);this.port.report?.({stage:"chunking",path:source.path})
+          if(prior?.hash===hash&&reuseSourceExtraction){reserve(prior.chunks);reserved=prior.chunks;files.push(prior);committed=true;stats.unchangedFiles++;stats.reusedChunks+=prior.chunks;report({stage:"reused",path:source.path,chunks:prior.chunks});return}
+          report({stage:"extracting",path:source.path});const extracted=await this.port.extract(source,bytes,settings,signal,undefined,report);report({stage:"chunking",path:source.path})
           const textParts=chunkRagText(extracted.text||'').map(part=>({...part,media:false})),parts=extracted.media?[{text:'',line:1,endLine:1,page:undefined as number|undefined,media:true},...textParts]:textParts
-          if(!parts.length)continue
-          if(files.reduce((n,file)=>n+file.chunks,0)+parts.length>RAG_MAX_CHUNKS)throw Error('RAG index chunk limit reached')
+          if(!parts.length)return
+          reserve(parts.length);reserved=parts.length
           const entry:RagFile={path:source.path,hash,shards:[],chunks:parts.length,warning:extracted.warning}
           // Cache only hashes and shard locations. Old vectors are loaded one shard at
           // a time; a large collection is never duplicated in RAM to save API calls.
@@ -63,7 +66,7 @@ export class SessionRagEngine {
             for(const [path,indices]of byShard){signal.throwIfAborted();await this.port.check();const old=await this.shard(path);for(const index of indices){const ref=reusable.get(digests[index])!,chunk=old.find(row=>row.id===ref.id);if(!chunk||chunk.sourceHash!==ref.sourceHash||chunk.path!==source.path||chunk.text!==batch[index].text||chunk.modality)throw Error('Invalid reusable embedding');vectors[index]=normalizedVector(chunk.vector);stats.reusedChunks++}}
             const missing=new Map<string,number[]>();batch.forEach((_part,index)=>{if(vectors[index])return;const key=batch[index].media?'media:'+index:digests[index],indices=missing.get(key)||[];indices.push(index);missing.set(key,indices)})
             if(missing.size){
-              this.port.report?.({stage:"embedding",path:source.path,batch:Math.floor(start/32)+1,batches:Math.ceil(parts.length/32),chunks:parts.length});const groups=[...missing.values()],fresh=await this.port.embed(groups.map(indices=>batch[indices[0]].media?{data:bytes!,mime:source.mime}:{text:batch[indices[0]].text}),false,settings,signal,this.port.report)
+              report({stage:"embedding",path:source.path,batch:Math.floor(start/32)+1,batches:Math.ceil(parts.length/32),chunks:parts.length});const groups=[...missing.values()],fresh=await runKnowledgeRequest(signal,()=>this.port.embed(groups.map(indices=>batch[indices[0]].media?{data:bytes!,mime:source.mime}:{text:batch[indices[0]].text}),false,settings,signal,report))
               signal.throwIfAborted();await this.port.check();if(fresh.length!==groups.length)throw Error('Incomplete embedding response')
               groups.forEach((indices,index)=>{const vector=normalizedVector(fresh[index]);vectors[indices[0]]=vector;for(const at of indices.slice(1)){vectors[at]=vector;stats.reusedChunks++}});stats.embeddedChunks+=groups.length
             }
@@ -72,9 +75,11 @@ export class SessionRagEngine {
             const shard=RAG_ROOT+'data/'+crypto.randomUUID()+'.json';await this.port.check();signal.throwIfAborted();await this.port.put(shard,packRagShard(chunks)).catch(error=>{throw Object.assign(error instanceof Error?error:Error(String(error)),{fatal:true})});created.push(shard);entry.shards.push(shard)
             digests.forEach((digest,index)=>{if(!batch[index].media&&!reusable.has(digest))reusable.set(digest,{shard,id:chunks[index].id,sourceHash:hash})})
           }
-          files.push(entry);this.port.report?.({stage:"vectors-ready",path:source.path,chunks:entry.chunks})
-        }catch(error){if(signal.aborted||(error as {fatal?:boolean})?.fatal)throw error;errors.push({path:source.path,error:String((error as Error).message).slice(0,500)});this.port.report?.({stage:"failed",path:source.path,message:String((error as Error).message).slice(0,500)})}finally{bytes?.fill(0)}
-      }
+          files.push(entry);committed=true;report({stage:"vectors-ready",path:source.path,chunks:entry.chunks})
+        }catch(error){if(signal.aborted||(error as {fatal?:boolean})?.fatal)throw error;errors.push({path:source.path,error:String((error as Error).message).slice(0,500)});report({stage:"failed",path:source.path,message:String((error as Error).message).slice(0,500)})}finally{bytes?.fill(0);if(!committed)reservedChunks-=reserved}
+      })})
+      files.sort((a,b)=>sourceOrder.get(a.path)!-sourceOrder.get(b.path)!)
+
       this.port.report?.({stage:'saving'});signal.throwIfAborted();await this.port.check();const index:RagIndex={version:1,fingerprint,embeddingSpace:this.port.embeddingSpace,...(this.port.portableSpace?{portableSpace:this.port.portableSpace,...(this.port.portableDescriptor?{portableDescriptor:this.port.portableDescriptor}:{})}:{}),updated:Date.now(),files,errors,stats};await this.port.put(RAG_ROOT+'index.json',index)
       const retained=new Set(files.flatMap(file=>file.shards));for(const shard of [...(previous?.files||[]).flatMap(file=>file.shards),...created])if(!retained.has(shard)&&shard.startsWith(RAG_ROOT+'data/'))await this.port.remove(shard).catch(()=>{})
       return index
