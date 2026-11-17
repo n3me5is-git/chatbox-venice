@@ -1,4 +1,6 @@
 export const knowledgeWorkflowItalian:Record<string,string>={
+ 'Convert a recording':'Converti una registrazione',
+ 'Some models continue reasoning despite this request. Productive model streams can run for up to 10 minutes; a silent request stops after 60 seconds. Stop indexing to cancel.':'Alcuni modelli continuano a ragionare nonostante questa richiesta. Una risposta in corso può proseguire fino a 10 minuti; una richiesta senza attività si interrompe dopo 60 secondi. Usa Interrompi indicizzazione per annullare.',
  'Embedding dimensions (optional)':'Dimensioni embedding (facoltative)',
  'Some extracted metadata had missing or ambiguous source references and was omitted.':'Alcuni metadati estratti avevano riferimenti mancanti o ambigui alla fonte e sono stati esclusi.',
  'View extracted text':'Vedi testo estratto',

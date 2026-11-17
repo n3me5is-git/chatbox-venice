@@ -40,6 +40,9 @@ export async function runMobilePages({cdp,evaluate,click,wait,output,openPage,on
     await click(`document.querySelector('svg [role="button"]')`)
    }
    if(screen==='knowledge-evidence')await wait(()=>evaluate(`!!document.querySelector('mark')`),'Source quote did not render')
+   if(screen==='knowledge-review'){await click(`document.querySelector('input[role="switch"]')`);await wait(()=>evaluate(`!!document.querySelector('.mantine-Checkbox-input')`),'Source review consent controls did not open')}
+   if(screen==='venice-image-settings'){await click(find(variant.lang==='en'?'Venice images':'Immagini Venice'));await click(find(variant.lang==='en'?'Advanced image options':'Opzioni avanzate delle immagini'))}
+   if(screen==='web-search')assert.ok(await evaluate(`(()=>{const e=document.querySelector('[data-setting-id="venice-search"]'),label=e.querySelector('.settings-row-label').getBoundingClientRect(),control=e.querySelector('.settings-row-control').getBoundingClientRect();return label.width>=innerWidth*.65&&control.y>=label.bottom-1})()`),'Search engine label must remain readable above its control')
    await capture(screen,variant.name)
    // Scroll each actual scrolling owner to its end; check that the final controls can be reached.
    await evaluate(`(()=>{for(const e of [...document.querySelectorAll('*')])if(e.scrollHeight>e.clientHeight+8&&/auto|scroll/.test(getComputedStyle(e).overflowY))e.scrollTop=e.scrollHeight;window.scrollTo(0,document.body.scrollHeight)})()`)
@@ -50,9 +53,9 @@ export async function runMobilePages({cdp,evaluate,click,wait,output,openPage,on
     assert.ok(boxes.every(Boolean),'Both native KB actions must be visible')
     assert.ok(boxes.every(b=>b.width>=variant.width-48&&b.height>=44&&b.labelHeight<=2.1*b.lineHeight),'Native actions must be readable and full-width: '+JSON.stringify(boxes))
     assert.ok(boxes[1].y>=boxes[0].bottom+4,'Native KB actions must stack without overlap')
-    await click(find(newLabel));await capture('knowledge-create',variant.name)
+    await click(find(newLabel));await wait(()=>evaluate(`!!document.querySelector('[role="dialog"] input[type="text"]')`),'Create-collection form did not open');await capture('knowledge-create',variant.name)
     await click(`document.querySelector('[role="dialog"] .mantine-CloseButton-root')`)
-    await click(find(folderLabel));await capture('knowledge-open-folder',variant.name)
+    await click(find(folderLabel));await wait(()=>evaluate(`!!document.querySelector('[role="dialog"] input[role="switch"]')`),'Connect-folder form did not open');await capture('knowledge-open-folder',variant.name)
     await click(`document.querySelector('[role="dialog"] .mantine-CloseButton-root')`)
     await evaluate(`window.__screenAuditSeed()`)
     await wait(()=>evaluate(`!!(${find(variant.lang==='en'?'Open collection':'Apri raccolta')})`),'Seeded collection did not appear')
