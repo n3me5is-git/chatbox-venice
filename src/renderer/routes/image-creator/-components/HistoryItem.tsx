@@ -81,6 +81,9 @@ export function HistoryItem({ record, isActive, isMobile, modelDisplayName, onCl
         onContextMenu={event=>{event.preventDefault();setActionsOpened(true)}}
         onPointerDown={event=>{downPoint.current={x:event.clientX,y:event.clientY};held.current=false;hold.current=setTimeout(()=>{held.current=true;setActionsOpened(true)},550)}}
         onPointerUp={stopHold} onPointerCancel={stopHold} onPointerMove={event=>{if(Math.hypot(event.clientX-downPoint.current.x,event.clientY-downPoint.current.y)>8)stopHold()}}
+        // The synthesized mouse-down after touch-end is outside Menu.Target
+        // (the dots button) and would immediately dismiss a long-press menu.
+        onTouchEnd={event=>{if(held.current)event.preventDefault()}}
         style={{ borderWidth: 1, borderStyle: 'solid' }}
         className={`w-full aspect-square rounded-lg overflow-hidden transition-colors duration-150 ${
           isActive
