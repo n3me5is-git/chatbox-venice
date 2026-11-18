@@ -2,7 +2,7 @@ import {useOverlayManager} from '@/components/layout/Overlay'
 import { ActionIcon, Button, Flex, Image, Menu, Popover, Skeleton, Stack, Text, UnstyledButton } from '@mantine/core'
 import type { ImageGeneration } from '@shared/types'
 import { IconDots, IconPhoto, IconPhotoOff, IconTrash } from '@tabler/icons-react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { forkT as ft } from '@/i18n/fork'
 import { useBlob } from '@/hooks/useBlob'
@@ -21,7 +21,18 @@ export function HistoryItem({ record, isActive, isMobile, modelDisplayName, onCl
   const { t } = useTranslation()
   const [deletePopoverOpened, setDeletePopoverOpened] = useState(false)
   const [actionsOpened,setActionsOpened]=useState(false)
-  useOverlayManager(actionsOpened,()=>setActionsOpened(false))
+  const actionsAreTop=useOverlayManager(actionsOpened,()=>setActionsOpened(false))
+  useEffect(()=>{
+    if(!actionsOpened||!actionsAreTop)return
+    // A long press leaves focus on the thumbnail, outside Menu.Target. Consume
+    // Escape before window-level drawer listeners can dismiss the parent too.
+    const dismiss=(event:KeyboardEvent)=>{
+      if(event.key!=='Escape')return
+      event.preventDefault();event.stopImmediatePropagation();setActionsOpened(false)
+    }
+    window.addEventListener('keydown',dismiss,true)
+    return()=>window.removeEventListener('keydown',dismiss,true)
+  },[actionsOpened,actionsAreTop])
   const hold=useRef<ReturnType<typeof setTimeout>|null>(null),held=useRef(false),downPoint=useRef({x:0,y:0})
   const stopHold=()=>{if(hold.current)clearTimeout(hold.current);hold.current=null}
   const changeProtection=async()=>{

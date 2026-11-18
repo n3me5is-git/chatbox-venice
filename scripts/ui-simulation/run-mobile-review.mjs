@@ -27,11 +27,12 @@ export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fi
  const p=await wait(async()=>{const point=await evaluate(`(async()=>{const e=${target};if(!e)return null;e.scrollIntoView({block:'center',behavior:'instant'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2,hit=document.elementFromPoint(x,y);return r.width&&r.height&&(hit===e||e.contains(hit))?{x,y}:null})()`);const stable=point&&priorPoint&&Math.abs(point.x-priorPoint.x)<.5&&Math.abs(point.y-priorPoint.y)<.5;priorPoint=point;return stable?point:false},'History long-press target did not settle')
  await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[p]});await delay(700);await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
  const historyPanel=`[...document.querySelectorAll('[role="dialog"]')].findLast(e=>e.textContent.includes('Bottom of scrollable panel'))`
- const historyMenu=`[...(${historyPanel})?.querySelectorAll('[role="menu"]')||[]].some(e=>e.getBoundingClientRect().height>0&&getComputedStyle(e).visibility!=='hidden'&&e.textContent.includes('Protect this creation'))`
+ const historyMenu=`[...(${historyPanel})?.querySelectorAll('[role="menu"]')||[]].some(e=>e.getBoundingClientRect().height>0&&getComputedStyle(e).visibility!=='hidden'&&e.textContent.includes('Protect this creation'))&&!!(${historyPanel})?.querySelector('[aria-label="Creation actions"][aria-expanded="true"]')`
  // The same label exists in other Studio cards; require this panel's visible menu.
  await wait(()=>evaluate(historyMenu),'Long press did not expose this history protection menu')
  await evaluate(`Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getTiming().iterations)).map(a=>a.finished.catch(()=>{})))`)
  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27})
+ await evaluate(`Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getTiming().iterations)).map(a=>a.finished.catch(()=>{})))`)
  await wait(()=>evaluate(`!!(${historyPanel})&&(${historyPanel}).getBoundingClientRect().height>0&&!(${historyMenu})`),'Escape must close the history menu while keeping its parent panel open')
  const body=`(${historyPanel})?.querySelector('.mantine-Drawer-body')`
  // Start inside the content, not on Chromium's native scrollbar gutter.

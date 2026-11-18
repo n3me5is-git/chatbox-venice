@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { MantineProvider } from '@mantine/core'
-import { cleanup,render } from '@testing-library/react'
+import { cleanup,fireEvent,render,screen,waitFor } from '@testing-library/react'
+import { useState } from 'react'
+import { Modal } from '@/components/layout/Overlay'
 import { afterEach,expect,it,vi } from 'vitest'
 const blob=vi.hoisted(()=>vi.fn<(key?:string)=>{data:string;isError:boolean}>(()=>({data:'data:image/webp;base64,AAAA',isError:false})))
 vi.mock('@/hooks/useBlob',()=>({useBlob:blob}))
@@ -12,3 +14,20 @@ afterEach(()=>{cleanup();blob.mockClear()})
 const show=(value:ImageGeneration)=>render(<MantineProvider><HistoryItem record={value} isActive={false} modelDisplayName="Image model" onClick={()=>{}} onDelete={()=>{}}/></MantineProvider>)
 it('uses a placeholder instead of reading the full image when a legacy record has no small thumbnail',()=>{show({...record,generatedImageThumbnails:['original-large']});expect(blob).not.toHaveBeenCalled()})
 it('loads only the dedicated small thumbnail when one is available',()=>{show({...record,generatedImageThumbnails:['small-thumbnail']});expect(blob).toHaveBeenCalledWith('small-thumbnail');expect(blob.mock.calls.some(args=>args[0]==='original-large')).toBe(false)})
+it('consumes Escape from a thumbnail context menu before parent window listeners',async()=>{
+ const parentClose=vi.fn()
+ function Parent(){const [opened,setOpened]=useState(true);return <Modal opened={opened} onClose={()=>{parentClose();setOpened(false)}} title="History parent"><HistoryItem record={record} isActive={false} isMobile modelDisplayName="Image model" onClick={()=>{}} onDelete={()=>{}}/></Modal>}
+ render(<MantineProvider env="test"><Parent/></MantineProvider>)
+ const thumbnail=screen.getByRole('button',{name:'Preview A saved image'})
+ thumbnail.focus();fireEvent.contextMenu(thumbnail)
+ await waitFor(()=>expect(screen.getByRole('menu')).toBeTruthy())
+ const competingWindowListener=vi.fn()
+ window.addEventListener('keydown',competingWindowListener)
+ try{
+   fireEvent.keyDown(thumbnail,{key:'Escape',code:'Escape'})
+   await waitFor(()=>expect(screen.queryByRole('menu')).toBeNull())
+   expect(parentClose).not.toHaveBeenCalled()
+   expect(competingWindowListener).not.toHaveBeenCalled()
+   expect(screen.getByRole('dialog',{name:'History parent'})).toBeTruthy()
+ }finally{window.removeEventListener('keydown',competingWindowListener)}
+})
