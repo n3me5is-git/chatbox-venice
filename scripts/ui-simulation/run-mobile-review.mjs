@@ -23,11 +23,16 @@ export async function runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fi
  // The preceding model drawer can still be animating after its text disappears.
  // Use the shared visibility/hit-test gate before measuring the real long press.
  await click(target)
- const p=await evaluate(`(()=>{const e=${target};e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`)
- await delay(300);await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[p]});await delay(650);await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
- await wait(()=>evaluate(`document.body.textContent.includes('Protect this creation')`),'Long press did not expose history protection actions')
+ let priorPoint
+ const p=await wait(async()=>{const point=await evaluate(`(async()=>{const e=${target};if(!e)return null;e.scrollIntoView({block:'center',behavior:'instant'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2,hit=document.elementFromPoint(x,y);return r.width&&r.height&&(hit===e||e.contains(hit))?{x,y}:null})()`);const stable=point&&priorPoint&&Math.abs(point.x-priorPoint.x)<.5&&Math.abs(point.y-priorPoint.y)<.5;priorPoint=point;return stable?point:false},'History long-press target did not settle')
+ await cdp('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[p]});await delay(700);await cdp('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]})
+ const historyPanel=`[...document.querySelectorAll('[role="dialog"]')].findLast(e=>e.textContent.includes('Bottom of scrollable panel'))`
+ const historyMenu=`[...(${historyPanel})?.querySelectorAll('[role="menu"]')||[]].some(e=>e.getBoundingClientRect().height>0&&getComputedStyle(e).visibility!=='hidden'&&e.textContent.includes('Protect this creation'))`
+ // The same label exists in other Studio cards; require this panel's visible menu.
+ await wait(()=>evaluate(historyMenu),'Long press did not expose this history protection menu')
+ await evaluate(`Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getTiming().iterations)).map(a=>a.finished.catch(()=>{})))`)
  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27})
- await wait(()=>evaluate(`![...document.querySelectorAll('[role="menu"]')].some(e=>e.getClientRects().length)`),'History menu did not close before scrolling')
+ await wait(()=>evaluate(`!!(${historyPanel})&&(${historyPanel}).getBoundingClientRect().height>0&&!(${historyMenu})`),'Escape must close the history menu while keeping its parent panel open')
  const body=`[...document.querySelectorAll('.mantine-Drawer-body')].findLast(e=>e.getBoundingClientRect().height>0)`
  // Start inside the content, not on Chromium's native scrollbar gutter.
  const point=await evaluate(`(()=>{const e=${body};e.scrollTop=0;const r=e.getBoundingClientRect();const x=r.left+e.clientWidth/2,y=r.y+r.height*0.8;return{x,y,distance:Math.min(450,r.height*0.6),hit:document.elementFromPoint(x,y)?.outerHTML}})()`)
