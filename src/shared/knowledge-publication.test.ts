@@ -1,11 +1,22 @@
 import {expect,it} from 'vitest'
 import {visibleContentParts} from './utils/message'
 import {convertToModelMessages} from './services/model-message-converter'
-import {createKnowledgePublication,knowledgeAnswerText} from './knowledge-publication'
+import {createKnowledgePublication,knowledgeAnswerText,knowledgeReportedAnswerText} from './knowledge-publication'
 import {KnowledgeCheckReportSchema,knowledgeAnswerHash} from './knowledge-verification'
 import {SECURITY_INFO} from './response-security'
 import type {Message} from './types'
+it('reviews the final answer without process narration, and preserves legacy report hashes',async()=>{
+ const parts:Message['contentParts']=[{type:'text',text:'I will search the knowledge base.'},{type:'tool-call',state:'result',toolName:'knowledge_base',toolCallId:'search',result:{}},{type:'text',text:'The deadline is Friday.'}]
+ let draft='';const gate=createKnowledgePublication(async value=>{draft=knowledgeAnswerText(value,'final-answer-v1');return review(draft)},'final-answer-v1'),message=await gate.finish({id:'answer',role:'assistant',contentParts:parts})
+ expect(draft).toBe('The deadline is Friday.');expect(knowledgeReportedAnswerText(message.contentParts)).toBe(draft);expect(message.contentParts[0]).toMatchObject({text:'I will search the knowledge base.'});expect(knowledgeAnswerText(parts)).toContain('I will search')
+ const legacy=await review(knowledgeAnswerText(parts));expect(knowledgeReportedAnswerText([...parts,{type:'info',text:'local:knowledge-verification',values:{report:legacy.report}}])).toBe(knowledgeAnswerText(parts))
+})
+it('retains earlier work narration when correcting only the final answer',async()=>{
+ const parts:Message['contentParts']=[{type:'text',text:'Read the source.'},{type:'tool-call',state:'result',toolName:'knowledge_base',toolCallId:'search'},{type:'text',text:'90 days'}],gate=createKnowledgePublication(async()=>review('90 days','30 days'),'final-answer-v1'),message=await gate.finish({id:'answer',role:'assistant',contentParts:parts})
+ expect(knowledgeReportedAnswerText(message.contentParts)).toBe('30 days');expect(message.contentParts[0]).toMatchObject({text:'Read the source.'});expect(JSON.stringify(message.contentParts)).not.toContain('90 days')
+})
 async function review(draft:string,answer=draft){return {answer,report:KnowledgeCheckReportSchema.parse({version:1,id:crypto.randomUUID(),draftHash:await knowledgeAnswerHash(draft),answerHash:await knowledgeAnswerHash(answer),created:Date.now(),status:'unverified',reason:'no_sources',revised:answer!==draft,calls:0,coverage:0,claims:[],sources:[],omittedEvidence:0})}}
+it('keeps checker traces in report metadata and never sends them as provider reasoning',async()=>{const value=await review('Final answer');value.report.reasoning=[{phase:'checking',text:'Local checker trace must stay out of provider replay'}];const gate=createKnowledgePublication(async()=>value),message=await gate.finish({id:'reply',role:'assistant',contentParts:[{type:'text',text:'Final answer'}]});expect(JSON.stringify(message)).toContain('Local checker trace');expect(JSON.stringify(await convertToModelMessages([message],async()=>null,{modelSupportVision:false,preserveReasoning:'all-turns'}))).not.toContain('Local checker trace')})
 it('hides draft text, reasoning and transport badges at every checkpoint while preserving tool and media parts',async()=>{
  const message:Message={id:'reply',role:'assistant',contentParts:[{type:'text',text:'Draft'},{type:'reasoning',text:'Private thought'},{type:'info',text:SECURITY_INFO,values:{}},{type:'tool-call',toolCallId:'call',toolName:'ask_user',state:'paused'},{type:'image',storageKey:'encrypted'}]},gate=createKnowledgePublication(async parts=>review(knowledgeAnswerText(parts)))
  expect(visibleContentParts(gate.project(message).contentParts).map(part=>part.type)).toEqual(['tool-call','image']);const final=await gate.finish(message);expect(knowledgeAnswerText(gate.project(final).contentParts)).toBe('Draft');expect(gate.project({...final,contentParts:[...final.contentParts,{type:'text',text:'Unreviewed append'}]}).contentParts.some(part=>part.type==='text')).toBe(false)

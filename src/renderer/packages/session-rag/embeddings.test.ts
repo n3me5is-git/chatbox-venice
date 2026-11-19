@@ -2,11 +2,18 @@ import { beforeEach,expect,it,vi } from 'vitest'
 import {defineProvider} from '@shared/providers/registry'
 import {ModelProviderType} from '@shared/types'
 import { RagSettingsSchema } from '@shared/session-rag'
+import {ApiError} from '@shared/models/errors'
 const state=vi.hoisted(()=>({post:vi.fn(),settings:{providers:{venice:{apiKey:'test-only',apiHost:'https://api.venice.ai/api/v1'},gemini:{apiKey:'test-google',apiHost:'https://generativelanguage.googleapis.com'}}} as any}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>state.settings})}}))
 vi.mock('@/utils/request',()=>({apiRequest:{post:state.post}}))
 import { requestRagEmbeddings,multimodalEmbedding,embeddingMediaSupport,registerRagEmbeddingAdapter,embeddingSpaceIdentity } from './embeddings'
 beforeEach(()=>{vi.clearAllMocks();defineProvider({id:'venice',name:'Venice',type:ModelProviderType.OpenAI} as any);defineProvider({id:'gemini',name:'Gemini',type:ModelProviderType.Gemini} as any)})
+it('recovers one transient query embedding error without retrying indexing or changing provider',async()=>{
+ const cfg=RagSettingsSchema.parse({provider:'venice',model:'embed'}),error=new ApiError('Status Code 500','private error body',500,undefined,'0')
+ state.post.mockRejectedValueOnce(error).mockResolvedValueOnce({json:async()=>({data:[{index:0,embedding:[1,0]}]})})
+ expect(await requestRagEmbeddings([{text:'Query'}],true,cfg,new AbortController().signal)).toEqual([[1,0]]);expect(state.post).toHaveBeenCalledTimes(2);expect(state.post.mock.calls.every(call=>call[0]==='https://api.venice.ai/api/v1/embeddings')).toBe(true)
+ state.post.mockClear();state.post.mockRejectedValueOnce(error);await expect(requestRagEmbeddings([{text:'Index input'}],false,cfg,new AbortController().signal)).rejects.toThrow('500');expect(state.post).toHaveBeenCalledOnce()
+})
 it('uses the configured Venice embedding endpoint, batch order and cancellation without a fallback',async()=>{
  state.post.mockResolvedValue({json:async()=>({data:[{index:1,embedding:[0,1]},{index:0,embedding:[1,0]}]})})
  const signal=new AbortController().signal,result=await requestRagEmbeddings([{text:'First'},{text:'Second'}],false,RagSettingsSchema.parse({provider:'venice',model:'embed'}),signal)

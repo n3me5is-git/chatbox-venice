@@ -1,0 +1,40 @@
+name: Retrieval recovery and source review
+on:
+  pull_request:
+    paths: ['src/shared/knowledge-*', 'src/renderer/packages/knowledge-collections/**', 'src/renderer/packages/session-rag/embeddings*', 'src/renderer/components/knowledge-base/**', 'scripts/knowledge-live/retrieval-review.ts', '.github/workflows/rag-retrieval-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: retrieval-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Retrieval recovery, exact answer scopes and review UI
+        run: pnpm exec vitest run src/shared/knowledge-retrieval.test.ts src/shared/knowledge-publication.test.ts src/shared/knowledge-claim-units.test.ts src/shared/knowledge-verification.test.ts src/renderer/platform/knowledge-base/portable-controller.test.ts src/renderer/packages/session-rag/embeddings.test.ts src/renderer/packages/knowledge-collections/store.test.ts src/renderer/packages/knowledge-collections/publication.test.ts src/renderer/packages/knowledge-collections/llm-rerank.test.ts src/renderer/packages/model-calls/toolsets/knowledge-base.test.ts src/renderer/packages/model-calls/toolsets/knowledge-federation.test.ts src/renderer/packages/model-calls/toolsets/knowledge-verifier.test.ts src/renderer/components/knowledge-base/KnowledgeReviewDetails.test.tsx src/renderer/components/knowledge-base/KnowledgeReviewStatus.test.tsx src/renderer/components/message-parts/ToolCallPartUI.search-results.test.tsx
+      - name: Compile opt-in synthetic live probe without credentials
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p test-results/retrieval-review
+          pnpm exec esbuild scripts/knowledge-live/retrieval-review.ts --bundle --platform=node --format=esm --target=node22 --outfile=test-results/retrieval-review/live.mjs
+          printf '%s\n' "$GITHUB_SHA" > test-results/retrieval-review/source.txt
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: Retrieval-Review-Live-Module
+          path: test-results/retrieval-review/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Typecheck integrated application
+        if: ${{ !cancelled() }}
+        run: pnpm check

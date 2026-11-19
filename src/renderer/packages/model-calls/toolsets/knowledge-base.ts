@@ -9,6 +9,7 @@ import { validatedToolSchema } from '@shared/validated-tool-schema'
 import type { ToolSet } from 'ai'
 import platform from '@/platform'
 import { asRecord, contentOrErrorText, toTextModelOutput } from './model-output'
+import type {KnowledgeSearchWarning} from '@shared/knowledge-retrieval'
 
 const PREVIEW_FILE_COUNT = 50
 const LIST_PAGE_SIZE = 50
@@ -32,6 +33,7 @@ interface KnowledgeBaseFileState {
 }
 
 export interface KnowledgeBaseSearchOutput {
+  warnings?:KnowledgeSearchWarning[]
   results: Array<{
     fileId: number
     filename: string
@@ -78,6 +80,7 @@ function fileState(meta: { status: string; chunkCount: number; totalChunks: numb
 }
 
 function formatSearch(output: KnowledgeBaseSearchOutput): string {
+  if(output.warnings?.length)return output.warnings.map(row=>`Search notice (${row.provider} / ${row.model}${row.statusCode?`; HTTP ${row.statusCode}`:''}): ${row.message}`).join('\n')+'\n\n'+formatSearch({...output,warnings:undefined})
   if (output.results.length === 0) return 'No results found.'
   return output.results
     .map((result, index) => {
@@ -126,15 +129,19 @@ export function formatKnowledgeBaseOutput(command: KnowledgeBaseCommand | undefi
   return formatSearch(record as unknown as KnowledgeBaseSearchOutput)
 }
 
-async function search(knowledgeBaseId: number, query: string | undefined): Promise<KnowledgeBaseToolOutput> {
+async function search(knowledgeBaseId: number, query: string | undefined,signal?:AbortSignal): Promise<KnowledgeBaseToolOutput> {
   if (!query?.trim()) return { error: 'The search command needs a query.' }
   const controller = platform.getKnowledgeBaseController()
-  const hits = await controller.search(knowledgeBaseId, query)
+  signal?.throwIfAborted()
+  const diagnostic=controller.searchWithDiagnostics?await controller.searchWithDiagnostics(knowledgeBaseId,query,signal):undefined
+  const hits = diagnostic?.results??await controller.search(knowledgeBaseId, query)
+  signal?.throwIfAborted()
   const references=knowledgeBaseId<0?await(await import('@/packages/knowledge-collections/service')).knowledgeCollections.citeChunks?.(knowledgeBaseId,hits):[]
   const fileIds = [...new Set(hits.map((hit) => hit.fileId))]
   const metas = fileIds.length > 0 ? await controller.getFilesMeta(knowledgeBaseId, fileIds).catch(() => []) : []
   const files = new Map(metas.map((meta) => [Number(meta.id), fileState(meta)]))
   return {
+    ...(diagnostic?.warnings.length?{warnings:diagnostic.warnings}:{}),
     results: hits.map((hit) => ({
       fileId: hit.fileId,
       filename: hit.filename,
@@ -200,7 +207,7 @@ Commands:
 Search when the user's question relates to these documents; answer greetings, small talk and unrelated questions directly. For follow-ups on the same topic, reuse earlier results, and search again when the topic shifts or they no longer cover the question.`
 }
 
-export async function runKnowledgeBaseCommand(id:number,input:KnowledgeBaseToolInput){if(input.command==='read')return read(id,input);if(input.command==='list')return list(id,input.page);return search(id,input.query)}
+export async function runKnowledgeBaseCommand(id:number,input:KnowledgeBaseToolInput,signal?:AbortSignal){signal?.throwIfAborted();if(input.command==='read')return read(id,input);if(input.command==='list')return list(id,input.page);return search(id,input.query,signal)}
 
 export async function getToolSet(knowledgeBaseId: number, knowledgeBaseName: string): Promise<{ tools: ToolSet }> {
   const tool: ToolSet[string] = {
@@ -223,11 +230,11 @@ export async function getToolSet(knowledgeBaseId: number, knowledgeBaseName: str
       required: ['command'],
       additionalProperties: false,
     }),
-    execute: (rawInput) => {
+    execute: (rawInput,options) => {
       const input = rawInput as KnowledgeBaseToolInput
       if (input.command === 'read') return read(knowledgeBaseId, input)
       if (input.command === 'list') return list(knowledgeBaseId, input.page)
-      return search(knowledgeBaseId, input.query)
+      return search(knowledgeBaseId, input.query,options.abortSignal)
     },
     toModelOutput: (options: { toolCallId: string; input: unknown; output: unknown }) =>
       toTextModelOutput((output) => formatKnowledgeBaseOutput(knowledgeBaseCommandOf(options.input), output))(options),

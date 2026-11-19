@@ -1,6 +1,7 @@
 import {KnowledgeReviewScope,KnowledgeReviewStatus} from '@/components/knowledge-base/KnowledgeReviewStatus'
 import {KNOWLEDGE_VERIFICATION_INFO} from '@shared/knowledge-verification'
-import {knowledgeAnswerText} from '@shared/knowledge-publication'
+import {knowledgeReportedAnswerText} from '@shared/knowledge-publication'
+import {KnowledgeReviewThinking} from '@/components/knowledge-base/KnowledgeReviewThinking'
 import { isRetryableToolCallStep } from '@chatbox/core/generation'
 import {
   getSessionActionGate,
@@ -917,6 +918,7 @@ const _Message: FC<Props> = (props) => {
                       key={`text-${msg.id}-${index}`}
                       data-transcript-block={enableMarkdownRendering ? undefined : `${msg.id}-${index}`}
                     >
+                      {index===displayGroups.findIndex(group=>group.type==='text')&&!(showWorkSummary&&processCollapsed)&&<KnowledgeReviewThinking message={msg} onCopyReasoningContent={onCopyReasoningContent}/>}
                       {enableMarkdownRendering ? (
                         <Markdown
                           uniqueId={`${msg.id}-${index}`}
@@ -939,7 +941,7 @@ const _Message: FC<Props> = (props) => {
                       )}
                     </div>
                   ) : item.type === 'info' && item.text === KNOWLEDGE_VERIFICATION_INFO ? (
-                    <KnowledgeReviewStatus key={'review-'+index} value={item.values?.report} answer={knowledgeAnswerText(msg.contentParts)}/>
+                    <KnowledgeReviewStatus key={'review-'+index} value={item.values?.report} answer={knowledgeReportedAnswerText(msg.contentParts)}/>
                   ) : item.type === 'info' && item.text === SECURITY_INFO ? (
                     <Flex key={`security-${index}`} className="my-2"><VerifiedResponseStatus value={item.values}/></Flex>
                   ) : item.type === 'info' ? (

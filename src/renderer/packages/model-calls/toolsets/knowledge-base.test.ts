@@ -5,6 +5,7 @@ const controller = vi.hoisted(() => ({
   getFilesMeta: vi.fn(),
   readFileChunks: vi.fn(),
   listFilesPaginated: vi.fn(),
+  searchWithDiagnostics:undefined as undefined|ReturnType<typeof vi.fn>,
 }))
 
 vi.mock('@/platform', () => ({
@@ -40,10 +41,14 @@ async function run(input: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  controller.searchWithDiagnostics=undefined
   controller.listFilesPaginated.mockResolvedValue([kbFile(7, 'manual.pdf', 12), kbFile(8, 'draft.md', 0, 'processing')])
 })
 
 describe('knowledge_base tool', () => {
+  test('preserves retrieval notices and passes cancellation into the portable search',async()=>{
+    const signal=new AbortController().signal;controller.searchWithDiagnostics=vi.fn().mockResolvedValue({results:[],warnings:[{stage:'reranking',provider:'venice',model:'judge',statusCode:500,message:'Original ranking retained.'}]});const tool=await loadTool(),output=await tool.execute({command:'search',query:'payment'},{abortSignal:signal});expect(controller.searchWithDiagnostics).toHaveBeenCalledWith(3,'payment',signal);expect(controller.search).not.toHaveBeenCalled();expect(JSON.stringify(tool.toModelOutput({input:{command:'search'},output,toolCallId:'call'}))).toContain('Original ranking retained.')
+  })
   test('description names the knowledge base and its ready files', async () => {
     const tool = await loadTool()
     expect(tool.description).toContain('"Product Docs"')

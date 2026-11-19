@@ -8,6 +8,7 @@ import { ChatboxAIAPIError } from '@shared/models/errors'
 import { SANDBOX_EXEC_ERROR_CODES } from '@shared/sandbox-provider'
 import { getToolResultImageReference } from '@shared/tool-result-image'
 import { KNOWLEDGE_BASE_TOOL_NAME, knowledgeBaseCommandOf } from '@shared/tools/knowledge-base'
+import {KnowledgeSearchWarnings} from '@/components/knowledge-base/KnowledgeSearchWarnings'
 import type { MessageToolCallPart } from '@shared/types'
 import { formatFileSize } from '@shared/utils'
 import { getWorkArtifacts } from '@shared/work-artifacts'
@@ -1787,6 +1788,7 @@ const TimelineToolCallStepContent: FC<TimelineToolCallStepProps & { commandResul
             overflow: 'hidden',
           }}
         >
+          {part.toolName===KNOWLEDGE_BASE_TOOL_NAME&&<KnowledgeSearchWarnings result={part.result}/>}
           <TimelineToolCallDetail part={part} />
         </Box>
       </Collapse>

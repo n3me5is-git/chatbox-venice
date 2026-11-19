@@ -10,6 +10,7 @@ import {canonicalCollectionJson} from './directory-database'
 import {fuseKnowledgeRanks} from '@shared/knowledge-augmentation'
 import type {EncryptedChunkStore} from '@/packages/vault/chunk-store'
 import {unpackRagShard} from '@shared/rag-vector-storage'
+import {knowledgeRetrievalError,knowledgeSearchWarning,temporaryKnowledgeFailure,type KnowledgeSearchWarning} from '@shared/knowledge-retrieval'
 import {KnowledgeEvidenceSchema,knowledgeEvidenceId,knowledgeEvidenceUrl,type KnowledgeEvidence} from '@shared/knowledge-evidence'
 import {KnowledgeAccessGate} from './access-gate'
 import {AugmentedCollectionIndex,AnalysisStaging,StagingSchema,KnowledgeStateSchema,type KnowledgeState} from './augmented'
@@ -193,9 +194,22 @@ export class KnowledgeCollections {
     finally{unsubscribe();this.jobs.delete(id);await this.adapters.background?.(this.jobs.size)}
   }
   async search(id:number,query:string,signal=new AbortController().signal,queryEmbed?:RagEnginePort['embed']){return this.read(id,async()=>{
-    await this.assert(id);const data=await this.data(id);if(!data.consented)throw Error('Save provider consent on this device before using this collection');const pipeline=await this.pipeline(id,data,signal,false,queryEmbed),snapshot=await pipeline.state(),port=pipeline.vectorPort(snapshot),found=data.retrievalMode==='hybrid'||data.augmentation?.enabled?await hybridRagSearch(port,query,data.settings,signal,20):await new SessionRagEngine(port).search(query,data.settings,signal,20)
+    await this.assert(id);const data=await this.data(id);if(!data.consented)throw Error('Save provider consent on this device before using this collection');const pipeline=await this.pipeline(id,data,signal,false,queryEmbed),snapshot=await pipeline.state(),port=pipeline.vectorPort(snapshot),warnings:KnowledgeSearchWarning[]=[]
+    let embeddingFailed=false,embeddingFailure:unknown
+    const searchPort={...port,embed:async(...args:Parameters<RagEnginePort['embed']>)=>{try{return await port.embed(...args)}catch(error){embeddingFailed=true;embeddingFailure=error;throw error}}}
+    let found:Awaited<ReturnType<SessionRagEngine['search']>>
+    try{found=data.retrievalMode==='hybrid'||data.augmentation?.enabled?await hybridRagSearch(searchPort,query,data.settings,signal,20):await new SessionRagEngine(searchPort).search(query,data.settings,signal,20)}
+    catch(error){signal.throwIfAborted();await port.check();if(!embeddingFailed)throw error;if(!temporaryKnowledgeFailure(embeddingFailure))throw knowledgeRetrievalError('embedding',data.settings.provider,data.settings.model,error);found=await hybridRagSearch(port,query,data.settings,signal,20,true);warnings.push(knowledgeSearchWarning('embedding',data.settings.provider,data.settings.model,error))}
     const rerank=data.rerankMode==='llm'?this.adapters.llmRerank:this.adapters.rerank;if(data.rerankProvider&&data.rerankModel&&!rerank)throw Error('The selected reranker is unavailable')
-    if(data.rerankProvider&&data.rerankModel&&rerank&&found.matches.length){const index=snapshot?.vector||await this.nativeIndex(id),chunks=await this.readChunks(id,data,index,this.matchRequests(data,found.matches)),documents=found.matches.map(hit=>chunks.find(row=>row.chunk.id===hit.id)?.text||hit.modality||'');if(data.rerankMode==='llm'&&found.matches.some(hit=>!chunks.find(row=>row.chunk.id===hit.id)?.text.trim()))return {...found,rerankWarning:'Native media has no extracted text; the original embedding ranking was preserved'};await this.assert(id);const ranked=await rerank(query,documents,data.rerankProvider,data.rerankModel,signal);await this.assert(id);found.matches=ranked.map(item=>({...found.matches[item.index],score:item.score}))}return found
+    if(data.rerankProvider&&data.rerankModel&&rerank&&found.matches.length){
+      const index=snapshot?.vector||await this.nativeIndex(id),chunks=await this.readChunks(id,data,index,this.matchRequests(data,found.matches)),documents=found.matches.map(hit=>chunks.find(row=>row.chunk.id===hit.id)?.text||hit.modality||'')
+      if(data.rerankMode==='llm'&&found.matches.some(hit=>!chunks.find(row=>row.chunk.id===hit.id)?.text.trim()))return {...found,warnings,rerankWarning:'Native media has no extracted text; the original embedding ranking was preserved'}
+      const expected=JSON.stringify([data.rerankProvider,data.rerankModel,data.rerankMode]),check=async()=>{signal.throwIfAborted();await port.check();const current=await this.data(id);if(JSON.stringify([current.rerankProvider,current.rerankModel,current.rerankMode])!==expected)throw Error('Knowledge reranking settings changed; retry explicitly')}
+      await check()
+      try{const ranked=await rerank(query,data.rerankMode==='llm'?documents.map(text=>text.slice(0,2000)):documents,data.rerankProvider,data.rerankModel,signal);await check();found.matches=ranked.map(item=>({...found.matches[item.index],score:item.score}))}
+      catch(error){await check();if(!temporaryKnowledgeFailure(error))throw knowledgeRetrievalError('reranking',data.rerankProvider,data.rerankModel,error);warnings.push(knowledgeSearchWarning('reranking',data.rerankProvider,data.rerankModel,error))}
+    }
+    await port.check();return {...found,warnings}
   })}
   /** A virtual union: no vectors or graph rows are copied into a central DB.
    * At most two collections execute concurrently; identical query embeddings are

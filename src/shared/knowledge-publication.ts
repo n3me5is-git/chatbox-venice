@@ -6,15 +6,20 @@ export interface KnowledgePublicationPort {
  project(message:Message):Message
  finish(message:Message):Promise<Message>
 }
-export const knowledgeAnswerText=(parts:MessageContentParts=[])=>parts.flatMap(part=>part.type==='text'&&!part.protocolOnly?[part.text]:[]).join('\n')
+// Narration before/between tool calls belongs to the work log, not the final
+// answer. Asking a source to prove "I will search" creates false insufficiency.
+// A trailing provider reasoning block is deliberately not an answer boundary.
+export const knowledgeAnswerText=(parts:MessageContentParts=[],scope?:'final-answer-v1')=>(scope?parts.slice(parts.findLastIndex(part=>part.type==='tool-call')+1):parts).flatMap(part=>part.type==='text'&&!part.protocolOnly?[part.text]:[]).join('\n')
+export function knowledgeReportedAnswerText(parts:MessageContentParts=[]){const part=parts.findLast(part=>part.type==='info'&&part.text===KNOWLEDGE_VERIFICATION_INFO),parsed=KnowledgeCheckReportSchema.safeParse(part?.type==='info'?part.values?.report:undefined);return knowledgeAnswerText(parts,parsed.success?parsed.data.answerScope:undefined)}
 export function reviewedKnowledgeParts(parts:MessageContentParts,answer:string,report:KnowledgeCheckReport):MessageContentParts{
  const previous=parts.filter(part=>part.type!=='info'||part.text!==KNOWLEDGE_VERIFICATION_INFO)
  if(!report.revised)return [...previous,{type:'info',text:KNOWLEDGE_VERIFICATION_INFO,values:{report}}]
  const retained:MessageContentParts=[]
- for(const part of previous){
+ const lastTool=report.answerScope?previous.findLastIndex(part=>part.type==='tool-call'):-1
+ for(const [index,part] of previous.entries()){
   // Signed provider blocks remain available for protocol replay, but cannot be
   // displayed/exported as the corrected answer or attest to its new wording.
-  if(part.type==='text'){if(part.providerMetadata)retained.push({...part,protocolOnly:true});continue}
+  if(part.type==='text'){if(index<lastTool)retained.push(part);else if(part.providerMetadata)retained.push({...part,protocolOnly:true});continue}
   if(part.type==='info'&&part.text===SECURITY_INFO)continue
   retained.push(part)
  }
@@ -25,7 +30,7 @@ export function reviewedKnowledgeParts(parts:MessageContentParts,answer:string,r
 /** Per-generation publication gate. Internal stream state stays intact, while
  * every public checkpoint hides unreviewed text/reasoning and transport badges.
  * Tool cards and stored media keep working, including paused HITL operations. */
-export function createKnowledgePublication(verify:(parts:MessageContentParts)=>Promise<{answer:string;report:KnowledgeCheckReport}>):KnowledgePublicationPort{
+export function createKnowledgePublication(verify:(parts:MessageContentParts)=>Promise<{answer:string;report:KnowledgeCheckReport}>,scope?:'final-answer-v1'):KnowledgePublicationPort{
  const approved=new Map<string,MessageContentParts>()
  return {
   project(message){
@@ -33,7 +38,7 @@ export function createKnowledgePublication(verify:(parts:MessageContentParts)=>P
    return {...message,contentParts:message.contentParts.flatMap((part):MessageContentParts=>{if(part.type==='text'||part.type==='reasoning')return part.type==='reasoning'||part.providerMetadata?[{...part,protocolOnly:true as const}]:[];if(part.type==='info'&&(part.text===SECURITY_INFO||part.text===KNOWLEDGE_VERIFICATION_INFO))return [];return [part]})}
   },
   async finish(message){
-   const draft=knowledgeAnswerText(message.contentParts),result=await verify(message.contentParts),report=KnowledgeCheckReportSchema.parse(result.report)
+   const draft=knowledgeAnswerText(message.contentParts,scope),result=await verify(message.contentParts),report=KnowledgeCheckReportSchema.parse({...result.report,...(scope?{answerScope:scope}:{})})
    if(report.answerHash!==await knowledgeAnswerHash(result.answer)||report.draftHash!==await knowledgeAnswerHash(draft)||report.revised!==(result.answer!==draft))throw Error('Knowledge review does not match the published answer')
    const contentParts=reviewedKnowledgeParts(message.contentParts,result.answer,report)
    approved.set(message.id,contentParts);return {...message,contentParts}

@@ -6,6 +6,7 @@ import type {
   KnowledgeBaseSearchResult,
 } from '@shared/types'
 import type { DocumentParserConfig } from '@shared/types/settings'
+import type {KnowledgeSearchWarning} from '@shared/knowledge-retrieval'
 
 export interface KnowledgeBaseController {
   list(): Promise<KnowledgeBase[]>
@@ -27,6 +28,7 @@ export interface KnowledgeBaseController {
   pauseFile(fileId: number): Promise<void>
   resumeFile(fileId: number): Promise<void>
   search(kbId: number, query: string): Promise<KnowledgeBaseSearchResult[]>
+  searchWithDiagnostics?(kbId:number,query:string,signal?:AbortSignal):Promise<{results:KnowledgeBaseSearchResult[];warnings:KnowledgeSearchWarning[]}>
   update(updateParams: { id: number; name?: string; rerankModel?: string; visionModel?: string }): Promise<void>
   getFilesMeta(
     kbId: number,

@@ -52,7 +52,7 @@ import {DirectTransferContent} from '../../src/renderer/components/collaboration
 import {LocalMCPSettings} from '../../src/renderer/components/session-resources/LocalMCPSettings'
 import {ApplicationMCPSettings} from '../../src/renderer/components/session-resources/ApplicationMCPSettings'
 import {ChatKnowledgeReview} from '../../src/renderer/components/knowledge-base/ChatKnowledgeReview'
-import {knowledgeSimulationStore} from './knowledge-collections'
+import {knowledgeSimulationStore,knowledgeReviewFixture,KnowledgeReviewResultScreen} from './knowledge-collections'
 import {SecuritySimulation} from './security'
 import platform from './platform'
 import i18n from '../../src/renderer/i18n'
@@ -88,6 +88,7 @@ function ControlledScreen(){
  case 'knowledge-graph':return <KnowledgeGraph store={knowledgeSimulationStore} id={graphCollection!}/>
  case 'knowledge-evidence':return <KnowledgeEvidencePanel store={knowledgeSimulationStore} collectionId={graphCollection!} fileId={graphFile!} id={graphEvidence!}/>
  case 'knowledge-review':return <ChatKnowledgeReview value={value} onChange={setValue}/>
+ case 'knowledge-review-result':return reviewReport?<KnowledgeReviewResultScreen report={reviewReport}/>:null
  case 'venice-search':return <VeniceSearchSettings/>
  case 'venice-image-settings':return <VeniceImageSettings model={{modelId:'test-image',vendorMetadata:{supportsNegativePrompt:true}}}/>
  case 'venice-modules':return <VeniceModuleSettings/>
@@ -113,16 +114,17 @@ function ControlledScreen(){
  default:throw Error('Unregistered screen '+screen)
  }
 }
-let graphCollection:number|undefined,graphFile:number|undefined,graphEvidence:string|undefined
+let graphCollection:number|undefined,graphFile:number|undefined,graphEvidence:string|undefined,reviewReport:Awaited<ReturnType<typeof knowledgeReviewFixture>>|undefined
 if(screen==='knowledge-graph'||screen==='knowledge-evidence'){
  graphCollection=await knowledgeSimulationStore.create('Project graph fixture',RagSettingsSchema.parse({provider:'venice',model:'fixture-private-embedding',enabled:true}));graphFile=await knowledgeSimulationStore.add(graphCollection,new File(['Project Aurora has client Acme.'],'project.md',{type:'text/markdown'}));const data=await knowledgeSimulationStore.data(graphCollection);await knowledgeSimulationStore.configure(graphCollection,data.name,data.settings,undefined,undefined,undefined,{augmentation:{enabled:true,keepMarkdown:true,model:{provider:'venice',model:'fixture-private'},windowChars:8000,mediaText:false},retrievalMode:'hybrid'});await knowledgeSimulationStore.index(graphCollection);const row=(await knowledgeSimulationStore.metadata(graphCollection,{})).results[0],anchor=row.relations[0].anchor;graphEvidence=(await knowledgeSimulationStore.citeAnchors(graphCollection,[{fileId:graphFile,sourceHash:row.sourceHash,textHash:row.textHash,start:anchor.start,end:anchor.end}],new AbortController().signal))[0].id
 }
 Object.assign(platform,{getKnowledgeBaseController:()=>({list:async()=>knowledgeSimulationStore.list()})})
 if(screen==='knowledge-chat-controls')await knowledgeSimulationStore.create('Enterprise manuals',RagSettingsSchema.parse({provider:'venice',model:'fixture-embedding'}))
+if(screen==='knowledge-review-result')reviewReport=await knowledgeReviewFixture()
 if(screen==='knowledge-checker-trace')reviewActivity.set('screen-audit','checking','Provider-returned synthetic trace: compare the claim with the quoted source; check whether the dates and amounts match. This is fixture data, not a real provider call.')
 if(screen==='knowledge-derived-assets'){graphCollection=await knowledgeSimulationStore.create('Image derivatives',RagSettingsSchema.parse({provider:'venice',model:'fixture-embedding',enabled:true,retainImages:true}));graphFile=await knowledgeSimulationStore.add(graphCollection,new File([Uint8Array.from(auditImagePdf()).buffer],'diagram.pdf',{type:'application/pdf'}));await knowledgeSimulationStore.index(graphCollection)}
-const modalScreens=new Set(['knowledge-graph','knowledge-evidence','questions','generation-failure','collaboration','transfer','agent-transcript','mcp-session','mcp-application'])
-function Content(){return screen==='knowledge-base'?<ControlledScreen/>:modalScreens.has(screen)?<AdaptiveModal opened onClose={noop} title={ft(screen==='collaboration'?'Collaborative chats':screen==='transfer'?'Send to another device':screen==='questions'?'Question for you':screen==='generation-failure'?'Generation needs attention':screen==='agent-transcript'?'Multi-agent work':screen==='knowledge-evidence'?'Knowledge source':screen==='knowledge-graph'?'Knowledge graph':'MCP server')}><div className="feature-panel"><ControlledScreen/></div></AdaptiveModal>:<SettingsPage title={screen} titleOnTouch><div className="feature-panel"><Stack><ControlledScreen/></Stack></div></SettingsPage>}
+const modalScreens=new Set(['knowledge-review-result','knowledge-graph','knowledge-evidence','questions','generation-failure','collaboration','transfer','agent-transcript','mcp-session','mcp-application'])
+function Content(){return screen==='knowledge-base'?<ControlledScreen/>:modalScreens.has(screen)?<AdaptiveModal opened onClose={noop} title={ft(screen==='knowledge-review-result'?'Source review':screen==='collaboration'?'Collaborative chats':screen==='transfer'?'Send to another device':screen==='questions'?'Question for you':screen==='generation-failure'?'Generation needs attention':screen==='agent-transcript'?'Multi-agent work':screen==='knowledge-evidence'?'Knowledge source':screen==='knowledge-graph'?'Knowledge graph':'MCP server')}><div className="feature-panel"><ControlledScreen/></div></AdaptiveModal>:<SettingsPage title={screen} titleOnTouch><div className="feature-panel"><Stack><ControlledScreen/></Stack></div></SettingsPage>}
 const root=createRootRoute({component:Outlet}),settings=createRoute({getParentRoute:()=>root,path:'/settings',component:SettingsRoute}),page=createRoute({getParentRoute:()=>settings,path:screen,component:Content})
 const router=createRouter({routeTree:root.addChildren([settings.addChildren([page])]),history:createMemoryHistory({initialEntries:['/settings/'+screen]})})
 await seedLibrary()

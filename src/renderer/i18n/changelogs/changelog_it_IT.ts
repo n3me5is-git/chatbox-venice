@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.52.1
+1. Recupera i guasti temporanei della ricerca con avvisi chiari sull’ordinamento
+2. Migliora la verifica della risposta finale e conserva il ragionamento del verificatore
+3. Visualizza Markdown e formule nei modali di verifica, con ricerca e filtri
+
 ## Chatbox Venice 1.52.0
 1. Configura raccolte e verifica delle fonti insieme oppure cita una raccolta con @ per una richiesta
 2. Consulta verifiche per affermazione, fonti discordanti e ragionamento restituito dal checker
