@@ -14,6 +14,8 @@ it('never starts automatically and grants only the permissions selected by the h
   const invoke=vi.fn(async(command:string,input?:LocalMCPStart):Promise<LocalMCPState>=>{if(command==='start')live={running:true,sessionId:input!.sessionId,permissions:input!.permissions,url:'http://127.0.0.1:3000/mcp',token:'ephemeral-local-token',startedAt:1};if(command==='stop')live={running:false};return live})
   render(<MantineProvider><LocalMCPSettings sessionId="chat" invoke={invoke}/></MantineProvider>)
   await waitFor(()=>expect(invoke).toHaveBeenCalledWith('status'));expect(invoke).not.toHaveBeenCalledWith('start',expect.anything())
+  expect(screen.getByRole('checkbox',{name:'Start automatically with Chatbox'})).toHaveProperty('checked',false)
+  expect(screen.getByRole('checkbox',{name:'Keep endpoint active while the app is locked'})).toHaveProperty('checked',false)
   expect((screen.getByRole('checkbox',{name:'Run isolated JavaScript and optional Python'}) as HTMLInputElement).disabled).toBe(true)
   expect((screen.getByRole('checkbox',{name:'Run and manage this Work chat’s agents (model charges may apply)'}) as HTMLInputElement).checked).toBe(false)
   fireEvent.click(screen.getByRole('checkbox',{name:'Create, change and permanently delete session files'}))

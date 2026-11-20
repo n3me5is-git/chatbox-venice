@@ -34,6 +34,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Temporary chat lifecycle and owned workspace cleanup
         run: pnpm exec vitest run src/renderer/packages/chat-retention src/renderer/components/session/ChatRetention.test.tsx src/main/sandbox/session-files.test.ts src/renderer/stores/session/crud.test.ts
+      - name: MCP startup credentials, locked admission and chat sharing
+        run: pnpm exec vitest run src/main/local-mcp src/renderer/packages/local-mcp/profiles.test.ts src/renderer/packages/local-mcp/backend.test.ts src/renderer/components/session-resources/ApplicationMCPSettings.test.tsx src/renderer/components/session-resources/LocalMCPSettings.test.tsx src/renderer/components/session-resources/ChatMCPShareControl.test.tsx
       - name: Retrieval recovery, answer scopes and source-review rendering
         run: pnpm exec vitest run src/shared/knowledge-retrieval.test.ts src/shared/knowledge-publication.test.ts src/renderer/platform/knowledge-base/portable-controller.test.ts src/renderer/components/knowledge-base/KnowledgeReviewDetails.test.tsx src/renderer/components/knowledge-base/KnowledgeCitation.test.tsx
       - name: Knowledge source boundaries, streamed encryption and native folder ranges

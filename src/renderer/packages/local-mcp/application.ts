@@ -12,14 +12,15 @@ import {vaultRuntimeFor} from '@/packages/vault/runtime'
 import {sessionFiles} from '@/packages/session-resources/files'
 import {settingsStore} from '@/stores/settingsStore'
 import platform from '@/platform'
+import { isTemporaryChat, isUnavailableChat } from '@/packages/chat-retention/retention'
 import {handleSessionLocalMCP,localMCPTools} from './backend'
+import { clearMCPContextResults, clearMCPRequestCache, runMCPRequestOnce as unique } from './request-cache'
 
 import {temporaryMCPEntries as entries,mutateTemporaryMCPEntries as mutate,localMCPOwner as owner} from './temporary'
 const active=new Map<string,Set<{id?:string;work:Promise<unknown>}>>()
 const closing=new Set<string>()
 const disposing=new Map<string,Promise<void>>()
 const creating=new Map<string,Promise<string>>()
-const calls=new Map<string,Map<string,{fingerprint:string;work:Promise<unknown>;contextId?:string;settled?:boolean}>>()
 const vault=()=>vaultRuntimeFor(platform)
 const idSchema=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)
 const optionsSchema=z.object({provider:z.string().min(1).max(128).optional(),modelId:z.string().min(1).max(256).optional(),temperature:z.number().min(0).max(2).optional(),topP:z.number().min(0).max(1).optional(),maxTokens:z.number().int().min(1).max(128000).optional(),contextTokenLimit:z.number().int().min(1024).max(10000000).optional(),webBrowsing:z.boolean().optional(),veniceToolsEnabled:z.boolean().optional(),providerOptionsByModel:z.record(z.string(),z.unknown()).optional(),multiAgent:MultiAgentPolicySchema.optional()}).strict()
@@ -29,6 +30,7 @@ async function live(grant:LocalMCPGrant,signal?:AbortSignal){
   if(!current.running||current.token!==grant.token||JSON.stringify(current.application)!==JSON.stringify(grant.application)||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
 }
 async function authorized(grant:LocalMCPGrant,id:string,signal?:AbortSignal,readDuringCleanup=false){
+  if (isTemporaryChat(id) || isUnavailableChat(id)) throw Error('Chat is unavailable')
   await live(grant,signal);if(closing.has(id))throw Error('This workspace is being cleaned up');await vault().projects.assertSession(id)
   const all=await entries(),own=await owner(grant),entry=all.find(item=>item.id===id)
   if(entry?.cleanupPending&&!readDuringCleanup)throw Error('This temporary workspace is awaiting cleanup. Retrieve saved files or retry app_cleanup.')
@@ -68,15 +70,6 @@ async function defaultContext(grant:LocalMCPGrant,signal:AbortSignal){
   return work
 }
 function bound(grant:LocalMCPGrant,id:string):LocalMCPGrant{return {...grant,sessionId:id}}
-async function unique(grant:LocalMCPGrant,key:string,input:unknown,work:()=>Promise<unknown>){
-  const cache=calls.get(grant.token)||new Map();calls.set(grant.token,cache)
-  const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(input,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value)))),n=>n.toString(16).padStart(2,'0')).join(''),existing=cache.get(key)
-  if(existing){if(existing.fingerprint!==fingerprint)throw Error('Use a new request_id for a different operation');return existing.work}
-  if(cache.size>=512)throw Error('Restart this endpoint before issuing more operations')
-  const pending=work(),entry:{fingerprint:string;work:Promise<unknown>;contextId?:string;settled?:boolean}={fingerprint,work:pending,contextId:input&&typeof input==='object'&&'sessionId'in input&&typeof input.sessionId==='string'?input.sessionId:undefined};cache.set(key,entry)
-  void pending.then(result=>{entry.settled=true;if(result&&typeof result==='object'&&'sessionId'in result&&typeof result.sessionId==='string')entry.contextId=result.sessionId;if(JSON.stringify(result??null).length>64000)entry.work=Promise.resolve({completed:true,resultRetained:false,message:'The original operation completed. Retrieve saved files or inspect its context; this request_id will not run it again.'})},()=>{entry.settled=true;entry.work=Promise.resolve({failed:true,message:'The original operation failed or stopped. Inspect its saved context and explain the failure before creating a new request_id.'})})
-  return pending
-}
 async function disposeContextWork(id:string){
   if([...active.values()].some(items=>[...items].some(item=>item.id===id)))throw Error('Wait for active workspace operations before cleanup')
   closing.add(id)
@@ -106,7 +99,7 @@ async function disposeContextWork(id:string){
   }
   for(const key of temporaryEntries.flatMap(item=>item.ownedAssets||[]))await vault().assets.remove(key)
   for(const child of [...ids].reverse())if(await rendererApplication.sessions.getSessionHeader(child))await rendererApplication.sessions.deleteSession(child)
-  for(const cache of calls.values())for(const entry of cache.values())if(entry.settled&&entry.contextId&&ids.has(entry.contextId))entry.work=Promise.resolve({completed:true,resultRetained:false,message:'This temporary workspace was deleted. The original operation will not be replayed.'})
+  clearMCPContextResults(ids)
   await mutate(items=>items.filter(item=>!ids.has(item.id)))
   }finally{closing.delete(id)}
 }
@@ -114,7 +107,7 @@ function disposeContext(id:string){let work=disposing.get(id);if(!work){work=dis
 const revoking=new Map<string,Promise<{pending:number}|undefined>>()
 async function revokeApplicationWork(grant:LocalMCPGrant){
   if(!grant.application)return
-  calls.delete(grant.token)
+  clearMCPRequestCache(grant)
   const awaitOwner=await owner(grant),running=[...[...(active.get(grant.token)||[])].map(item=>item.work),...(creating.has(grant.token)?[creating.get(grant.token)!]:[])]
   if(running.length){let timer:ReturnType<typeof setTimeout>|undefined;const done=await Promise.race([Promise.allSettled(running).then(()=>true),new Promise<false>(resolve=>{timer=setTimeout(()=>resolve(false),10000)})]);if(timer)clearTimeout(timer);if(!done)return {pending:(await entries()).filter(item=>item.owner===awaitOwner).length}}
   await (await import('@/packages/multi-agent/runtime')).revokeExternalAgents(grant.token)

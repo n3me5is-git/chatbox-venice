@@ -2,7 +2,7 @@ import { afterEach,expect,it,vi } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { request as httpRequest } from 'node:http'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { defaultLocalMCPPermissions,type LocalMCPGrant } from '../../shared/local-mcp'
+import { defaultLocalMCPPermissions,localMCPClientConfiguration,type LocalMCPGrant } from '../../shared/local-mcp'
 import { LocalMCPServer,type LocalMCPBackend } from './server'
 const running:LocalMCPServer[]=[]
 afterEach(async()=>{await Promise.all(running.splice(0).map(server=>server.stop()))})
@@ -60,4 +60,20 @@ it('revokes the old token on restart and aborts an active tool when stopped',asy
   await client.connect(new StreamableHTTPClientTransport(new URL(second.url),{requestInit:{headers:{Authorization:'Bearer '+second.token}}}))
   const call=client.callTool({name:'session_file',arguments:{action:'read'}}).catch(()=>null)
   await vi.waitFor(()=>expect(received).toBeDefined());await server.stop();expect(received?.aborted).toBe(true);await call;await client.close()
+})
+it('accepts the remembered client credential while issuing a fresh internal grant', async () => {
+  const {server, state:first, backend} = await fixture()
+  const config = {sessionId:'chat',port:Number(new URL(first.url).port),permissions:defaultLocalMCPPermissions}
+  const second = await server.start(config,first.token) as LocalMCPGrant
+  expect(second.token).not.toBe(first.token)
+  expect(localMCPClientConfiguration(second)).toEqual(localMCPClientConfiguration(first))
+  expect((await fetch(second.url,{method:'POST',headers:{Authorization:'Bearer '+second.token},body:'{}'})).status).toBe(401)
+  const client = new Client({name:'remembered-test',version:'1.0'})
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(second.url),{requestInit:{headers:{Authorization:'Bearer '+first.token}}}))
+    await client.listTools()
+    const internal = vi.mocked(backend.listTools).mock.calls.at(-1)![0]
+    expect(internal.token).toBe(second.token)
+    expect(internal.accessToken).toBeUndefined()
+  } finally {await client.close()}
 })

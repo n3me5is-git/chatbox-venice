@@ -1,5 +1,11 @@
 # Changelog — Chatbox Venice
 
+## 1.54.0
+
+- Automatically restart selected desktop MCP endpoints with a stable port and device-encrypted token.
+- Keep selected MCP endpoints connected through app lock, with preapproved text routing for model routers.
+- Manage single-chat sharing from the chat’s MCP menu and stop active shares from global settings.
+
 ## 1.53.0
 
 - Start a temporary chat that stays off the sidebar and survives app lock.

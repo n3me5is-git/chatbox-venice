@@ -14,6 +14,7 @@ import { sharingMayPreventLock } from '@/packages/collaboration/background'
 import { BACKGROUND_LOCK_DELAY, installBackgroundLock, lockDelaySeconds } from '@/packages/vault/background-lock'
 const AppLockContext=createContext(false)
 let locking=false,pendingLock:Promise<void>|undefined
+export const isApplicationLockPending = () => locking
 const lockListeners=new Set<()=>void>()
 const subscribeLock=(listener:()=>void)=>{lockListeners.add(listener);return()=>{lockListeners.delete(listener)}}
 const lockSnapshot=()=>locking

@@ -7,7 +7,7 @@ const state=vi.hoisted(()=>({grants:[] as any[],invoke:vi.fn(),cleanup:vi.fn(asy
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('react-i18next',()=>({useTranslation:()=>({})}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({providers:{venice:{apiKey:'SENTINEL_KEY'}}})})}}))
-vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({available:async()=>true,db:{getSetting:async()=>[],setSetting:async()=>{}},projects:{assertApp:async()=>{}}})}))
+vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({available:async()=>true,db:{getSetting:async()=>[],setSettingIfUnchanged:async()=>true},projects:{assertApp:async()=>{}}})}))
 vi.mock('@/packages/local-mcp/application',()=>({cleanupInactiveMCPContexts:()=>state.cleanup(),revokeApplicationMCP:vi.fn(async()=>({pending:0}))}))
 import {ApplicationMCPSettings} from './ApplicationMCPSettings'
 Object.defineProperty(window,'matchMedia',{value:vi.fn(()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()}))})
@@ -19,6 +19,8 @@ it('starts only on demand, offers three profiles and adds endpoints without repl
   await waitFor(()=>expect(state.invoke).toHaveBeenCalledWith('local-mcp:control','list',undefined))
   expect(state.invoke.mock.calls.some(call=>call[1]==='start')).toBe(false)
   expect(screen.getByRole('combobox',{name:'Access profile'})).toHaveProperty('value','router')
+  expect(screen.getByRole('checkbox',{name:'Start automatically with Chatbox'})).toHaveProperty('checked',false)
+  expect(screen.getByRole('checkbox',{name:'Keep endpoint active while the app is locked'})).toHaveProperty('checked',false)
   fireEvent.click(screen.getByRole('button',{name:'Start new endpoint'}));await screen.findByText('http://127.0.0.1:3000/mcp')
   expect(state.grants[0].application.mode).toBe('router');expect(state.grants[0].permissions).toMatchObject({models:true,execute:false,forwardMCP:false,multiAgent:false})
   fireEvent.change(screen.getByRole('textbox',{name:'Endpoint name'}),{target:{value:'Second'}})

@@ -1,6 +1,22 @@
 import {afterEach,expect,it,vi} from 'vitest'
 import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant} from '../../shared/local-mcp'
 import {LocalMCPRegistry} from './registry'
+
+it('keeps only the selected listener at lock and stops chat shares without stopping app-wide endpoints', async () => {
+  const backend = { listTools:vi.fn(async()=>[]), callTool:vi.fn(async()=>null), listResources:vi.fn(async()=>[]), readResource:vi.fn(async()=>null) }
+  const registry = new LocalMCPRegistry(backend)
+  try {
+    await registry.start({sessionId:'first-chat',port:0,permissions:defaultLocalMCPPermissions,keepWhileLocked:true})
+    await registry.start({sessionId:'second-chat',port:0,permissions:defaultLocalMCPPermissions})
+    const app = await registry.start({sessionId:'application',endpointId:crypto.randomUUID(),port:0,permissions:defaultLocalMCPPermissions,keepWhileLocked:true,application:LocalMCPApplicationSchema.parse({mode:'router',name:'Router'})}) as LocalMCPGrant
+    expect(registry.shares().map(row=>row.sessionId)).toEqual(['first-chat','second-chat'])
+    await registry.suspendForLock()
+    expect(registry.shares().map(row=>row.sessionId)).toEqual(['first-chat'])
+    await registry.stopShares()
+    expect(registry.shares()).toEqual([])
+    expect(registry.state(app.endpointId)).toMatchObject({running:true,token:app.token})
+  } finally { await registry.stopAll() }
+})
 let registry:LocalMCPRegistry
 const headers=(token:string)=>({Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json, text/event-stream'})
 afterEach(async()=>{await registry?.stopAll()})

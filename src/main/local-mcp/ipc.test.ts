@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { expect,it,vi } from 'vitest'
-import { defaultLocalMCPPermissions } from '../../shared/local-mcp'
+import { defaultLocalMCPPermissions,LocalMCPApplicationSchema } from '../../shared/local-mcp'
 const state=vi.hoisted(()=>({handlers:new Map<string,Function>(),backend:undefined as any,grant:{running:false} as any}))
 vi.mock('electron',()=>({app:{on:vi.fn()},ipcMain:{handle:(name:string,handler:Function)=>state.handlers.set(name,handler)}}))
 vi.mock('./server',()=>({LocalMCPServer:class{constructor(backend:any){state.backend=backend}state(){return state.grant}async stop(){state.grant={running:false}}async start(config:any){return state.grant={...config,running:true,url:'http://127.0.0.1:3000/mcp',token:'temporary-token',startedAt:1}}}}))
@@ -29,4 +29,22 @@ it('correlates app replies by an unpredictable request identity and forwards can
   await f.invoke('local-mcp:reply',request.id,{result:[{name:'scoped'}]});expect(await response).toEqual([{name:'scoped'}])
   const cancelled=state.backend.listTools(grant,controller.signal);controller.abort();await expect(cancelled).rejects.toThrow('cancelled')
   expect(f.sender.send).toHaveBeenCalledWith('local-mcp:request',expect.objectContaining({operation:'cancel'}));await f.invoke('local-mcp:control','stop')
+})
+it('enforces restricted lock admission before renderer dispatch and resumes the kept endpoint', async () => {
+  const f=fixture()
+  const config={...f.config,sessionId:'application',endpointId:crypto.randomUUID(),keepWhileLocked:true,permissions:{...defaultLocalMCPPermissions,models:true,automaticModels:true},application:LocalMCPApplicationSchema.parse({mode:'router',name:'Router'})}
+  const grant=await f.invoke('local-mcp:control','start',config)
+  await f.invoke('local-mcp:control','suspend',true)
+  const signal=new AbortController().signal
+  await expect(state.backend.readResource(grant,'chatbox-session://private/file',signal)).rejects.toThrow('Unlock Chatbox')
+  await expect(state.backend.callTool(grant,'venice_studio',{},'id',signal)).rejects.toThrow('Unlock Chatbox')
+  await expect(f.invoke('local-mcp:control','start',f.config)).rejects.toThrow('Unlock Chatbox')
+  const allowed=state.backend.callTool(grant,'app_model',{},'id',signal)
+  const request=f.sender.send.mock.calls.at(-1)![1]
+  expect(request).toMatchObject({operation:'call_tool',name:'app_model',locked:true})
+  await f.invoke('local-mcp:reply',request.id,{result:'approved text'})
+  expect(await allowed).toBe('approved text')
+  await f.invoke('local-mcp:control','resume')
+  expect(await f.invoke('local-mcp:control','status',grant.endpointId)).toMatchObject({running:true,token:grant.token})
+  await f.invoke('local-mcp:control','stop-all')
 })

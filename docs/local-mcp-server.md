@@ -1,6 +1,6 @@
 # Desktop MCP servers
 
-Chatbox Venice can serve trusted local MCP clients using Streamable HTTP. **Settings → MCP → App-wide MCP servers** creates independent endpoints, with separate loopback ports, random access tokens and permissions. The existing **Share this chat through MCP** remains a separate, narrower endpoint. Endpoint permission profiles are saved without access tokens and can be edited or manually restarted. Nothing starts automatically after installation or restart. Up to eight listeners can run together.
+Chatbox Venice can serve trusted local MCP clients using Streamable HTTP. **Settings → MCP → App-wide MCP servers** creates independent endpoints, with separate loopback ports, random access tokens and permissions. The existing **Share this chat through MCP** remains a separate, narrower endpoint. Endpoint permission profiles can be edited and manually restarted. Enable **Start automatically with Chatbox** on selected profiles to retain their port and a device-encrypted client token. Both startup and lock options are off by default. Up to eight listeners can run together.
 
 An existing single-chat endpoint exposes the selected workspace, saved generations, explicitly supplied text-model requests and optionally its agents. It does **not** provide a conversation send/read tool. The app-wide endpoint adds an explicit conversation grant for that purpose.
 
@@ -26,7 +26,7 @@ Copy a running endpoint’s configuration into a Streamable HTTP MCP client that
 {"mcpServers":{"chatbox-router":{"url":"http://127.0.0.1:YOUR_PORT/mcp","headers":{"Authorization":"Bearer YOUR_LOCAL_TOKEN"}}}}
 ```
 
-This is an MCP endpoint, not an OpenAI-compatible HTTP API server. Each port accepts only its own token. Stopping one endpoint leaves the others running. **Stop all MCP endpoints**, app lock, protection changes, window destruction or quitting revoke access. A new run gets a new token. There is no LAN bind or public pairing relay.
+This is an MCP endpoint, not an OpenAI-compatible HTTP API server. Each port accepts only its own token. Stopping an endpoint disables its automatic startup. **Stop all MCP endpoints** stops listeners and disables their startup profiles. App lock cancels pending operations and closes listeners by default. With **Keep endpoint active while the app is locked**, selected listeners stay connected. Model routers can list models and run explicitly preapproved text requests without access to saved chat data. Workspace, Studio and owner-approved operations wait for unlock. Configured startup profiles resume after app or project unlock. Window destruction or quitting closes all listeners. Each run receives a fresh internal grant.
 
 ## Application tools
 
@@ -55,7 +55,7 @@ Provider credentials never enter client configuration, model discovery or normal
 
 ## Existing single-chat sharing details
 
-The desktop app can act as an opt-in MCP server. Open **Files and resources → Workspace settings → Share this chat through MCP**, or Settings → MCP while that chat is selected. Choose the permissions, then start sharing. It never starts automatically after installation or restart.
+The desktop app can act as an opt-in MCP server. Open **Work Mode → MCP → Share this chat through MCP** and select **Manage chat sharing**. Choose permissions and the two optional lifecycle settings, then start sharing. Settings → MCP lists active chat shares and lets you stop one or all of them.
 
 The server binds only to `127.0.0.1`. Copy the client configuration into a trusted local MCP application supporting **Streamable HTTP** and an Authorization header. The copied configuration contains a local access token; it does not contain provider API keys. A typical configuration shape is:
 
@@ -70,7 +70,7 @@ The server binds only to `127.0.0.1`. Copy the client configuration into a trust
 }
 ```
 
-Use the actual copied values and your client’s configuration format. Port `0` selects a free port; an explicit unprivileged port is useful for a fixed client setup. Every new sharing run creates a new token. **Stop sharing** revokes it and cancels pending requests. Quitting the app, destroying its main window, locking it, or changing content protection also stops sharing. A hidden/tray app can remain active if its background-lock setting allows it. The Android app does not start a persistent local HTTP server.
+Use the actual copied values and your client’s configuration format. Port `0` selects a free port; an explicit unprivileged port is useful for a fixed client setup. A new manual sharing run creates a new token. Automatic startup uses the saved device-encrypted token with a fresh internal grant. **Stop sharing** revokes the grant, cancels pending requests and disables the saved startup option. An opted-in listener can stay connected through app lock, and chat tools and resources become available after unlock. Android can connect to MCP servers. Use the desktop app to host local listeners.
 
 ## Permissions
 

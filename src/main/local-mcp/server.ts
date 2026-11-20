@@ -12,14 +12,15 @@ export interface LocalMCPBackend {
   readResource(grant:LocalMCPGrant,uri:string,signal:AbortSignal):Promise<any>
 }
 function deny(response:ServerResponse,status:number,message:string){if(!response.headersSent)response.writeHead(status,{'content-type':'application/json','cache-control':'no-store'}).end(JSON.stringify({jsonrpc:'2.0',id:null,error:{code:-32000,message}}))}
-/** Explicit, revocable endpoint grants. No LAN bind, browser origins, cookies or persistent tokens. */
+/** Each listener has a fresh internal grant even when its client credential is remembered. */
 export class LocalMCPServer {
   private http:HTTPServer|undefined
   private grant:LocalMCPGrant|undefined
+  private accessToken: string | undefined
   private pending=new Map<string,AbortController>()
   constructor(private readonly backend:LocalMCPBackend){}
-  state():LocalMCPState{return this.grant?structuredClone(this.grant):{running:false}}
-  async start(input:LocalMCPStart){
+  state():LocalMCPState{return this.grant?structuredClone({...this.grant, ...(this.accessToken ? {accessToken:this.accessToken} : {})}):{running:false}}
+  async start(input:LocalMCPStart, accessToken?: string){
     const parsed=LocalMCPStartSchema.parse(input)
     if(parsed.application&&!parsed.endpointId)throw new Error('Application endpoints need an identity')
     if(parsed.application?.mode==='router'&&(parsed.permissions.execute||parsed.permissions.search||parsed.permissions.forwardMCP||parsed.permissions.multiAgent))throw new Error('Router endpoints cannot grant workspace execution, agents, search or other MCP services')
@@ -33,11 +34,12 @@ export class LocalMCPServer {
     try{await new Promise<void>((resolve,reject)=>{http.once('error',reject);http.listen(parsed.port,'127.0.0.1',()=>{http.off('error',reject);resolve()})})}
     catch(error){this.http=undefined;http.close();throw error}
     const address=http.address();if(!address||typeof address==='string')throw new Error('Local MCP address unavailable')
-    this.grant={running:true,sessionId:parsed.sessionId,...(parsed.endpointId?{endpointId:parsed.endpointId}:{}),...(parsed.application?{application:parsed.application}:{}),permissions:parsed.permissions,token,url:'http://127.0.0.1:'+address.port+'/mcp',startedAt}
+    this.grant={running:true,sessionId:parsed.sessionId,...(parsed.endpointId?{endpointId:parsed.endpointId}:{}),...(parsed.application?{application:parsed.application}:{}),keepWhileLocked:parsed.keepWhileLocked,permissions:parsed.permissions,token,url:'http://127.0.0.1:'+address.port+'/mcp',startedAt}
+    this.accessToken = accessToken
     return this.state()
   }
   async stop(){
-    this.grant=undefined;for(const pending of this.pending.values())pending.abort();this.pending.clear()
+    this.grant=undefined;this.accessToken=undefined;for(const pending of this.pending.values())pending.abort();this.pending.clear()
     const http=this.http;this.http=undefined
     if(http){http.closeAllConnections();await new Promise<void>(resolve=>http.close(()=>resolve()))}
   }
@@ -47,7 +49,7 @@ export class LocalMCPServer {
     if(!grant){deny(response,503,'Local MCP server is stopped');return}
     const expectedHost=new URL(grant.url).host
     if(request.headers.host!==expectedHost||request.headers.origin!==undefined||!['127.0.0.1','::ffff:127.0.0.1'].includes(request.socket.remoteAddress||'')){request.resume();deny(response,403,'Only authorized local clients without a browser origin are accepted');return}
-    const authorization=new TextEncoder().encode(request.headers.authorization||''),expected=new TextEncoder().encode('Bearer '+grant.token)
+    const authorization=new TextEncoder().encode(request.headers.authorization||''),expected=new TextEncoder().encode('Bearer '+(this.accessToken ?? grant.token))
     if(authorization.length!==expected.length||!timingSafeEqual(authorization,expected)){request.resume();deny(response,401,'A valid local MCP bearer token is required');return}
     if(request.url!=='/mcp'){request.resume();deny(response,404,'Unknown MCP endpoint');return}
     if(request.method!=='POST'){request.resume();deny(response,405,'Use MCP Streamable HTTP POST requests');return}

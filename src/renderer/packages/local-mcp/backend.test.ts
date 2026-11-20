@@ -43,6 +43,24 @@ it('lists only privacy-compatible models and never exposes provider credentials'
   const output=await handleLocalMCP(request('call_tool',{name:'app_models',arguments:{}}),signal())
   expect((output as any[]).map(model=>model.modelId)).toEqual(['secure']);expect(JSON.stringify(output)).not.toContain('PROVIDER_KEY')
 })
+it('keeps only allowed text router operations reachable while the app is locked', async () => {
+  state.locked=true
+  const router={...grant(),sessionId:'application',keepWhileLocked:true,application:LocalMCPApplicationSchema.parse({name:'Secure',mode:'router',privacy:'e2ee'})}
+  const invoke=(operation:LocalMCPRequest['operation'],name?:string)=>handleLocalMCP(request(operation,{grant:router,locked:true,name}),signal())
+  expect(await invoke('list_tools')).toEqual([expect.objectContaining({name:'app_models'})])
+  expect(await invoke('call_tool','app_models')).toEqual([expect.objectContaining({modelId:'secure'})])
+  await expect(invoke('call_tool','app_model')).rejects.toThrow('Unlock Chatbox')
+  await expect(invoke('call_tool','venice_studio')).rejects.toThrow('Unlock Chatbox')
+  await expect(invoke('read_resource')).rejects.toThrow('Unlock Chatbox')
+  router.permissions.automaticModels=true
+  expect(await invoke('list_tools')).toContainEqual(expect.objectContaining({name:'app_model',inputSchema:expect.objectContaining({required:expect.arrayContaining(['request_id'])})}))
+  vi.stubGlobal('window',{electronAPI:{invoke:vi.fn(async()=>router)}})
+  const call=()=>handleLocalMCP(request('call_tool',{grant:router,locked:true,name:'app_model',arguments:{request_id:'locked-model-once',provider:'venice',modelId:'secure',messages:[{role:'user',content:'Synthetic question'}]}}),signal())
+  expect(await call()).toMatchObject({text:'Model response'})
+  expect(await call()).toMatchObject({text:'Model response'})
+  expect(state.chat).toHaveBeenCalledOnce()
+  expect(state.approve).not.toHaveBeenCalled()
+})
 it('enforces approval for a real model call and rejects model/provider downgrade and extra arguments',async()=>{
   const input={provider:'venice',modelId:'secure',messages:[{role:'user',content:'Read these explicit messages only'}],maxOutputTokens:20}
   state.approve.mockResolvedValue(false)
