@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { defaultLocalMCPPermissions, LocalMCPApplicationSchema, type LocalMCPGrant, type LocalMCPStart } from '@shared/local-mcp'
-import { disableMCPStartup, readMCPProfiles, restoreMCPProfiles, saveMCPProfile, startupErrors } from './profiles'
+import { disableMCPStartup, readMCPProfiles, restoreMCPProfiles, saveMCPProfile, startSavedMCPProfile, startupErrors } from './profiles'
 
 const state = vi.hoisted(() => ({ profiles: null as unknown, key: new Map<string, string>(), invoke: vi.fn(), locked: false }))
 vi.mock('@/platform', () => ({ default: { type: 'desktop' } }))
@@ -39,8 +39,8 @@ beforeEach(() => {
 })
 
 it('restores only opted-in profiles, pins automatic ports and persists no plaintext token', async () => {
-  await saveMCPProfile(app, grant(app, 32910), false)
-  await saveMCPProfile(chat, grant(chat, 32911), true)
+  await saveMCPProfile(app, grant(app, 32910), {autoStart:false,rememberToken:false})
+  await saveMCPProfile(chat, grant(chat, 32911), {autoStart:true,rememberToken:true})
   expect(JSON.stringify(await readMCPProfiles())).not.toContain(token)
   await restoreMCPProfiles(signal())
   expect(state.invoke.mock.calls.filter(call=>call[1]==='restore')).toEqual([
@@ -53,7 +53,7 @@ it('restores only opted-in profiles, pins automatic ports and persists no plaint
 })
 
 it('blocks restoration while locked and rejects changes to the permissions bound to the token', async () => {
-  await saveMCPProfile(app, grant(app, 32910), true)
+  await saveMCPProfile(app, grant(app, 32910), {autoStart:true,rememberToken:true})
   const profiles = await readMCPProfiles()
   state.locked = true
   await restoreMCPProfiles(signal())
@@ -63,5 +63,38 @@ it('blocks restoration while locked and rejects changes to the permissions bound
   state.profiles = [{ ...profiles[0], permissions: { ...app.permissions, venice:true } }]
   await restoreMCPProfiles(signal())
   expect(state.invoke.mock.calls.some(call=>call[1]==='restore')).toBe(false)
+  expect(startupErrors.has(app.endpointId!)).toBe(true)
+})
+
+it('remembers a custom or empty token independently of auto-start, even after a manual stop', async () => {
+  for (const accessToken of ['my-local.token', '']) {
+    const endpoint = {...grant(app, 32910), accessToken}
+    await saveMCPProfile(app, endpoint, {autoStart:true,rememberToken:true})
+    await disableMCPStartup(app.endpointId!)
+    const [profile] = await readMCPProfiles()
+    expect(profile.autoStartEnvelope).toBeUndefined()
+    expect(profile.port).toBe(32910)
+    expect(profile.tokenEnvelope).toBeDefined()
+    if (accessToken) expect(JSON.stringify(profile)).not.toContain(accessToken)
+    state.invoke.mockClear()
+    await restoreMCPProfiles(signal())
+    expect(state.invoke).not.toHaveBeenCalled()
+    await startSavedMCPProfile(profile)
+    expect(state.invoke).toHaveBeenCalledWith('local-mcp:control','restore',{
+      config:{...app,port:32910},accessToken,
+    })
+  }
+})
+
+it('automatically starts ephemeral endpoints with a fresh token and seals their configuration', async () => {
+  await saveMCPProfile(app, grant(app, 32910), {autoStart:true,rememberToken:false})
+  const [profile] = await readMCPProfiles()
+  expect(profile.tokenEnvelope).toBeUndefined()
+  await restoreMCPProfiles(signal())
+  expect(state.invoke).toHaveBeenCalledWith('local-mcp:control','start',{...app,port:32910})
+  state.invoke.mockClear()
+  state.profiles = [{...profile,port:32912}]
+  await restoreMCPProfiles(signal())
+  expect(state.invoke.mock.calls.some(call=>call[1]==='start')).toBe(false)
   expect(startupErrors.has(app.endpointId!)).toBe(true)
 })

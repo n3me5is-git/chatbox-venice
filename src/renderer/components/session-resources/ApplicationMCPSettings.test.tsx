@@ -2,7 +2,7 @@
 import {MantineProvider} from '@mantine/core'
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
-import {LocalMCPStartSchema} from '@shared/local-mcp'
+import {LocalMCPStartWithTokenSchema} from '@shared/local-mcp'
 const state=vi.hoisted(()=>({grants:[] as any[],invoke:vi.fn(),cleanup:vi.fn(async()=>({pending:0}))}))
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('react-i18next',()=>({useTranslation:()=>({})}))
@@ -12,12 +12,12 @@ vi.mock('@/packages/local-mcp/application',()=>({cleanupInactiveMCPContexts:()=>
 import {ApplicationMCPSettings} from './ApplicationMCPSettings'
 Object.defineProperty(window,'matchMedia',{value:vi.fn(()=>({matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()}))})
 vi.stubGlobal('ResizeObserver',class{observe(){}unobserve(){}disconnect(){}})
-beforeEach(()=>{vi.clearAllMocks();state.grants=[];state.invoke.mockImplementation(async(_channel,command,input)=>{if(command==='list')return state.grants;if(command==='start'){const parsed=LocalMCPStartSchema.parse(input),grant={...parsed,running:true,url:'http://127.0.0.1:'+String(3000+state.grants.length)+'/mcp',token:'token-'+state.grants.length,startedAt:1};state.grants.push(grant);return grant}if(command==='stop-endpoint')state.grants=state.grants.filter(item=>item.endpointId!==input);return {running:false}});Object.assign(window,{electronAPI:{invoke:state.invoke}})})
+beforeEach(()=>{vi.clearAllMocks();state.grants=[];state.invoke.mockImplementation(async(_channel,command,input)=>{if(command==='list')return state.grants;if(command==='start-with-token'){const {config,accessToken}=LocalMCPStartWithTokenSchema.parse(input),grant={...config,accessToken,running:true,url:'http://127.0.0.1:'+String(3000+state.grants.length)+'/mcp',token:'token-'+state.grants.length,startedAt:1};state.grants.push(grant);return grant}if(command==='stop-endpoint')state.grants=state.grants.filter(item=>item.endpointId!==input);return {running:false}});Object.assign(window,{electronAPI:{invoke:state.invoke}})})
 afterEach(cleanup)
 it('starts only on demand, offers three profiles and adds endpoints without replacing the first',async()=>{
   render(<MantineProvider><ApplicationMCPSettings/></MantineProvider>)
   await waitFor(()=>expect(state.invoke).toHaveBeenCalledWith('local-mcp:control','list',undefined))
-  expect(state.invoke.mock.calls.some(call=>call[1]==='start')).toBe(false)
+  expect(state.invoke.mock.calls.some(call=>call[1]==='start-with-token')).toBe(false)
   expect(screen.getByRole('combobox',{name:'Access profile'})).toHaveProperty('value','router')
   expect(screen.getByRole('checkbox',{name:'Start automatically with Chatbox'})).toHaveProperty('checked',false)
   expect(screen.getByRole('checkbox',{name:'Keep endpoint active while the app is locked'})).toHaveProperty('checked',false)

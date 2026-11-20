@@ -1,15 +1,19 @@
 import { z } from 'zod'
 export const LocalMCPPermissionsSchema=z.object({readFiles:z.boolean(),writeFiles:z.boolean(),execute:z.boolean(),models:z.boolean(),automaticModels:z.boolean(),venice:z.boolean(),search:z.boolean(),forwardMCP:z.boolean(),multiAgent:z.boolean().default(false),knowledge:z.boolean().optional()}).strict()
-export const LocalMCPApplicationSchema=z.object({mode:z.enum(['full','shadow','router']),name:z.string().trim().min(1).max(80),externalTools:z.boolean().default(false),automaticStudio:z.boolean().default(false),manageChats:z.boolean().default(false),conversations:z.boolean().default(false),providers:z.array(z.string().min(1).max(128)).max(100).optional(),privacy:z.enum(['auto','e2ee','tee']).default('auto'),dedicatedIds:z.array(z.string().min(1).max(100)).max(100).default([]),knowledgeCollectionIds:z.array(z.number().int().negative()).max(8).optional()}).strict()
+export const LocalMCPApplicationSchema=z.object({mode:z.enum(['full','shadow','router']),name:z.string().trim().min(1).max(80),externalTools:z.boolean().default(false),automaticStudio:z.boolean().default(false),manageChats:z.boolean().default(false),conversations:z.boolean().default(false),providers:z.array(z.string().min(1).max(128)).max(100).optional(),privacy:z.enum(['auto','e2ee','tee']).default('auto'),dedicatedIds:z.array(z.string().min(1).max(100)).max(100).default([]),knowledgeCollectionIds:z.array(z.number().int().negative()).max(8).optional(),knowledgeFilePaths:z.boolean().optional()}).strict()
 export type LocalMCPApplication=z.infer<typeof LocalMCPApplicationSchema>
 export const LocalMCPStartSchema=z.object({sessionId:z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),port:z.number().int().refine(port=>port===0||port>=1024&&port<=65535),permissions:LocalMCPPermissionsSchema,endpointId:z.string().uuid().optional(),application:LocalMCPApplicationSchema.optional(),keepWhileLocked:z.boolean().optional()}).strict()
 export type LocalMCPPermissions=z.infer<typeof LocalMCPPermissionsSchema>
 export type LocalMCPStart=z.infer<typeof LocalMCPStartSchema>
-export const LocalMCPAccessTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/)
-export const LocalMCPRestoreSchema = z.object({
-  config: LocalMCPStartSchema.refine(config => Boolean(config.port && (!config.application || config.endpointId))),
-  accessToken: LocalMCPAccessTokenSchema,
+export const LocalMCPAccessTokenSchema = z.string().max(256).regex(/^[A-Za-z0-9._~+/-]+=*$/)
+export const LocalMCPClientTokenSchema = LocalMCPAccessTokenSchema.or(z.literal(''))
+export const LocalMCPStartWithTokenSchema = z.object({
+  config: LocalMCPStartSchema,
+  accessToken: LocalMCPClientTokenSchema,
 }).strict()
+export const LocalMCPRestoreSchema = LocalMCPStartWithTokenSchema.refine(({ config }) =>
+  Boolean(config.port && (!config.application || config.endpointId)),
+)
 export const defaultLocalMCPPermissions:LocalMCPPermissions={readFiles:true,writeFiles:false,execute:false,models:false,automaticModels:false,venice:false,search:false,forwardMCP:false,multiAgent:false}
 export type LocalMCPState={running:false}|{running:true;sessionId:string;url:string;token:string;accessToken?:string;permissions:LocalMCPPermissions;startedAt:number;endpointId?:string;application?:LocalMCPApplication;keepWhileLocked?:boolean}
 export type LocalMCPGrant=Extract<LocalMCPState,{running:true}>
@@ -65,7 +69,11 @@ export function localMCPGrantAllows(grant:LocalMCPGrant,name:string,args:Record<
 /** Portable, distinct client keys even when two endpoints use the same display name. */
 export function localMCPClientConfiguration(grant:LocalMCPGrant){
   const name=(grant.application?.name||'chatbox-venice').toLowerCase().replace(/[^a-z0-9_-]+/g,'-').slice(0,40)
-  return {mcpServers:{['chatbox-'+name+'-'+new URL(grant.url).port]:{url:grant.url,headers:{Authorization:'Bearer '+(grant.accessToken ?? grant.token)}}}}
+  const token = grant.accessToken ?? grant.token
+  return {mcpServers:{['chatbox-'+name+'-'+new URL(grant.url).port]:{
+    url:grant.url,
+    ...(token ? { headers: { Authorization: 'Bearer ' + token } } : {}),
+  }}}
 }
 
 /** Status/catalog/read requests must remain fresh when a client repeats its request ID. */

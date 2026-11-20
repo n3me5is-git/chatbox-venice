@@ -1,8 +1,9 @@
 import {readLinkedKnowledgeSource} from './linked-source'
-import type {FolderReply,FolderRequest} from '@shared/linked-folder'
+import type {FolderReply,FolderRequest,LinkedSourceLocation} from '@shared/linked-folder'
 import {ragExcluded} from '@shared/session-rag'
 import {resourceMime} from '@shared/session-resources'
 import {linkedFolderAvailable,linkedFolderOperation} from '@/packages/session-resources/linked-folder'
+import platform from '@/platform'
 import {knowledgeCollections as store} from './service'
 export const knowledgeFolderAvailable=linkedFolderAvailable
 const identity=(id:number)=>{if(!Number.isSafeInteger(id)||id>=0)throw Error('Invalid knowledge collection');return 'knowledge-'+Math.abs(id)}
@@ -13,6 +14,34 @@ const operation=async(id:number,action:FolderRequest['action'],options:Partial<F
 export async function chooseCollectionFolder(id:number){const before=(await store.data(id)).folder,reply=await operation(id,'pick');if(reply.bindingId===before?.bindingId)return;if(reply.linked&&reply.bindingId)await store.linkFolder(id,{bindingId:reply.bindingId,name:reply.name||'Folder',automatic:false});changed(id)}
 export async function disconnectCollectionFolder(id:number){await operation(id,'unlink');await store.linkFolder(id,undefined);issues.delete(id);changed(id)}
 export async function automaticCollectionFolder(id:number,automatic:boolean){const data=await store.data(id);if(!data.folder)throw Error('No folder is linked');await store.linkFolder(id,{...data.folder,automatic});changed(id)}
+
+export async function locateCollectionSource(
+  id: number,
+  fileId: number,
+  sourceHash: string,
+  signal: AbortSignal,
+): Promise<LinkedSourceLocation | undefined> {
+  if (platform.type !== 'desktop') return
+  signal.throwIfAborted()
+  const { folder, files } = await store.data(id)
+  const source = files.find(file => file.id === fileId)
+  if (!folder || !source?.linkedPath) return
+  signal.throwIfAborted()
+  // The live original can be missing or replaced while its indexed copy remains readable.
+  const reply = await linkedFolderOperation({
+    sessionId: identity(id),
+    action: 'locate-source',
+    bindingId: folder.bindingId,
+    path: source.linkedPath,
+    expectedVersion: sourceHash,
+  }).catch(() => undefined)
+  signal.throwIfAborted()
+  const current = await store.data(id)
+  if (reply?.bindingId === folder.bindingId && current.folder?.bindingId === folder.bindingId &&
+      current.files.some(file => file.id === fileId && file.alias === source.alias && file.linkedPath === source.linkedPath)) {
+    return reply.localFile
+  }
+}
 /** Each scan is bounded and hashes actual bytes. Missing/revoked/incomplete roots
  * fail closed; they never become an empty deletion snapshot. No source writes. */
 export async function refreshCollectionFolder(id:number,index=false,signal=new AbortController().signal){

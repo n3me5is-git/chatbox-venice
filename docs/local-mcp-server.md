@@ -1,8 +1,14 @@
 # Desktop MCP servers
 
-Chatbox Venice can serve trusted local MCP clients using Streamable HTTP. **Settings → MCP → App-wide MCP servers** creates independent endpoints, with separate loopback ports, random access tokens and permissions. The existing **Share this chat through MCP** remains a separate, narrower endpoint. Endpoint permission profiles can be edited and manually restarted. Enable **Start automatically with Chatbox** on selected profiles to retain their port and a device-encrypted client token. Both startup and lock options are off by default. Up to eight listeners can run together.
+Chatbox Venice can serve trusted local MCP clients using Streamable HTTP. **Settings → MCP → App-wide MCP servers** creates independent endpoints, with separate loopback ports, random access tokens and permissions. The existing **Share this chat through MCP** remains a separate, narrower endpoint. Endpoint permission profiles can be edited and manually restarted. Enable **Start automatically with Chatbox** on selected profiles to reuse their port at launch. Startup, lock and token persistence are independently configurable and off by default. Up to eight listeners can run together.
 
 An existing single-chat endpoint exposes the selected workspace, saved generations, explicitly supplied text-model requests and optionally its agents. It does **not** provide a conversation send/read tool. The app-wide endpoint adds an explicit conversation grant for that purpose.
+
+## Access tokens
+
+When configuring a stopped endpoint, edit the bearer token or select **Regenerate token**. Enable **Keep the same token across restarts** to reuse the port and save the token with device encryption. Editing the field enables persistence, which you can turn off before starting. A manual stop turns off automatic startup and preserves your token choice. Profiles saved with automatic startup in earlier releases retain their existing credential.
+
+An empty token allows any process on the computer to use the endpoint’s granted permissions. The listener binds to `127.0.0.1` and rejects browser-origin requests and unexpected Host headers. The exported client configuration omits the Authorization header in this mode.
 
 ## Access profiles
 
@@ -40,6 +46,12 @@ This is an MCP endpoint, not an OpenAI-compatible HTTP API server. Each port acc
 - **app_cleanup**: permanently remove the endpoint’s selected temporary workspace (or all of its temporary workspaces), generated records, files, upload staging and descendant agent sandboxes after retrieval. It never removes an existing personal chat or another endpoint’s space.
 
 Router tools use an internal workspace without a sessionId. Full/shadow operations require an authorized sessionId from app_contexts. Router mode also retains the existing venice_image/venice_media adapters where enabled; venice_studio exposes the direct Studio paths without requiring the chat-tool toggle.
+
+### Linked knowledge originals
+
+On a desktop app-wide endpoint, authorize the collections and enable **Share paths to original files in linked collections** to include a `localFile` object in `knowledge_document` and `knowledge_evidence` when the matching original still exists in the linked folder. Its `path` is the absolute desktop path, `relativePath` is relative to the collection folder, and `uri` is an encoded file URI. Resolve citation IDs through `knowledge_evidence` for the exact passage and page or line information where available.
+
+The option is off by default. The source must match the indexed hash, and the usual collection access checks still apply. Uploaded copies, stale receipts, and originals that have moved or changed omit `localFile`. File paths are returned to the MCP caller only. The reference identifies a file on the host computer, and the client needs its own filesystem access to open it.
 
 ## Retry and shadow lifecycle
 

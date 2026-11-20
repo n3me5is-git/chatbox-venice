@@ -1,5 +1,11 @@
 # Changelog — Chatbox Venice
 
+## 1.55.0
+
+- Optionally share links to matching original files in connected knowledge collections through desktop MCP.
+- Set, regenerate or securely remember a desktop MCP bearer token independently of automatic startup.
+- Optionally run a loopback-only MCP endpoint without a bearer token.
+
 ## 1.54.0
 
 - Automatically restart selected desktop MCP endpoints with a stable port and device-encrypted token.
