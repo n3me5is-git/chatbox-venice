@@ -3,12 +3,12 @@ import { asSchema,tool,type ToolSet } from 'ai'
 import { z } from 'zod'
 import { SystemProviders } from '@shared/defaults'
 import { isUsingOAuth,mergeSharedOAuthProviderSettings } from '@shared/oauth'
-import { ModelProviderEnum,type ProviderModelInfo } from '@shared/types'
+import { ModelProviderEnum,type ProviderModelInfo,type SessionSettings } from '@shared/types'
 import { projectVeniceModels } from '@shared/providers/definitions/models/venice/model-selection'
 import { resolveVeniceSettings } from '@shared/providers/definitions/models/venice/options'
 import { resolveVeniceTextPrivacy,veniceSessionTextPrivacy } from '@chatbox/core/domain/settings/venice-privacy'
 import { isTextResource } from '@shared/session-resources'
-import { localMCPAllows,parseSessionResourceURI,sessionResourceURI,type LocalMCPGrant,type LocalMCPRequest,type LocalMCPTool } from '@shared/local-mcp'
+import { localMCPAllows,localMCPAllowsDuringLock,parseSessionResourceURI,sessionResourceURI,type LocalMCPGrant,type LocalMCPRequest,type LocalMCPTool } from '@shared/local-mcp'
 import { createModel } from '@/adapters'
 import { rendererApplication } from '@/app/renderer-application'
 import { settingsStore } from '@/stores/settingsStore'
@@ -21,19 +21,26 @@ import { veniceChatTools } from '@/packages/venice/tools'
 import { mcpController } from '@/packages/mcp/controller'
 import { buildWebSearchTools,parseLinkTool } from '@/packages/model-calls/toolsets/web-search'
 import platform from '@/platform'
+import { isTemporaryChat, isUnavailableChat } from '@/packages/chat-retention/retention'
 
 const forwarding=new Set<string>()
 export async function localMCPSettings(grant:LocalMCPGrant,override?:{provider:string;modelId:string}){
-  const original={...await getSessionSettings(grant.sessionId),...override},required=grant.application?.privacy
+  return projectModelSettings(grant, {...await getSessionSettings(grant.sessionId),...override})
+}
+function projectModelSettings(grant: LocalMCPGrant, original: SessionSettings) {
+  const required=grant.application?.privacy
   if(grant.application?.mode==='router')original.veniceSecurity=undefined
   const settings={...original,...(grant.application?.externalTools?{veniceSecurity:{...original.veniceSecurity,e2eeToolsEnabled:true,e2eeToolMode:'encrypted-text' as const}}:{}),...(!grant.permissions.search?{subscriptionWebSearch:false,veniceProfile:{...original.veniceProfile,webSearch:'off' as const,webSearchEnabled:false}}:{})}
   if(!required||required==='auto')return settings
   const actual=veniceSessionTextPrivacy({...settings,veniceSecurity:{...settings.veniceSecurity,textPrivacy:'auto'}},settingsStore.getState().getSettings())
   return {...settings,veniceSecurity:{...settings.veniceSecurity,textPrivacy:required==='e2ee'||actual==='e2ee'?'e2ee' as const:'tee' as const,...(grant.application?.externalTools?{e2eeToolsEnabled:true,e2eeToolMode:'encrypted-text' as const}:{})}}
 }
-async function assertChat(grant:LocalMCPGrant){await vaultRuntimeFor(platform).projects.assertSession(grant.sessionId);if(!await rendererApplication.sessions.getSessionHeader(grant.sessionId))throw new Error('The shared chat was deleted')}
+async function assertChat(grant:LocalMCPGrant){await vaultRuntimeFor(platform).projects.assertSession(grant.sessionId);if(isTemporaryChat(grant.sessionId)||isUnavailableChat(grant.sessionId)||!await rendererApplication.sessions.getSessionHeader(grant.sessionId))throw new Error('This chat is unavailable for MCP sharing')}
 export async function localMCPModelCatalog(grant:LocalMCPGrant){
-  const global=settingsStore.getState().getSettings(),session=await localMCPSettings(grant)
+  return modelCatalog(grant, await localMCPSettings(grant))
+}
+function modelCatalog(grant: LocalMCPGrant, session: SessionSettings) {
+  const global=settingsStore.getState().getSettings()
   const base=global.providers?.venice?.venice,privacy=resolveVeniceSettings(base,undefined,session.veniceProfile,session.veniceSecurity)
   const mode=grant.application?.privacy&&grant.application.privacy!=='auto'?grant.application.privacy:grant.application?.mode==='router'?resolveVeniceTextPrivacy(base):veniceSessionTextPrivacy(session,global)
   const restrict=grant.application?.privacy!=='auto'&&!!grant.application||grant.application?.mode!=='router'&&session.provider===ModelProviderEnum.Venice&&(mode!=='standard'||privacy.privacyFilter&&privacy.privacyFilter!=='all')
@@ -56,15 +63,23 @@ export async function localMCPModelCatalog(grant:LocalMCPGrant){
   }
   return output.slice(0,2000)
 }
-async function modelTools(grant:LocalMCPGrant):Promise<ToolSet>{
+async function modelTools(grant:LocalMCPGrant, locked = false):Promise<ToolSet>{
   if(!grant.permissions.models)return {}
+  const catalog = () => locked ? modelCatalog(grant, projectModelSettings(grant, {})) : localMCPModelCatalog(grant)
+  const checkAccess = async (signal?: AbortSignal) => {
+    signal?.throwIfAborted()
+    if (!locked) return assertChat(grant)
+    const current = await window.electronAPI.invoke('local-mcp:control', 'status', grant.endpointId)
+    if (!current.running || current.token !== grant.token || !current.keepWhileLocked) throw Error('Local MCP access was revoked')
+    signal?.throwIfAborted()
+  }
   return {
-    app_models:tool({description:'List configured text models available to this shared chat, respecting its Venice privacy restrictions. Returns capabilities, never credentials.',inputSchema:z.object({}).strict(),execute:()=>localMCPModelCatalog(grant)}),
+    app_models:tool({description:'List configured text models available to this shared chat, respecting its Venice privacy restrictions. Returns capabilities, never credentials.',inputSchema:z.object({}).strict(),execute:()=>catalog()}),
     app_model:tool({
       description:'Call one configured text model with explicit text messages. Uses this chat’s privacy settings and the app’s stored provider credentials, without returning the credentials or sending chat history automatically. Provider charges may apply. Human approval is required unless automatic model calls were explicitly granted when sharing this chat. Optional external function schemas require a separate app-wide endpoint grant; their tool calls are returned to the caller for execution, never executed by app_model. No implicit fallback model.',
       inputSchema:z.object({provider:z.string().max(128),modelId:z.string().max(256),messages:externalMessagesSchema,tools:externalToolsSchema,maxOutputTokens:z.number().int().min(1).max(8192).default(4096)}).strict(),
       execute:async(input,options)=>{
-        options.abortSignal?.throwIfAborted();const external=!!input.tools?.length||input.messages.some(message=>message.role==='tool'||'toolCalls'in message);if(external&&!grant.application?.externalTools)throw Error('External function schemas are not granted to this endpoint');const converted=externalModelInput(input.messages,input.tools);const models=await localMCPModelCatalog(grant)
+        options.abortSignal?.throwIfAborted();const external=!!input.tools?.length||input.messages.some(message=>message.role==='tool'||'toolCalls'in message);if(external&&(locked||!grant.application?.externalTools))throw Error('External function schemas are not granted to this endpoint');const converted=externalModelInput(input.messages,input.tools);const models=await catalog()
         const selected=models.find(model=>model.provider===input.provider&&model.modelId===input.modelId)
         if(!selected)throw new Error('This model is not available to the shared chat')
         const configuration=settingsStore.getState().getSettings().providers?.[input.provider]
@@ -72,12 +87,15 @@ async function modelTools(grant:LocalMCPGrant):Promise<ToolSet>{
           const {requestExternalModelApproval}=await import('./model-approval')
           if(!await requestExternalModelApproval(grant,{...input,messages:[{role:'user',content:JSON.stringify({messages:input.messages,tools:input.tools})}]},options.abortSignal))throw new Error('External model call was not approved')
         }
-        await assertChat(grant);options.abortSignal?.throwIfAborted()
+        await checkAccess(options.abortSignal);options.abortSignal?.throwIfAborted()
         // Re-evaluate after approval: settings or privacy may have changed while the dialog was open.
-        if(settingsStore.getState().getSettings().providers?.[input.provider]!==configuration||!(await localMCPModelCatalog(grant)).some(model=>model.provider===input.provider&&model.modelId===input.modelId))throw new Error('The model configuration changed. Review the request again.')
-        const settings=await localMCPSettings(grant,{provider:input.provider,modelId:input.modelId}),model=await createModel({...settings,provider:input.provider,modelId:input.modelId,maxTokens:input.maxOutputTokens})
+        if(settingsStore.getState().getSettings().providers?.[input.provider]!==configuration||!(await catalog()).some(model=>model.provider===input.provider&&model.modelId===input.modelId))throw new Error('The model configuration changed. Review the request again.')
+        const selection={provider:input.provider,modelId:input.modelId}
+        const settings=locked?projectModelSettings(grant,selection):await localMCPSettings(grant,selection)
+        const model=await createModel({...settings,...selection,maxTokens:input.maxOutputTokens})
+        await checkAccess(options.abortSignal)
         const result=await model.chat(converted.messages,{sessionId:grant.sessionId,signal:options.abortSignal,maxSteps:1,tools:converted.tools}).catch(()=>{throw new Error(options.abortSignal?.aborted?'Model call cancelled':'Model call failed. Check the provider in the app before retrying.')})
-        await assertChat(grant)
+        await checkAccess(options.abortSignal)
         return {provider:input.provider,modelId:input.modelId,contentParts:result.contentParts,text:result.contentParts?.filter(part=>part.type==='text').map(part=>part.text).join('\n')||'',usage:result.usage,verification:result.contentParts?.filter(part=>part.type==='info'&&part.text.startsWith('chatbox:verified-response')).map(part=>part.type==='info'?part.values:undefined)||[]}
       },
     }),
@@ -104,7 +122,7 @@ async function toolsFor(grant:LocalMCPGrant){
     const shared=Object.fromEntries(Object.entries(tools).filter(([name])=>name==='session_file'?grant.permissions.readFiles||grant.permissions.writeFiles:localMCPAllows(grant.permissions,name)))
     Object.assign(tools,buildExternalMultiAgentTools(grant,shared,async()=>{
       await assertChat(grant)
-      const current=await window.electronAPI.invoke('local-mcp:control','status',grant.endpointId) as import('@shared/local-mcp').LocalMCPState
+      const current=await window.electronAPI.invoke('local-mcp:control',grant.application?'status':'chat-status',grant.application?grant.endpointId:grant.sessionId) as import('@shared/local-mcp').LocalMCPState
       if(!current.running||current.token!==grant.token||current.sessionId!== (grant.application?'application':grant.sessionId)||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
     }))
   }
@@ -154,6 +172,32 @@ export async function handleSessionLocalMCP(request:LocalMCPRequest,signal:Abort
 }
 
 export async function handleLocalMCP(request:LocalMCPRequest,signal:AbortSignal):Promise<unknown>{
+  if (request.locked) {
+    const { grant, operation, name } = request
+    signal.throwIfAborted()
+    if (!localMCPAllowsDuringLock(grant, operation, name)) throw Error('Unlock Chatbox to use this MCP operation')
+    if (operation === 'list_resources') return []
+    const tools = grant.application?.mode === 'router' ? await modelTools(grant, true) : {}
+    if (operation === 'list_tools') {
+      return Promise.all(Object.entries(tools).filter(([toolName]) => localMCPAllowsDuringLock(grant, 'call_tool', toolName)).map(async ([toolName, member]) => {
+        const schema = structuredClone(await asSchema(member.inputSchema).jsonSchema) as LocalMCPTool['inputSchema']
+        if (toolName === 'app_model') {
+          schema.properties = { ...(schema.properties as object), request_id: {type:'string',minLength:1,maxLength:128} }
+          schema.required = [...((schema.required as string[]) || []), 'request_id']
+        }
+        return { name:toolName, description:typeof member.description==='string'?member.description:undefined, inputSchema:schema }
+      }))
+    }
+    const member = name ? tools[name] : undefined
+    const {request_id, ...args} = request.arguments ?? {}
+    const validated = member && await asSchema(member.inputSchema).validate?.(args)
+    if (!member?.execute || !validated?.success) throw Error('Invalid MCP tool arguments')
+    const execute = () => member.execute!(validated.value, {toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}})
+    if (name !== 'app_model') return execute()
+    if (typeof request_id !== 'string' || request_id.length < 1 || request_id.length > 128) throw Error('A stable request_id is required for a paid operation')
+    const {unique} = await import('./application')
+    return unique(grant, 'router:'+request_id, {name,args,sessionId:'application'}, execute)
+  }
   if(request.grant.application)return (await import('./application')).handleApplicationMCP(request,signal)
   return handleSessionLocalMCP(request,signal)
 }

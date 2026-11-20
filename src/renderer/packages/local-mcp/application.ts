@@ -12,6 +12,7 @@ import {vaultRuntimeFor} from '@/packages/vault/runtime'
 import {sessionFiles} from '@/packages/session-resources/files'
 import {settingsStore} from '@/stores/settingsStore'
 import platform from '@/platform'
+import { isTemporaryChat, isUnavailableChat } from '@/packages/chat-retention/retention'
 import {handleSessionLocalMCP,localMCPTools} from './backend'
 
 import {temporaryMCPEntries as entries,mutateTemporaryMCPEntries as mutate,localMCPOwner as owner} from './temporary'
@@ -29,6 +30,7 @@ async function live(grant:LocalMCPGrant,signal?:AbortSignal){
   if(!current.running||current.token!==grant.token||JSON.stringify(current.application)!==JSON.stringify(grant.application)||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
 }
 async function authorized(grant:LocalMCPGrant,id:string,signal?:AbortSignal,readDuringCleanup=false){
+  if (isTemporaryChat(id) || isUnavailableChat(id)) throw Error('Chat is unavailable')
   await live(grant,signal);if(closing.has(id))throw Error('This workspace is being cleaned up');await vault().projects.assertSession(id)
   const all=await entries(),own=await owner(grant),entry=all.find(item=>item.id===id)
   if(entry?.cleanupPending&&!readDuringCleanup)throw Error('This temporary workspace is awaiting cleanup. Retrieve saved files or retry app_cleanup.')
@@ -68,7 +70,7 @@ async function defaultContext(grant:LocalMCPGrant,signal:AbortSignal){
   return work
 }
 function bound(grant:LocalMCPGrant,id:string):LocalMCPGrant{return {...grant,sessionId:id}}
-async function unique(grant:LocalMCPGrant,key:string,input:unknown,work:()=>Promise<unknown>){
+export async function unique(grant:LocalMCPGrant,key:string,input:unknown,work:()=>Promise<unknown>){
   const cache=calls.get(grant.token)||new Map();calls.set(grant.token,cache)
   const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(input,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))):value)))),n=>n.toString(16).padStart(2,'0')).join(''),existing=cache.get(key)
   if(existing){if(existing.fingerprint!==fingerprint)throw Error('Use a new request_id for a different operation');return existing.work}

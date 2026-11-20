@@ -2,6 +2,7 @@ import {SessionKnowledgeControl} from '@/components/knowledge-base/ChatKnowledge
 import { VeniceSearchControl } from '@/components/venice/VeniceSearchControl'
 import { modelPrivacySettings } from '@shared/providers/definitions/models/venice/privacy'
 import { SessionVeniceTools } from '@/components/venice/SessionVeniceTools'
+import { ChatMCPShareControl } from '@/components/session-resources/ChatMCPShareControl'
 import { setSearchPermission } from '@shared/providers/definitions/models/venice/search-permissions'
 import { forkT as ft } from '@/i18n/fork'
 import { resolveSessionMode } from '@chatbox/core/session/mode-policy'
@@ -972,6 +973,7 @@ const AgentModePanel = forwardRef<AgentModePanelHandle, AgentModePanelProps>(fun
               </Button>
             </Group>
           )}
+          <ChatMCPShareControl sessionId={sessionId} onOpen={onClose} />
         </>
       )
     }
