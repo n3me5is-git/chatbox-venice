@@ -2,7 +2,6 @@ import { useSyncExternalStore } from 'react'
 import { rendererApplication } from '@/app/renderer-application'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import platform from '@/platform'
-import { router } from '@/router'
 import { chatPathId, leavesTemporaryChat, retentionHours, shouldDiscardChat, type RetainedChat, type RetentionHours } from './journal'
 
 const journalKey = 'chatbox:chat-retention:v1'
@@ -12,6 +11,7 @@ let activeTemporary: string | undefined
 const creating = new Set<string>()
 let initialization: Promise<void> | undefined
 let bound = false
+let navigation: typeof import('@/router').router | undefined
 let work: Promise<unknown> = Promise.resolve()
 let timeout: ReturnType<typeof setTimeout> | undefined
 
@@ -182,8 +182,8 @@ function requestSweep() {
     for (const entry of entries) {
       if (creating.has(entry.id)) continue
       if (!entry.saving && !shouldDiscardChat(entry, activeTemporary, Date.now())) continue
-      if (!entry.saving && router.state.location && chatPathId(router.state.location.pathname) === entry.id) {
-        void router.navigate({ to: '/', replace: true })
+      if (!entry.saving && navigation && chatPathId(navigation.state.location.pathname) === entry.id) {
+        void navigation.navigate({ to: '/', replace: true })
       }
       try {
         await discard(entry)
@@ -198,7 +198,10 @@ function requestSweep() {
 export async function initializeChatRetention() {
   await loadJournal()
   if (bound) return
+  const { router } = await import('@/router')
+  if (bound) return
   bound = true
+  navigation = router
   router.subscribe('onResolved', ({ toLocation }) => {
     if (activeTemporary && leavesTemporaryChat(activeTemporary, toLocation.pathname)) abandonTemporaryChat(activeTemporary)
   })
