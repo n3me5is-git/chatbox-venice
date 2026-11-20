@@ -114,7 +114,17 @@ export function saveTemporaryChat(id: string, hours?: RetentionHours) {
       throw error
     }
     schedule()
+    await revealInSessionList()
   })
+}
+
+async function revealInSessionList() {
+  const { sessionQueryBridge, sessions } = rendererApplication
+  try {
+    sessionQueryBridge.resetSessionList(await sessions.listSessionsMetaPage(0))
+  } catch (error) {
+    console.warn('Could not refresh the saved chat list:', error)
+  }
 }
 
 async function discard(entry: RetainedChat) {
@@ -124,6 +134,8 @@ async function discard(entry: RetainedChat) {
     const result = await rendererApplication.sessions.getSessionHeader(id)
     if (result?.header.hidden === false) {
       await write(id, entry.expiresAt === undefined ? undefined : { id, expiresAt: entry.expiresAt })
+      if (activeTemporary === id) activeTemporary = undefined
+      await revealInSessionList()
       return
     }
     if (activeTemporary === id) {
@@ -150,7 +162,7 @@ export function deleteRetainedChat(id: string): Promise<boolean> {
     if (activeTemporary === id) activeTemporary = undefined
     await discard({ ...entry, saving: undefined })
     return true
-  })
+  }).finally(schedule)
 }
 
 function schedule() {

@@ -10,13 +10,15 @@ const fixture = vi.hoisted(() => ({
   unlock: () => {},
   discard: vi.fn(),
   navigate: vi.fn(),
+  list: vi.fn(),
 }))
 vi.mock('@/platform', () => ({ default: {
   getStoreValue: async () => structuredClone(fixture.saved),
   setStoreValue: async (_key: string, value: RetainedChat[]) => { fixture.saved = structuredClone(value) },
 } }))
-vi.mock('@/app/renderer-application', () => ({ rendererApplication: { sessions: {
+vi.mock('@/app/renderer-application', () => ({ rendererApplication: { sessionQueryBridge: { resetSessionList: fixture.list }, sessions: {
   getSessionHeader: async (id: string) => fixture.rows.get(id),
+  listSessionsMetaPage: async () => ({ items: [...fixture.rows.entries()].filter(([, row]) => !row.header.hidden).map(([id]) => ({ id })), nextCursor: null }),
   updateSessionHeader: async (id: string, patch: { hidden: boolean }) => { fixture.rows.get(id)!.header = patch },
 } } }))
 vi.mock('@/packages/vault/runtime', () => ({ vaultRuntimeFor: () => ({
@@ -40,6 +42,7 @@ beforeEach(() => {
   fixture.rows.clear()
   fixture.saved = []
   fixture.path = '/'
+  fixture.list.mockClear()
   fixture.discard.mockReset().mockImplementation(async id => { fixture.rows.delete(id) })
   fixture.navigate.mockReset().mockImplementation(async ({ to }) => visit(to))
 })
@@ -75,6 +78,7 @@ describe('chat retention', () => {
     await retention.saveTemporaryChat('temporary')
     expect(fixture.rows.get('temporary')?.header.hidden).toBe(false)
     expect(fixture.saved).toEqual([])
+    expect(fixture.list).toHaveBeenCalledWith({ items: [{ id: 'temporary' }], nextCursor: null })
     visit('/')
     await vi.advanceTimersByTimeAsync(3_600_000)
     expect(fixture.discard).not.toHaveBeenCalled()

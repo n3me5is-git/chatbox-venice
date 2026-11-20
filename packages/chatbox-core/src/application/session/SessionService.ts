@@ -912,17 +912,17 @@ export class SessionService {
   async recoverSessionList(): Promise<{ recovered: number; failed: number }> {
     await this.initialize()
     const sessionIds = await this.repository.getAllSessionIds()
-    let existingRecords = new Map<string, SessionMetaRecord>()
+    let existingArchivedRecords = new Map<string, SessionMetaRecord>()
     try {
-      existingRecords = new Map(
+      existingArchivedRecords = new Map(
         (await this.repository.meta.getAllIncludingHidden())
+          .filter((record) => record.recoveryArchived === true)
           .map((record) => [record.id, record])
       )
     } catch (error) {
-      await this.log('warn', 'Session-list recovery stopped because existing metadata could not be preserved', {
+      await this.log('warn', 'Failed to preserve archived metadata during session-list recovery', {
         error: describeError(error),
       })
-      throw error
     }
     const sessionsWithTimestamp: Array<{ read: SessionHeaderRead; timestamp: number }> = []
     const failedSessionIds: string[] = []
@@ -957,8 +957,8 @@ export class SessionService {
         timestamp || now - (sessionsWithTimestamp.length - index) * 1000,
         read.summary.pausedMessageCount > 0
       )
-      const existingArchivedRecord = existingRecords.get(read.header.id)
-      return existingArchivedRecord?.recoveryArchived === true
+      const existingArchivedRecord = existingArchivedRecords.get(read.header.id)
+      return existingArchivedRecord
         ? {
             ...recoveredRecord,
             hidden: true,
@@ -967,10 +967,12 @@ export class SessionService {
           }
         : recoveredRecord
     })
-    const recoveredIds = new Set(records.map(record => record.id))
-    // Locked/corrupt/removable-storage headers are not proof of deletion.
-    // Retain every existing entry that this pass could not positively rebuild.
-    for (const record of existingRecords.values()) if (!recoveredIds.has(record.id)) records.push(record)
+    for (const sessionId of failedSessionIds) {
+      const existingArchivedRecord = existingArchivedRecords.get(sessionId)
+      if (existingArchivedRecord) {
+        records.push(existingArchivedRecord)
+      }
+    }
     await this.repository.meta.clear()
     await this.repository.meta.createMany(records)
     await this.publishListReset({ visible: true, archived: true })

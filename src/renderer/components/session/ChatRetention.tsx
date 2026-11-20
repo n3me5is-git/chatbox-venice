@@ -1,7 +1,8 @@
-import { ActionIcon, Button, Group, Menu, Modal, Select, Stack, Text, Tooltip } from '@mantine/core'
+import { ActionIcon, Button, Group, Menu, Radio, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core'
 import { IconClock, IconDeviceFloppy, IconHourglass } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { forkT as ft } from '@/i18n/fork'
 import { retentionHours, type RetentionHours } from '@/packages/chat-retention/journal'
 import { saveTemporaryChat, useRetainedChat } from '@/packages/chat-retention/retention'
@@ -65,18 +66,23 @@ export function ChatRetentionAction({ sessionId }: { sessionId: string }) {
           <Menu.Item leftSection={<IconClock size={16} />} onClick={() => setSelecting(true)}>{ft('Save as an expiring chat')}</Menu.Item>
         </Menu.Dropdown>
       </Menu>
-      <Modal opened={selecting} onClose={() => setSelecting(false)} title={ft('Save as an expiring chat')}>
+      <AdaptiveModal opened={selecting} onClose={() => setSelecting(false)} title={ft('Save as an expiring chat')}>
         <Stack gap="md">
-          <Select label={ft('Keep this chat for')} allowDeselect={false} value={String(hours)}
-            data={retentionHours.map(value => ({ value: String(value), label: value < 24 ? number.format(value) : days.format(value / 24) }))}
-            onChange={value => { if (value) setHours(Number(value) as RetentionHours) }} comboboxProps={{ withinPortal: false }} />
+          <Radio.Group label={ft('Keep this chat for')} value={String(hours)}
+            onChange={value => setHours(Number(value) as RetentionHours)}>
+            <SimpleGrid cols={2} spacing="sm" mt="xs">
+              {retentionHours.map(value => (
+                <Radio key={value} value={String(value)} label={value <= 24 ? number.format(value) : days.format(value / 24)} />
+              ))}
+            </SimpleGrid>
+          </Radio.Group>
           <Text size="sm" c="dimmed">{ft('At expiry, Chatbox deletes the chat and its app files. Files in linked folders stay where they are.')}</Text>
           <Group justify="end">
             <Button variant="default" disabled={busy} onClick={() => setSelecting(false)}>{ft('Cancel')}</Button>
             <Button loading={busy} onClick={() => void save(hours)}>{ft('Save chat')}</Button>
           </Group>
         </Stack>
-      </Modal>
+      </AdaptiveModal>
     </>
   )
 }
