@@ -103,7 +103,8 @@ const TimelineReasoningStep: FC<{
   message?: Message
   nested?: boolean
   onCopyReasoningContent?: CopyReasoningHandler
-}> = ({ part, message, nested, onCopyReasoningContent }) => {
+  label?:string
+}> = ({ part, message, nested, onCopyReasoningContent,label:customLabel }) => {
   const { t } = useTranslation()
   const { reasoningContent, isThinking, displayTime } = useReasoningState(message, part)
   const [expanded, setExpanded] = useState(false)
@@ -114,7 +115,7 @@ const TimelineReasoningStep: FC<{
   // Thinking is a settled step once it ends; only the live one carries color.
   const stateColor = isThinking ? 'var(--chatbox-tint-brand)' : 'var(--chatbox-tint-tertiary)'
 
-  const label = isThinking ? t('Thinking') : t('Deeply thought')
+  const label = customLabel||(isThinking ? t('Thinking') : t('Deeply thought'))
 
   const isStepChild = nested === true
 
@@ -137,8 +138,8 @@ const TimelineReasoningStep: FC<{
             size="xs"
             c={isStepChild || isThinking ? 'chatbox-secondary' : 'chatbox-tertiary'}
             lh="20px"
-            className="shrink-0"
-            style={{ fontSize: TIMELINE_LABEL_FONT_SIZE }}
+            className={customLabel?'min-w-0':'shrink-0'}
+            style={{ fontSize: TIMELINE_LABEL_FONT_SIZE,...(customLabel?{overflowWrap:'anywhere' as const}:{}) }}
           >
             {label}
           </Text>
@@ -385,8 +386,9 @@ export const ReasoningContentUI: FC<{
   message: Message
   part?: MessageReasoningPart
   onCopyReasoningContent: (content: string) => (e: React.MouseEvent<HTMLButtonElement>) => void
-}> = ({ message, part, onCopyReasoningContent }) => (
+  label?:string
+}> = ({ message, part, onCopyReasoningContent,label }) => (
   <Box my={8} mb={12}>
-    <TimelineReasoningStep part={part} message={message} onCopyReasoningContent={onCopyReasoningContent} />
+    <TimelineReasoningStep part={part} message={message} onCopyReasoningContent={onCopyReasoningContent} label={label}/>
   </Box>
 )

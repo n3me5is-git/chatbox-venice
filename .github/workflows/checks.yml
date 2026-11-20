@@ -32,6 +32,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Retrieval recovery, answer scopes and source-review rendering
+        run: pnpm exec vitest run src/shared/knowledge-retrieval.test.ts src/shared/knowledge-publication.test.ts src/renderer/platform/knowledge-base/portable-controller.test.ts src/renderer/components/knowledge-base/KnowledgeReviewDetails.test.tsx src/renderer/components/knowledge-base/KnowledgeCitation.test.tsx
       - name: Knowledge source boundaries, streamed encryption and native folder ranges
         run: pnpm exec vitest run src/renderer/packages/knowledge-collections/source-bytes.test.ts src/renderer/packages/knowledge-collections/linked-source.test.ts src/renderer/packages/knowledge-collections/linked-folder.test.ts src/renderer/packages/session-rag/document-parser.test.ts src/renderer/packages/session-rag/text.test.ts src/shared/mobile-work/worker/knowledge-document.test.ts src/main/sandbox/linked-folder.test.ts
       - name: Desktop local OCR lifecycle, downloads and role routing

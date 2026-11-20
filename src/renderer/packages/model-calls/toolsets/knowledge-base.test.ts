@@ -5,7 +5,11 @@ const controller = vi.hoisted(() => ({
   getFilesMeta: vi.fn(),
   readFileChunks: vi.fn(),
   listFilesPaginated: vi.fn(),
+  searchWithDiagnostics:undefined as undefined|ReturnType<typeof vi.fn>,
 }))
+const security=vi.hoisted(()=>({assert:vi.fn(),citeChunks:vi.fn()}))
+vi.mock('./knowledge-intelligence',()=>({getAdvancedKnowledgeTools:async()=>({})}))
+vi.mock('@/packages/knowledge-collections/service',()=>({knowledgeCollections:security}))
 
 vi.mock('@/platform', () => ({
   default: { getKnowledgeBaseController: () => controller },
@@ -40,10 +44,25 @@ async function run(input: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  controller.searchWithDiagnostics=undefined
+  security.assert.mockResolvedValue(undefined);security.citeChunks.mockResolvedValue([])
   controller.listFilesPaginated.mockResolvedValue([kbFile(7, 'manual.pdf', 12), kbFile(8, 'draft.md', 0, 'processing')])
 })
 
 describe('knowledge_base tool', () => {
+  test('does not expose decrypted hits when a metadata failure coincides with a collection lock',async()=>{
+    controller.search.mockResolvedValue([{fileId:7,filename:'secret.md',chunkIndex:0,score:1,text:'Private passage'}]);controller.getFilesMeta.mockImplementationOnce(async()=>{security.assert.mockRejectedValueOnce(Error('Collection locked'));throw Error('Metadata unavailable')})
+    const tool=(await getToolSet(-1,'Protected')) .tools.knowledge_base as unknown as TestTool
+    await expect(tool.execute({command:'search',query:'payment'},{})).rejects.toThrow('Collection locked')
+  })
+  test('does not run a search, read or list after explicit cancellation',async()=>{
+    const signal=new AbortController();signal.abort(Error('Stopped'));const tool=await loadTool();controller.listFilesPaginated.mockClear()
+    for(const command of ['search','read','list'])await expect(tool.execute({command,query:'payment',fileId:7},{abortSignal:signal.signal})).rejects.toThrow('Stopped')
+    expect(controller.search).not.toHaveBeenCalled();expect(controller.getFilesMeta).not.toHaveBeenCalled();expect(controller.readFileChunks).not.toHaveBeenCalled();expect(controller.listFilesPaginated).not.toHaveBeenCalled()
+  })
+  test('preserves retrieval notices and passes cancellation into the portable search',async()=>{
+    const signal=new AbortController().signal;controller.searchWithDiagnostics=vi.fn().mockResolvedValue({results:[],warnings:[{stage:'reranking',provider:'venice',model:'judge',statusCode:500,message:'Original ranking retained.'}]});const tool=await loadTool(),output=await tool.execute({command:'search',query:'payment'},{abortSignal:signal});expect(controller.searchWithDiagnostics).toHaveBeenCalledWith(3,'payment',signal);expect(controller.search).not.toHaveBeenCalled();expect(JSON.stringify(tool.toModelOutput({input:{command:'search'},output,toolCallId:'call'}))).toContain('Original ranking retained.')
+  })
   test('description names the knowledge base and its ready files', async () => {
     const tool = await loadTool()
     expect(tool.description).toContain('"Product Docs"')

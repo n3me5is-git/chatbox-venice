@@ -1,3 +1,4 @@
+import {retryKnowledgeEmbedding} from '@shared/knowledge-retrieval'
 import {validateOcrFallback,ocrFallbackFingerprint} from '@shared/virtual-ocr'
 import {canIndexRagScope} from '@shared/session-rag-policy'
 import { RAG_ROOT, RagSettingsSchema, RagIndexSchema, type RagSettings, type RagIndex } from '@shared/session-rag'
@@ -51,7 +52,7 @@ async function engine(id:string,settings:RagSettings){
     get:path=>get(id,path),put:(path,value)=>put(id,path,value),
     remove:async path=>{const file=(await sessionFiles.list(id,true)).find(file=>file.path===path);if(file)await sessionFiles.remove(id,file.id,[],true)},
     extract:(source,bytes,cfg,signal)=>extractRagSource(source,bytes,cfg,signal,check),
-    embed:async(input,query,cfg,signal)=>{await check();const result=await requestRagEmbeddings(input,query,cfg,signal);await check();return result},
+    embed:async(input,query,cfg,signal)=>{const work=async()=>{await check();const result=await requestRagEmbeddings(input,query,cfg,signal);await check();return result};return query?retryKnowledgeEmbedding(work,signal,check):work()},
   }
   await check();return new SessionRagEngine(port)
 }

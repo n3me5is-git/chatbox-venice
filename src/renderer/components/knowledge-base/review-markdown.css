@@ -1,0 +1,6 @@
+.knowledge-review-markdown > :first-child { margin-top: 0; }
+.knowledge-review-markdown > :last-child { margin-bottom: 0; }
+.knowledge-review-markdown h1, .knowledge-review-markdown h2, .knowledge-review-markdown h3 { font-size: 1.05rem; line-height: 1.4; }
+.knowledge-review-markdown .katex-display { max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.knowledge-review-markdown table { border-collapse: collapse; }
+.knowledge-review-markdown th, .knowledge-review-markdown td { padding: 6px 10px; border: 1px solid var(--mantine-color-default-border); }

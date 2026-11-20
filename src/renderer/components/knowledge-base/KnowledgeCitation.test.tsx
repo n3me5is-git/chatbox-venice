@@ -18,3 +18,7 @@ it('previews already authorized source text without unlocking, and erases it whe
 it('ignores an excerpt that completes after hover closes',async()=>{
  let finish!:(value:any)=>void;f.readEvidence.mockReturnValueOnce(new Promise(resolve=>{finish=resolve}));render(<MantineProvider env="test"><KnowledgeCitation href={href}/></MantineProvider>);const link=screen.getByRole('link',{name:'Open source excerpt'});fireEvent.focus(link);await waitFor(()=>expect(f.readEvidence).toHaveBeenCalled());fireEvent.blur(link);await act(async()=>finish({name:'Report',quote:'Late private text'}));expect(screen.queryByText('Late private text')).toBeNull()
 })
+it('renders highlighted hover excerpts as Markdown and LaTeX without remote media or owner unlock',async()=>{
+ f.readEvidence.mockResolvedValueOnce({name:'Formula.pdf',quote:'## Definition\n\n**Score**: $x^2$.\n\n![inert](https://tracker.invalid/pixel)',page:2})
+ render(<MantineProvider env="test"><KnowledgeCitation href={href}/></MantineProvider>);fireEvent.focus(screen.getByRole('link',{name:'Open source excerpt'}));expect(await screen.findByRole('heading',{name:'Definition'})).toBeTruthy();expect(document.querySelector('.mantine-Popover-dropdown .katex')).toBeTruthy();expect(document.querySelector('.mantine-Popover-dropdown img')).toBeNull();expect(f.authorize).not.toHaveBeenCalled()
+})

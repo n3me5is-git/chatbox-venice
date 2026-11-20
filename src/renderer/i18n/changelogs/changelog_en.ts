@@ -1,4 +1,9 @@
 const changelog = `
+## Chatbox Venice 1.52.1
+1. Recover temporary retrieval failures with clear ranking notices
+2. Improve final-answer source review and keep checker reasoning in the thinking timeline
+3. Render Markdown and formulas in review dialogs with search and filters
+
 ## Chatbox Venice 1.52.0
 1. Configure collections and source review together, or mention a collection with @ for one request
 2. Read per-statement assessments, conflicting evidence and provider-returned checker reasoning

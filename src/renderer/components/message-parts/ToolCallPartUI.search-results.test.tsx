@@ -2,7 +2,7 @@
 
 import { MantineProvider } from '@mantine/core'
 import type { MessageToolCallPart } from '@shared/types'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen,waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('i18next', async (importOriginal) => ({
@@ -56,6 +56,9 @@ import { StepTimelineUI } from './StepTimelineUI'
 import { ToolCallPartUI } from './ToolCallPartUI'
 import { AgentTranscript } from '../multi-agent/AgentTranscript'
 import { createMessage } from '@shared/types'
+import {KnowledgeReviewThinking} from '../knowledge-base/KnowledgeReviewThinking'
+import {KnowledgeReviewScope} from '../knowledge-base/KnowledgeReviewStatus'
+import {KnowledgeCheckReportSchema,knowledgeAnswerHash} from '@shared/knowledge-verification'
 
 const LONG_LINK =
   'https://example.com/docs/very-long-path/that-has-no-spaces-and-would-overflow-the-viewport-if-the-card-grew-with-its-content?token=abcdefghijklmnopqrstuvwxyz0123456789'
@@ -280,5 +283,17 @@ describe('tool call search result overflow', () => {
     expect(thinking.getAttribute('aria-expanded')).toBe('true');expect(screen.getByText('Check both sources before summarizing')).toBeTruthy()
     expandByLabel('Web Search');expect(screen.getByRole('link',{name:/OAuth token refresh patterns/}).getAttribute('href')).toBe(LONG_LINK)
   })
+
+it('retains real checker thinking as an expandable labeled step only while the answer hash matches',async()=>{
+ const text='The deadline is Friday.',hash=await knowledgeAnswerHash(text),report=KnowledgeCheckReportSchema.parse({version:1,id:crypto.randomUUID(),answerHash:hash,draftHash:hash,created:1,status:'checked',reason:'complete',revised:false,calls:1,coverage:1,omittedEvidence:0,claims:[],sources:[],reasoning:[{phase:'checking',text:'Compare the exact date with both source versions.'}]}),message=createMessage('assistant',text),copy=vi.fn(()=>vi.fn())
+ message.contentParts.push({type:'info',text:'local:knowledge-verification',values:{report}});const original=JSON.stringify(message.contentParts)
+ const show=(value=message)=><MantineProvider env="test"><KnowledgeReviewScope parts={value.contentParts}><KnowledgeReviewThinking message={value} onCopyReasoningContent={copy}/></KnowledgeReviewScope></MantineProvider>,view=render(show())
+ await waitFor(()=>expect(screen.getByText('Fact-check thinking')).toBeTruthy());const button=screen.getByText('Fact-check thinking').closest('button')!;expect(button.getAttribute('aria-expanded')).toBe('false');fireEvent.click(button);expect(button.getAttribute('aria-expanded')).toBe('true');expect(screen.getByText('Compare the exact date with both source versions.')).toBeTruthy();expect(JSON.stringify(message.contentParts)).toBe(original)
+ view.rerender(show({...message,contentParts:[{type:'text',text:'Edited'},message.contentParts.at(-1)!]}));expect(screen.queryByText('Fact-check thinking')).toBeNull()
+})
+it('explains retained retrieval results when a query reranker is unavailable',()=>{
+ render(<MantineProvider env="test"><StepTimelineUI parts={[{type:'tool-call',toolCallId:'kb-recovery',toolName:'knowledge_base',state:'result',args:{command:'search',query:'payment'},result:{results:[],warnings:[{stage:'reranking',provider:'venice',model:'judge',statusCode:500}]}}]}/></MantineProvider>)
+ expandByLabel('Query Knowledge Base');expect(screen.getByText('Search continued with reduced ranking')).toBeTruthy();expect(screen.getByText(/original search results were retained/)).toBeTruthy()
+})
 
 })

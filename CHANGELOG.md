@@ -1,5 +1,12 @@
 # Changelog — Chatbox Venice
 
+## 1.52.1
+
+- Recover temporary knowledge-search failures without losing retrieved passages, and explain reduced ranking.
+- Review the final answer separately from work narration and improve source matching for paraphrases, headings and formulas.
+- Render Markdown and mathematics in source-review dialogs, with search, filters and raw-text inspection.
+- Keep provider-returned checker reasoning in the answer thinking timeline.
+
 ## 1.52.0
 
 - Unify chat collections, source review and contextual @ mentions.
