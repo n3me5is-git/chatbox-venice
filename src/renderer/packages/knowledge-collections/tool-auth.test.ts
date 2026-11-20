@@ -1,5 +1,5 @@
 import {beforeEach,expect,it,vi} from 'vitest'
-const state=vi.hoisted(()=>({authorize:vi.fn(),data:vi.fn(),list:vi.fn(),search:vi.fn(),chunks:vi.fn(),indexStatus:vi.fn(),toolCapabilities:vi.fn(),citeChunks:vi.fn(),controller:null as any}))
+const state=vi.hoisted(()=>({authorize:vi.fn(),assert:vi.fn(),data:vi.fn(),list:vi.fn(),search:vi.fn(),chunks:vi.fn(),indexStatus:vi.fn(),toolCapabilities:vi.fn(),citeChunks:vi.fn(),controller:null as any}))
 vi.mock('@/packages/knowledge-collections/service',()=>({knowledgeCollections:state}))
 vi.mock('@/platform',()=>({default:{getKnowledgeBaseController:()=>state.controller}}))
 import {portableKnowledgeController} from '@/platform/knowledge-base/portable-controller'
