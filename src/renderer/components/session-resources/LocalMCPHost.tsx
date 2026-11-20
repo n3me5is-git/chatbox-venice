@@ -19,10 +19,10 @@ export default function LocalMCPHost(){
       requests.clear()
     }
     const suspend = () => {
+      if (!isApplicationLockPending()) return
       cancelWork()
-      const appLock = isApplicationLockPending()
-      if (appLock) restoreOnUnlock = true
-      void control('suspend', appLock).then(localMCPChanged).catch(() => {})
+      restoreOnUnlock = true
+      void control('suspend', true).then(localMCPChanged).catch(() => {})
     }
     const unsubscribe=ipc.onLocalMCPRequest(request=>{
       if(request.operation==='revoke'){void import('@/packages/local-mcp/application').then(module=>module.revokeApplicationMCP(request.grant)).catch(()=>{});void import('@/packages/multi-agent/runtime').then(module=>module.revokeExternalAgents(request.grant.token)).catch(()=>{});return}
@@ -65,7 +65,9 @@ export default function LocalMCPHost(){
         .finally(()=>Promise.all(event.ids.map(id=>control('stop-chat', id))))
       localMCPChanged()
     })
-    const unlock=vault.keys.subscribe(synchronize)
+    // The app-wide host outlives route changes. Scoped keys are checked by the
+    // workspace and collection tools and can change without revoking listeners.
+    const unlock=vault.keys.subscribe(scope=>{if(scope===undefined||scope==='app')synchronize()})
     window.addEventListener('chatbox:privacy-lock',suspend)
     synchronize()
     return()=>{unsubscribe();unlock();removeEvents();window.removeEventListener('chatbox:privacy-lock',suspend);cancelWork();void control('suspend',false).catch(()=>{})}

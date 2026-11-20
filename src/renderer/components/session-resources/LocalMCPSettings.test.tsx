@@ -22,7 +22,7 @@ it('never starts automatically and grants only the permissions selected by the h
   fireEvent.click(screen.getByRole('checkbox',{name:'Run isolated JavaScript and optional Python'}))
   fireEvent.click(screen.getByRole('button',{name:'Start sharing this chat'}))
   await screen.findByText('http://127.0.0.1:3000/mcp')
-  expect(invoke).toHaveBeenCalledWith('start',{sessionId:'chat',port:0,permissions:{readFiles:true,writeFiles:true,execute:true,models:false,automaticModels:false,venice:false,search:false,forwardMCP:false,multiAgent:false}})
+  expect(invoke).toHaveBeenCalledWith('start',{sessionId:'chat',port:0,permissions:{readFiles:true,writeFiles:true,execute:true,models:false,automaticModels:false,venice:false,search:false,forwardMCP:false,multiAgent:false}},expect.stringMatching(/^[A-Za-z0-9_-]{43}$/))
   fireEvent.click(screen.getByRole('button',{name:'Stop sharing'}));await screen.findByRole('button',{name:'Start sharing this chat'});expect(invoke).toHaveBeenCalledWith('stop')
 })
 it('makes the separate multi-agent grant and its worker/guardian charges visible before sharing',async()=>{
@@ -38,4 +38,19 @@ it('requires model access before automatic paid calls can be selected',()=>{
   const automatic=screen.getByRole('checkbox',{name:'Automatically approve external model calls (may incur costs)'}) as HTMLInputElement
   expect(automatic.disabled).toBe(true);fireEvent.click(screen.getByRole('checkbox',{name:'Call configured text models'}));expect(automatic.disabled).toBe(false)
   fireEvent.click(automatic);fireEvent.click(screen.getByRole('checkbox',{name:'Call configured text models'}));expect(automatic.checked).toBe(false);expect(automatic.disabled).toBe(true)
+})
+
+it('lets the owner clear a token, explains local access and generates a replacement',()=>{
+  const invoke=vi.fn(async()=>({running:false as const}))
+  render(<MantineProvider><LocalMCPSettings sessionId="chat" invoke={invoke}/></MantineProvider>)
+  const token = screen.getByLabelText('Local MCP access token') as HTMLInputElement
+  const remember = screen.getByRole('checkbox',{name:'Keep the same token across restarts'})
+  expect(remember).toHaveProperty('checked',false)
+  fireEvent.change(token,{target:{value:'my-token'}})
+  expect(remember).toHaveProperty('checked',true)
+  fireEvent.change(token,{target:{value:''}})
+  expect(screen.getByText(/Any local process can use this endpoint/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button',{name:'Regenerate token'}))
+  expect(token.value).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  expect(screen.queryByText(/Any local process can use this endpoint/)).toBeNull()
 })

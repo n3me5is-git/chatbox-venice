@@ -1,14 +1,22 @@
 # Desktop MCP servers
 
-Chatbox Venice can serve trusted local MCP clients using Streamable HTTP. **Settings → MCP → App-wide MCP servers** creates independent endpoints, with separate loopback ports, random access tokens and permissions. The existing **Share this chat through MCP** remains a separate, narrower endpoint. Endpoint permission profiles can be edited and manually restarted. Enable **Start automatically with Chatbox** on selected profiles to retain their port and a device-encrypted client token. Both startup and lock options are off by default. Up to eight listeners can run together.
+Chatbox Venice can serve trusted local MCP clients using Streamable HTTP. **Settings → MCP → App-wide MCP servers** creates independent endpoints, with separate loopback ports, random access tokens and permissions. The existing **Share this chat through MCP** remains a separate, narrower endpoint. Endpoint permission profiles can be edited and manually restarted. Enable **Start automatically with Chatbox** on selected profiles to reuse their port at launch. Startup, lock and token persistence are independently configurable and off by default. Up to eight listeners can run together.
 
 An existing single-chat endpoint exposes the selected workspace, saved generations, explicitly supplied text-model requests and optionally its agents. It does **not** provide a conversation send/read tool. The app-wide endpoint adds an explicit conversation grant for that purpose.
+
+## Access tokens
+
+When configuring a stopped endpoint, edit the bearer token or select **Regenerate token**. Enable **Keep the same token across restarts** to reuse the port and save the token with device encryption. Editing the field enables persistence, which you can turn off before starting. A manual stop turns off automatic startup and preserves your token choice. Profiles saved with automatic startup in earlier releases retain their existing credential.
+
+An empty token allows any process on the computer to use the endpoint’s granted permissions. The listener binds to `127.0.0.1` and rejects browser-origin requests and unexpected Host headers. The exported client configuration omits the Authorization header in this mode.
+
+Endpoints stay connected while you move between chats, Studio and settings. Project and collection protection is checked when their data is accessed. The endpoint’s lock setting controls admission during an application-wide lock.
 
 ## Access profiles
 
 | Profile | Data and operations |
 | --- | --- |
-| Models and Studio only | Acts as a local router. Configured LLMs, optional external function schemas, direct Venice Studio pipelines and input/output transfer in an internal temporary workspace. Cannot browse existing chats, run workers, execute scripts, search or forward other MCP services. |
+| Models and Studio only | Acts as a local router. Configured LLMs, optional external function schemas, direct Venice Studio pipelines, optional direct Venice web search and input/output transfer in an internal temporary workspace. |
 | Shadow workspaces only | Can create and manage only this endpoint’s temporary workspaces, with the individually granted tools and agents. Cannot retain a temporary workspace as a normal chat or access existing chats. |
 | Authorized app access | Can discover unlocked root chats and use granted features. Creating, configuring/deleting chats and reading/sending conversation messages have separate controls. Cannot read another endpoint’s temporary workspace or bypass protected content. |
 
@@ -34,12 +42,19 @@ This is an MCP endpoint, not an OpenAI-compatible HTTP API server. Each port acc
 - **app_context_tools**: discover actual tool schemas for a context. **app_call** executes one of these tools after argument and capability validation. This includes the reviewed agent lifecycle/file-transfer tools.
 - **app_conversation**: explicit read or send. Sending uses saved conversation context and only endpoint-granted tools, with ordinary configured model transport. It refuses busy chats and incomplete bounded history rather than silently dropping earlier instructions. Compact long conversations in the app first. This API is a bounded MCP conversation runner; it does not emulate every UI command.
 - **app_models / app_model**: router text-model discovery and one model turn, without implicit chat history. Returns contentParts (including proposed tool calls), text, usage and available local verification evidence. Provide tools only when external function schemas were granted. Definitions use {name, description, inputSchema}; assistant toolCalls use {toolCallId, toolName, input}; tool messages use {role: "tool", toolCallId, toolName, result}.
-- **venice_studio**: direct catalog/pricing, generation, quotes, status, bounded wait, pause/resume, remote queue cleanup, transcription, voice conversion and supported voice cloning. Image generation accepts referencePaths; video references map API reference parameter names to uploaded workspace paths. Choose exact catalog IDs and supported options. Cloned-voice listings are confined to handles created in that temporary context.
+- **venice_studio**: direct catalog/pricing, generation, quotes, status, bounded wait, pause/resume, remote queue cleanup, transcription, voice conversion and supported voice cloning. For images, wait with `kind: "image"` and the generation ID before downloading. `timedOut: true` means the generation is still running. `status: "error"` carries the stored error message and, when available, the provider error code and failed output ID. Image generation accepts referencePaths; video references map API reference parameter names to uploaded workspace paths. Choose exact catalog IDs and supported options. Cloned-voice listings are confined to handles created in that temporary context.
+- **venice_web_search_brave**, **venice_web_search_google**, **venice_web_search_exa**: opt in with **Expose Venice web search engines separately** on an app-wide endpoint. The tools use Venice’s `/augment/search` with the selected search engine and return structured URLs, titles and excerpts without invoking a chat model. They work in Router mode without a chat or workspace.
 - **app_upload**: sequential binary chunks of at most 256 KiB, encrypted in app storage. Keep uploadId (UUID), path, mime, totalBytes and full-file sha256 constant; index starts at zero; set final on the last chunk. Changed retries and final hash mismatches are rejected. Media can use the existing 128 MiB workspace limit; individual Studio input APIs impose their own smaller limits.
-- **app_resources**: list saved resources or retrieve ranges up to 256 KiB. The response includes base64, version, offsets, total length, full-file SHA-256 and chunk SHA-256. Carry version across chunks and verify the assembled hash. Encrypted media is streamed through a bounded buffer instead of loading the entire library.
+- **app_resources**: list saved resources or retrieve ranges up to 256 KiB. Download using the returned `filename` and `mime`. The response includes base64, version, offsets, total length, full-file SHA-256 and chunk SHA-256. Carry version across chunks and verify the assembled hash. Encrypted media is streamed through a bounded buffer instead of loading the entire library.
 - **app_cleanup**: permanently remove the endpoint’s selected temporary workspace (or all of its temporary workspaces), generated records, files, upload staging and descendant agent sandboxes after retrieval. It never removes an existing personal chat or another endpoint’s space.
 
 Router tools use an internal workspace without a sessionId. Full/shadow operations require an authorized sessionId from app_contexts. Router mode also retains the existing venice_image/venice_media adapters where enabled; venice_studio exposes the direct Studio paths without requiring the chat-tool toggle.
+
+### Linked knowledge originals
+
+On a desktop app-wide endpoint, authorize the collections and enable **Share paths to original files in linked collections** to include a `localFile` object in `knowledge_document` and `knowledge_evidence` when the matching original still exists in the linked folder. Its `path` is the absolute desktop path, `relativePath` is relative to the collection folder, and `uri` is an encoded file URI. Resolve citation IDs through `knowledge_evidence` for the exact passage and page or line information where available.
+
+The option is off by default. The source must match the indexed hash, and the usual collection access checks still apply. Uploaded copies, stale receipts, and originals that have moved or changed omit `localFile`. File paths are returned to the MCP caller only. The reference identifies a file on the host computer, and the client needs its own filesystem access to open it.
 
 ## Retry and shadow lifecycle
 

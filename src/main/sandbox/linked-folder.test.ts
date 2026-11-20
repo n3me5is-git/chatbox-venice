@@ -1,11 +1,36 @@
 import { afterEach,expect,it } from 'vitest'
-import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, truncate } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, realpath, writeFile, rm, symlink, truncate } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { LinkedFolderBroker } from './linked-folder'
 const roots:string[]=[]
 afterEach(async()=>{for(const root of roots.splice(0)){expect(path.dirname(root)).toBe(tmpdir());expect(path.basename(root)).toMatch(/^chatbox-linked-/);await rm(root,{recursive:true,force:true})}})
 async function fixture(){const root=await mkdtemp(path.join(tmpdir(),'chatbox-linked-'));roots.push(root);await writeFile(path.join(root,'input.md'),'Original');const bindings={};const broker=new LinkedFolderBroker(bindings,()=>{},async()=>root);await broker.operation({sessionId:'root',action:'pick'});return {root,broker}}
+
+it('returns only revision-matched originals inside the selected knowledge folder', async () => {
+  const { root, broker } = await fixture()
+  const relativePath = 'nested/Source #1.md'
+  const file = path.join(root, relativePath)
+  await mkdir(path.dirname(file))
+  await writeFile(file, 'Indexed source')
+  const sessionId = 'knowledge-1'
+  const { bindingId } = await broker.operation({ sessionId, action: 'pick' })
+  const listing = await broker.operation({ sessionId, action: 'list', bindingId })
+  const expectedVersion = listing.files!.find(row => row.path === relativePath)!.version
+  const request = { sessionId, bindingId, action: 'locate-source' as const, path: relativePath, expectedVersion }
+  const { localFile } = await broker.operation(request)
+  expect(localFile).toMatchObject({ path: await realpath(file), relativePath })
+  expect(localFile!.uri).toContain('Source%20%231.md')
+  expect(fileURLToPath(localFile!.uri)).toBe(localFile!.path)
+  await expect(broker.operation({ ...request, path: '../secret.md' })).rejects.toThrow()
+  await expect(broker.operation({ ...request, path: '.rag-collection/collection.json' })).rejects.toThrow('Reserved')
+  await expect(broker.operation({ ...request, sessionId: 'root', bindingId: undefined })).rejects.toThrow('grant')
+  await writeFile(file, 'Changed on disk')
+  expect((await broker.operation(request)).localFile).toBeUndefined()
+  await broker.operation({ sessionId, action: 'pick' })
+  await expect(broker.operation(request)).rejects.toThrow('changed')
+})
 it('scans a 50 MiB knowledge source and reads bounded ranges without enlarging session or database limits',async()=>{
  const {root,broker}=await fixture(),file=path.join(root,'large.pdf');await writeFile(file,'');await truncate(file,50*1024*1024);const grant=await broker.operation({sessionId:'knowledge-1',action:'pick'}),listed=await broker.operation({sessionId:'knowledge-1',action:'list',bindingId:grant.bindingId});expect(listed.files!.find(row=>row.path==='large.pdf')?.bytes).toBe(50*1024*1024);expect((await broker.operation({sessionId:'root',action:'list'})).skipped).toContain('large.pdf');const chunk=await broker.operation({sessionId:'knowledge-1',action:'read-chunk',bindingId:grant.bindingId,path:'large.pdf',offset:49*1024*1024,length:1024*1024});expect(chunk.totalBytes).toBe(50*1024*1024);expect(Buffer.from(chunk.base64!,'base64').length).toBe(1024*1024);await expect(broker.operation({sessionId:'knowledge-1',action:'read-chunk',bindingId:grant.bindingId,path:'large.pdf',offset:0,length:1024*1024+1})).rejects.toThrow('range');await expect(broker.operation({sessionId:'root',action:'read-chunk',path:'large.pdf',offset:0,length:1})).rejects.toThrow('range');await truncate(file,50*1024*1024+1);expect((await broker.operation({sessionId:'knowledge-1',action:'list'})).skipped).toContain('large.pdf')
 })

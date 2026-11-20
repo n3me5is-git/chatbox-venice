@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import {createReadStream} from 'node:fs'
 import {open} from 'node:fs/promises'
 import {KNOWLEDGE_BASE_MAX_FILE_SIZE,KNOWLEDGE_SOURCE_CHUNK_BYTES,KNOWLEDGE_SOURCE_TOO_LARGE} from '../../shared/knowledge-base'
@@ -20,10 +21,28 @@ export class LinkedFolderBroker {
     if(input.action==='database-selection'){if(!id.startsWith('knowledge-'))throw Error('Invalid collection database grant');const pending=this.bindings[':pending:'+id];return pending?this.operation({sessionId:id,action:'status',bindingId:pending.token}):{linked:false}}
     if(input.action==='pick'){const root=await this.pick();if(!root)return this.operation({sessionId:id,action:'status'});if((await lstat(root)).isSymbolicLink())throw Error('Choose a real folder');if(input.transactional&&!id.startsWith('knowledge-'))throw Error('Invalid collection database grant');const next={root:await realpath(root),token:randomUUID(),database:!!input.database,staged:!!input.transactional};this.bindings[input.transactional?':pending:'+id:id]=next;this.save();return this.operation({sessionId:id,action:'status',bindingId:next.token})}
     if(input.action==='unlink'){delete this.bindings[id];delete this.bindings[':pending:'+id];this.save();return {linked:false}}
-    if(id.startsWith('knowledge-')&&!['status','pick','unlink','list','read','read-chunk','database-list','database-read','database-write','database-remove','database-adopt','database-abandon'].includes(input.action))throw Error('Knowledge source folders are read-only')
+    if(id.startsWith('knowledge-')&&!['status','pick','unlink','list','read','read-chunk','locate-source','database-list','database-read','database-write','database-remove','database-adopt','database-abandon'].includes(input.action))throw Error('Knowledge source folders are read-only')
     if(input.action==='inherit'){const parentId=folderIdentity(input.parentId||'');if(parentId===id)throw Error('Invalid child workspace');if(parentId.startsWith('knowledge-'))throw Error('Knowledge source folders are read-only');const parent=this.binding(parentId);if(!parent)return {linked:false};const root=await this.resolve(parentId);const parts=['.chatbox','agents',id];let target=root;for(const part of parts){target=path.join(target,part);await mkdir(target).catch(error=>{if(error.code!=='EEXIST')throw error});if((await lstat(target)).isSymbolicLink()||!(await lstat(target)).isDirectory())throw Error('Invalid child workspace folder')}this.bindings[id]={root:await realpath(target),token:randomUUID(),parent:parentId,parentToken:parent.token};this.save();return this.operation({sessionId:id,action:'status'})}
     const binding=this.selected(id,input.bindingId);if(!binding)return {linked:false};const status={linked:true,name:path.basename(binding.root),inherited:!!binding.parent,bindingId:binding.token,databaseWritable:!!binding.database,staged:!!binding.staged};if(input.bindingId&&input.bindingId!==binding.token)throw Error('Linked folder changed')
     if(input.action==='status'){await this.resolve(id,undefined,false,false,binding.token);return status}
+    if (input.action === 'locate-source') {
+      if (!/^knowledge-[1-9][0-9]*$/.test(id) || !input.bindingId || binding.staged ||
+          typeof input.expectedVersion !== 'string' || !/^[a-f0-9]{64}$/.test(input.expectedVersion)) {
+        throw Error('Invalid linked knowledge source grant')
+      }
+      const relativePath = linkedPath(input.path || '')
+      const target = await this.resolve(id, relativePath, false, false, binding.token)
+      const before = await lstat(target)
+      if (!before.isFile() || before.size > KNOWLEDGE_BASE_MAX_FILE_SIZE) return status
+      const { hash } = await sourceDigest(target, KNOWLEDGE_BASE_MAX_FILE_SIZE)
+      if (hash !== input.expectedVersion) return status
+      const current = await this.resolve(id, relativePath, false, false, binding.token)
+      const after = await lstat(current)
+      if (this.binding(id) !== binding || current !== target || !after.isFile() ||
+          after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size ||
+          after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs) return status
+      return { ...status, localFile: { path: target, relativePath, uri: pathToFileURL(target).href } }
+    }
     if(input.action.startsWith('database-')){
       if(!id.startsWith('knowledge-')||!input.bindingId||input.bindingId!==binding.token)throw Error('Invalid collection database grant')
       if(input.action==='database-adopt'||input.action==='database-abandon'){const pending=this.bindings[':pending:'+id];if(!pending||pending.token!==input.bindingId)throw Error('Collection folder selection expired');if(input.action==='database-adopt')this.bindings[id]={...pending,staged:false};delete this.bindings[':pending:'+id];this.save();return this.operation({sessionId:id,action:'status'})}

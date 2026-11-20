@@ -77,3 +77,32 @@ it('accepts the remembered client credential while issuing a fresh internal gran
     expect(internal.accessToken).toBeUndefined()
   } finally {await client.close()}
 })
+
+it('supports a custom token and explicit loopback-only access without a token', async () => {
+  const { server, state } = await fixture()
+  const config = { sessionId: 'chat', port: Number(new URL(state.url).port), permissions: defaultLocalMCPPermissions }
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }
+  const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+  const post = (extra = {}) => new Promise<number | undefined>((resolve, reject) => {
+    const request = httpRequest(state.url, { method: 'POST', agent: false, headers: { ...headers, ...extra } }, response => {
+      response.resume()
+      resolve(response.statusCode)
+    })
+    request.on('error', reject)
+    request.end(body)
+  })
+  await server.start(config, 'user.configured-token')
+  expect(await post({ Authorization: 'Bearer user.configured-token' })).toBe(200)
+  expect(await post()).toBe(401)
+  const open = await server.start(config, '') as LocalMCPGrant
+  expect(open.accessToken).toBe('')
+  expect(Object.values(localMCPClientConfiguration(open).mcpServers)).toEqual([{ url: open.url }])
+  expect(await post()).toBe(200)
+  expect(await post({ Origin: 'null' })).toBe(403)
+  expect(await post({ 'Sec-Fetch-Site': 'same-origin' })).toBe(403)
+  expect(await post({ Host: 'untrusted.example' })).toBe(403)
+  await server.start(config, 'rotated.token')
+  expect(await post()).toBe(401)
+  expect(await post({ Authorization: 'Bearer user.configured-token' })).toBe(401)
+  expect(await post({ Authorization: 'Bearer rotated.token' })).toBe(200)
+})

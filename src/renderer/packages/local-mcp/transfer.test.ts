@@ -57,3 +57,14 @@ it('exports a zero-byte managed document without leaking its encrypted storage p
  const result=await transferMCPResource('workspace',{action:'read',resourceId:'empty',offset:0,length:1024},new AbortController().signal)
  expect(result).toMatchObject({total:0,bytes:0,base64:'',sha256:hex(new Uint8Array()),nextOffset:null})
 })
+
+it('gives a generated WebP its original MIME and filename without changing the saved bytes',async()=>{
+ const original=Uint8Array.from(Buffer.from('RIFF webp fixture'))
+ const ref=await state.vault.assets.put((async function*(){yield original.slice()})(),{name:'Generated image',mime:'image/webp',kind:'image'},'public')
+ state.files=[{id:'generated',path:'images/record/1.png',name:'1.png',mime:'image/png',origin:'image',key:ref}]
+ const signal=new AbortController().signal
+ const listed=await transferMCPResource('workspace',{action:'list',offset:0,length:1024},signal)
+ expect(listed).toMatchObject({items:[{id:'generated',path:'images/record/1.png',filename:'1.webp',mime:'image/webp'}]})
+ const output=await transferMCPResource('workspace',{action:'read',resourceId:'generated',offset:0,length:1024},signal)
+ expect(output).toMatchObject({filename:'1.webp',mime:'image/webp',base64:base64(original),sha256:hex(original),nextOffset:null})
+})

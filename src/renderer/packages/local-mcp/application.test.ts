@@ -2,7 +2,7 @@ import {beforeEach,expect,it,vi} from 'vitest'
 import {tool} from 'ai'
 import {z} from 'zod'
 import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant} from '@shared/local-mcp'
-const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),count:0,call:vi.fn(),models:vi.fn(),dispose:vi.fn(),remove:vi.fn(),aliases:[] as string[],images:[] as any[]}))
+const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),count:0,call:vi.fn(),models:vi.fn(),dispose:vi.fn(),remove:vi.fn(),aliases:[] as string[],images:[] as any[],search:vi.fn()}))
 vi.mock('@/platform',()=>({default:{type:'desktop',getImageGenerationStorage:()=>({initialize:async()=>{},getPage:async()=>({items:state.images,nextCursor:null})})}}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultChatModel:{provider:'openai',model:'configured'}})})}}))
 vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({db:{aliases:async()=>state.aliases,getSetting:async(key:string)=>state.settings.get(key),setSettingIfUnchanged:async(key:string,old:unknown,next:unknown)=>{if(state.settings.get(key)!==old)return false;state.settings.set(key,next);return true}},projects:{assertApp:async()=>{},assertSession:async(id:string)=>{if(state.locked.has(id))throw Error('Locked')}},assets:{remove:(key:string)=>state.remove(key)}})}))
@@ -13,7 +13,11 @@ vi.mock('./conversation',()=>({applicationConversationTool:()=>tool({inputSchema
 vi.mock('./studio',()=>({applicationStudioTool:()=>tool({inputSchema:z.object({}),execute:async()=>({studio:true})})}))
 vi.mock('./uploads',()=>({mcpUploadSchema:z.object({}),uploadMCPFile:vi.fn(),cleanupMCPUploads:vi.fn(async()=>{})}))
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{}}))
-vi.mock('@/packages/venice/service',()=>({veniceMediaService:{list:async()=>[],removeVoice:vi.fn()}}))
+vi.mock('@/packages/venice/service',()=>({veniceConfiguration:()=>({apiKey:'test-secret',options:{enabled:true}}),veniceMediaService:{list:async()=>[],removeVoice:vi.fn()}}))
+vi.mock('@/packages/web-search/venice',()=>({VeniceSearch:class {
+  constructor(_key:string,_host:string|undefined,private readonly engine:string){}
+  search(query:string,signal:AbortSignal){return state.search(this.engine,query,signal)}
+}}))
 vi.mock('@/stores/imageGenerationActions',()=>({getImageGenerationService:()=>({deleteRecord:vi.fn()})}))
 vi.mock('@/packages/multi-agent/runtime',()=>({disposeTemporaryAgentRoot:(id:string)=>state.dispose(id),revokeExternalAgents:vi.fn(),multiAgentRuntime:{stopRoot:vi.fn(),runs:new Map()}}))
 import {handleApplicationMCP} from './application'
@@ -70,6 +74,29 @@ it('refuses cleanup while a paid operation is running, then removes only its own
 it('does not create a router workspace merely to clean an already empty endpoint',async()=>{
  const g=grant('router','cleanup-empty');state.live=[g]
  expect(await call(g,'app_cleanup',{})).toEqual({deleted:0});expect(state.count).toBe(0)
+})
+
+it('routes three optional Venice search tools directly without creating a router workspace',async()=>{
+  const g=grant('router','search')
+  g.permissions.models=false;g.permissions.venice=false
+  state.live=[g]
+  const discover=async()=>(await handleApplicationMCP({id:'find',operation:'list_tools',grant:g},new AbortController().signal) as {name:string}[]).map(tool=>tool.name)
+  expect(await discover()).not.toContain('venice_web_search_brave')
+  await expect(call(g,'venice_web_search_brave',{query:'Source query'})).rejects.toThrow('permissions')
+  g.application!.veniceSearch=true
+  const items=[{title:'Example',link:'https://example.test/',snippet:'Source excerpt'}]
+  state.search.mockResolvedValue({items})
+  expect((await discover()).filter(name=>name.startsWith('venice_web_search_'))).toEqual([
+    'venice_web_search_brave','venice_web_search_google','venice_web_search_exa',
+  ])
+  for(const engine of ['brave','google','exa']){
+    expect(await call(g,'venice_web_search_'+engine,{query:'Source query'})).toEqual({engine,query:'Source query',items})
+    expect(state.search).toHaveBeenLastCalledWith(engine,'Source query',expect.any(AbortSignal))
+  }
+  expect(state.count).toBe(0)
+  expect(state.call).not.toHaveBeenCalled()
+  g.application!.providers=['openai']
+  await expect(call(g,'venice_web_search_exa',{query:'Source query'})).rejects.toThrow('permissions')
 })
 
 it('refreshes status observations even when a client reuses its request ID',async()=>{

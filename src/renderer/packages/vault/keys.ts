@@ -7,12 +7,12 @@ export type UnlockStatus={configured:boolean;pin:boolean;biometric:boolean;unloc
 const validPin=(pin:string)=>{if(!/^\d{6,64}$/.test(pin)&&pin.length<10)throw new Error('Use at least 6 PIN digits or a passphrase of 10 characters')}
 /** Keys are exported only transiently to authenticated device/PIN envelopes. No plaintext key is persisted. */
 export class VaultKeys {
-  private keys=new Map<string,CryptoKey>();private running:Promise<unknown>=Promise.resolve();private listeners=new Set<()=>void>();private revision=0;private lockEpoch=0
+  private keys=new Map<string,CryptoKey>();private running:Promise<unknown>=Promise.resolve();private listeners=new Set<(scope?:string)=>void>();private revision=0;private lockEpoch=0
   constructor(readonly settings:KeySettings,readonly device:DeviceProtector){}
-  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener)}}
+  subscribe=(listener:(scope?:string)=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener)}}
   snapshot=()=>this.revision
   refresh(){this.changed()}
-  private changed(){this.revision++;for(const listener of this.listeners)listener()}
+  private changed(scope?:string){this.revision++;for(const listener of this.listeners)listener(scope)}
   private serial<T>(work:()=>Promise<T>):Promise<T>{const next=this.running.then(work,work);this.running=next.catch(()=>{});return next}
   private record(scope:string){return this.settings.getSetting<ScopeRecord>(`scope:${scope}`)}
   async capabilities():Promise<DeviceCapabilities>{return this.device.capabilities()}
@@ -36,7 +36,7 @@ export class VaultKeys {
       const record:ScopeRecord={version:1,id:scope};if(options.keepPin&&!options.pin){if(!previous?.pin)throw new Error('PIN unlock has not been configured');record.pin=previous.pin}
       if(options.pin){const salt=crypto.getRandomValues(new Uint8Array(16));const inner=await seal(await pinKey(options.pin,salt),raw,`scope:${scope}:pin:v1`);record.pin={salt:encode64(salt),envelope:await this.device.protect(JSON.stringify(inner),false)}}
       if(options.biometric)record.biometric=await this.device.protect(encode64(raw),true)
-      if(epoch!==this.lockEpoch)throw new VaultLockedError(scope);await this.save(scope,previous,record);const key=await aesKey(raw,true);if(epoch!==this.lockEpoch)throw new VaultLockedError(scope);this.keys.set(scope,key);this.changed()
+      if(epoch!==this.lockEpoch)throw new VaultLockedError(scope);await this.save(scope,previous,record);const key=await aesKey(raw,true);if(epoch!==this.lockEpoch)throw new VaultLockedError(scope);this.keys.set(scope,key);this.changed(scope)
     }finally{raw.fill(0)}
   })}
   async unlock(scope:string,method:'pin'|'biometric',pin=''){const epoch=this.lockEpoch;return this.serial(async()=>{
@@ -46,11 +46,11 @@ export class VaultKeys {
     if(method==='pin'){
       if(!record.pin)throw new Error('PIN unlock is not enabled')
       try{const inner=JSON.parse(await this.device.unprotect(record.pin.envelope)) as SealedBytes;raw=await open(await pinKey(pin,decode64(record.pin.salt)),inner,`scope:${scope}:pin:v1`)}catch{
-        const failures=(record.failures||0)+1;await this.save(scope,record,{...record,failures,retryAt:failures>=5?Date.now()+Math.min(300000,30000*2**Math.min(4,failures-5)):0});this.changed();throw new Error('The PIN or device key could not unlock this area')
+        const failures=(record.failures||0)+1;await this.save(scope,record,{...record,failures,retryAt:failures>=5?Date.now()+Math.min(300000,30000*2**Math.min(4,failures-5)):0});this.changed(scope);throw new Error('The PIN or device key could not unlock this area')
       }
     }else{if(!record.biometric)throw new Error('Device unlock is not enabled');raw=decode64(await this.device.unprotect(record.biometric))}
-    try{if(raw.length!==32)throw new Error('Invalid protected key');const key=await aesKey(raw,true);await this.save(scope,record,{...record,failures:0,retryAt:0});if(epoch!==this.lockEpoch)throw new VaultLockedError(scope);this.keys.set(scope,key);this.changed()}finally{raw.fill(0)}
+    try{if(raw.length!==32)throw new Error('Invalid protected key');const key=await aesKey(raw,true);await this.save(scope,record,{...record,failures:0,retryAt:0});if(epoch!==this.lockEpoch)throw new VaultLockedError(scope);this.keys.set(scope,key);this.changed(scope)}finally{raw.fill(0)}
   })}
-  lock(scope?:string){this.lockEpoch++;if(scope)this.keys.delete(scope);else for(const id of this.keys.keys())if(id!=='public')this.keys.delete(id);this.changed()}
+  lock(scope?:string){this.lockEpoch++;if(scope)this.keys.delete(scope);else for(const id of this.keys.keys())if(id!=='public')this.keys.delete(id);this.changed(scope)}
   async exportScope(scope:string,backupKey:CryptoKey){const key=await this.key(scope);const raw=new Uint8Array(await crypto.subtle.exportKey('raw',key));try{return await seal(backupKey,raw,`backup:scope:${scope}:v1`)}finally{raw.fill(0)}}
 }

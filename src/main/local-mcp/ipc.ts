@@ -1,7 +1,7 @@
 import { app,ipcMain,type BrowserWindow,type IpcMainInvokeEvent,type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { LocalMCPRegistry } from './registry'
-import { localMCPAllowsDuringLock,LocalMCPRestoreSchema,LocalMCPStartSchema,type LocalMCPRequest,type LocalMCPGrant } from '../../shared/local-mcp'
+import { localMCPAllowsDuringLock,LocalMCPRestoreSchema,LocalMCPStartSchema,LocalMCPStartWithTokenSchema,type LocalMCPRequest,type LocalMCPGrant } from '../../shared/local-mcp'
 
 export function registerLocalMCPIPC(window:()=>BrowserWindow|null){
   let owner:WebContents|undefined
@@ -53,16 +53,17 @@ export function registerLocalMCPIPC(window:()=>BrowserWindow|null){
         if(command==='stop-endpoint'&&typeof input!=='string')throw Error('Choose an MCP endpoint')
         await registry.stop(typeof input==='string'?input:undefined);return {running:false}
       }
-      if(command!=='start'&&command!=='restore')throw new Error('Unknown local MCP command')
+      if(command!=='start'&&command!=='restore'&&command!=='start-with-token')throw new Error('Unknown local MCP command')
       if(suspended)throw Error('Unlock Chatbox to start local MCP servers')
-      const restored=command==='restore'?LocalMCPRestoreSchema.parse(input):undefined
-      const config=restored?.config??LocalMCPStartSchema.parse(input)
+      const supplied = command === 'start' ? undefined :
+        (command === 'restore' ? LocalMCPRestoreSchema : LocalMCPStartWithTokenSchema).parse(input)
+      const config=supplied?.config??LocalMCPStartSchema.parse(input)
       if(!owner){
         owner=event.sender
         const target=owner,closed=()=>{if(owner===target)void stop()};target.once('destroyed',closed)
         releaseOwner=()=>{if(!target.isDestroyed())target.removeListener('destroyed',closed)}
       }
-      const started=await registry.start(config,restored?.accessToken)
+      const started=await registry.start(config,supplied?.accessToken)
       if(suspended){await registry.stop(config.application?config.endpointId:'chat:'+config.sessionId);throw Error('Unlock Chatbox to start local MCP servers')}
       return started
     });controlQueue=operation;return operation

@@ -4,7 +4,7 @@ import {validatedToolSchema} from '@shared/validated-tool-schema'
 import {applicationConversationTool} from './conversation'
 import {asSchema,tool,type ToolSet} from 'ai'
 import {z} from 'zod'
-import {LocalMCPApplicationSchema,localMCPObservation,localMCPAllows,localMCPGrantAllows,type LocalMCPGrant,type LocalMCPRequest} from '@shared/local-mcp'
+import {LocalMCPApplicationSchema,isLocalMCPVeniceSearch,localMCPObservation,localMCPAllows,localMCPGrantAllows,type LocalMCPGrant,type LocalMCPRequest} from '@shared/local-mcp'
 import {SessionSettingsSchema,type SessionSettings} from '@shared/types'
 import {MultiAgentPolicySchema} from '@shared/multi-agent'
 import {rendererApplication} from '@/app/renderer-application'
@@ -168,7 +168,7 @@ function appTools(grant:LocalMCPGrant,signal:AbortSignal):ToolSet{
       const perform=()=>handleSessionLocalMCP({id:crypto.randomUUID(),operation:'call_tool',grant:bound(grant,input.sessionId),name:input.name,arguments:input.arguments,callId:'application:'+input.request_id},signal)
       return localMCPObservation(input.name,input.arguments)?perform():unique(grant,'call:'+input.request_id,input,perform)
     }}),
-    app_resources:tool({description:'List saved files and generations or read a bounded range of one authorized resource. Router mode uses its internal temporary workspace. Read does not delete: fetch every chunk, then explicitly call app_cleanup. No regeneration to recover a saved result.',inputSchema:z.object({sessionId:idSchema.optional(),action:z.enum(['list','read']),resourceId:z.string().max(1024).optional(),version:z.string().max(128).optional(),offset:z.number().int().min(0).default(0),length:z.number().int().min(1).max(256*1024).default(256*1024)}).strict(),execute:async input=>{
+    app_resources:tool({description:'List saved files and generations or read a bounded range of one authorized resource. Router mode uses its internal temporary workspace. Use filename and mime for the download. Fetch chunks until nextOffset is null, keep the version and verify the assembled SHA-256 before calling app_cleanup.',inputSchema:z.object({sessionId:idSchema.optional(),action:z.enum(['list','read']),resourceId:z.string().max(1024).optional(),version:z.string().max(128).optional(),offset:z.number().int().min(0).default(0),length:z.number().int().min(1).max(256*1024).default(256*1024)}).strict(),execute:async input=>{
       const id=app.mode==='router'?await defaultContext(grant,signal):input.sessionId
       if(!id)throw Error('A sessionId is required');await authorized(grant,id,signal,true)
       return (await import('./resource-transfer')).transferMCPResource(id,input,signal)
@@ -188,7 +188,7 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
   let definitions=appTools(grant,signal)
   if(grant.permissions.knowledge&&grant.application?.mode!=='router'&&grant.application?.knowledgeCollectionIds?.length)Object.assign(definitions,await(await import('./knowledge')).applicationKnowledgeTools(grant,signal,()=>live(grant,signal)))
   if(grant.application!.mode==='router'){
-    const modelRoute=request.operation==='list_tools'||['app_models','app_model','venice_image','venice_media'].includes(request.name||'')
+    const modelRoute=request.operation==='list_tools'&&(grant.permissions.models||grant.permissions.venice)||['app_models','app_model','venice_image','venice_media'].includes(request.name||'')
     const id=modelRoute?await defaultContext(grant,signal):'',scoped=bound(grant,id),listed=modelRoute?await localMCPTools(scoped):[]
     definitions=Object.fromEntries(Object.entries(definitions).filter(([name])=>['app_resources','app_cleanup','app_upload','venice_studio'].includes(name)))
     for(const member of listed){
@@ -204,6 +204,10 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
       }})
     }
   }
+  if (grant.application!.veniceSearch) {
+    const { applicationVeniceSearchTools } = await import('./venice-search')
+    Object.assign(definitions, applicationVeniceSearchTools(signal, () => live(grant, signal)))
+  }
   definitions=Object.fromEntries(Object.entries(definitions).filter(([name])=>localMCPGrantAllows(grant,name)))
   if(request.operation==='list_tools')return Promise.all(Object.entries(definitions).map(async([name,definition])=>({name,description:definition.description,inputSchema:await asSchema(definition.inputSchema).jsonSchema})))
   if(request.operation!=='call_tool'||!request.name||!localMCPGrantAllows(grant,request.name,request.arguments))throw Error('This operation exceeds the endpoint permissions')
@@ -211,7 +215,7 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
   const validated=await asSchema(member.inputSchema).validate?.(request.arguments||{})
   if(!validated?.success)throw Error('Invalid application tool arguments')
   const input=validated.value as Record<string,unknown>,destructive=request.name==='app_cleanup'||request.name==='app_contexts'&&input.action==='delete'
-  const target=request.name==='app_cleanup'?undefined:grant.application!.mode==='router'?await defaultContext(grant,signal):typeof input.sessionId==='string'?input.sessionId:undefined
+  const target=request.name==='app_cleanup'||isLocalMCPVeniceSearch(request.name)?undefined:grant.application!.mode==='router'?await defaultContext(grant,signal):typeof input.sessionId==='string'?input.sessionId:undefined
   if(target)await authorized(grant,target,signal,request.name==='app_resources')
   if(target&&closing.has(target))throw Error('This workspace is being cleaned up')
   const items=active.get(grant.token)||new Set<{id?:string;work:Promise<unknown>}>();active.set(grant.token,items)

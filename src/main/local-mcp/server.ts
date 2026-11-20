@@ -3,7 +3,7 @@ import { randomBytes,randomUUID,timingSafeEqual } from 'node:crypto'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { CallToolRequestSchema,ListToolsRequestSchema,ListResourcesRequestSchema,ReadResourceRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { LocalMCPStartSchema,localMCPGrantAllows,type LocalMCPStart,type LocalMCPState,type LocalMCPGrant,type LocalMCPTool } from '../../shared/local-mcp'
+import { LocalMCPClientTokenSchema,LocalMCPStartSchema,localMCPGrantAllows,type LocalMCPStart,type LocalMCPState,type LocalMCPGrant,type LocalMCPTool } from '../../shared/local-mcp'
 
 export interface LocalMCPBackend {
   listTools(grant:LocalMCPGrant,signal:AbortSignal):Promise<LocalMCPTool[]>
@@ -19,9 +19,10 @@ export class LocalMCPServer {
   private accessToken: string | undefined
   private pending=new Map<string,AbortController>()
   constructor(private readonly backend:LocalMCPBackend){}
-  state():LocalMCPState{return this.grant?structuredClone({...this.grant, ...(this.accessToken ? {accessToken:this.accessToken} : {})}):{running:false}}
+  state():LocalMCPState{return this.grant?structuredClone({...this.grant, ...(this.accessToken !== undefined ? {accessToken:this.accessToken} : {})}):{running:false}}
   async start(input:LocalMCPStart, accessToken?: string){
     const parsed=LocalMCPStartSchema.parse(input)
+    if (accessToken !== undefined) LocalMCPClientTokenSchema.parse(accessToken)
     if(parsed.application&&!parsed.endpointId)throw new Error('Application endpoints need an identity')
     if(parsed.application?.mode==='router'&&(parsed.permissions.execute||parsed.permissions.search||parsed.permissions.forwardMCP||parsed.permissions.multiAgent))throw new Error('Router endpoints cannot grant workspace execution, agents, search or other MCP services')
     if(parsed.permissions.execute&&(!parsed.permissions.readFiles||!parsed.permissions.writeFiles))throw new Error('Code execution requires read and write access')
@@ -49,8 +50,17 @@ export class LocalMCPServer {
     if(!grant){deny(response,503,'Local MCP server is stopped');return}
     const expectedHost=new URL(grant.url).host
     if(request.headers.host!==expectedHost||request.headers.origin!==undefined||!['127.0.0.1','::ffff:127.0.0.1'].includes(request.socket.remoteAddress||'')){request.resume();deny(response,403,'Only authorized local clients without a browser origin are accepted');return}
-    const authorization=new TextEncoder().encode(request.headers.authorization||''),expected=new TextEncoder().encode('Bearer '+(this.accessToken ?? grant.token))
-    if(authorization.length!==expected.length||!timingSafeEqual(authorization,expected)){request.resume();deny(response,401,'A valid local MCP bearer token is required');return}
+    if (this.accessToken === '') {
+      if (request.headers['sec-fetch-site'] !== undefined) {
+        request.resume();deny(response,403,'Browser requests are not accepted');return
+      }
+    } else {
+      const authorization = new TextEncoder().encode(request.headers.authorization || '')
+      const expected = new TextEncoder().encode('Bearer ' + (this.accessToken ?? grant.token))
+      if (authorization.length !== expected.length || !timingSafeEqual(authorization, expected)) {
+        request.resume();deny(response,401,'A valid local MCP bearer token is required');return
+      }
+    }
     if(request.url!=='/mcp'){request.resume();deny(response,404,'Unknown MCP endpoint');return}
     if(request.method!=='POST'){request.resume();deny(response,405,'Use MCP Streamable HTTP POST requests');return}
     if(Number(request.headers['content-length'])>512*1024){request.resume();deny(response,413,'MCP request exceeds the size limit');return}
