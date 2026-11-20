@@ -23,6 +23,7 @@ import {
   writeFile,
 } from './manager'
 import { hasSessionArtifacts, persistSandboxArtifact, removeSessionArtifacts } from './persist-artifact'
+import { removeManagedSessionWorkspace } from './session-files'
 import { createSandboxHtmlPreviewUrl } from './preview-server'
 import { bufferToArrayBuffer, readSandboxFileBase64, readSandboxFileBytes } from './read-file-base64'
 
@@ -296,9 +297,13 @@ export function registerSandboxIPCHandlers() {
     return { has: hasSessionArtifacts(params.sessionId) }
   })
 
-  ipcMain.handle('sandbox:remove-artifacts', (_event, params: { sessionId: string }) => {
+  ipcMain.handle('sandbox:remove-artifacts', async (_event, params: { sessionId: string; includeWorkspace?: boolean }) => {
     try {
       log.debug(`sandbox:remove-artifacts session=${params.sessionId}`)
+      if (params.includeWorkspace === true) {
+        await removeManagedSessionWorkspace(params.sessionId)
+        return { success: true }
+      }
       return removeSessionArtifacts(params.sessionId)
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error)

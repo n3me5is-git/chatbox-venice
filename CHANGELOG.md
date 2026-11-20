@@ -1,5 +1,11 @@
 # Changelog — Chatbox Venice
 
+## 1.53.0
+
+- Start a temporary chat that stays off the sidebar and survives app lock.
+- Save a temporary chat permanently or set it to expire after a chosen period.
+- Clean up conversations, workspaces and generated files while preserving linked project folders.
+
 ## 1.52.1
 
 - Recover temporary knowledge-search failures without losing retrieved passages, and explain reduced ranking.

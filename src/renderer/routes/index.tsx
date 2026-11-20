@@ -33,6 +33,9 @@ import { useMyCopilots, useRemoteCopilotsByCursor } from '@/hooks/useCopilots'
 import { useProviders } from '@/hooks/useProviders'
 import { useIsSmallScreen } from '@/hooks/useScreenChange'
 import useVersion from '@/hooks/useVersion'
+import { forkT as ft } from '@/i18n/fork'
+import { TemporaryChatToggle } from '@/components/session/ChatRetention'
+import { abandonTemporaryChat, finishCreatingTemporaryChat, registerTemporaryChat } from '@/packages/chat-retention/retention'
 import * as remote from '@/packages/remote'
 import { router } from '@/router'
 import { useAuthInfoStore } from '@/stores/authInfoStore'
@@ -77,6 +80,7 @@ function Index() {
   const { t, i18n } = useTranslation()
   const isSmallScreen = useIsSmallScreen()
   const { folderId } = Route.useSearch()
+  const [temporary, setTemporary] = useState(false)
 
   const newSessionState = useUIStore((s) => s.newSessionState)
   const setNewSessionState = useUIStore((s) => s.setNewSessionState)
@@ -274,11 +278,13 @@ function Index() {
       // continue the last explicit choice remembered from any earlier chat.
       const effectiveApprovalMode = newSessionState.commandApprovalMode ?? newSessionCommandApprovalModeDefault
       const effectiveWorkingDirectories = newSessionState.workingDirectories ?? newSessionWorkingDirectoriesDefault
+      let temporaryId: string | undefined
       const newSession = await rendererApplication.sessions.createSession(
         {
           name: options?.name ?? session.name,
           type: 'chat',
           folderId,
+          ...(temporary ? { hidden: true } : {}),
           assistantAvatarKey: session.assistantAvatarKey,
           picUrl: session.picUrl,
           backgroundImage: session.backgroundImage,
@@ -315,8 +321,21 @@ function Index() {
           },
         },
         undefined,
-        { copilotName: session.copilotId ? session.name : undefined }
-      )
+        {
+          copilotName: session.copilotId ? session.name : undefined,
+          beforeCreate: temporary ? async id => {
+            temporaryId = id
+            await registerTemporaryChat(id)
+          } : undefined,
+        }
+      ).catch(error => {
+        if (temporaryId) abandonTemporaryChat(temporaryId)
+        throw error
+      })
+      if (temporary && (router.state.location.pathname !== '/' || !finishCreatingTemporaryChat(newSession.id))) {
+        abandonTemporaryChat(newSession.id)
+        return null
+      }
 
       if (session.copilotId) {
         void remote
@@ -388,12 +407,14 @@ function Index() {
       clearSessionWebBrowsing,
       sessionAgentModeMap,
       clearSessionAgentMode,
+      temporary,
     ]
   )
 
   const handleSubmit = useCallback(
     async ({ constructedMessage, needGenerating = true, onUserMessageReady, settingsPatch }: InputBoxPayload) => {
       const newSession = await createPersistedChatSession({ settingsPatch })
+      if (!newSession) return
 
       void submitNewUserMessage(newSession.id, {
         newUserMsg: constructedMessage,
@@ -424,6 +445,7 @@ function Index() {
         ],
         settingsOverride: { agentMode: scenarioAgentModeOff },
       })
+      if (!newSession) return
 
       void generate(newSession.id, assistantMessage, { operationType: 'send_message' })
     },
@@ -459,7 +481,7 @@ function Index() {
     (forceShowNewUserScenarioCards || (hasCompletedFirstSuccessfulChat === false && isLoggedIn)) && !session.copilotId
 
   return (
-    <Page title="">
+    <Page title={temporary ? ft('Temporary chat') : ''} right={<TemporaryChatToggle enabled={temporary} onChange={setTemporary} />}>
       <div className="p-0 flex flex-col h-full min-h-0 overflow-hidden">
         <div
           className={clsx('min-h-0 flex-1 overflow-y-auto', welcomeCardMode !== 'none' ? 'pb-36 sm:pb-32' : 'pb-md')}
@@ -474,6 +496,7 @@ function Index() {
               <Text fw="600" size={isSmallScreen ? 'sm' : 'md'}>
                 {t('What can I help you with today?')}
               </Text>
+              {temporary && <Text ta="center" size="sm" c="dimmed" maw={360} px="md">{ft('This chat is hidden and will be deleted when you switch chats.')}</Text>}
             </Stack>
           )}
         </div>

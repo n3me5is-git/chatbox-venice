@@ -486,7 +486,7 @@ export class SessionService {
   async createSession(
     newSession: Omit<SessionHeader, 'id'> & { messages?: readonly Message[] },
     previousId?: string,
-    options?: { copilotName?: string }
+    options?: { copilotName?: string; beforeCreate?: (id: string) => Promise<void> }
   ): Promise<SessionHeader> {
     await this.initialize()
     const { messages = [], ...fields } = newSession
@@ -512,6 +512,7 @@ export class SessionService {
         sortOrder = lower ? (previous.sortOrder + lower.sortOrder) / 2 : previous.sortOrder - 2000
       }
     }
+    await options?.beforeCreate?.(header.id)
     const result = await this.writes.create(header, messages, sortOrder, this.now())
     await this.publishCommandResult(result, true)
     if (result.meta)

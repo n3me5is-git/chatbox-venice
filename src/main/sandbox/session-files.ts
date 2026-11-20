@@ -1,7 +1,22 @@
 import path from 'node:path'
-import { lstat, readdir, readFile, realpath, unlink, writeFile } from 'node:fs/promises'
+import { lstat, readdir, readFile, realpath, rm, unlink, writeFile } from 'node:fs/promises'
 import { sessionFilePath, resourceMime, type SessionResource } from '../../shared/session-resources'
-import { getSandboxArtifactsRoot, getSandboxTmpRoot, getSessionWorkingDirectory } from './manager'
+import { getSandboxArtifactsRoot, getSandboxTmpRoot, getSessionWorkingDirectory, resetSandbox } from './manager'
+
+/** Session IDs address only managed roots; the configured working directory is never consulted. */
+export async function removeManagedSessionWorkspace(sessionId: string): Promise<void> {
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(sessionId)) throw Error('Invalid session identity')
+  const result = await resetSandbox(sessionId)
+  if (!result.success) throw Error(result.error || 'Unable to stop the session workspace')
+  for (const root of [getSandboxTmpRoot(), getSandboxArtifactsRoot()]) {
+    const stat = await lstat(root).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error
+    })
+    if (!stat) continue
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw Error('Invalid managed workspace root')
+    await rm(path.join(await realpath(root), sessionId), { recursive: true, force: true })
+  }
+}
 
 export interface SessionFilesRequest { sessionId:string; action:'list'|'read'|'remove'|'write'; path?:string;content?:string }
 export async function sessionDiskFiles(request:SessionFilesRequest) {

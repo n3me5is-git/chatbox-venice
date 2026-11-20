@@ -64,6 +64,7 @@ import platform from '@/platform'
 import { setSessionAgentMode } from '@/stores/session/agent-mode'
 import { reorderSessions } from '@/stores/session/crud'
 import { deleteSessionFolder, moveSessionToFolder, renameSessionFolder } from '@/stores/session/folders'
+import { isUnavailableChat, useRetentionEntries } from '@/packages/chat-retention/retention'
 import { uiStore, useUIStore } from '@/stores/uiStore'
 import ActionMenu, { type ActionMenuItemProps } from '../ActionMenu'
 import { ICON_SIZE, IconButton } from '../common/IconButton'
@@ -249,13 +250,18 @@ export default function SessionList(props: Props) {
   const { t } = useTranslation()
   const remoteVersion=useSyncExternalStore(collaboration.subscribe,collaboration.getVersion)
   const {
-    sessionMetaList: sortedSessions,
+    sessionMetaList,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
     isLoading,
   } = useSessionList()
+  const retained = useRetentionEntries()
+  const sortedSessions = useMemo(
+    () => retained.length ? sessionMetaList?.filter(session => !isUnavailableChat(session.id)) : sessionMetaList,
+    [retained, sessionMetaList]
+  )
   const { folders } = useSessionFolders()
   const collapsedFolderIds = useUIStore((state) => state.collapsedSessionFolderIds)
   const setSessionFolderCollapsed = useUIStore((state) => state.setSessionFolderCollapsed)

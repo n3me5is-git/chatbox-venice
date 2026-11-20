@@ -17,6 +17,9 @@ import { SessionResourcesButton } from '@/components/session-resources/SessionRe
 import { CollaborationButton } from '@/components/collaboration/CollaborationButton'
 import { SessionRagButton } from '@/components/session-resources/SessionRagButton'
 import { MultiAgentButton } from '@/components/multi-agent/MultiAgentButton'
+import { ChatRetentionAction } from '@/components/session/ChatRetention'
+import { useRetainedChat } from '@/packages/chat-retention/retention'
+import { forkT as ft } from '@/i18n/fork'
 
 export default function Header(props: { session: SessionHeader }) {
   const { t } = useTranslation()
@@ -25,6 +28,10 @@ export default function Header(props: { session: SessionHeader }) {
 
   const { session: currentSession } = props
   const visibleSessionId = currentSession.id
+  const retention = useRetainedChat(visibleSessionId)
+  const temporary = Boolean(retention && (retention.saving || retention.expiresAt === undefined))
+  const title = temporary ? ft('Temporary chat') : currentSession.name
+  const retentionAction = <ChatRetentionAction key={visibleSessionId} sessionId={visibleSessionId} />
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: run opening-time naming only when the visible session id changes
   useEffect(() => {
@@ -50,7 +57,7 @@ export default function Header(props: { session: SessionHeader }) {
             <UnstyledButton className="controls min-w-0" data-testid={TestId.session.headerMenuTrigger}>
               <Flex align="center" gap={4} miw={0}>
                 <Text component="span" fw={600} fz={16} lh="24px" truncate="end" className="min-w-0">
-                  {currentSession?.name}
+                  {title}
                 </Text>
                 <ScalableIcon
                   icon={IconChevronDown}
@@ -63,7 +70,7 @@ export default function Header(props: { session: SessionHeader }) {
           </SessionMenu>
         }
         right={
-          <Flex align="center" gap={2} wrap="nowrap" className="[&>*]:shrink-0" style={{maxWidth:'60vw',overflowX:'auto',minWidth:0}}>{!currentSession.settings?.multiAgentRun&&<SessionRagButton sessionId={currentSession.id}/>} {currentSession.settings?.agentMode?.value === 'on' && !currentSession.settings?.multiAgentRun && <MultiAgentButton sessionId={currentSession.id}/>}<CollaborationButton sessionId={currentSession.id}/><SessionResourcesButton sessionId={currentSession.id}/><IconButton
+          <Flex align="center" gap={2} wrap="nowrap" className="[&>*]:shrink-0" style={{maxWidth:'60vw',overflowX:'auto',minWidth:0}}>{retentionAction}{!currentSession.settings?.multiAgentRun&&<SessionRagButton sessionId={currentSession.id}/>} {currentSession.settings?.agentMode?.value === 'on' && !currentSession.settings?.multiAgentRun && <MultiAgentButton sessionId={currentSession.id}/>} {!temporary && <CollaborationButton sessionId={currentSession.id}/>}<SessionResourcesButton sessionId={currentSession.id}/><IconButton
             icon={IconPlus}
             size="lg"
             iconSize={ICON_SIZE.touch}
@@ -80,7 +87,7 @@ export default function Header(props: { session: SessionHeader }) {
       title={
         <Flex align="center" miw={0}>
           <Text component="h1" m={0} fw={600} fz={14} lh="20px" truncate="end" className="min-w-0">
-            {currentSession?.name}
+            {title}
           </Text>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -98,7 +105,7 @@ export default function Header(props: { session: SessionHeader }) {
           </Tooltip>
         </Flex>
       }
-      right={<Flex align="center" gap="xs">{!currentSession.settings?.multiAgentRun&&<SessionRagButton sessionId={currentSession.id}/>} {currentSession.settings?.agentMode?.value === 'on' && !currentSession.settings?.multiAgentRun && <MultiAgentButton sessionId={currentSession.id}/>}<CollaborationButton sessionId={currentSession.id}/><SessionResourcesButton sessionId={currentSession.id}/><Toolbar session={currentSession} /></Flex>}
+      right={<Flex align="center" gap="xs">{retentionAction}{!currentSession.settings?.multiAgentRun&&<SessionRagButton sessionId={currentSession.id}/>} {currentSession.settings?.agentMode?.value === 'on' && !currentSession.settings?.multiAgentRun && <MultiAgentButton sessionId={currentSession.id}/>} {!temporary && <CollaborationButton sessionId={currentSession.id}/>}<SessionResourcesButton sessionId={currentSession.id}/><Toolbar session={currentSession} /></Flex>}
     />
   )
 }
