@@ -1,8 +1,8 @@
 import {beforeEach,expect,it,vi} from 'vitest'
 import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant} from '@shared/local-mcp'
-const state=vi.hoisted(()=>({approve:vi.fn(),start:vi.fn(),media:vi.fn(),rows:[] as any[]}))
+const state=vi.hoisted(()=>({approve:vi.fn(),start:vi.fn(),getRecord:vi.fn(),media:vi.fn(),rows:[] as any[]}))
 vi.mock('@/packages/venice/service',()=>({veniceConfiguration:()=>({apiKey:'SENTINEL_KEY',options:{enabled:true,audioEnabled:true,videoEnabled:true,musicEnabled:true,showOtherModels:true}}),veniceMediaService:{catalog:async()=>[{id:'asr-one',type:'asr'},{id:'tts-one',type:'tts',model_spec:{privacy:'private'}}],start:(...args:any[])=>state.media(...args),list:async()=>state.rows,listVoices:async()=>[],waitFor:vi.fn()}}))
-vi.mock('@/stores/imageGenerationActions',()=>({getImageGenerationService:()=>({start:(...args:any[])=>state.start(...args)})}))
+vi.mock('@/stores/imageGenerationActions',()=>({getImageGenerationService:()=>({start:(...args:any[])=>state.start(...args),getRecord:state.getRecord})}))
 vi.mock('@/packages/image-model-catalog',()=>({providerImageModelsQueryOptions:()=>({})}))
 vi.mock('@/stores/queryClient',()=>({queryClient:{fetchQuery:async()=>[{modelId:'qwen-image-edit',displayName:'Qwen Image Edit',vendorMetadata:{privacy:'private'}}]}}))
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{}}))
@@ -31,4 +31,18 @@ it('passes an uploaded source as a File to the existing transcription service an
  expect(await run({action:'generate',kind:'transcription',model:'asr-one',filePath:'input/audio.wav',request_id:'stt'})).toMatchObject({id:'audio-one',text:'Transcript'})
  expect(state.media).toHaveBeenCalledWith(expect.objectContaining({kind:'transcription',file:expect.any(File),sessionId:'shadow'}))
  expect(JSON.stringify(await run({action:'status',id:'audio-one'}))).not.toContain('SENTINEL_KEY')
+})
+
+it('waits for a background image and returns its stored provider error details', async () => {
+ const image = {id:'image-one',model:{modelId:'qwen-image-edit'},source:{sessionId:'shadow'},generatedImages:[]}
+ state.getRecord.mockResolvedValueOnce({...image,status:'generating'})
+  .mockResolvedValueOnce({...image,status:'error',error:'Provider rejected the request',errorCode:422,errorItemUuid:'failed-output'})
+ expect(await run({action:'wait',kind:'image',id:image.id,timeout_seconds:2})).toMatchObject({
+  id:image.id,status:'error',error:'Provider rejected the request',errorCode:422,errorItemUuid:'failed-output',timedOut:false,count:0,
+ })
+ expect(state.getRecord).toHaveBeenCalledTimes(2)
+ state.getRecord.mockResolvedValueOnce({...image,status:'pending'})
+ expect(await run({action:'wait',kind:'image',id:image.id,timeout_seconds:0})).toMatchObject({
+  status:'pending',timedOut:true,
+ })
 })

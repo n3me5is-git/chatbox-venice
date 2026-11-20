@@ -17,11 +17,26 @@ import {requestExternalModelApproval} from './model-approval'
 import {temporaryMCPEntries,mutateTemporaryMCPEntries,registerTemporaryMCPImage} from './temporary'
 const kinds=['image','speech','transcription','video','music','sound-effects','voice-conversion'] as const
 const references=z.object({image_url:z.string().optional(),end_image_url:z.string().optional(),reference_image_urls:z.array(z.string()).max(16).optional(),video_url:z.string().optional(),reference_video_urls:z.array(z.string()).max(8).optional(),reference_audio_urls:z.array(z.string()).max(8).optional(),audio_url:z.string().optional()}).strict()
+const imageIsRunning = (status: string) => status === 'pending' || status === 'generating'
+function waitForImagePoll(ms: number, signal: AbortSignal) {
+  signal.throwIfAborted()
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', abort)
+      resolve()
+    }, ms)
+    function abort() {
+      clearTimeout(timer)
+      reject(signal.reason)
+    }
+    signal.addEventListener('abort', abort, { once: true })
+  })
+}
 async function file(id:string,path:string,signal:AbortSignal){
   const item=(await listSessionResources(id,signal)).items.find(item=>item.path===path);if(!item)throw Error('Input file is not in this workspace')
   if(item.bytes!==undefined&&item.bytes>25*1024*1024)throw Error('Studio input file exceeds 25 MB')
   const vault=vaultRuntimeFor(platform),header=item.key?await vault.assets.header(item.key):null
-  if(header){if(header.bytes>25*1024*1024)throw Error('Studio input file exceeds 25 MB');const chunks:Uint8Array<ArrayBuffer>[]=[];try{for await(const chunk of vault.assets.read(item.key!)){signal.throwIfAborted();await vault.projects.assertSession(id);chunks.push(chunk)}return new File(chunks,item.name,{type:item.mime})}finally{for(const bytes of chunks)bytes.fill(0)}}
+  if(header){if(header.bytes>25*1024*1024)throw Error('Studio input file exceeds 25 MB');const chunks:Uint8Array<ArrayBuffer>[]=[];const type=item.origin==='image'?(await vault.assets.info(header)).mime:item.mime;try{for await(const chunk of vault.assets.read(item.key!)){signal.throwIfAborted();await vault.projects.assertSession(id);chunks.push(chunk)}return new File(chunks,item.name,{type})}finally{for(const bytes of chunks)bytes.fill(0)}}
   const {bytes}=await readSessionResource(id,item);try{return new File([Uint8Array.from(bytes)],item.name,{type:item.mime})}finally{bytes.fill(0)}
 }
 async function dataURL(input:File){const bytes=new Uint8Array(await input.arrayBuffer());try{let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));return 'data:'+input.type+';base64,'+btoa(text)}finally{bytes.fill(0)}}
@@ -84,7 +99,27 @@ export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,con
       }
       if(input.kind==='image'){
         if(!['status','wait'].includes(input.action))throw Error('Use image status to inspect this existing generation')
-        const row=await getImageGenerationService().getRecord(input.id||'');if(!row||row.source?.sessionId!==id)throw Error('Image is not in this workspace');return {id:row.id,status:row.status,error:row.error,count:row.generatedImages.length}
+        const images = getImageGenerationService()
+        const deadline = Date.now() + (input.action === 'wait' ? input.timeout_seconds * 1000 : 0)
+        for (;;) {
+          signal.throwIfAborted()
+          await assert(id)
+          const row = await images.getRecord(input.id || '')
+          if (!row || row.source?.sessionId !== id) throw Error('Image is not in this workspace')
+          const running = imageIsRunning(row.status)
+          const remaining = deadline - Date.now()
+          if (!running || remaining <= 0) {
+            signal.throwIfAborted()
+            await assert(id)
+            return {
+              id: row.id, kind: 'image', model: row.model.modelId, status: row.status,
+              error: row.error, errorCode: row.errorCode, errorItemUuid: row.errorItemUuid,
+              count: row.generatedImages.length,
+              ...(input.action === 'wait' ? { timedOut: running } : {}),
+            }
+          }
+          await waitForImagePoll(Math.min(500, remaining), signal)
+        }
       }
       const row=await record()
       if(input.action==='wait')await veniceMediaService.waitFor(row.id,input.timeout_seconds*1000,signal)

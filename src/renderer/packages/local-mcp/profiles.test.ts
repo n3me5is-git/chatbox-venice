@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-import { defaultLocalMCPPermissions, LocalMCPApplicationSchema, type LocalMCPGrant, type LocalMCPStart } from '@shared/local-mcp'
+import { defaultLocalMCPPermissions, LocalMCPApplicationSchema, LocalMCPStartSchema, type LocalMCPGrant, type LocalMCPStart } from '@shared/local-mcp'
 import { disableMCPStartup, readMCPProfiles, restoreMCPProfiles, saveMCPProfile, startSavedMCPProfile, startupErrors } from './profiles'
 
 const state = vi.hoisted(() => ({ profiles: null as unknown, key: new Map<string, string>(), invoke: vi.fn(), locked: false }))
@@ -97,4 +97,22 @@ it('automatically starts ephemeral endpoints with a fresh token and seals their 
   await restoreMCPProfiles(signal())
   expect(state.invoke.mock.calls.some(call=>call[1]==='start')).toBe(false)
   expect(startupErrors.has(app.endpointId!)).toBe(true)
+})
+
+it('retains the encrypted credential from the previous release when manual stop turns off startup', async () => {
+  const config = LocalMCPStartSchema.parse({...app,port:32910})
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(config)))
+  const binding = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2,'0')).join('')
+  state.key.set('legacy-envelope', JSON.stringify({token,fingerprint:binding}))
+  state.profiles = [{...config,startupEnvelope:'legacy-envelope'}]
+  await restoreMCPProfiles(signal())
+  expect(state.invoke).toHaveBeenCalledWith('local-mcp:control','restore',{config,accessToken:token})
+  await disableMCPStartup(app.endpointId!)
+  state.invoke.mockClear()
+  await restoreMCPProfiles(signal())
+  expect(state.invoke).not.toHaveBeenCalled()
+  const [saved] = await readMCPProfiles()
+  expect(saved).toMatchObject({tokenEnvelope:'legacy-envelope'})
+  await startSavedMCPProfile(saved)
+  expect(state.invoke).toHaveBeenCalledWith('local-mcp:control','restore',{config,accessToken:token})
 })

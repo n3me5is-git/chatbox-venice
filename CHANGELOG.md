@@ -5,6 +5,8 @@
 - Optionally share links to matching original files in connected knowledge collections through desktop MCP.
 - Set, regenerate or securely remember a desktop MCP bearer token independently of automatic startup.
 - Optionally run a loopback-only MCP endpoint without a bearer token.
+- Keep MCP endpoints connected while switching views and accessing protected projects or collections.
+- Wait for Studio images through MCP, return available provider error details and preserve the original download format.
 
 ## 1.54.0
 
