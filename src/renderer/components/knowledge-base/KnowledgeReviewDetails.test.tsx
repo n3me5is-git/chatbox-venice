@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import {MantineProvider} from '@mantine/core'
 import {cleanup,fireEvent,render,screen} from '@testing-library/react'
-import {afterEach,expect,it,vi} from 'vitest'
+import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {KnowledgeCheckReportSchema} from '@shared/knowledge-verification'
 import {KnowledgeReviewDetails} from './KnowledgeReviewDetails'
 vi.mock('@/i18n/fork',()=>({forkT:(key:string)=>key}))
 vi.mock('react-i18next',()=>({useTranslation:()=>({t:(key:string)=>key})}))
 afterEach(cleanup)
+beforeEach(()=>{Object.defineProperty(window,'matchMedia',{configurable:true,value:()=>({matches:false,addEventListener(){},removeEventListener(){}})})})
 const report=()=>KnowledgeCheckReportSchema.parse({version:1,id:crypto.randomUUID(),answerHash:'a'.repeat(64),draftHash:'a'.repeat(64),created:1,status:'incomplete',reason:'partial_coverage',revised:false,calls:1,coverage:.7,omittedEvidence:0,claims:[{start:0,end:30,text:'## Formula\n\nThe score is $x^2$.',verdict:'supported',reason:'The **definition** supports this.',evidence:[{id:'s',quote:'### Definition\n\nScore: $x^2$.\n\n![tracker](https://tracker.invalid/pixel)',stance:'supports'}]},{start:31,end:44,text:'Unknown claim',verdict:'insufficient',reason:'No source supplies this value.',evidence:[]}],sources:[{id:'s',origin:'external',name:'Manual',url:'https://example.org/manual'}]})
 it('renders real Markdown and LaTeX without loading images or changing exact evidence',()=>{
  const value=report(),original=JSON.stringify(value),view=render(<MantineProvider env="test"><KnowledgeReviewDetails report={value}/></MantineProvider>)

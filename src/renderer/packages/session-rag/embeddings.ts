@@ -9,7 +9,6 @@ import {ragHash,type RagInput} from '@shared/session-rag-engine'
 import { settingsStore } from '@/stores/settingsStore'
 import { apiRequest } from '@/utils/request'
 import {requireModelPrivacy} from '@shared/providers/definitions/models/venice/privacy'
-import {retryKnowledgeEmbedding} from '@shared/knowledge-retrieval'
 export type EmbeddingModality='text'|'image'|'audio'|'video'|'document'
 export interface RagEmbeddingAdapter{
  id:string
@@ -46,11 +45,6 @@ async function mediaPart(input:RagInput,signal:AbortSignal){
   return {inlineData:{mimeType:input.mime,data:encode(input.data)}}
 }
 export async function requestRagEmbeddings(inputs:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal,report?:IndexProgressReporter){
-  if(!query)return singleEmbeddingRequest(inputs,false,settings,signal,report)
-  const snapshot=()=>{const {saved}=ragProvider(settings);return JSON.stringify([embeddingSpaceDescriptor(settings),saved.apiKey])},binding=snapshot()
-  return retryKnowledgeEmbedding(()=>singleEmbeddingRequest(inputs,true,settings,signal,report),signal,async()=>{if(snapshot()!==binding)throw Error('RAG settings changed; start the operation again')})
-}
-async function singleEmbeddingRequest(inputs:RagInput[],query:boolean,settings:RagSettings,signal:AbortSignal,report?:IndexProgressReporter){
   const {definition,saved,host}=ragProvider(settings)
   try{
     if(inputs.some(input=>input.data&&input.data.byteLength>RAG_INLINE_MEDIA_MAX_BYTES))throw Error('Direct media embeddings support up to 10 MB per source. Use OCR or transcription for larger documents.')

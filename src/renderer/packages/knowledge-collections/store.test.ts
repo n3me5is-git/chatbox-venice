@@ -24,12 +24,16 @@ it('retains source identities and original results when virtual reranking return
  const after=await f.store.search(f.id,'payment');expect(after.matches).toEqual(before.matches);expect(after.warnings).toMatchObject([{stage:'reranking',provider:'venice',model:'judge',statusCode:500}]);expect(llmRerank).toHaveBeenCalledOnce();expect(f.embed).toHaveBeenCalledOnce();expect((await f.store.citeChunks(f.id,await f.store.chunksForMatches(f.id,after.matches)))[0].url).toContain('/knowledge/')
 })
 it('uses local keyword matches after a transient query embedding failure without rewriting the index',async()=>{
- const f=await fixture();await f.add();await f.store.index(f.id);const before=await f.store.indexStatus(f.id);f.embed.mockRejectedValueOnce(Object.assign(Error('Unavailable'),{statusCode:503}))
+ const f=await fixture();await f.add();await f.store.index(f.id);const before=await f.store.indexStatus(f.id);f.embed.mockRejectedValue(Object.assign(Error('Unavailable'),{statusCode:503,retryAfter:'0'}))
  const found=await f.store.search(f.id,'payment');expect(found.matches[0].snippet).toContain('Confidential payment');expect(found.warnings[0]).toMatchObject({stage:'embedding',statusCode:503});expect(await f.store.indexStatus(f.id)).toEqual(before)
 })
 it('does not hide authentication, settings errors or privacy locking behind ranking recovery',async()=>{
  const llmRerank=vi.fn(),f=await fixture({llmRerank});await f.add();await f.store.index(f.id);await f.store.configure(f.id,'Company secrets',f.cfg,'venice','judge','llm');llmRerank.mockRejectedValueOnce(Object.assign(Error('Denied'),{statusCode:401}));await expect(f.store.search(f.id,'payment')).rejects.toThrow('Reranking failed (venice / judge; HTTP 401)')
  await f.store.protect(f.id,'dedicated',{pin:'123456'});llmRerank.mockImplementationOnce(async()=>{f.keys.lock('knowledge:'+f.id);throw Object.assign(Error('Unavailable'),{statusCode:503})});await expect(f.store.search(f.id,'payment')).rejects.toThrow('Unlock')
+})
+it('retries one temporary query embedding only while the collection remains unlocked',async()=>{
+ const f=await fixture();await f.add();await f.store.index(f.id);f.embed.mockClear();f.embed.mockRejectedValueOnce(Object.assign(Error('Temporary'),{statusCode:500,retryAfter:'0'}));const found=await f.store.search(f.id,'payment');expect(found.matches).toHaveLength(1);expect(found.warnings).toEqual([]);expect(f.embed).toHaveBeenCalledTimes(2)
+ await f.store.protect(f.id,'dedicated',{pin:'123456'});f.embed.mockClear();f.embed.mockImplementationOnce(async()=>{f.keys.lock('knowledge:'+f.id);throw Object.assign(Error('Temporary'),{statusCode:500,retryAfter:'0'})});await expect(f.store.search(f.id,'payment')).rejects.toThrow('Unlock');expect(f.embed).toHaveBeenCalledOnce()
 })
 it('stores and indexes exactly 50 MiB, streams replacement and restores a source larger than the old limit',async()=>{
  const f=await fixture({extract:async()=>({text:'A large source with a small indexed body.'})}),chunk=new Uint8Array(1024*1024).fill(53),file=new File(Array.from({length:50},()=>chunk),'large.pdf',{type:'application/pdf'}),full=vi.spyOn(file,'arrayBuffer'),id=await f.store.add(f.id,file);expect(full).not.toHaveBeenCalled();let data=await f.store.data(f.id);expect(data.files[0].bytes).toBe(50*1024*1024);await f.store.index(f.id);expect((await f.store.indexStatus(f.id))?.files).toHaveLength(1);const source=await f.store.source(f.id,data.files[0].path);expect(source.length).toBe(50*1024*1024);expect(source[0]).toBe(53);expect(source.at(-1)).toBe(53);source.fill(0)
