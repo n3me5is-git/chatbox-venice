@@ -1,4 +1,5 @@
 import {externalMessagesSchema,externalToolsSchema,externalModelInput} from './model-input'
+import { runMCPRequestOnce } from './request-cache'
 import { asSchema,tool,type ToolSet } from 'ai'
 import { z } from 'zod'
 import { SystemProviders } from '@shared/defaults'
@@ -195,8 +196,7 @@ export async function handleLocalMCP(request:LocalMCPRequest,signal:AbortSignal)
     const execute = () => member.execute!(validated.value, {toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}})
     if (name !== 'app_model') return execute()
     if (typeof request_id !== 'string' || request_id.length < 1 || request_id.length > 128) throw Error('A stable request_id is required for a paid operation')
-    const {unique} = await import('./application')
-    return unique(grant, 'router:'+request_id, {name,args,sessionId:'application'}, execute)
+    return runMCPRequestOnce(grant, 'router:'+request_id, {name,args,sessionId:'application'}, execute)
   }
   if(request.grant.application)return (await import('./application')).handleApplicationMCP(request,signal)
   return handleSessionLocalMCP(request,signal)
