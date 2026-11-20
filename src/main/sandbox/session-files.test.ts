@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 const roots=vi.hoisted(()=>({workspace:'',artifacts:'',tmp:''}))
-vi.mock('./manager',()=>({getSessionWorkingDirectory:(id:string)=>id==='one'?roots.workspace:null,getSandboxArtifactsRoot:()=>roots.artifacts,getSandboxTmpRoot:()=>roots.tmp}))
-import { sessionDiskFiles } from './session-files'
+vi.mock('./manager',()=>({getSessionWorkingDirectory:(id:string)=>id==='one'?roots.workspace:null,getSandboxArtifactsRoot:()=>roots.artifacts,getSandboxTmpRoot:()=>roots.tmp,resetSandbox:async()=>({success:true})}))
+import { removeManagedSessionWorkspace, sessionDiskFiles } from './session-files'
 let root=''
 beforeEach(async()=>{root=await mkdtemp(path.join(tmpdir(),'session-files-'));roots.tmp=root;roots.workspace=path.join(root,'one');roots.artifacts=path.join(root,'artifacts');await mkdir(roots.workspace);await mkdir(path.join(roots.artifacts,'one'),{recursive:true})})
 afterEach(async()=>{await rm(root,{recursive:true,force:true})})
@@ -30,4 +30,20 @@ it('does not grant mutation access to a selected external working directory',asy
   await expect(sessionDiskFiles({sessionId:'one',action:'remove',path:'workspace/keep.txt'})).rejects.toThrow('read-only')
   await expect(sessionDiskFiles({sessionId:'one',action:'write',path:'workspace/keep.txt',content:'changed'})).rejects.toThrow('read-only')
   expect(await readFile(path.join(roots.workspace,'keep.txt'),'utf8')).toBe('kept')
+})
+it('purges only the owned workspace and artifacts even when the session uses an external folder', async () => {
+  const owned = roots.workspace
+  const artifact = path.join(roots.artifacts, 'one', 'report.md')
+  roots.workspace = path.join(root, 'project')
+  await mkdir(roots.workspace)
+  await writeFile(path.join(roots.workspace, 'keep.txt'), 'external')
+  await writeFile(path.join(owned, 'temporary.txt'), 'owned')
+  await writeFile(artifact, 'owned')
+  await symlink(roots.workspace, path.join(owned, 'external'), 'junction')
+  await expect(removeManagedSessionWorkspace('../project')).rejects.toThrow('Invalid session identity')
+  await removeManagedSessionWorkspace('one')
+  await expect(readFile(path.join(owned, 'temporary.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
+  await expect(readFile(artifact)).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(await readFile(path.join(roots.workspace, 'keep.txt'), 'utf8')).toBe('external')
+  await removeManagedSessionWorkspace('one')
 })

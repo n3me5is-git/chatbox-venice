@@ -10,7 +10,9 @@ import {collaborationEnglish,collaborationItalian} from './collaboration-resourc
 import {catalogEnglish,catalogItalian} from './catalog-resources'
 import {agentsEnglish,agentsItalian} from './agents-resources'
 import {transferEnglish,transferItalian} from './transfer-resources'
+import { chatRetentionEnglish, chatRetentionItalian } from './chat-retention-resources'
 export const forkEnglish = {
+  ...chatRetentionEnglish,
   ...localOcrEnglish,
   ...portableKnowledgeEnglish,
   ...mcpEnglish,
@@ -681,6 +683,7 @@ export const forkEnglish = {
   "This model does not declare native function calling. Choose encrypted text tools or another model.": "This model does not declare native function calling. Choose encrypted text tools or another model.",
 } as const
 export const forkTranslations: Record<string, Record<string,string>> = { 'it-IT': {
+  ...chatRetentionItalian,
   ...localOcrItalian,
   ...mcpItalian,
   ...archiveItalian,

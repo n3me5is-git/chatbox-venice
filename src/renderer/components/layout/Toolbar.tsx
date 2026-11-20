@@ -20,6 +20,7 @@ import { rendererApplication } from '@/app/renderer-application'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIsLargeScreen } from '@/hooks/useScreenChange'
 import { copyToClipboard } from '@/packages/navigator'
+import { useRetainedChat } from '@/packages/chat-retention/retention'
 import { confirmSessionDeletion } from '@/presentation/session/session-deletion-confirmation'
 import { router } from '@/router'
 import { useSessionAgentMode } from '@/stores/session/agent-mode'
@@ -50,6 +51,8 @@ export function SessionMenu({
 }) {
   const { t } = useTranslation()
   const sessionId = session.id
+  const retention = useRetainedChat(sessionId)
+  const temporary = Boolean(retention && (retention.saving || retention.expiresAt === undefined))
   const isLargeScreen = useIsLargeScreen()
 
   const openSessionPanel = useUIStore((s) => s.openSessionPanel)
@@ -125,23 +128,23 @@ export function SessionMenu({
         ]
       : []),
     ...(onEditSettings || isLargeScreen || showThreadHistory ? [{ divider: true as const }] : []),
-    {
+    ...(!temporary ? [{
       text: t('Duplicate Conversation'),
       icon: IconCopy,
       testId: TestId.session.duplicate,
       onClick: handleCopySession,
-    },
+    }] : []),
     {
       text: t('Copy Conversation ID'),
       icon: IconId,
       onClick: handleCopySessionId,
     },
-    {
+    ...(!temporary ? [{
       text: t('Export Chat'),
       icon: IconDeviceFloppy,
       testId: TestId.session.export,
       onClick: handleExportAndSave,
-    },
+    }] : []),
     ...(process.env.NODE_ENV === 'development'
       ? [
           {

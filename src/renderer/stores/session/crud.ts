@@ -32,6 +32,11 @@ function abortGenerationsBeforeDeletion(sessionId: string): void {
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
+  const { deleteRetainedChat } = await import('@/packages/chat-retention/retention')
+  if (!(await deleteRetainedChat(sessionId))) await deleteSessionRecords(sessionId)
+}
+
+export async function deleteSessionRecords(sessionId: string): Promise<void> {
   abortGenerationsBeforeDeletion(sessionId)
   // Clear only after the deletion succeeded: queued messages are the sole copy
   // of the user's text, and a failed deletion leaves the session (and queue) alive.
@@ -45,6 +50,11 @@ export async function deleteSession(sessionId: string): Promise<void> {
 }
 
 export async function deleteSessions(sessionIds: string[]): Promise<void> {
+  const { getRetainedChat, deleteRetainedChat } = await import('@/packages/chat-retention/retention')
+  const retained = sessionIds.filter(id => getRetainedChat(id))
+  for (const id of retained) await deleteRetainedChat(id)
+  sessionIds = sessionIds.filter(id => !retained.includes(id))
+  if (!sessionIds.length) return
   for (const sessionId of sessionIds) {
     abortGenerationsBeforeDeletion(sessionId)
   }

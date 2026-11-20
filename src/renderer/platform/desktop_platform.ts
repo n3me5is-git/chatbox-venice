@@ -524,7 +524,7 @@ export default class DesktopPlatform implements Platform {
     return this.ipc.invoke('sandbox:has-artifacts', params)
   }
 
-  public async sandboxRemoveArtifacts(params: { sessionId: string }) {
+  public async sandboxRemoveArtifacts(params: { sessionId: string; includeWorkspace?: boolean }) {
     return this.ipc.invoke('sandbox:remove-artifacts', params)
   }
 

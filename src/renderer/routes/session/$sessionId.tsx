@@ -25,6 +25,7 @@ import { useSessionPresentation, useSessionTranscript } from '@/hooks/useSession
 import useVersion from '@/hooks/useVersion'
 import { defaultSessionsForCN, defaultSessionsForEN } from '@/packages/initial_data'
 import * as remote from '@/packages/remote'
+import { isUnavailableChat, useRetainedChat } from '@/packages/chat-retention/retention'
 import {
   sessionStartupRecovery,
   useSessionStartupGuard,
@@ -52,6 +53,13 @@ export const Route = createFileRoute('/session/$sessionId')({
 
 function SessionRouteWithErrorBoundary() {
   const { sessionId } = Route.useParams()
+  useRetainedChat(sessionId)
+  const navigate = useNavigate()
+  const unavailable = isUnavailableChat(sessionId)
+  useEffect(() => {
+    if (unavailable) void navigate({ to: '/', replace: true })
+  }, [navigate, unavailable])
+  if (unavailable) return null
   return (
     <ErrorBoundary key={sessionId} name="session-route" onError={() => sessionStartupRecovery.fail(sessionId)}>
       <ProjectGate key={sessionId} sessionId={sessionId}><RouteComponent /></ProjectGate>

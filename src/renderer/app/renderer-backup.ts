@@ -16,6 +16,7 @@ import {
 import { SessionRowMigration, SessionRowWriteQueue } from '@chatbox/core/application/session'
 import type { ByteSource } from '@chatbox/core/io'
 import type { KeyValueStoragePort } from '@chatbox/core/ports'
+import { isExcludedFromBackup } from '@/packages/chat-retention/retention'
 import { v4 as uuid } from 'uuid'
 import { CurrentSessionRecordStore } from '@/adapters/CurrentSessionRecordStore'
 import { createRendererBackupResources } from '@/adapters/backup-resources'
@@ -70,7 +71,7 @@ function host(jobId: string, workspace: IndexedDBBackupWorkspace): BackupHostOpt
     async *listSessionIds() {
       await metadata.initialize()
       if (!metadata.iterateIds) throw new Error('Conversation metadata iteration is unavailable')
-      yield* metadata.iterateIds()
+      for await (const id of metadata.iterateIds()) if (!isExcludedFromBackup(id)) yield id
     },
     getSettings: () => rendererApplication.settings.getSettings(),
     refresh: async () => {},
@@ -123,6 +124,7 @@ class RendererBackupService {
     for await (const id of meta.iterateIds()) {
       offset++
       if (offset <= (after ?? 0)) continue
+      if (isExcludedFromBackup(id)) continue
       const entry = await meta.getById(id)
       if (!entry || !entry.name.toLowerCase().includes(search.toLowerCase())) continue
       if (sessions.length === 50) return { sessions, next: offset - 1, total }
@@ -168,7 +170,7 @@ class RendererBackupService {
   async export(selection: RendererBackupSelection, format: BackupExportFormat = 'v3'): Promise<BackupExportResult> {
     const { excludedSessionIds, ...included } = selection
     const excluded = new Set(excludedSessionIds)
-    const sessionIds = included.sessionIds?.filter((id) => !excluded.has(id))
+    const sessionIds = included.sessionIds?.filter((id) => !excluded.has(id) && !isExcludedFromBackup(id))
     const exportSelection: BackupSelection =
       format === 'v1'
         ? { sessions: true, settings: false, copilots: false, credentials: false, sessionIds }

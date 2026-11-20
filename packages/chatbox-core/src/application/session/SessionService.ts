@@ -486,7 +486,7 @@ export class SessionService {
   async createSession(
     newSession: Omit<SessionHeader, 'id'> & { messages?: readonly Message[] },
     previousId?: string,
-    options?: { copilotName?: string }
+    options?: { copilotName?: string; beforeCreate?: (id: string) => Promise<void> }
   ): Promise<SessionHeader> {
     await this.initialize()
     const { messages = [], ...fields } = newSession
@@ -512,6 +512,7 @@ export class SessionService {
         sortOrder = lower ? (previous.sortOrder + lower.sortOrder) / 2 : previous.sortOrder - 2000
       }
     }
+    await options?.beforeCreate?.(header.id)
     const result = await this.writes.create(header, messages, sortOrder, this.now())
     await this.publishCommandResult(result, true)
     if (result.meta)
@@ -911,17 +912,17 @@ export class SessionService {
   async recoverSessionList(): Promise<{ recovered: number; failed: number }> {
     await this.initialize()
     const sessionIds = await this.repository.getAllSessionIds()
-    let existingArchivedRecords = new Map<string, SessionMetaRecord>()
+    let existingRecords = new Map<string, SessionMetaRecord>()
     try {
-      existingArchivedRecords = new Map(
+      existingRecords = new Map(
         (await this.repository.meta.getAllIncludingHidden())
-          .filter((record) => record.recoveryArchived === true)
           .map((record) => [record.id, record])
       )
     } catch (error) {
-      await this.log('warn', 'Failed to preserve archived metadata during session-list recovery', {
+      await this.log('warn', 'Session-list recovery stopped because existing metadata could not be preserved', {
         error: describeError(error),
       })
+      throw error
     }
     const sessionsWithTimestamp: Array<{ read: SessionHeaderRead; timestamp: number }> = []
     const failedSessionIds: string[] = []
@@ -956,8 +957,8 @@ export class SessionService {
         timestamp || now - (sessionsWithTimestamp.length - index) * 1000,
         read.summary.pausedMessageCount > 0
       )
-      const existingArchivedRecord = existingArchivedRecords.get(read.header.id)
-      return existingArchivedRecord
+      const existingArchivedRecord = existingRecords.get(read.header.id)
+      return existingArchivedRecord?.recoveryArchived === true
         ? {
             ...recoveredRecord,
             hidden: true,
@@ -966,12 +967,10 @@ export class SessionService {
           }
         : recoveredRecord
     })
-    for (const sessionId of failedSessionIds) {
-      const existingArchivedRecord = existingArchivedRecords.get(sessionId)
-      if (existingArchivedRecord) {
-        records.push(existingArchivedRecord)
-      }
-    }
+    const recoveredIds = new Set(records.map(record => record.id))
+    // Locked/corrupt/removable-storage headers are not proof of deletion.
+    // Retain every existing entry that this pass could not positively rebuild.
+    for (const record of existingRecords.values()) if (!recoveredIds.has(record.id)) records.push(record)
     await this.repository.meta.clear()
     await this.repository.meta.createMany(records)
     await this.publishListReset({ visible: true, archived: true })

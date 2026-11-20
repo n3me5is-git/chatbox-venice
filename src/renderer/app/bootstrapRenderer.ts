@@ -121,7 +121,7 @@ export async function bootstrapRenderer(application: RendererApplication): Promi
     initUpdateListeners()
     initSessionAttachmentRagMaintenance({ sessionMigrationDone: sessionMigrationTrickle.done })
   }
-  initSessionPresentationBindings()
+  await initSessionPresentationBindings()
 
   return settings
 }

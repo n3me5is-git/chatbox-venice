@@ -280,13 +280,15 @@ export function initializeMultiAgent() {
 }
 initializeMultiAgent()
 
-/** Used only for an endpoint-owned temporary root after revocation/cleanup. */
-export async function disposeTemporaryAgentRoot(rootId:string){
+/** Stop work and retain descendant identities before dropping the agent manifest. */
+export async function disposeTemporaryAgentRoot(rootId:string, remember?: (ids: string[]) => Promise<void>){
+  if (remember) await loadAgentRuns(rootId)
   removedTemporaryRoots.add(rootId);grants.delete(rootId)
   await multiAgentRuntime.stopRoot(rootId)
   if(!await multiAgentRuntime.waitUntilStopped(rootId))throw Error('Agent work is still stopping. Retry temporary workspace cleanup.')
   await multiAgentRuntime.stopRoot(rootId) // drain a spawn that finished while cancellation was requested
   const runs=[...multiAgentRuntime.runs.values()].filter(run=>run.rootId===rootId)
+  await remember?.([...new Set(runs.flatMap(run => [run.sessionId, run.workspaceId]))].filter(id => id && id !== rootId))
   await removeAgentData(manifest(rootId));await removeAgentData('private-agents:events:'+encodeURIComponent(rootId))
   for(const run of runs)multiAgentRuntime.runs.delete(run.id)
   loaded.delete(rootId);agentEvents.delete(rootId)
