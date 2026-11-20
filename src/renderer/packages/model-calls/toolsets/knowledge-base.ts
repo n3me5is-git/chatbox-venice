@@ -207,7 +207,13 @@ Commands:
 Search when the user's question relates to these documents; answer greetings, small talk and unrelated questions directly. For follow-ups on the same topic, reuse earlier results, and search again when the topic shifts or they no longer cover the question.`
 }
 
-export async function runKnowledgeBaseCommand(id:number,input:KnowledgeBaseToolInput,signal?:AbortSignal){signal?.throwIfAborted();if(input.command==='read')return read(id,input);if(input.command==='list')return list(id,input.page);return search(id,input.query,signal)}
+export async function runKnowledgeBaseCommand(id:number,input:KnowledgeBaseToolInput,signal?:AbortSignal){
+  signal?.throwIfAborted()
+  const output=await(input.command==='read'?read(id,input):input.command==='list'?list(id,input.page):search(id,input.query,signal))
+  // Metadata lookup is best effort, but must never swallow a privacy lock that
+  // arrives after the search returned decrypted passages.
+  signal?.throwIfAborted();if(id<0)await(await import('@/packages/knowledge-collections/service')).knowledgeCollections.assert(id);signal?.throwIfAborted();return output
+}
 
 export async function getToolSet(knowledgeBaseId: number, knowledgeBaseName: string): Promise<{ tools: ToolSet }> {
   const tool: ToolSet[string] = {
@@ -232,9 +238,7 @@ export async function getToolSet(knowledgeBaseId: number, knowledgeBaseName: str
     }),
     execute: (rawInput,options) => {
       const input = rawInput as KnowledgeBaseToolInput
-      if (input.command === 'read') return read(knowledgeBaseId, input)
-      if (input.command === 'list') return list(knowledgeBaseId, input.page)
-      return search(knowledgeBaseId, input.query,options.abortSignal)
+      return runKnowledgeBaseCommand(knowledgeBaseId,input,options.abortSignal)
     },
     toModelOutput: (options: { toolCallId: string; input: unknown; output: unknown }) =>
       toTextModelOutput((output) => formatKnowledgeBaseOutput(knowledgeBaseCommandOf(options.input), output))(options),

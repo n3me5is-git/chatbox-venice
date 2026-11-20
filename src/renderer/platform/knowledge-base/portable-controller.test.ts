@@ -1,6 +1,6 @@
 import {beforeEach,expect,it,vi} from 'vitest'
 import type {KnowledgeBaseController} from './interface'
-const state=vi.hoisted(()=>({authorize:vi.fn(),search:vi.fn(),chunksForMatches:vi.fn()}))
+const state=vi.hoisted(()=>({authorize:vi.fn(),assert:vi.fn(),search:vi.fn(),chunksForMatches:vi.fn()}))
 vi.mock('@/packages/knowledge-collections/service',()=>({knowledgeCollections:state}))
 import {portableKnowledgeController} from './portable-controller'
 beforeEach(()=>{vi.clearAllMocks();state.search.mockResolvedValue({matches:[{id:'chunk',score:.8}],warnings:[{stage:'reranking',provider:'venice',model:'judge',statusCode:500,message:'Original ranking retained.'}]});state.chunksForMatches.mockResolvedValue([{fileId:10,filename:'manual.md',chunkIndex:0,text:'Source',chunk:{id:'chunk',modality:'text/plain'}}])})
