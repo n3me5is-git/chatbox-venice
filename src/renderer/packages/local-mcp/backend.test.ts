@@ -54,6 +54,12 @@ it('keeps only allowed text router operations reachable while the app is locked'
   await expect(invoke('read_resource')).rejects.toThrow('Unlock Chatbox')
   router.permissions.automaticModels=true
   expect(await invoke('list_tools')).toContainEqual(expect.objectContaining({name:'app_model',inputSchema:expect.objectContaining({required:expect.arrayContaining(['request_id'])})}))
+  vi.stubGlobal('window',{electronAPI:{invoke:vi.fn(async()=>router)}})
+  const call=()=>handleLocalMCP(request('call_tool',{grant:router,locked:true,name:'app_model',arguments:{request_id:'locked-model-once',provider:'venice',modelId:'secure',messages:[{role:'user',content:'Synthetic question'}]}}),signal())
+  expect(await call()).toMatchObject({text:'Model response'})
+  expect(await call()).toMatchObject({text:'Model response'})
+  expect(state.chat).toHaveBeenCalledOnce()
+  expect(state.approve).not.toHaveBeenCalled()
 })
 it('enforces approval for a real model call and rejects model/provider downgrade and extra arguments',async()=>{
   const input={provider:'venice',modelId:'secure',messages:[{role:'user',content:'Read these explicit messages only'}],maxOutputTokens:20}
