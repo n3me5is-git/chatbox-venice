@@ -16,6 +16,7 @@ export function ApplicationMCPSettings(){
   useTranslation()
   const [knowledgeCollectionIds,setKnowledgeCollectionIds]=useState<number[]>([])
   const [knowledgeFilePaths,setKnowledgeFilePaths]=useState(false)
+  const [veniceSearch,setVeniceSearch]=useState(false)
   const [accessToken,setAccessToken]=useState(newMCPAccessToken),[rememberToken,setRememberToken]=useState(false)
   const [profiles,setProfiles]=useState<LocalMCPProfile[]>([]),[editingId,setEditingId]=useState<string|null>(null)
   const [autoStart,setAutoStart]=useState(false),[keepWhileLocked,setKeepWhileLocked]=useState(false)
@@ -26,9 +27,10 @@ export function ApplicationMCPSettings(){
   useEffect(()=>{if(!available||!permissions.multiAgent)return;let active=true;void import('@/packages/multi-agent/library').then(module=>module.listDedicatedAgents()).then(items=>{if(active)setAgents(items.map(({id,title})=>({id,title})))}).catch(reason=>setError(String(reason.message||reason)));return()=>{active=false}},[available,permissions.multiAgent])
   const run=async(work:()=>Promise<unknown>)=>{setBusy(true);setError('');setNotice('');try{await work();await refresh();window.dispatchEvent(new Event('local-mcp:state-changed'))}catch(reason){setError(String((reason as Error).message||reason))}finally{setBusy(false)}}
   const change=(key:keyof LocalMCPPermissions,value:boolean)=>setPermissions(old=>({...old,[key]:value,...(!value&&(key==='readFiles'||key==='writeFiles')?{execute:false}:{}),...(!value&&key==='models'?{automaticModels:false}:{})}))
+  const canUseVenice = privacy !== 'auto' || allProviders || providers.includes('venice')
   const resetEditing = () => {
     setEditingId(null);setAutoStart(false);setKeepWhileLocked(false)
-    setAccessToken(newMCPAccessToken());setRememberToken(false);setKnowledgeFilePaths(false)
+    setAccessToken(newMCPAccessToken());setRememberToken(false);setKnowledgeFilePaths(false);setVeniceSearch(false)
   }
   const edit = (profile: LocalMCPProfile) => run(async () => {
     const app=profile.application!
@@ -36,7 +38,7 @@ export function ApplicationMCPSettings(){
     setPermissions(profile.permissions);setPrivacy(app.privacy);setManage(app.manageChats)
     setConversations(app.conversations);setAutomaticStudio(app.automaticStudio);setExternalTools(app.externalTools)
     setAllProviders(!app.providers);setProviders(app.providers||[]);setDedicatedIds(app.dedicatedIds)
-    setKnowledgeCollectionIds(app.knowledgeCollectionIds||[]);setKnowledgeFilePaths(!!app.knowledgeFilePaths)
+    setKnowledgeCollectionIds(app.knowledgeCollectionIds||[]);setKnowledgeFilePaths(!!app.knowledgeFilePaths);setVeniceSearch(!!app.veniceSearch)
     setAutoStart(mcpProfileStartsAutomatically(profile));setKeepWhileLocked(!!profile.keepWhileLocked)
     setRememberToken(mcpProfileRemembersToken(profile));setAccessToken(newMCPAccessToken())
     const saved = await readMCPProfileToken(profile)
@@ -48,7 +50,7 @@ export function ApplicationMCPSettings(){
     const vault=vaultRuntimeFor(platform);await vault.projects.assertApp();if(!await vault.available())throw Error('Device encryption is unavailable')
     await cleanupInactiveMCPContexts()
     const shareKnowledge = mode !== 'router' && permissions.knowledge
-    const application=LocalMCPApplicationSchema.parse({name,mode,manageChats:mode==='full'&&manage,conversations:mode!=='router'&&conversations,providers:privacy==='auto'?(allProviders?undefined:providers):['venice'],privacy,dedicatedIds:permissions.multiAgent?dedicatedIds:[],automaticStudio,externalTools,knowledgeCollectionIds:shareKnowledge?knowledgeCollectionIds:undefined,...(shareKnowledge&&knowledgeFilePaths?{knowledgeFilePaths:true}:{})})
+    const application=LocalMCPApplicationSchema.parse({name,mode,manageChats:mode==='full'&&manage,conversations:mode!=='router'&&conversations,providers:privacy==='auto'?(allProviders?undefined:providers):['venice'],privacy,dedicatedIds:permissions.multiAgent?dedicatedIds:[],automaticStudio,externalTools,knowledgeCollectionIds:shareKnowledge?knowledgeCollectionIds:undefined,...(shareKnowledge&&knowledgeFilePaths?{knowledgeFilePaths:true}:{}),...(canUseVenice&&veniceSearch?{veniceSearch:true}:{})})
     const config:LocalMCPStart={sessionId:'application',endpointId:editingId||crypto.randomUUID(),port,application,permissions:{...permissions,...(mode==='router'?{execute:false,search:false,forwardMCP:false,multiAgent:false,knowledge:false}: {})},...(keepWhileLocked?{keepWhileLocked:true}:{})}
     const endpoint=await invoke('start-with-token',{config,accessToken}) as LocalMCPGrant
     try{await saveMCPProfile(config,endpoint,{autoStart,rememberToken})}catch(error){await invoke('stop-endpoint',config.endpointId);throw error}
@@ -71,7 +73,7 @@ export function ApplicationMCPSettings(){
     {profiles.filter(profile=>!endpoints.some(endpoint=>endpoint.endpointId===profile.endpointId)).map(profile=><Stack key={profile.endpointId} gap="xs"><Group gap="xs"><Text size="sm">{profile.application?.name}</Text><Button size="xs" variant="light" loading={busy} onClick={()=>void run(async()=>{await cleanupInactiveMCPContexts();await startSavedMCPProfile(profile);startupErrors.delete(profile.endpointId!)})}>{ft('Start saved endpoint')}</Button><Button size="xs" variant="subtle" disabled={busy} onClick={()=>void edit(profile)}>{ft('Edit profile')}</Button><Button size="xs" variant="subtle" color="red" onClick={()=>void run(()=>updateMCPProfiles(rows=>rows.filter(item=>item.endpointId!==profile.endpointId)))}>{ft('Delete profile')}</Button></Group>{startupErrors.has(profile.endpointId!)&&<Text size="xs" c="orange">{ft('Automatic startup failed. Check the port and start the endpoint again.')}</Text>}</Stack>)}
     <TextInput label={ft('Endpoint name')} value={name} maxLength={80} onChange={event=>setName(event.currentTarget.value)}/>
     <NativeSelect label={ft('Access profile')} value={mode} data={[{value:'router',label:ft('Models and Studio only')},{value:'shadow',label:ft('Shadow workspaces only')},{value:'full',label:ft('Authorized app access')}]} onChange={event=>setMode(event.currentTarget.value as typeof mode)}/>
-    <Text size="xs" c="dimmed">{ft(mode==='router'?'Use Chatbox as a local model and Studio router. Existing chats, agents, search and other MCP services are unavailable.':mode==='shadow'?'Work only inside temporary spaces created by this endpoint. Results are hidden from normal history and deleted on explicit cleanup or endpoint stop.':'Access unlocked root chats and granted app features. Other endpoints’ temporary spaces and protected locked content remain inaccessible.')}</Text>
+    <Text size="xs" c="dimmed">{ft(mode==='router'?'Route model calls, Studio generation and optional Venice web search through Chatbox.':mode==='shadow'?'Work only inside temporary spaces created by this endpoint. Results are hidden from normal history and deleted on explicit cleanup or endpoint stop.':'Access unlocked root chats and granted app features. Other endpoints’ temporary spaces and protected locked content remain inaccessible.')}</Text>
     <NativeSelect label={ft('Text transport privacy')} value={privacy} onChange={event=>setPrivacy(event.currentTarget.value as typeof privacy)} data={[{value:'auto',label:ft('Auto: strongest supported privacy')},{value:'e2ee',label:ft('Require E2EE text models')},{value:'tee',label:ft('Require TEE or E2EE text models')}]}/>
     <Text size="xs" c="dimmed">{ft('Text privacy requirements apply to LLM calls. Studio images, audio and video use their own Venice APIs and are not E2EE. The external MCP client receives decrypted results locally.')}</Text>
     {privacy==='auto'&&<><Checkbox label={ft('Allow all configured providers')} checked={allProviders} onChange={event=>setAllProviders(event.currentTarget.checked)}/>{!allProviders&&configured.map(id=><Checkbox key={id} label={id} checked={providers.includes(id)} onChange={event=>{const checked=event.currentTarget.checked;setProviders(old=>checked?[...old,id]:old.filter(value=>value!==id))}}/>)}</>}
@@ -84,6 +86,9 @@ export function ApplicationMCPSettings(){
     </Stack>}
     {permissions.models&&<Checkbox label={ft('Allow external function schemas for model calls')} checked={externalTools} onChange={event=>setExternalTools(event.currentTarget.checked)}/>}
     {permissions.venice&&<Checkbox label={ft('Automatically approve Studio requests (may incur costs)')} checked={automaticStudio} onChange={event=>setAutomaticStudio(event.currentTarget.checked)}/>}
+    {canUseVenice&&<Checkbox label={ft('Expose Venice web search engines separately')}
+      description={ft('Clients can send queries to Brave, Google or Exa through Venice. Search may incur charges.')}
+      checked={veniceSearch} disabled={busy} onChange={event=>setVeniceSearch(event.currentTarget.checked)}/>}
     {mode!=='router'&&permissions.forwardMCP&&<Alert color="yellow">{ft('Forwarded MCP services keep their own permissions. Shadow cleanup cannot remove files or data they save outside Chatbox.')}</Alert>}
     {mode==='full'&&<Checkbox label={ft('Create, configure and permanently delete chats')} checked={manage} onChange={event=>setManage(event.currentTarget.checked)}/>}
     {mode!=='router'&&<Checkbox label={ft('Read and send messages in authorized chats')} checked={conversations} onChange={event=>setConversations(event.currentTarget.checked)}/>}

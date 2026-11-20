@@ -1,6 +1,6 @@
 import { z } from 'zod'
 export const LocalMCPPermissionsSchema=z.object({readFiles:z.boolean(),writeFiles:z.boolean(),execute:z.boolean(),models:z.boolean(),automaticModels:z.boolean(),venice:z.boolean(),search:z.boolean(),forwardMCP:z.boolean(),multiAgent:z.boolean().default(false),knowledge:z.boolean().optional()}).strict()
-export const LocalMCPApplicationSchema=z.object({mode:z.enum(['full','shadow','router']),name:z.string().trim().min(1).max(80),externalTools:z.boolean().default(false),automaticStudio:z.boolean().default(false),manageChats:z.boolean().default(false),conversations:z.boolean().default(false),providers:z.array(z.string().min(1).max(128)).max(100).optional(),privacy:z.enum(['auto','e2ee','tee']).default('auto'),dedicatedIds:z.array(z.string().min(1).max(100)).max(100).default([]),knowledgeCollectionIds:z.array(z.number().int().negative()).max(8).optional(),knowledgeFilePaths:z.boolean().optional()}).strict()
+export const LocalMCPApplicationSchema=z.object({mode:z.enum(['full','shadow','router']),name:z.string().trim().min(1).max(80),externalTools:z.boolean().default(false),automaticStudio:z.boolean().default(false),manageChats:z.boolean().default(false),conversations:z.boolean().default(false),providers:z.array(z.string().min(1).max(128)).max(100).optional(),privacy:z.enum(['auto','e2ee','tee']).default('auto'),dedicatedIds:z.array(z.string().min(1).max(100)).max(100).default([]),knowledgeCollectionIds:z.array(z.number().int().negative()).max(8).optional(),knowledgeFilePaths:z.boolean().optional(),veniceSearch:z.boolean().optional()}).strict()
 export type LocalMCPApplication=z.infer<typeof LocalMCPApplicationSchema>
 export const LocalMCPStartSchema=z.object({sessionId:z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),port:z.number().int().refine(port=>port===0||port>=1024&&port<=65535),permissions:LocalMCPPermissionsSchema,endpointId:z.string().uuid().optional(),application:LocalMCPApplicationSchema.optional(),keepWhileLocked:z.boolean().optional()}).strict()
 export type LocalMCPPermissions=z.infer<typeof LocalMCPPermissionsSchema>
@@ -28,6 +28,9 @@ export function localMCPAllowsDuringLock(grant: LocalMCPGrant, operation: LocalM
     (name === 'app_models' || name === 'app_model' && grant.permissions.automaticModels)
 }
 export type LocalMCPTool={name:string;description?:string;inputSchema:{type:'object';[key:string]:unknown}}
+export const localMCPVeniceSearchEngines = ['brave', 'google', 'exa'] as const
+export const isLocalMCPVeniceSearch = (name: string) =>
+  localMCPVeniceSearchEngines.some(engine => name === 'venice_web_search_' + engine)
 export function localMCPAllows(permissions:LocalMCPPermissions,name:string,args:Record<string,unknown>={}){
   if(/^knowledge_(?:base|metadata|sources|collections|document|evidence|verify)(?:_\d+)?$/.test(name))return permissions.knowledge===true
   if(['agent_catalog','agent_tree','agent_spawn','agent_status','agent_message','agent_wait','agent_result','agent_files','agent_file','agent_stop'].includes(name))return permissions.multiAgent&&(name!=='agent_files'||permissions.readFiles)&&(name!=='agent_file'||permissions.readFiles&&permissions.writeFiles)
@@ -53,6 +56,7 @@ export function parseSessionResourceURI(sessionId:string,uri:string){const prefi
 export function localMCPGrantAllows(grant:LocalMCPGrant,name:string,args:Record<string,unknown>={}){
   const app=grant.application
   if(!app)return localMCPAllows(grant.permissions,name,args)
+  if (isLocalMCPVeniceSearch(name)) return app.veniceSearch === true && (!app.providers || app.providers.includes('venice'))
   if(name==='knowledge_verify'&&!grant.permissions.models)return false
   if(/^knowledge_/.test(name))return app.mode!=='router'&&grant.permissions.knowledge===true&&(app.knowledgeCollectionIds?.length||0)>0&&localMCPAllows(grant.permissions,name,args)
   if(name==='app_contexts')return app.mode!=='router'

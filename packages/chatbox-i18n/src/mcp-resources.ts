@@ -1,4 +1,7 @@
 export const mcpItalian={
+  'Expose Venice web search engines separately':'Esponi separatamente i motori di ricerca Venice',
+  'Clients can send queries to Brave, Google or Exa through Venice. Search may incur charges.':'I client possono inviare ricerche a Brave, Google o Exa tramite Venice. La ricerca può comportare costi.',
+  'Route model calls, Studio generation and optional Venice web search through Chatbox.':'Usa Chatbox per le chiamate ai modelli, le generazioni Studio e la ricerca web Venice facoltativa.',
   'Keep the same token across restarts':'Mantieni lo stesso token dopo il riavvio',
   'Regenerate token':'Rigenera token',
   'Enter a valid bearer token without spaces, or leave the field empty for local access without authentication.':'Inserisci un bearer token valido senza spazi, oppure lascia il campo vuoto per consentire l’accesso locale senza autenticazione.',
