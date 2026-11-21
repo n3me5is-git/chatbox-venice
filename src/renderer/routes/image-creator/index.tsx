@@ -552,7 +552,11 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
                   accept="image/*"
                   multiple
                   style={{ display: 'none' }}
-                  onChange={(e) => handleImageUpload(e.target.files)}
+                  onChange={event => {
+                    const files = Array.from(event.currentTarget.files ?? [])
+                    event.currentTarget.value = ''
+                    void handleImageUpload(files)
+                  }}
                 />
 
                 <Box

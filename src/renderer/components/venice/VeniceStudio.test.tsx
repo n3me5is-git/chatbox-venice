@@ -129,6 +129,29 @@ describe('Venice Studio simulated user journeys', () => {
       image_url: 'data:image/png;base64,c3RhcnQ=', end_image_url: 'data:image/png;base64,ZW5k',
     }) })))
   })
+
+  it('retains every uploaded reference when the initial model accepts fewer images', async () => {
+    const service = setup()
+    service.testKind = 'video'
+    service.catalog.mockResolvedValue([
+      { id: 'first-reference-to-video', type: 'video', model_spec: { name: 'Four references' } },
+      { id: 'seedance-2-0-reference-to-video-basic', type: 'video', model_spec: { name: 'Nine references' } },
+    ])
+    show(service)
+    fireEvent.click(screen.getByRole('button', { name: 'Load models' }))
+    const upload = await screen.findByLabelText('Reference images', { selector: 'input' })
+    const files = Array.from({ length: 5 }, (_, index) => new File(['image'], `image-${index}.png`, { type: 'image/png' }))
+    fireEvent.change(upload, { target: { files } })
+    expect(await screen.findByText('Choose a model that accepts all attached media.')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Describe your video'), { target: { value: 'Cut between all five references' } })
+    expect((screen.getByRole('button', { name: 'Create video' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByLabelText('Model', { selector: 'input' }))
+    expect(screen.queryByRole('option', { name: /Four references/ })).toBeNull()
+    fireEvent.click(screen.getByRole('option', { name: /Nine references/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create video' }))
+    await waitFor(() => expect(service.start).toHaveBeenCalledTimes(1))
+    expect(service.start.mock.calls[0][0].options.reference_image_urls).toHaveLength(files.length)
+  })
   it('opens local history without network, and keeps technical settings collapsed', async () => {
     const service = setup(); show(service); await screen.findByText("Your first creation is waiting")
     expect(service.catalog).not.toHaveBeenCalled(); expect(service.start).not.toHaveBeenCalled(); expect(service.cachedCatalog).toHaveBeenCalledTimes(1)

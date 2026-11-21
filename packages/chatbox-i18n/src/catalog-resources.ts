@@ -10,6 +10,8 @@ export const catalogItalian={
   'Add a reference image to use this model.':'Aggiungi un’immagine di riferimento per usare questo modello.',
   'Add negative prompt':'Aggiungi prompt negativo',
   'Clear video attachments':'Rimuovi gli allegati video',
+  'Choose one source video.':'Scegli un video sorgente.',
+  'Choose a model that accepts all attached media.':'Scegli un modello che accetti tutti i contenuti allegati.',
   'No enabled model accepts all the attached media. Clear the attachments or choose another workflow.':'Nessun modello abilitato accetta tutti i contenuti allegati. Rimuovi gli allegati o scegli un altro flusso di lavoro.',
 "Negative prompt":"Prompt negativo",
 "All compatible vendor options can be entered here. The selected model validates them before generation.":"Qui puoi inserire tutte le opzioni compatibili del provider. I parametri vengono verificati per il modello selezionato prima della generazione.",

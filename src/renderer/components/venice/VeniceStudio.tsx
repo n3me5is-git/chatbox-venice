@@ -154,7 +154,11 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
       {kind === 'video' && !compatible.length && catalog.length > 0 && <Alert color="yellow">
         {ft(hasVideoMedia ? 'No enabled model accepts all the attached media. Clear the attachments or choose another workflow.' : 'No enabled models support this workflow. Try another workflow or review your model and privacy filters.')}
       </Alert>}
-      {hasVideoMedia && !selected && <Group><Button variant="default" onClick={clearVideoMedia}>{ft('Clear video attachments')}</Button></Group>}
+      {hasVideoMedia && !selected && <Stack gap="xs">
+        {compatible.length > 0 && <Text size="sm">{ft('Choose a model that accepts all attached media.')}</Text>}
+        <Text size="sm" c="dimmed">{[image, endImage, sourceVideo, audioFile, ...referenceImages, ...referenceVideos, ...referenceAudio].flatMap(file => file ? [file.name] : []).join(', ')}</Text>
+        <Group><Button variant="default" onClick={clearVideoMedia}>{ft('Clear video attachments')}</Button></Group>
+      </Stack>}
       {editingReferences&&<Text size="sm" c="dimmed">{ft('Seedance editing uses one source clip. The app adds the editing instruction to your prompt and keeps the source aspect ratio.')}{selected?.id.startsWith('seedance-2-5-')?' '+ft('The output duration matches the source clip.'):''}</Text>}
       <Group align="end" wrap="wrap"><VeniceModelSelect label={ft("Model")} placeholder={catalog.length ? ft("Choose a model") : ft("Load available models")} models={compatible} value={unavailableVideoModel ? null : model || null} disabled={!compatible.length} style={{ flex: '1 1 200px', minWidth: 0 }} onChange={value => {
         const option = compatible.find(item => item.id === value)
@@ -183,10 +187,12 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
         {!!resolutions.length && <Select comboboxProps={{withinPortal:false}} label={ft("Video quality")} clearable placeholder={ft("Recommended by the model")} value={resolution || null} data={resolutions} onChange={value => setResolution(value || '')} />}</SimpleGrid>
         {videoSupport.start && <FileInput cropImages label={ft("Start image")} description={ft("For models that animate images. PNG, JPEG or WebP, up to 10 MB.")} placeholder={ft("Choose an image from this device")} accept="image/png,image/jpeg,image/webp" value={image} onChange={setImage} clearable />}
         {videoSupport.end && <FileInput cropImages label={ft("End frame")} accept="image/png,image/jpeg,image/webp" value={endImage} onChange={setEndImage} clearable />}
-        {videoSupport.references && <FileInput cropImages multiple label={ft("Reference images")} description={ft('Up to {{count}} reference images. Check the model details for additional limits.',{count:referenceLimits.images})} accept="image/png,image/jpeg,image/webp" value={referenceImages} onChange={files => setReferenceImages(files.slice(0, referenceLimits.images))} clearable />}
+        {videoSupport.references && <FileInput cropImages multiple label={ft("Reference images")} description={ft('Up to {{count}} reference images. Check the model details for additional limits.',{count:referenceLimits.images})} accept="image/png,image/jpeg,image/webp" value={referenceImages} onChange={setReferenceImages} clearable />}
         {videoSupport.video && !editingReferences && <FileInput label={ft("Video to edit or extend")} description={ft("MP4, MOV or WebM, up to 50 MB.")} accept="video/mp4,video/quicktime,video/webm" value={sourceVideo} onChange={setSourceVideo} clearable />}
-        {videoSupport.referenceVideos && <FileInput multiple label={ft(editingReferences?'Video to edit or extend':'Reference videos')} description={ft('Up to {{count}} reference clips. Check duration and limits in the model details.',{count:editingReferences?1:referenceLimits.videos})} accept="video/mp4,video/quicktime" value={referenceVideos} onChange={files => setReferenceVideos(files.slice(0, editingReferences?1:referenceLimits.videos))} clearable />}
-        {videoSupport.referenceAudio && <FileInput multiple label={ft("Reference audio")} description={ft("WAV or MP3; attach at least one reference image or video.")} accept="audio/wav,audio/mpeg" value={referenceAudio} onChange={files => setReferenceAudio(files.slice(0, referenceLimits.audio))} clearable />}
+        {videoSupport.referenceVideos && (editingReferences
+          ? <FileInput label={ft('Video to edit or extend')} description={ft('Choose one source video.')} accept="video/mp4,video/quicktime" value={referenceVideos[0] ?? null} onChange={file => setReferenceVideos(file ? [file] : [])} clearable />
+          : <FileInput multiple label={ft('Reference videos')} description={ft('Up to {{count}} reference clips. Check duration and limits in the model details.', { count: referenceLimits.videos })} accept="video/mp4,video/quicktime" value={referenceVideos} onChange={setReferenceVideos} clearable />)}
+        {videoSupport.referenceAudio && <FileInput multiple label={ft("Reference audio")} description={ft("WAV or MP3; attach at least one reference image or video.")} accept="audio/wav,audio/mpeg" value={referenceAudio} onChange={setReferenceAudio} clearable />}
         {videoSupport.audioInput && <FileInput label={ft("Audio to use in the video")} accept="audio/wav,audio/mpeg" value={audioFile} onChange={setAudioFile} clearable />}
         {videoSupport.audio && <Checkbox label={ft("Generate video audio")} checked={audio} onChange={e => setAudio(e.currentTarget.checked)} />}
       </>}
