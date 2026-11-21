@@ -57,6 +57,29 @@ it('rejudges fresh passages before deciding to correct, then verifies the actual
  expect(result.report).toMatchObject({status:'checked',revised:true,calls:4,followUp:{searches:1,evidenceAdded:1}})
 })
 
+it('caps extra excerpts at three per round and the complete correction workflow at five model calls',async()=>{
+ const draft='Retention is 90 days.',final='Retention is 30 days.'
+ const judge=vi.fn(async(text:string,sources:readonly KnowledgeCheckSource[])=>{
+  if(sources.length<7)return unresolved(draft,'retention revision '+sources.length)
+  const policy=sources.at(-1)!
+  return {claims:[{text,verdict:text===draft?'contradicted':'supported',reason:'Updated policy',evidence:[{
+   id:policy.id,quote:policy.content,stance:text===draft?'contradicts':'supports',
+  }]}]}
+ })
+ let round=0
+ const retrieve=vi.fn(async()=>{
+  const currentRound=++round
+  return Array.from({length:5},(_,i)=>evidenceFor('round-'+currentRound+'-'+i,'Current policy states 30 days.'))
+ })
+ const revise=vi.fn(async()=>({answer:final}))
+ const result=await verifyKnowledgeAnswer(draft,[source],{...settings,followUpSearches:2},{check:async()=>{},judge,revise,retrieve},new AbortController().signal)
+ expect(result.answer).toBe(final)
+ expect(result.report).toMatchObject({status:'checked',calls:5,followUp:{searches:2,evidenceAdded:6}})
+ expect(result.report.sources).toHaveLength(7)
+ expect(judge.mock.calls.map(([,sources])=>sources.length)).toEqual([1,4,7,7])
+ expect(revise).toHaveBeenCalledOnce()
+})
+
 it('stops on duplicate evidence, repeated queries and supported statements',async()=>{
  const draft='Retention is 30 days.'
  const supported=vi.fn(async()=>({...claim(draft,'supported'),followUp:{start:0,query:'retention period'}}))
