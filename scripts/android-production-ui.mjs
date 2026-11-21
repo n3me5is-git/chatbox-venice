@@ -56,6 +56,7 @@ const server = createServer(async (request, response) => {
   } else if (path.endsWith('/audio/complete')) {
     response.end(JSON.stringify({ success: true }))
   } else {
+    // Also exercise compatible gateways that return the unfiltered list for the TTS query.
     response.end(JSON.stringify(fixtureModels))
   }
 })

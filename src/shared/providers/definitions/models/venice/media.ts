@@ -111,7 +111,9 @@ export class VeniceMediaService {
     signal?.throwIfAborted()
     if (!Array.isArray(all.data) || !Array.isArray(tts.data)) throw new Error('Invalid Venice model catalog')
     const merged = new Map<string, MediaCatalogItem>()
-    for (const item of [...all.data, ...tts.data.map((item: MediaCatalogItem) => ({ ...item, type: 'tts' }))] as MediaCatalogItem[]) {
+    // Some compatible hosts ignore the type filter. Only supplement explicitly TTS or untyped entries.
+    const voices = (tts.data as MediaCatalogItem[]).filter(item => item && (item.type === undefined || item.type === 'tts'))
+    for (const item of [...all.data, ...voices.map(item => ({ ...item, type: 'tts' }))] as MediaCatalogItem[]) {
       if (!item || typeof item.id !== 'string' || item.model_spec?.offline || !['tts', 'asr', 'video', 'music', 'image', 'inpaint', 'embedding'].includes(item.type)) continue
       const old = merged.get(item.type + ':' + item.id)
       merged.set(item.type + ':' + item.id, { ...old, ...item, model_spec: { ...old?.model_spec, ...item.model_spec } })
