@@ -191,6 +191,7 @@ try {
     await click(byText('From this device'))
     await evaluate(`(()=>{const file=(${upload}),transfer=new DataTransfer();transfer.items.add(window.__studioReferenceFixture());file.files=transfer.files;file.dispatchEvent(new Event('change',{bubbles:true}));delete window.__studioReferencePayload})()`)
     await wait(() => evaluate(`!(${byText('From this device')}) && document.body.textContent.includes('reference.wav')`), 'The selected reference did not appear in Studio')
+    assert.equal(await evaluate(`!!(${byText('Generate a short preview')})`), false, 'A generic voice preview must not ignore the attached references')
     const promptInput = byLabel('Text to read')
     const referencePrompt = 'Use @Audio1 as the reference for this short recording.'
     await click(promptInput)
