@@ -1,4 +1,6 @@
 export const catalogItalian={
+  'DIEM balance unavailable':'Saldo DIEM non disponibile',
+  'Included API credits: {{amount}}':'Crediti API inclusi: {{amount}}',
   'No enabled model accepts these audio references.':'Nessun modello abilitato accetta questi riferimenti audio.',
   'Up to {{count}} audio clips. Each clip can be up to 30 seconds and 10 MB. Mention them in order as @Audio1, @Audio2 and so on.':'Fino a {{count}} clip audio, ciascuna di massimo 30 secondi e 10 MB. Citala nel prompt come @Audio1, @Audio2 e così via.',
   'Minimum {{min}}, maximum {{max}} characters.':'Minimo {{min}}, massimo {{max}} caratteri.',

@@ -15,6 +15,17 @@ export function VeniceBalance() {
     refetchOnWindowFocus: true, refetchInterval: 120000,
     queryFn: async () => { const response = await (await createModelDependencies()).request.apiRequest({ url: mediaOrigin(config?.apiHost) + '/api_keys/rate_limits', method: 'GET', headers: { Authorization: `Bearer ${config!.apiKey}` }, retry: 0, useProxy: false }); if (!response.ok) throw new Error(ft("Balance unavailable for this key") + ` (HTTP ${response.status})`); return parseVeniceBalance(await response.json()) } })
   if (!config?.apiKey || config.venice?.enabled === false) return null
-  const number = (v: number) => v.toLocaleString(i18n.resolvedLanguage || i18n.language || 'en', { maximumFractionDigits: 3 })
-  return <Group gap="xs" wrap="wrap" aria-label={ft("Venice balance")}><Text size="xs" c="dimmed" title={query.error instanceof Error ? query.error.message : undefined}>{query.data ? `Venice · ${Object.entries(query.data).map(([currency,value])=>`${currency==='USD'?'$':''}${number(value)} ${currency}`).join(' · ')}` : query.isError ? ft("Venice · balance unavailable") : ft("Venice · loading balance…")}</Text><ActionIcon variant="subtle" size="sm" aria-label={ft("Refresh Venice balance")} loading={query.isFetching} onClick={() => void query.refetch()}><IconRefresh size={14} /></ActionIcon></Group>
+  const number = (value: number) => value.toLocaleString(i18n.resolvedLanguage || i18n.language || 'en', { maximumFractionDigits: 6 })
+  const amounts = query.data
+  return (
+    <Group gap={6} wrap="wrap" aria-label={ft('Venice balance')} title={query.error instanceof Error ? query.error.message : undefined}>
+      {amounts ? <>
+        <Text size="xs" c="dimmed">Venice</Text>
+        {amounts.USD !== undefined && <Text size="xs">· ${number(amounts.USD)} USD</Text>}
+        <Text size="xs">· {amounts.DIEM === undefined ? ft('DIEM balance unavailable') : `${number(amounts.DIEM)} DIEM`}</Text>
+        {amounts.BUNDLED_CREDITS !== undefined && <Text size="xs">· {ft('Included API credits: {{amount}}', { amount: number(amounts.BUNDLED_CREDITS) })}</Text>}
+      </> : <Text size="xs" c="dimmed">{query.isError ? ft('Venice · balance unavailable') : ft('Venice · loading balance…')}</Text>}
+      <ActionIcon variant="subtle" size="sm" aria-label={ft('Refresh Venice balance')} loading={query.isFetching} onClick={() => void query.refetch()}><IconRefresh size={14} /></ActionIcon>
+    </Group>
+  )
 }
