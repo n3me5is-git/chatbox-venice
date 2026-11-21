@@ -17,7 +17,13 @@ adb('shell','pm','grant',app,'android.permission.POST_NOTIFICATIONS')
 adb('shell','am','start','-n',app+'/.MainActivity')
 let socket,serial=0,pending=new Map(),cdp,evaluate,embeddingRequest,started,requestAt
 const fixtureRequests=[]
-const server=createServer(async(request,response)=>{fixtureRequests.push({method:request.method,path:request.url});response.setHeader('Access-Control-Allow-Origin','*');response.setHeader('Access-Control-Allow-Private-Network','true');response.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');response.setHeader('Access-Control-Allow-Headers',request.headers['access-control-request-headers']||'Authorization, Content-Type');if(request.method==='OPTIONS'){response.writeHead(204).end();return}let body='';for await(const chunk of request){body+=chunk;if(body.length>1024*1024){response.writeHead(413).end();return}}response.setHeader('Content-Type','application/json');if(request.url.includes('/embeddings')){embeddingRequest={response,body:JSON.parse(body)};requestAt=Date.now()}else response.end(JSON.stringify({data:[{id:'fixture-embedding',type:'embedding',model_spec:{name:'Fixture embedding',privacy:'private'}}]}))});await new Promise(resolve=>server.listen(4176,'127.0.0.1',resolve))
+const fixtureModels = { data: [
+  { id: 'fixture-embedding', type: 'embedding', model_spec: { name: 'Fixture embedding', privacy: 'private' } },
+  { id: 'fixture-image', type: 'image', model_spec: { name: 'Fixture Image', privacy: 'private', uncensored: false, constraints: { supportsNegativePrompt: true } } },
+  { id: 'fixture-image-edit', type: 'inpaint', model_spec: { name: 'Fixture Image Edit', privacy: 'private', uncensored: false, constraints: { maxInputImages: 1 } } },
+  { id: 'fixture-multi-edit', type: 'inpaint', model_spec: { name: 'Fixture Multi Edit', privacy: 'anonymized', uncensored: false, constraints: { maxInputImages: 3 } } },
+] }
+const server=createServer(async(request,response)=>{fixtureRequests.push({method:request.method,path:request.url});response.setHeader('Access-Control-Allow-Origin','*');response.setHeader('Access-Control-Allow-Private-Network','true');response.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');response.setHeader('Access-Control-Allow-Headers',request.headers['access-control-request-headers']||'Authorization, Content-Type');if(request.method==='OPTIONS'){response.writeHead(204).end();return}let body='';for await(const chunk of request){body+=chunk;if(body.length>1024*1024){response.writeHead(413).end();return}}response.setHeader('Content-Type','application/json');if(request.url.includes('/embeddings')){embeddingRequest={response,body:JSON.parse(body)};requestAt=Date.now()}else response.end(JSON.stringify(fixtureModels))});await new Promise(resolve=>server.listen(4176,'127.0.0.1',resolve))
 const report={device:'Android emulator API35',actualProductionApp:true,syntheticProvider:true,cloudModelCalls:0,fixtureRequests,networkErrors:[]},errors=[]
 async function wait(check,message,timeout=60000){const end=Date.now()+timeout;while(Date.now()<end){try{const value=await check();if(value)return value}catch{}await delay(150)}throw Error(message)}
 const snap=async name=>{if(evaluate)await evaluate(`document.visibilityState==='visible'?Promise.race([new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))),new Promise(resolve=>setTimeout(resolve,500))]):true`);await delay(150);await writeFile(output+'/'+name+'.png',execFileSync('adb',['exec-out','screencap','-p'],{timeout:30000}))}
@@ -45,7 +51,7 @@ try{
  await wait(()=>evaluate(`window.Capacitor.nativePromise('CapacitorSQLite','query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]}).then(rows=>JSON.parse(rows.values?.[0]?.value||'null')?.languageInited===true)`),'First-launch language initialization did not settle')
  await delay(1500)
  // Seed only this disposable app's real SQLite settings, never production source/test hooks.
- await evaluate(`(async()=>{const call=(method,args)=>window.Capacitor.nativePromise('CapacitorSQLite',method,args);const rows=await call('query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]});const settings={...${JSON.stringify(fixtureDefaults)},...JSON.parse(rows.values?.[0]?.value||'null')};Object.assign(settings,{language:'it-IT',languageInited:true,theme:0,defaultEmbeddingModel:{provider:'venice',model:'fixture-embedding'}});settings.providers={...settings.providers,venice:{apiKey:'SYNTHETIC-UI-FIXTURE',apiHost:'http://10.0.2.2:4176/api/v1',models:[{modelId:'fixture-embedding',type:'embedding'}],venice:{enabled:true}}};await call('run',{database:'chatbox.db',statement:"INSERT OR REPLACE INTO key_value(key,value) VALUES ('settings',?)",values:[JSON.stringify(settings)]});})()`)
+ await evaluate(`(async()=>{const call=(method,args)=>window.Capacitor.nativePromise('CapacitorSQLite',method,args);const rows=await call('query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]});const settings={...${JSON.stringify(fixtureDefaults)},...JSON.parse(rows.values?.[0]?.value||'null')};Object.assign(settings,{language:'it-IT',languageInited:true,theme:0,defaultEmbeddingModel:{provider:'venice',model:'fixture-embedding'}});settings.providers={...settings.providers,venice:{apiKey:'SYNTHETIC-UI-FIXTURE',apiHost:'http://10.0.2.2:4176/api/v1',models:[{modelId:'fixture-embedding',type:'embedding'}],venice:{enabled:true,showOtherModels:true}}};await call('run',{database:'chatbox.db',statement:"INSERT OR REPLACE INTO key_value(key,value) VALUES ('settings',?)",values:[JSON.stringify(settings)]});})()`)
  report.seededSettings=await evaluate(`(async()=>{const call=(method,args)=>window.Capacitor.nativePromise('CapacitorSQLite',method,args);const rows=await call('query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]});return JSON.parse(rows.values?.[0]?.value||'null')})().then(s=>({language:s?.language,initialized:s?.languageInited,embedding:s?.defaultEmbeddingModel,syntheticProvider:s?.providers?.venice?.apiKey==='SYNTHETIC-UI-FIXTURE'}))`);assert.equal(report.seededSettings.language,'it-IT')
  socket.close();adb('shell','am','force-stop',app);adb('shell','am','start','-n',app+'/.MainActivity');await connect()
  await wait(()=>evaluate(`!!document.querySelector('.startup-error')||document.readyState==='complete'&&document.body.innerText.length>30`),'App did not restart')
@@ -83,5 +89,40 @@ try{
  assert.equal(await evaluate(`window.Capacitor.nativePromise('KnowledgeIndexingBackground','status',{}).then(v=>v.active)`),true,'Foreground service stopped on HOME')
  embeddingRequest.response.end(JSON.stringify({data:embeddingRequest.body.input.map((_,index)=>({index,embedding:[1,0]})),usage:{total_tokens:20}}))
  await wait(()=>evaluate(`window.Capacitor.nativePromise('KnowledgeIndexingBackground','status',{}).then(v=>!v.active)`),'Foreground indexing did not finish while the app was hidden')
- adb('shell','am','start','-n',app+'/.MainActivity');await wait(()=>evaluate(`!!document.querySelector('[data-testid="indexing-status"]')&&document.querySelector('[data-testid="indexing-status"]').innerText.includes('Indicizzato')`),'Completed background index was not published');await snap('native-indexing-completed');report.backgroundIndexingCompleted=true;report.actualKeystoreAndSQLite=true;report.passed=true
+ adb('shell','am','start','-n',app+'/.MainActivity');await wait(()=>evaluate(`!!document.querySelector('[data-testid="indexing-status"]')&&document.querySelector('[data-testid="indexing-status"]').innerText.includes('Indicizzato')`),'Completed background index was not published');await snap('native-indexing-completed');report.backgroundIndexingCompleted=true;report.actualKeystoreAndSQLite=true
+ const imageModelButton = 'document.querySelector(\'[aria-label="Modello immagine"]\')'
+ const imageModelList = 'document.querySelector(\'[data-model-scroll="image"]\')'
+ const chosenImageModel = () => evaluate('(' + imageModelButton + ')?.textContent.trim()')
+ const addImage = async (red) => evaluate('(async()=>{const canvas=document.createElement("canvas");canvas.width=16;canvas.height=16;const ctx=canvas.getContext("2d");ctx.fillStyle="rgb("+'
+   + red + '+",0,0)";ctx.fillRect(0,0,16,16);const png=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));const transfer=new DataTransfer();transfer.items.add(new File([png],"ref-"+'
+   + red + '+".png",{type:"image/png"}));const input=document.querySelector(\'input[type="file"][accept="image/*"]\');input.files=transfer.files;input.dispatchEvent(new Event("change",{bubbles:true}));})()')
+ for (const [route, label] of [['/image-creator', 'creator'], ['/venice', 'studio']]) {
+   await evaluate('location.hash=' + JSON.stringify(route))
+   await wait(() => evaluate('!!(' + imageModelButton + ')'), 'Image composer did not open on Android')
+   await clickExpression(imageModelButton)
+   await wait(() => evaluate('(' + imageModelList + ')?.textContent.includes("Fixture Image")'), 'Synthetic image catalog did not load')
+   await clickExpression('[...(' + imageModelList + ').querySelectorAll("button")].find(e=>[...e.querySelectorAll("p")].some(p=>p.textContent==="Fixture Image"))')
+   await wait(async () => await chosenImageModel() === 'Fixture Image', 'The Android composer did not select the image model')
+   await click('Aggiungi prompt negativo')
+   await wait(() => evaluate('[...document.querySelectorAll("label")].some(e=>e.textContent==="Elementi da evitare")'), 'Negative prompt did not expand')
+   await addImage(120)
+   await wait(async () => await chosenImageModel() === 'Fixture Image Edit', 'Same-family edit variant was not selected in Android')
+   assert.equal(await evaluate('document.body.innerText.includes("Conferma un modello immagine compatibile")'), false)
+   await addImage(200)
+   await wait(() => evaluate('document.body.innerText.includes("Conferma un modello immagine compatibile")'), 'The Android composer did not request fallback confirmation')
+   await snap('native-image-' + label + '-confirmation')
+   await click('OK')
+   await wait(async () => await chosenImageModel() === 'Fixture Multi Edit', 'Fallback did not become the primary selection')
+   await clickExpression(imageModelButton)
+   await wait(() => evaluate('(' + imageModelList + ')?.textContent.includes("Fixture Multi Edit")'), 'Filtered Android picker did not open')
+   assert.equal(await evaluate('(' + imageModelList + ').textContent.includes("Fixture Image Edit")'), false, 'Android picker included a model that accepts only one attachment')
+   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'Android composer overflowed horizontally')
+   await snap('native-image-' + label + '-filtered')
+   adb('shell','input','keyevent','4')
+   await wait(() => evaluate('!(' + imageModelList + ')'), 'Android Back did not close the model picker')
+   assert.equal(await chosenImageModel(), 'Fixture Multi Edit', 'Android Back left the composer')
+ }
+ assert.ok(fixtureRequests.every(request=>!request.path.includes('/image/generate')&&!request.path.includes('/image/edit')), 'An image was generated during the Android UI test')
+ report.imageReferencePicker = ['native image creator', 'Venice Studio']
+ report.passed=true
 }catch(error){report.passed=false;report.error=String(error);try{if(cdp)await snap('failure');if(evaluate)report.body=await evaluate('document.body.innerText');report.logcat=adb('logcat','-d','-t','300').slice(-30000)}catch{}throw error}finally{report.browserErrors=errors;await writeFile(output+'/report.json',JSON.stringify(report,null,2));socket?.close();if(embeddingRequest?.response&&!embeddingRequest.response.writableEnded)embeddingRequest.response.end('{}');server.close()}

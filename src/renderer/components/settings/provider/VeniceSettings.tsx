@@ -1,3 +1,4 @@
+import { NegativePromptField } from '@/components/venice/NegativePromptField'
 import { VeniceSettingSelect as Select } from '@/components/venice/VeniceSettingSelect'
 import { E2EEToolSettings } from '@/components/venice/E2EEToolSettings'
 import { SecureReceiptSettings } from '@/components/venice/SecureReceiptSettings'
@@ -43,7 +44,7 @@ export function VeniceNegativePrompt({model}:{model?:{modelId:string;vendorMetad
   useTranslation()
   const {providerSettings,setProviderSettings}=useProviderSettings('venice'),options=providerSettings?.venice||{},image=options.image||{}
   if(!model||!imageStudioCapabilities(model).negativePrompt)return null
-  return <details open={!!image.negative_prompt}><summary style={{cursor:'pointer'}}>{ft('Negative prompt')}</summary><Textarea label={ft('Elements to avoid')} placeholder={ft('For example: text, blur, background objects…')} value={image.negative_prompt||''} onChange={event=>setProviderSettings({venice:{...options,image:{...image,negative_prompt:event.currentTarget.value||undefined}}})} autosize minRows={2}/></details>
+  return <NegativePromptField value={image.negative_prompt || ''} onChange={value => setProviderSettings({ venice: { ...options, image: { ...image, negative_prompt: value || undefined } } })} />
 }
 export function VeniceImageSettings({ model,showNegativePrompt=true }: { model?: { modelId: string; vendorMetadata?: Record<string, unknown> };showNegativePrompt?:boolean } = {}) {
   useTranslation()

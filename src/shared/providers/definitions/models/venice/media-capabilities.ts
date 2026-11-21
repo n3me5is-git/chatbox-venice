@@ -53,6 +53,29 @@ export function videoReferenceLimits(model?:MediaCatalogItem){
   if(model?.id.startsWith('seedance-2-0-'))return {images:9,videos:3,audio:3,seconds:15}
   return {images:4,videos:4,audio:4,seconds:undefined}
 }
+export interface VideoMediaSelection {
+  start: boolean
+  end: boolean
+  sourceVideo: boolean
+  sourceAudio: boolean
+  images: number
+  videos: number
+  audio: number
+}
+
+export function acceptsVideoMedia(model: MediaCatalogItem, workflow: VideoWorkflow, media: VideoMediaSelection) {
+  const inputs = videoInputs(model)
+  const limits = videoReferenceLimits(model)
+  const editing = workflow === 'edit' && seedanceReferenceModel(model)
+  return (!media.start || inputs.start)
+    && (!media.end || inputs.end)
+    && (!media.sourceVideo || (inputs.video && !editing))
+    && (!media.sourceAudio || inputs.audioInput)
+    && media.images <= (inputs.references ? limits.images : 0)
+    && media.videos <= (inputs.referenceVideos ? (editing ? 1 : limits.videos) : 0)
+    && media.audio <= (inputs.referenceAudio ? limits.audio : 0)
+}
+
 export function videoWorkflowRequest(model:MediaCatalogItem|undefined,workflow:VideoWorkflow,prompt:string){
   const edit=workflow==='edit'&&seedanceReferenceModel(model)
   return {prompt:edit&&!/^Strictly edit <Video 1>/i.test(prompt)?`Strictly edit <Video 1>, ${prompt}`:prompt,

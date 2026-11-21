@@ -1,5 +1,13 @@
 # Changelog — Chatbox Venice
 
+## 1.57.0
+
+- Use one image model picker in Image Creator and Venice Studio, filtered by the number of attached references.
+- Prefer compatible variants from the same model family and confirm suggested alternatives before generating.
+- Expand the negative prompt directly in the image and video composers when supported.
+- Filter Studio video models by workflow and attached media, and keep compatible files when switching models.
+- Keep the image model and upload controls accessible on narrow screens.
+
 ## 1.56.0
 
 - Let source review search cited knowledge collections for missing or conflicting evidence before correcting an answer.

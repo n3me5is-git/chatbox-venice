@@ -63,6 +63,11 @@ try {
     else { await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', ...box, button: 'left', clickCount: 1 }); await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', ...box, button: 'left', clickCount: 1 }) }
   }
   const byText = text => `[...document.querySelectorAll('button')].findLast(e => e.textContent.trim() === ${JSON.stringify(text)})`
+  const viewport = async (width, height, mobile) => {
+    touchMode = mobile
+    await cdp('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
+    await cdp('Emulation.setTouchEmulationEnabled', { enabled: mobile })
+  }
   const switchTrack = label => `[...document.querySelectorAll('.mantine-Switch-root')].find(e=>e.querySelector('.mantine-Switch-label')?.textContent===${JSON.stringify(label)})?.querySelector('.mantine-Switch-track')`
   const byLabel = label => `document.getElementById([...document.querySelectorAll('label')].findLast(e => e.textContent === ${JSON.stringify(label)}).htmlFor)`
   const fill = async (label, value) => { await evaluate(`(${byLabel(label)}).focus()`); await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 }); await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 }); await cdp('Input.insertText', { text: value }) }
@@ -158,7 +163,7 @@ try {
   assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'),true,'Privacy settings overflow on mobile')
   assert.equal(await evaluate('window.__simulationRequestCount'),4,'Privacy and edit simulation made a real service request')
   await runMobileReview({click,evaluate,cdp,wait,byText,byLabel,fill,delay,output})
-  await runModelPickerReview({click,evaluate,cdp,wait,byText,byLabel,fill,delay,output})
+  await runModelPickerReview({click,evaluate,cdp,wait,byText,byLabel,fill,delay,output,viewport})
   await runSearchReview({click,evaluate,cdp,wait,byText,byLabel,output})
   await runPrivacyReview({click,evaluate,cdp,wait,byText,byLabel,output})
   await runImageReview({click,evaluate,wait,byText,byLabel,fill,cdp,output})

@@ -37,6 +37,7 @@ function ProviderGroupLabel({ providerId, name, isCustom }: { providerId: string
 export type ImageModelSelectProps = PropsWithChildren<
   {
     modelGroups: ImageModelGroup[]
+    triggerLabel?: string
     opened?: boolean
     onChange?: (opened: boolean) => void
     onSelect?: (provider: ModelProvider, model: string) => void
@@ -44,7 +45,7 @@ export type ImageModelSelectProps = PropsWithChildren<
 >
 
 export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectProps>(
-  ({ modelGroups, opened, onChange, onSelect, children, ...comboboxProps }, ref) => {
+  ({ modelGroups, opened, onChange, onSelect, children, triggerLabel, ...comboboxProps }, ref) => {
     const { t } = useTranslation()
     const selectorId = useId()
     const isMobile = useIsSmallScreen()
@@ -90,7 +91,7 @@ export const ImageModelSelect = forwardRef<HTMLButtonElement, ImageModelSelectPr
         onOptionSubmit={handleOptionSubmit}
       >
         <Combobox.Target ref={setTargetNode} targetType="button">
-          <button ref={ref} onClick={() => combobox.toggleDropdown()} className="border-none bg-transparent p-0 flex">
+          <button type="button" aria-label={triggerLabel} ref={ref} onClick={() => combobox.toggleDropdown()} className="border-none bg-transparent p-0 flex">
             {children}
           </button>
         </Combobox.Target>

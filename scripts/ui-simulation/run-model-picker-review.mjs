@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-export async function runModelPickerReview({ click, evaluate, cdp, wait, byText, byLabel, fill, delay, output }) {
+export async function runModelPickerReview({ click, evaluate, cdp, wait, byText, byLabel, fill, delay, output, viewport }) {
   const report = { imageModels: await evaluate('window.__pickerFixture.imageIds.length'), videoModels: await evaluate('window.__pickerFixture.videoIds.length') }
   assert.ok(report.imageModels >= 70 && report.videoModels >= 140)
   const layouts=await evaluate(`[...document.querySelectorAll('[data-chat-price-review]')].map(row=>{const name=row.querySelector('[data-testid="model-option-name"]'),icons=row.querySelector('[data-model-icons]'),price=row.querySelector('[data-model-cost]');const n=name.getBoundingClientRect(),i=icons.getBoundingClientRect(),p=price.getBoundingClientRect();return {kind:row.dataset.rowKind,nameBottom:n.bottom,iconsTop:i.top,iconsBottom:i.bottom,priceTop:p.top,nameWidth:n.width,rowWidth:row.clientWidth,scrollWidth:row.scrollWidth,nameScroll:name.scrollWidth,nameClient:name.clientWidth,nameOverflow:getComputedStyle(name).textOverflow,nameWhitespace:getComputedStyle(name).whiteSpace}})`)
@@ -153,5 +153,59 @@ export async function runModelPickerReview({ click, evaluate, cdp, wait, byText,
   await writeFile(path.join(output,'reference-model-privacy-mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{captureBeyondViewport:false})).data,'base64'))
   report.referencePrivacyChoice=true;report.manualReferenceSelection=true;report.referenceCapabilityBadges=true
   await click(byText('Close reference choice'))
+  for (const [width, height, mobile] of [[1440, 1100, false], [360, 800, true]]) {
+    await viewport(width, height, mobile)
+    await click(byText('Test unified image composer'))
+    const modelButton = `document.querySelector('[data-unified-reference-test] button[aria-label="Image model"]')`
+    const list = `document.querySelector('[data-model-scroll="${mobile ? 'image' : 'native-images'}"]')`
+    const generate = byText('Generate fixture image')
+    const option = (label) => mobile
+      ? `[...(${list}).querySelectorAll('button')].find(e => e.textContent.includes(${JSON.stringify(label)}))`
+      : `(${list}).querySelector('[role="option"][aria-label="${label}"]')`
+    await click(byText('Add negative prompt'))
+    await fill('Elements to avoid', 'blur and uneven light')
+    await click(byText('Attach a fixture image'))
+    await wait(() => evaluate(`(${modelButton}).textContent.includes('Private family variant')`), 'A same-family variant was not selected in the main picker')
+    assert.equal(await evaluate(`(${generate}).disabled`), false)
+    await click(byText('Attach two more fixture images'))
+    await wait(() => evaluate(`document.body.innerText.includes('Confirm a compatible image model')`), 'Fallback confirmation did not open')
+    assert.equal(await evaluate(`(${generate}).disabled`), true, 'Generation was available before confirming the selected model')
+    await writeFile(path.join(output, `image-model-confirmation-${width}.png`), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
+    await click(byText('Choose another model'))
+    assert.equal(await evaluate(`(${generate}).disabled`), true)
+    await click(modelButton)
+    await wait(() => evaluate(`!!(${list})?.offsetHeight`), 'The main filtered picker did not open')
+    assert.equal(await evaluate(`(${list}).textContent.includes('Private family variant')`), false, 'An option that accepts too few attachments was offered')
+    if(mobile) {
+      await swipe(list)
+      assert.ok(await evaluate(`(${list}).scrollTop`) > 100, 'The filtered models could not be touch-scrolled')
+    }
+    await click(option('Other compatible model 24'))
+    await wait(() => evaluate(`(${modelButton}).textContent.includes('Other compatible model 24')`), 'Manual selection in the primary picker was lost')
+    assert.equal(await evaluate(`(${generate}).disabled`), false)
+    await click(byText('Attach a fixture image'))
+    await click(byText('Attach two more fixture images'))
+    await click(byText('OK'))
+    await wait(() => evaluate(`!(${generate}).disabled`), 'Confirming the suggested model did not enable generation')
+    await click(byText('Remove fixture images'))
+    assert.equal(await evaluate(`(${modelButton}).textContent.includes('Private source model')`), true)
+    await wait(() => evaluate(`(${byLabel('Elements to avoid')}).value === 'blur and uneven light'`), 'An inactive negative prompt did not survive switching models')
+    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'), true)
+    await click(byText('Close unified image composer'))
+    if (!mobile) {
+      await click(byText('Test long Studio model list'))
+      await click(byLabel('What would you like to do?'))
+      await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent==='Text to video')`)
+      await click(byLabel('Model'))
+      const textOptions = `[...document.querySelectorAll('[role="option"]')].filter(e=>e.offsetHeight&&e.textContent.includes('Text to video'))`
+      await wait(() => evaluate(`(${textOptions}).length>3`), 'Desktop workflow did not show its compatible models')
+      assert.equal(await evaluate(`[...document.querySelectorAll('[role="option"]')].some(e=>e.offsetHeight&&e.textContent.includes('Image to video'))`), false)
+      await writeFile(path.join(output, 'studio-video-workflow-desktop.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
+      await evaluate('window.__simulationBack()')
+      await click(byText('Close Studio model test'))
+    }
+  }
+  await viewport(412, 915, true)
+  report.unifiedImageSelector = ['1440x1100 mouse', '360x800 touch']
   await writeFile(path.join(output,'model-picker-report.json'), JSON.stringify(report,null,2))
 }
