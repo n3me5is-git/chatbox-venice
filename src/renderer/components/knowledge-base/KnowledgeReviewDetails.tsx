@@ -19,6 +19,10 @@ export function KnowledgeReviewDetails({report,focus,claimIndex}:{report:Knowled
   {report.failure&&<Alert color="yellow">{ft(report.failure.message)}</Alert>}
   <Group gap="xs" wrap="wrap">{Object.entries(labels).map(([key,label])=><Badge key={key} variant="light" color={key==='supported'?'teal':key==='contradicted'?'red':'gray'}>{icons[key as keyof typeof icons]} {counts[key]} · {ft(label)}</Badge>)}</Group>
   <Text size="xs" c="dimmed" style={{overflowWrap:'anywhere'}}>{ft('Review model')}: {report.model?.model||'—'} · {report.calls} {ft('Model calls')}{report.revised?' · '+ft('Answer revised after review'):''}</Text>
+  {report.followUp&&<Text size="xs" c="dimmed">
+   {ft('Extra searches: {{searches}} · New excerpts: {{evidence}}',{searches:report.followUp.searches,evidence:report.followUp.evidenceAdded})}
+   {report.followUp.interrupted?' · '+ft('Extra search was interrupted'):''}
+  </Text>}
   <TextInput label={ft('Search statements and evidence')} value={query} onChange={event=>setQuery(event.currentTarget.value)}/>
   <Group gap="xs" wrap="wrap"><Button variant={filter==='all'?'light':'subtle'} size="xs" mih={40} onClick={()=>setFilter('all')}>{ft('All statements')}</Button>{Object.entries(labels).filter(([key])=>counts[key]).map(([key,label])=><Button key={key} variant={filter===key?'light':'subtle'} size="xs" mih={40} onClick={()=>setFilter(key)}>{ft(label)}</Button>)}<Button variant="default" size="xs" mih={40} onClick={()=>setRaw(value=>!value)}>{ft(raw?'Render Markdown and formulas':'View raw text')}</Button></Group>
   {(onlySource||selected!==undefined)&&<Group><Text size="xs">{ft(onlySource?'Claims linked to this source':'Selected statement')}</Text><Button variant="subtle" size="xs" mih={40} onClick={()=>{setOnlySource(undefined);setSelected(undefined);setFilter('all')}}>{ft('Show all statements')}</Button></Group>}

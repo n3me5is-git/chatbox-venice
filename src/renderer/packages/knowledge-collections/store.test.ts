@@ -27,6 +27,21 @@ it('uses local keyword matches after a transient query embedding failure without
  const f=await fixture();await f.add();await f.store.index(f.id);const before=await f.store.indexStatus(f.id);f.embed.mockRejectedValue(Object.assign(Error('Unavailable'),{statusCode:503,retryAfter:'0'}))
  const found=await f.store.search(f.id,'payment');expect(found.matches[0].snippet).toContain('Confidential payment');expect(found.warnings[0]).toMatchObject({stage:'embedding',statusCode:503});expect(await f.store.indexStatus(f.id)).toEqual(before)
 })
+it('finds and anchors local follow-up passages without calling the embedding or reranking model',async()=>{
+ const llmRerank=vi.fn(),f=await fixture({llmRerank})
+ await f.add('policy.txt','Retention for medical records is thirty days.')
+ await f.store.index(f.id)
+ await f.store.configure(f.id,'Company secrets',f.cfg,'venice','judge','llm')
+ f.embed.mockClear()
+ const signal=new AbortController().signal
+ const matches=await f.store.searchReviewPassages(f.id,'medical records retention',signal)
+ const rows=await f.store.chunksForMatches(f.id,matches)
+ const receipts=await f.store.citeChunks(f.id,rows.map(({fileId,chunkIndex,text})=>({fileId,chunkIndex,text})))
+ const receipt=await f.store.readEvidence(f.id,receipts[0].fileId,receipts[0].id)
+ expect(receipt).toMatchObject({quote:'Retention for medical records is thirty days.',stale:false})
+ expect(f.embed).not.toHaveBeenCalled()
+ expect(llmRerank).not.toHaveBeenCalled()
+})
 it('does not hide authentication, settings errors or privacy locking behind ranking recovery',async()=>{
  const llmRerank=vi.fn(),f=await fixture({llmRerank});await f.add();await f.store.index(f.id);await f.store.configure(f.id,'Company secrets',f.cfg,'venice','judge','llm');llmRerank.mockRejectedValueOnce(Object.assign(Error('Denied'),{statusCode:401}));await expect(f.store.search(f.id,'payment')).rejects.toThrow('Reranking failed (venice / judge; HTTP 401)')
  await f.store.protect(f.id,'dedicated',{pin:'123456'});llmRerank.mockImplementationOnce(async()=>{f.keys.lock('knowledge:'+f.id);throw Object.assign(Error('Unavailable'),{statusCode:503})});await expect(f.store.search(f.id,'payment')).rejects.toThrow('Unlock')

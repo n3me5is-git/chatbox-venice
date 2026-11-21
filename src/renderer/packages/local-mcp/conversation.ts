@@ -34,8 +34,20 @@ export function applicationConversationTool(grant:LocalMCPGrant,signal:AbortSign
       let reviewBoundary:KnowledgeReviewBoundary|undefined
       if(settings.knowledgeVerification?.enabled){
         if(!grant.permissions.knowledge||!grant.permissions.models||!settings.knowledgeVerification.model)throw Error('Source review requires knowledge and model permissions for this endpoint')
+        const {mcpReviewSourceApproval}=await import('./knowledge-verification')
         const ref=settings.knowledgeVerification.model,global=settingsStore.getState().getSettings(),reviewSettings=localMCPModelSettings(grant.application!,{provider:ref.provider,modelId:ref.model},global.providers)
-        reviewBoundary={check:async()=>{await assert(input.sessionId);localMCPModelSettings(grant.application!,{provider:ref.provider,modelId:ref.model},settingsStore.getState().getSettings().providers)},collectionIds:grant.application?.knowledgeCollectionIds||[],security:reviewSettings.veniceSecurity,approve:async(_model,answer,sources,correct)=>{if(!grant.permissions.automaticModels&&!await requestExternalModelApproval(scoped,{provider:ref.provider,modelId:ref.model,maxOutputTokens:correct?12288:4096,messages:[{role:'system',content:'Source review: at most '+(correct?3:1)+' calls,4096 output tokens each; no tools or search.'},{role:'user',content:JSON.stringify({answer,sources})}]},signal))throw Error('External source review was not approved')}}
+        reviewBoundary={
+          check:async()=>{await assert(input.sessionId);localMCPModelSettings(grant.application!,{provider:ref.provider,modelId:ref.model},settingsStore.getState().getSettings().providers)},
+          collectionIds:grant.application?.knowledgeCollectionIds||[],security:reviewSettings.veniceSecurity,
+          approveFollowUp:mcpReviewSourceApproval(scoped,ref,signal),
+          approve:async(_model,answer,sources,correct,followUp=0)=>{
+            const calls=(correct?3:1)+followUp
+            if(!grant.permissions.automaticModels&&!await requestExternalModelApproval(scoped,{
+              provider:ref.provider,modelId:ref.model,maxOutputTokens:calls*4096,
+              messages:[{role:'system',content:'Source review: at most '+calls+' calls, 4096 output tokens each. Any additional source excerpts require approval.'},{role:'user',content:JSON.stringify({answer,sources})}],
+            },signal))throw Error('External source review was not approved')
+          },
+        }
       }
       const contextSource=await rendererApplication.sessions.getSessionContextSource({sessionId:input.sessionId,maxContextMessageCount:51,reserveCurrentInput:true})
       if(!contextSource)throw Error('This chat is unavailable')

@@ -4,14 +4,17 @@ import {z} from 'zod'
 import {KnowledgeModelSchema} from './knowledge-json'
 import {ragHash} from './session-rag-engine'
 export const KNOWLEDGE_VERIFICATION_INFO='local:knowledge-verification'
-export const KnowledgeVerificationSettingsSchema=z.object({enabled:z.boolean().default(false),model:KnowledgeModelSchema.optional(),consented:z.boolean().default(false),correctConflicts:z.boolean().default(true),reasoning:z.enum(['auto','concise']).optional()}).strict()
+export const KnowledgeFollowUpLimitSchema = z.union([z.literal(0), z.literal(1), z.literal(2)])
+export const KnowledgeVerificationSettingsSchema=z.object({enabled:z.boolean().default(false),model:KnowledgeModelSchema.optional(),consented:z.boolean().default(false),correctConflicts:z.boolean().default(true),reasoning:z.enum(['auto','concise']).optional(),followUpSearches:KnowledgeFollowUpLimitSchema.optional()}).strict()
 export type KnowledgeVerificationSettings=z.infer<typeof KnowledgeVerificationSettingsSchema>
 export const KnowledgeCheckSourceSchema=z.object({id:z.string().min(1).max(128),origin:z.enum(['knowledge','external']),name:z.string().max(512),url:z.string().url().max(4096),content:z.string().max(8000),truncated:z.boolean().optional()}).strict()
 export type KnowledgeCheckSource=z.infer<typeof KnowledgeCheckSourceSchema>
 export const KnowledgeClaimSchema=z.object({start:z.number().int().min(0),end:z.number().int().positive(),text:z.string().min(1).max(8000),verdict:z.enum(['supported','contradicted','mixed','insufficient']),reason:z.string().max(600),evidence:z.array(z.object({id:z.string().min(1).max(128),quote:z.string().min(1).max(800),stance:z.enum(['supports','contradicts','context'])}).strict()).max(8)}).strict()
 export type KnowledgeClaim=z.infer<typeof KnowledgeClaimSchema>
-export const KnowledgeJudgmentSchema=z.object({claims:z.array(KnowledgeClaimSchema.omit({start:true,end:true}).extend({start:z.number().int().min(0).optional(),end:z.number().int().positive().optional()})).max(32)}).strict()
-export const KnowledgeCheckReportSchema=z.object({version:z.literal(1),id:z.string().uuid(),answerScope:z.literal('final-answer-v1').optional(),answerHash:z.string().regex(/^[a-f0-9]{64}$/),draftHash:z.string().regex(/^[a-f0-9]{64}$/),created:z.number().finite(),model:KnowledgeModelSchema.optional(),status:z.enum(['checked','incomplete','unverified']),reason:z.enum(['complete','partial_coverage','conflict','no_sources','budget','verifier_failed','revision_failed','invalid_judgment']),revised:z.boolean(),calls:z.number().int().min(0).max(3),coverage:z.number().min(0).max(1),coveragePolicy:z.literal('visible-text-v2').optional(),claims:z.array(KnowledgeClaimSchema).max(32),sources:z.array(KnowledgeCheckSourceSchema.omit({content:true})).max(32),omittedEvidence:z.number().int().min(0),failure:z.object({stage:z.enum(['judgment','revision']),message:z.string().max(600)}).strict().optional(),reasoning:z.array(z.object({phase:z.enum(['checking','correcting']),text:z.string().max(16000)})).max(3).optional()}).strict()
+export const KnowledgeFollowUpQuerySchema = z.string().trim().min(3).max(240).refine(query => !/\p{Cc}/u.test(query))
+const FollowUpProposalSchema = z.object({start:z.number().int().min(0),query:KnowledgeFollowUpQuerySchema}).strict()
+export const KnowledgeJudgmentSchema=z.object({claims:z.array(KnowledgeClaimSchema.omit({start:true,end:true}).extend({start:z.number().int().min(0).optional(),end:z.number().int().positive().optional()})).max(32),followUp:z.unknown().optional()}).strict()
+export const KnowledgeCheckReportSchema=z.object({version:z.literal(1),id:z.string().uuid(),answerScope:z.literal('final-answer-v1').optional(),answerHash:z.string().regex(/^[a-f0-9]{64}$/),draftHash:z.string().regex(/^[a-f0-9]{64}$/),created:z.number().finite(),model:KnowledgeModelSchema.optional(),status:z.enum(['checked','incomplete','unverified']),reason:z.enum(['complete','partial_coverage','conflict','no_sources','budget','verifier_failed','revision_failed','invalid_judgment']),revised:z.boolean(),calls:z.number().int().min(0).max(5),coverage:z.number().min(0).max(1),coveragePolicy:z.literal('visible-text-v2').optional(),claims:z.array(KnowledgeClaimSchema).max(32),sources:z.array(KnowledgeCheckSourceSchema.omit({content:true})).max(32),omittedEvidence:z.number().int().min(0),failure:z.object({stage:z.enum(['judgment','revision']),message:z.string().max(600)}).strict().optional(),reasoning:z.array(z.object({phase:z.enum(['checking','correcting']),text:z.string().max(16000)})).max(5).optional(),followUp:z.object({searches:KnowledgeFollowUpLimitSchema,evidenceAdded:z.number().int().min(0).max(6),interrupted:z.boolean().optional()}).strict().optional()}).strict()
 export type KnowledgeCheckReport=z.infer<typeof KnowledgeCheckReportSchema>
 export const knowledgeAnswerHash=(text:string)=>ragHash(new TextEncoder().encode(text))
 /** Validate references and exact spans independently of the judge model. Entailment
@@ -25,18 +28,66 @@ export function validateKnowledgeJudgment(answer:string,sources:readonly Knowled
   const supports=valid.some(row=>row.stance==='supports'),contradicts=valid.some(row=>row.stance==='contradicts')
   if(claim.verdict==='supported'&&(!supports||contradicts)||claim.verdict==='contradicted'&&!contradicts||claim.verdict==='mixed'&&(!supports||!contradicts||new Set(valid.map(row=>row.id)).size<2)){claim.verdict='insufficient';claim.reason='The assessment lacks matching source evidence.'}
  }
- return {claims,coverage:knowledgeCoverage(answer,sources,claims),omitted}
+ const followUp = FollowUpProposalSchema.safeParse(parsed.followUp)
+ return {claims,coverage:knowledgeCoverage(answer,sources,claims),omitted,followUp:followUp.success?followUp.data:undefined}
 }
-export interface KnowledgeVerificationPort{check():Promise<void>;judge(answer:string,sources:readonly KnowledgeCheckSource[],signal:AbortSignal):Promise<unknown>;revise(answer:string,claims:readonly KnowledgeClaim[],sources:readonly KnowledgeCheckSource[],signal:AbortSignal):Promise<unknown>}
+export type KnowledgeFollowUpPlan = { remaining: number; previousQueries: readonly string[] }
+export type KnowledgeReviewRetriever = (query:string, sources:readonly KnowledgeCheckSource[], signal:AbortSignal)=>Promise<readonly KnowledgeCheckSource[]>
+export interface KnowledgeVerificationPort{check():Promise<void>;judge(answer:string,sources:readonly KnowledgeCheckSource[],signal:AbortSignal,followUp?:KnowledgeFollowUpPlan):Promise<unknown>;revise(answer:string,claims:readonly KnowledgeClaim[],sources:readonly KnowledgeCheckSource[],signal:AbortSignal):Promise<unknown>;retrieve?:KnowledgeReviewRetriever}
 export async function verifyKnowledgeAnswer(draft:string,input:readonly KnowledgeCheckSource[],settings:KnowledgeVerificationSettings,port:KnowledgeVerificationPort,signal:AbortSignal){
  signal.throwIfAborted();await port.check();const sources=input.map(source=>KnowledgeCheckSourceSchema.parse(source));if(sources.length>32||new Set(sources.map(source=>source.id)).size!==sources.length)throw Error('Invalid knowledge evidence ledger')
  const draftHash=await knowledgeAnswerHash(draft),base={version:1 as const,id:crypto.randomUUID(),draftHash,created:Date.now(),model:settings.model,sources:sources.map(({content,...source})=>source),revised:false,calls:0,claims:[] as KnowledgeClaim[],coverage:0,coveragePolicy:'visible-text-v2' as const,omittedEvidence:0};let answer=draft;let failure:KnowledgeCheckReport['failure'];const failed=(stage:'judgment'|'revision',error:unknown)=>{const message=error instanceof z.ZodError?'Invalid structured response: '+error.issues.slice(0,4).map(issue=>issue.path.join('.')+' '+issue.code).join('; '):error instanceof Error?error.message:'Unknown verifier error';failure={stage,message:message.replace(/VENICE_INFERENCE_KEY_[A-Za-z0-9_-]+|Bearer\s+[^\s]+/gi,'[redacted]').slice(0,600)}}
- const finish=async(reason:KnowledgeCheckReport['reason'],status:KnowledgeCheckReport['status'])=>{const answerHash=await knowledgeAnswerHash(answer);signal.throwIfAborted();await port.check();return {answer,report:KnowledgeCheckReportSchema.parse({...base,reason,status,answerHash,...(failure?{failure}:{})})}}
+ const followUp = {searches:0,evidenceAdded:0,interrupted:false}
+ const finish=async(reason:KnowledgeCheckReport['reason'],status:KnowledgeCheckReport['status'])=>{const answerHash=await knowledgeAnswerHash(answer);signal.throwIfAborted();await port.check();return {answer,report:KnowledgeCheckReportSchema.parse({...base,reason,status,answerHash,...(failure?{failure}:{}),...(followUp.searches?{followUp}:{})})}}
  if(!settings.enabled||!settings.consented||!settings.model)return finish('verifier_failed','unverified')
  if(draft.length>24000||sources.reduce((size,source)=>size+source.content.length,0)>64000)return finish('budget','unverified')
  if(!sources.length)return finish('no_sources','unverified')
- const judge=async()=>{signal.throwIfAborted();await port.check();base.calls++;const raw=await port.judge(answer,sources,signal);signal.throwIfAborted();await port.check();const value=validateKnowledgeJudgment(answer,sources,raw);base.claims=value.claims;base.coverage=value.coverage;base.omittedEvidence+=value.omitted}
- try{await judge()}catch(error){failed('judgment',error);signal.throwIfAborted();await port.check();return finish('verifier_failed','unverified')}
+ const requested = KnowledgeFollowUpLimitSchema.safeParse(settings.followUpSearches ?? 0)
+ const limit = port.retrieve && requested.success ? requested.data : 0
+ const previousQueries: string[] = []
+ const judge=async(remaining=0)=>{
+  signal.throwIfAborted();await port.check();base.calls++
+  const raw=await port.judge(answer,sources,signal,remaining?{remaining,previousQueries:[...previousQueries]}:undefined)
+  signal.throwIfAborted();await port.check()
+  const value=validateKnowledgeJudgment(answer,sources,raw)
+  base.claims=value.claims;base.coverage=value.coverage;base.omittedEvidence+=value.omitted
+  return value.followUp
+ }
+ let proposal: Awaited<ReturnType<typeof judge>>
+ try{proposal=await judge(limit)}catch(error){failed('judgment',error);signal.throwIfAborted();await port.check();return finish('verifier_failed','unverified')}
+ const normalize = (query: string) => query.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()
+ while (port.retrieve && proposal && followUp.searches < limit && sources.length < 32) {
+  const { start, query } = proposal
+  if (!base.claims.some(claim => claim.start === start && claim.verdict !== 'supported') ||
+      previousQueries.some(previous => normalize(previous) === normalize(query))) break
+  let remainingChars = 64000 - sources.reduce((sum, source) => sum + source.content.length, 0)
+  if (remainingChars <= 0) break
+  const previousLength = sources.length
+  previousQueries.push(query)
+  followUp.searches++
+  try {
+   signal.throwIfAborted();await port.check()
+   const retrieved = await port.retrieve(query,sources,signal)
+   signal.throwIfAborted();await port.check()
+   const ids = new Set(sources.map(source=>source.id)), urls = new Set(sources.map(source=>source.url))
+   for (const raw of retrieved.slice(0,3)) {
+    const parsed = KnowledgeCheckSourceSchema.safeParse(raw)
+    if (!parsed.success || parsed.data.origin !== 'knowledge') continue
+    const source = parsed.data
+    if (ids.has(source.id) || urls.has(source.url) || source.content.length > remainingChars || sources.length >= 32) continue
+    ids.add(source.id);urls.add(source.url);remainingChars -= source.content.length;sources.push(source)
+   }
+   if (sources.length === previousLength) break
+   proposal = await judge(limit-followUp.searches)
+   followUp.evidenceAdded += sources.length-previousLength
+   base.sources=sources.map(({content,...source})=>source)
+  } catch {
+   sources.length = previousLength
+   signal.throwIfAborted();await port.check()
+   followUp.interrupted=true
+   break
+  }
+ }
  const conflict=()=>base.claims.some(claim=>claim.verdict==='contradicted'||claim.verdict==='mixed')
  if(settings.correctConflicts&&conflict()){
   try{signal.throwIfAborted();await port.check();base.calls++;const revised=z.object({answer:z.string().min(1).max(24000)}).strict().parse(await port.revise(answer,base.claims,sources,signal));signal.throwIfAborted();await port.check();if(revised.answer!==answer){answer=revised.answer;base.revised=true;await judge()}}
