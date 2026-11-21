@@ -26,7 +26,7 @@ import { lockedMediaRecord } from '@/packages/vault/media-records'
 import { ScopeUnlock } from '@/components/security/ScopeUnlock'
 import type { VeniceOptions } from '@shared/providers/definitions/models/venice/options'
 import { mediaEnabled, type MediaKind, type MediaRecord, type MediaCatalogItem, type VeniceMediaService } from '@shared/providers/definitions/models/venice/media'
-import { audioFormats, friendlyMediaError, mediaTypes, quoteLabel, readableName, supportedValues, voiceChoices } from '@shared/providers/definitions/models/venice/catalog'
+import { audioFormats, friendlyMediaError, mediaTypes, quoteLabel, readableName, supportedValues, veniceMediaExtension, voiceChoices } from '@shared/providers/definitions/models/venice/catalog'
 import { parseExtraBody } from '@shared/models/utils/extra-body'
 import { privacyAllowed } from '@shared/providers/definitions/models/venice/privacy'
 import platform from '@/platform'
@@ -265,7 +265,7 @@ function MediaResult({ record, modelName, service, enabled, run, opened, onToggl
     <Group justify="space-between"><Group>
       {onProtectionChange&&!service.isActive(record.id)&&<Button size="xs" variant="default" onClick={()=>void run(()=>onProtectionChange(record.protection?undefined:'app'))}>{record.protection?ft('Make this creation public'):ft('Protect this creation')}</Button>}
       {(record.blobKey || record.text) && <Button size="xs" variant="default" onClick={() => void run(async () => {
-        const extension=record.kind==='transcription'||record.mime==='text/plain'?'txt':record.mime==='video/mp4'?'mp4':record.mime?.includes('wav')?'wav':record.mime?.includes('flac')?'flac':record.mime?.includes('ogg')?'ogg':record.mime?.includes('opus')?'opus':record.mime?.includes('aac')?'aac':record.mime?.includes('pcm')?'pcm':'mp3'
+        const extension=veniceMediaExtension(record.mime) ?? (record.kind === 'transcription' ? 'txt' : record.kind === 'video' ? 'mp4' : 'mp3')
         const name=`Venice-${record.id}.${extension}`,vault=installedVaultFor(platform),header=record.blobKey?await vault?.find(record.blobKey):null
         if(vault&&header){const controller=new AbortController();const result=await platform.exporter.exportStreamingFile(name,async function*(){for await(const bytes of vault.assets.read(`vault-asset-${header.id}`)){try{yield bytes}finally{bytes.fill(0)}}},record.mime||'application/octet-stream',controller.signal,{requiresStreaming:true});if(!result.boundedMemory)throw new Error(ft('This device did not provide streaming export'));return}
         if(record.text){await platform.exporter.exportTextFile(name,record.text);return}

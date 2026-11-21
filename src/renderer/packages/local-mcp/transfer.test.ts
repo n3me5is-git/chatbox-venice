@@ -68,3 +68,14 @@ it('gives a generated WebP its original MIME and filename without changing the s
  const output=await transferMCPResource('workspace',{action:'read',resourceId:'generated',offset:0,length:1024},signal)
  expect(output).toMatchObject({filename:'1.webp',mime:'image/webp',base64:base64(original),sha256:hex(original),nextOffset:null})
 })
+
+it('downloads generated Sonilo MPEG-4 audio with an M4A extension', async () => {
+  const bytes = new Uint8Array([1, 2, 3])
+  const key = await state.vault.assets.put((async function*(){ yield bytes.slice() })(), { name: 'Track', mime: 'audio/mp4', kind: 'audio' }, 'public')
+  state.files = [{ id: 'media:record', path: 'media/music/record.mp4', name: 'An ambient score', mime: 'audio/mp4', origin: 'media', key }]
+  const signal = new AbortController().signal
+  const listed = await transferMCPResource('workspace', { action: 'list', offset: 0, length: 1024 }, signal)
+  expect(listed).toMatchObject({ items: [{ filename: 'record.m4a', mime: 'audio/mp4' }] })
+  const downloaded = await transferMCPResource('workspace', { action: 'read', resourceId: 'media:record', offset: 0, length: 1024 }, signal)
+  expect(downloaded).toMatchObject({ filename: 'record.m4a', mime: 'audio/mp4', base64: base64(bytes) })
+})
