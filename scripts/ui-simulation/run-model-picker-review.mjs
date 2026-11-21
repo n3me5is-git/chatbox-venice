@@ -157,7 +157,7 @@ export async function runModelPickerReview({ click, evaluate, cdp, wait, byText,
     await viewport(width, height, mobile)
     await click(byText('Test unified image composer'))
     const modelButton = `document.querySelector('[data-unified-reference-test] button[aria-label="Image model"]')`
-    const list = `document.querySelector('[data-model-scroll="${mobile ? 'image' : 'native-images'}"]')`
+    const list = `[...document.querySelectorAll('[data-model-scroll="${mobile ? 'image' : 'native-images'}"]')].find(e=>e.offsetHeight>0)`
     const generate = byText('Generate fixture image')
     const option = (label) => mobile
       ? `[...(${list}).querySelectorAll('button')].find(e => e.textContent.includes(${JSON.stringify(label)}))`
@@ -197,9 +197,9 @@ export async function runModelPickerReview({ click, evaluate, cdp, wait, byText,
       await click(byLabel('What would you like to do?'))
       await click(`[...document.querySelectorAll('[role="option"]')].find(e=>e.textContent==='Text to video')`)
       await click(byLabel('Model'))
-      const textOptions = `[...document.querySelectorAll('[role="option"]')].filter(e=>e.offsetHeight&&e.textContent.includes('Text to video'))`
-      await wait(() => evaluate(`(${textOptions}).length>3`), 'Desktop workflow did not show its compatible models')
-      assert.equal(await evaluate(`[...document.querySelectorAll('[role="option"]')].some(e=>e.offsetHeight&&e.textContent.includes('Image to video'))`), false)
+      const modelOptions = `[...document.querySelectorAll('[role="option"]')].filter(e=>e.offsetHeight).map(e=>e.querySelectorAll('p')[2]?.textContent)`
+      await wait(() => evaluate(`(${modelOptions}).length>3`), 'Desktop workflow did not show its compatible models')
+      assert.deepEqual(await evaluate(`(${modelOptions}).sort()`), await evaluate('window.__pickerFixture.workflows.text.slice().sort()'))
       await writeFile(path.join(output, 'studio-video-workflow-desktop.png'), Buffer.from((await cdp('Page.captureScreenshot', { captureBeyondViewport: false })).data, 'base64'))
       await evaluate('window.__simulationBack()')
       await click(byText('Close Studio model test'))
