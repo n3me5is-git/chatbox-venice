@@ -9,7 +9,7 @@ import { projectVeniceModels } from '@shared/providers/definitions/models/venice
 import { resolveVeniceSettings } from '@shared/providers/definitions/models/venice/options'
 import { resolveVeniceTextPrivacy,veniceSessionTextPrivacy } from '@chatbox/core/domain/settings/venice-privacy'
 import { isTextResource } from '@shared/session-resources'
-import { localMCPAllows,localMCPAllowsDuringLock,parseSessionResourceURI,sessionResourceURI,type LocalMCPGrant,type LocalMCPRequest,type LocalMCPTool } from '@shared/local-mcp'
+import { localMCPAllows,localMCPAllowsDuringLock,localMCPBackgroundAllowed,localMCPLockedCatalogActions,parseSessionResourceURI,sessionResourceURI,type LocalMCPGrant,type LocalMCPRequest,type LocalMCPTool } from '@shared/local-mcp'
 import { createModel } from '@/adapters'
 import { rendererApplication } from '@/app/renderer-application'
 import { settingsStore } from '@/stores/settingsStore'
@@ -176,11 +176,18 @@ export async function handleLocalMCP(request:LocalMCPRequest,signal:AbortSignal)
   if (request.locked) {
     const { grant, operation, name } = request
     signal.throwIfAborted()
-    if (!localMCPAllowsDuringLock(grant, operation, name)) throw Error('Unlock Chatbox to use this MCP operation')
+    if (!localMCPAllowsDuringLock(grant, operation, name, request.arguments)) throw Error('Unlock Chatbox to use this MCP operation')
+    if (localMCPBackgroundAllowed(grant)) return (await import('./application')).handleApplicationMCP(request, signal)
     if (operation === 'list_resources') return []
-    const tools = grant.application?.mode === 'router' ? await modelTools(grant, true) : {}
+    const tools: ToolSet = grant.application?.mode === 'router' ? await modelTools(grant, true) : {}
+    const studioCatalogs = Object.entries(localMCPLockedCatalogActions).filter(([toolName, actions]) =>
+      localMCPAllowsDuringLock(grant, 'call_tool', toolName, { action: actions[0] }))
+    if (studioCatalogs.length && (operation === 'list_tools' || studioCatalogs.some(([toolName]) => toolName === name))) {
+      Object.assign(tools, (await import('./studio')).lockedStudioCatalogTools(grant, signal))
+    }
     if (operation === 'list_tools') {
-      return Promise.all(Object.entries(tools).filter(([toolName]) => localMCPAllowsDuringLock(grant, 'call_tool', toolName)).map(async ([toolName, member]) => {
+      return Promise.all(Object.entries(tools).filter(([toolName]) => studioCatalogs.some(([catalogName]) => catalogName === toolName)
+        || localMCPAllowsDuringLock(grant, 'call_tool', toolName)).map(async ([toolName, member]) => {
         const schema = structuredClone(await asSchema(member.inputSchema).jsonSchema) as LocalMCPTool['inputSchema']
         if (toolName === 'app_model') {
           schema.properties = { ...(schema.properties as object), request_id: {type:'string',minLength:1,maxLength:128} }
@@ -194,7 +201,11 @@ export async function handleLocalMCP(request:LocalMCPRequest,signal:AbortSignal)
     const validated = member && await asSchema(member.inputSchema).validate?.(args)
     if (!member?.execute || !validated?.success) throw Error('Invalid MCP tool arguments')
     const execute = () => member.execute!(validated.value, {toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}})
-    if (name !== 'app_model') return execute()
+    if (name !== 'app_model') {
+      const result = await execute()
+      signal.throwIfAborted()
+      return result
+    }
     if (typeof request_id !== 'string' || request_id.length < 1 || request_id.length > 128) throw Error('A stable request_id is required for a paid operation')
     return runMCPRequestOnce(grant, 'router:'+request_id, {name,args,sessionId:'application'}, execute)
   }

@@ -3,6 +3,7 @@ import { SessionRowConflictError } from '@chatbox/core/ports'
 import { getWorkArtifacts } from '@shared/work-artifacts'
 import { MAX_RESOURCE_PREVIEW_BYTES, isTextResource, resourceMime, resourceName, type SessionResource } from '@shared/session-resources'
 import {isRagInternal} from '@shared/session-rag-policy'
+import {veniceMediaExtension} from '@shared/providers/definitions/models/venice/catalog'
 import { vaultRuntimeFor } from '@/packages/vault/runtime'
 import { veniceMediaService } from '@/packages/venice/service'
 import { CapacitorWorkspace } from '@/packages/mobile-work-mode/CapacitorWorkspace'
@@ -80,7 +81,7 @@ export async function listSessionResources(id:string,signal?:AbortSignal){
     cursor=page.nextCursor
   }while(cursor!==null&&items.length<4000)
   truncated ||= cursor!==null
-  for(const record of await veniceMediaService.list())if(record.sessionId===id&&record.blobKey)items.push({id:'media:'+record.id,path:'media/'+record.kind+'/'+record.id+'.'+(record.mime?.split('/')[1]||'bin'),name:record.prompt.slice(0,70)||record.model,mime:record.mime||'application/octet-stream',origin:'media',key:record.blobKey,recordId:record.id,deliverable:true})
+  for(const record of await veniceMediaService.list())if(record.sessionId===id&&record.blobKey)items.push({id:'media:'+record.id,path:'media/'+record.kind+'/'+record.id+'.'+(veniceMediaExtension(record.mime)||record.mime?.split('/')[1]||'bin'),name:record.prompt.slice(0,70)||record.model,mime:record.mime||'application/octet-stream',origin:'media',key:record.blobKey,recordId:record.id,deliverable:true})
   const removed=new Set(index.removed),seen=new Set<string>()
   const priority={file:5,image:4,media:4,artifact:3,workspace:2,attachment:1,message:0}
   const unique=items.sort((a,b)=>priority[b.origin]-priority[a.origin]).filter(item=>{if(removed.has(item.id)||item.key&&removed.has('key:'+item.key))return false;const key=item.key&&item.origin!=='file'?item.key:item.id;if(seen.has(key))return false;seen.add(key);return true})

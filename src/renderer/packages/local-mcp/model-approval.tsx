@@ -5,6 +5,8 @@ import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { usePrivacyDismiss } from '@/components/security/usePrivacyDismiss'
 import { forkT as ft } from '@/i18n/fork'
 import type { LocalMCPGrant } from '@shared/local-mcp'
+import { vaultRuntimeFor } from '@/packages/vault/runtime'
+import platform from '@/platform'
 type Input={provider:string;modelId:string;messages:{role:string;content:string}[];maxOutputTokens:number}
 const ExternalModelApproval=NiceModal.create(({input,signal}:{input:Input;signal?:AbortSignal})=>{
   const modal=useModal();usePrivacyDismiss(modal,false)
@@ -18,4 +20,9 @@ const ExternalModelApproval=NiceModal.create(({input,signal}:{input:Input;signal
     <Group justify="end"><Button variant="default" onClick={()=>close(false)}>{ft('Cancel')}</Button><Button onClick={()=>close(true)}>{ft('Approve model call')}</Button></Group>
   </Stack></AdaptiveModal>
 })
-export async function requestExternalModelApproval(_grant:LocalMCPGrant,input:Input,signal?:AbortSignal){return await NiceModal.show(ExternalModelApproval,{input,signal})===true}
+export async function requestExternalModelApproval(_grant:LocalMCPGrant,input:Input,signal?:AbortSignal){
+  signal?.throwIfAborted()
+  if (await vaultRuntimeFor(platform).projects.isApplicationLocked()) throw Error('Unlock Chatbox to approve this MCP request')
+  signal?.throwIfAborted()
+  return await NiceModal.show(ExternalModelApproval,{input,signal})===true
+}

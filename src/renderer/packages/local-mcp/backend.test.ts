@@ -18,6 +18,11 @@ vi.mock('@/packages/mcp/controller',()=>({mcpController:{servers:new Map(),getAv
 vi.mock('@/packages/model-calls/toolsets/web-search',()=>({buildWebSearchTools:()=>({web_search:{}}),parseLinkTool:{}}))
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('./model-approval',()=>({requestExternalModelApproval:(...args:any[])=>state.approve(...args)}))
+vi.mock('./studio', () => ({ lockedStudioCatalogTools: () => ({
+  venice_studio: tool({ inputSchema: z.object({ action: z.literal('catalog') }).strict(), execute: async () => ({ images: [], media: [] }) }),
+  venice_image: tool({ inputSchema: z.object({ action: z.literal('models') }).strict(), execute: async () => [] }),
+  venice_media: tool({ inputSchema: z.object({ action: z.literal('catalog') }).strict(), execute: async () => [] }),
+}) }))
 vi.mock('@/packages/multi-agent/runtime',()=>({buildExternalMultiAgentTools:(...args:any[])=>state.agents(...args)}))
 import { handleLocalMCP,handleSessionLocalMCP,localMCPTools } from './backend'
 const grant=():LocalMCPGrant=>({running:true,sessionId:'chat',url:'http://127.0.0.1:31337/mcp',token:'local-client-token',startedAt:1,permissions:{...defaultLocalMCPPermissions,models:true}})
@@ -60,6 +65,30 @@ it('keeps only allowed text router operations reachable while the app is locked'
   expect(await call()).toMatchObject({text:'Model response'})
   expect(state.chat).toHaveBeenCalledOnce()
   expect(state.approve).not.toHaveBeenCalled()
+})
+it('exposes only catalog actions for Studio while locked, without accessing the chat', async () => {
+  state.locked = true
+  const router = { ...grant(), sessionId: 'application', keepWhileLocked: true,
+    application: LocalMCPApplicationSchema.parse({ name: 'Studio', mode: 'router', providers: ['venice'] }) }
+  router.permissions.venice = true
+  const call = (name: string, args: Record<string, unknown>) => handleLocalMCP(request('call_tool', { grant: router, locked: true, name, arguments: args }), signal())
+  expect(await handleLocalMCP(request('list_tools', { grant: router, locked: true }), signal())).toEqual(expect.arrayContaining([
+    expect.objectContaining({ name: 'venice_studio', inputSchema: expect.objectContaining({ required: ['action'] }) }),
+  ]))
+  expect(await call('venice_studio', { action: 'catalog' })).toEqual({ images: [], media: [] })
+  expect(await call('venice_image', { action: 'models' })).toEqual([])
+  expect(await call('venice_media', { action: 'catalog' })).toEqual([])
+  await expect(call('venice_studio', { action: 'catalog', sessionId: 'private' })).rejects.toThrow('Invalid MCP tool arguments')
+  await expect(call('venice_studio', { action: 'generate' })).rejects.toThrow('Unlock Chatbox')
+  await expect(call('app_resources', { action: 'list' })).rejects.toThrow('Unlock Chatbox')
+  router.application.providers = ['openai']
+  await expect(call('venice_studio', { action: 'catalog' })).rejects.toThrow('Unlock Chatbox')
+  router.application.providers = ['venice']
+  router.application.mode = 'full'
+  await expect(call('venice_studio', { action: 'catalog' })).rejects.toThrow('Unlock Chatbox')
+  router.application.mode = 'router'
+  router.permissions.venice = false
+  await expect(call('venice_studio', { action: 'catalog' })).rejects.toThrow('Unlock Chatbox')
 })
 it('enforces approval for a real model call and rejects model/provider downgrade and extra arguments',async()=>{
   const input={provider:'venice',modelId:'secure',messages:[{role:'user',content:'Read these explicit messages only'}],maxOutputTokens:20}

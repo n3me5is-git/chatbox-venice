@@ -4,7 +4,7 @@ import {validatedToolSchema} from '@shared/validated-tool-schema'
 import {applicationConversationTool} from './conversation'
 import {asSchema,tool,type ToolSet} from 'ai'
 import {z} from 'zod'
-import {LocalMCPApplicationSchema,isLocalMCPVeniceSearch,localMCPObservation,localMCPAllows,localMCPGrantAllows,type LocalMCPGrant,type LocalMCPRequest} from '@shared/local-mcp'
+import {LocalMCPApplicationSchema,isLocalMCPVeniceSearch,localMCPObservation,localMCPAllows,localMCPBackgroundAllowed,localMCPGrantAllows,type LocalMCPGrant,type LocalMCPRequest} from '@shared/local-mcp'
 import {SessionSettingsSchema,type SessionSettings} from '@shared/types'
 import {MultiAgentPolicySchema} from '@shared/multi-agent'
 import {rendererApplication} from '@/app/renderer-application'
@@ -25,9 +25,12 @@ const vault=()=>vaultRuntimeFor(platform)
 const idSchema=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)
 const optionsSchema=z.object({provider:z.string().min(1).max(128).optional(),modelId:z.string().min(1).max(256).optional(),temperature:z.number().min(0).max(2).optional(),topP:z.number().min(0).max(1).optional(),maxTokens:z.number().int().min(1).max(128000).optional(),contextTokenLimit:z.number().int().min(1024).max(10000000).optional(),webBrowsing:z.boolean().optional(),veniceToolsEnabled:z.boolean().optional(),providerOptionsByModel:z.record(z.string(),z.unknown()).optional(),multiAgent:MultiAgentPolicySchema.optional()}).strict()
 async function live(grant:LocalMCPGrant,signal?:AbortSignal){
-  signal?.throwIfAborted();await vault().projects.assertApp()
+  signal?.throwIfAborted()
+  if (localMCPBackgroundAllowed(grant)) await vault().projects.assertStorage()
+  else await vault().projects.assertApp()
   const current=await window.electronAPI.invoke('local-mcp:control','status',grant.endpointId)
-  if(!current.running||current.token!==grant.token||JSON.stringify(current.application)!==JSON.stringify(grant.application)||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
+  if(!current.running||current.token!==grant.token||localMCPBackgroundAllowed(current)!==localMCPBackgroundAllowed(grant)||JSON.stringify(current.application)!==JSON.stringify(grant.application)||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
+  signal?.throwIfAborted()
 }
 async function authorized(grant:LocalMCPGrant,id:string,signal?:AbortSignal,readDuringCleanup=false){
   if (isTemporaryChat(id) || isUnavailableChat(id)) throw Error('Chat is unavailable')
@@ -183,6 +186,7 @@ function appTools(grant:LocalMCPGrant,signal:AbortSignal):ToolSet{
 }
 export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortSignal):Promise<unknown>{
   const grant=request.grant;await live(grant,signal)
+  if (request.locked && !await vault().projects.isApplicationLocked()) throw Error('Wait for Chatbox to finish locking and try again')
   if(request.operation==='list_resources')return [] // No automatic enumeration of app data.
   if(request.operation==='read_resource')throw Error('Use app_resources with an authorized context')
   let definitions=appTools(grant,signal)
@@ -215,7 +219,8 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
   const validated=await asSchema(member.inputSchema).validate?.(request.arguments||{})
   if(!validated?.success)throw Error('Invalid application tool arguments')
   const input=validated.value as Record<string,unknown>,destructive=request.name==='app_cleanup'||request.name==='app_contexts'&&input.action==='delete'
-  const target=request.name==='app_cleanup'||isLocalMCPVeniceSearch(request.name)?undefined:grant.application!.mode==='router'?await defaultContext(grant,signal):typeof input.sessionId==='string'?input.sessionId:undefined
+  const catalogRequest = request.name === 'venice_studio' && ['catalog', 'describe'].includes(String(input.action))
+  const target=request.name==='app_cleanup'||isLocalMCPVeniceSearch(request.name)||catalogRequest?undefined:grant.application!.mode==='router'?await defaultContext(grant,signal):typeof input.sessionId==='string'?input.sessionId:undefined
   if(target)await authorized(grant,target,signal,request.name==='app_resources')
   if(target&&closing.has(target))throw Error('This workspace is being cleaned up')
   const items=active.get(grant.token)||new Set<{id?:string;work:Promise<unknown>}>();active.set(grant.token,items)

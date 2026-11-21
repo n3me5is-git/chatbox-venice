@@ -34,7 +34,7 @@ Copy a running endpoint’s configuration into a Streamable HTTP MCP client that
 {"mcpServers":{"chatbox-router":{"url":"http://127.0.0.1:YOUR_PORT/mcp","headers":{"Authorization":"Bearer YOUR_LOCAL_TOKEN"}}}}
 ```
 
-This is an MCP endpoint, not an OpenAI-compatible HTTP API server. Each port accepts only its own token. Stopping an endpoint disables its automatic startup. **Stop all MCP endpoints** stops listeners and disables their startup profiles. App lock cancels pending operations and closes listeners by default. With **Keep endpoint active while the app is locked**, selected listeners stay connected. Model routers can list models and run explicitly preapproved text requests without access to saved chat data. Workspace, Studio and owner-approved operations wait for unlock. Configured startup profiles resume after app or project unlock. Window destruction or quitting closes all listeners. Each run receives a fresh internal grant.
+This is an MCP endpoint, not an OpenAI-compatible HTTP API server. Each port accepts only its own token. Stopping an endpoint disables its automatic startup. **Stop all MCP endpoints** stops listeners and disables their startup profiles. App lock cancels pending operations and closes listeners by default. With **Keep endpoint active while the app is locked**, selected listeners stay connected. In **Models and Studio only**, the connected endpoint can read text and Studio catalogs, describe individual Studio models and run preapproved text calls. Turn on **Allow granted operations while locked** to let that app-wide endpoint use its configured tools and unprotected storage behind the lock screen. This can keep Studio generation, transfers, web search and permitted operations on unprotected chats or collections available. The endpoint’s ordinary authorization still applies. Data protected by PIN, biometrics or a collection passphrase and requests that need an owner response require unlocking. The lock transition can cancel work already in progress. Configured startup profiles resume after app or project unlock. Window destruction or quitting closes all listeners. Each run receives a fresh internal grant.
 
 ## Application tools
 
@@ -49,6 +49,15 @@ This is an MCP endpoint, not an OpenAI-compatible HTTP API server. Each port acc
 - **app_cleanup**: permanently remove the endpoint’s selected temporary workspace (or all of its temporary workspaces), generated records, files, upload staging and descendant agent sandboxes after retrieval. It never removes an existing personal chat or another endpoint’s space.
 
 Router tools use an internal workspace without a sessionId. Full/shadow operations require an authorized sessionId from app_contexts. Router mode also retains the existing venice_image/venice_media adapters where enabled; venice_studio exposes the direct Studio paths without requiring the chat-tool toggle.
+
+### Studio model contract
+
+1. Call **venice_studio** with action `catalog` and a `kind`. Optionally pass an exact `model` to narrow results.
+2. Use `describe` with that kind and model ID. It returns model metadata, pricing, accepted inputs, conditional requirements and an example you can validate.
+3. Supply the proposed generation arguments to `validate`. It checks the catalog and, for local references, workspace inputs. It does not submit a generation. Use `quote` for pricing when offered.
+4. Submit `generate` with a stable `request_id`. Keep the returned local `id` and `kind` for status or wait. Retrieve output using `app_resources` and clean up the workspace when appropriate.
+
+For queued music and sound effects, pass `duration_seconds` only if the selected model accepts it. Use either lyrics, automatic lyrics or instrumental mode as supported by that model. An uploaded audio reference belongs in `references.reference_audio_urls` only when the catalog declares audio references. These are workspace paths. Mention them in the prompt as `@Audio1`, `@Audio2` and so on. The [Venice audio queue reference](https://docs.venice.ai/api-reference/endpoint/audio/queue) lists the provider limits. A rejected provider request can still return a model-specific reason after local validation.
 
 ### Additional evidence for source review
 

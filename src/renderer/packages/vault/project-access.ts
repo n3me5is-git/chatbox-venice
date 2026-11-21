@@ -12,10 +12,10 @@ export class ProjectAccess {
   private appEnabled:Promise<boolean>|undefined
   private libraryEpoch=0
   private libraryCache:Promise<Set<string>>|undefined
-  constructor(readonly settings:KeySettings,readonly keys:VaultKeys,readonly metadata:SessionMetaRepositoryPort,private readonly readValue:(key:string)=>Promise<unknown>,private readonly library?:{scan:(folders:ReadonlySet<string>)=>Promise<Set<string>>;drafts?:(folders:ReadonlySet<string>)=>Promise<Set<string>>;beforeProtect?:(folder:string,scope:string)=>Promise<void>;beforeMove?:(sessionId:string,folderId?:string)=>Promise<void>}){keys.subscribe(()=>{this.cached=undefined;this.appEnabled=undefined;this.invalidateLibrary()})}
+  constructor(readonly settings:KeySettings,readonly keys:VaultKeys,readonly metadata:SessionMetaRepositoryPort,private readonly readValue:(key:string)=>Promise<unknown>,private readonly library?:{scan:(folders:ReadonlySet<string>)=>Promise<Set<string>>;drafts?:(folders:ReadonlySet<string>)=>Promise<Set<string>>;beforeProtect?:(folder:string,scope:string)=>Promise<void>;beforeMove?:(sessionId:string,folderId?:string)=>Promise<void>},private readonly backgroundAccess?:()=>Promise<boolean>){keys.subscribe(()=>{this.cached=undefined;this.appEnabled=undefined;this.invalidateLibrary()})}
   invalidateLibrary(){this.libraryEpoch++;this.libraryCache=undefined}
   /** Library discovery has no selected chat context. Hide references owned by locked projects. */
-  async assertLibraryKey(alias?:string):Promise<void>{await this.assertApp();if(!alias||!this.library)return
+  async assertLibraryKey(alias?:string):Promise<void>{await this.assertStorage();if(!alias||!this.library)return
     const epoch=this.libraryEpoch
     const blocked=await(this.libraryCache ||= (async()=>{const folders=new Set<string>();for(const [folder,policy] of Object.entries(await this.policies()))if(!this.keys.isUnlocked(policy.scope))folders.add(folder);return folders.size?this.library!.scan(folders):new Set<string>()})())
     if(epoch!==this.libraryEpoch)return this.assertLibraryKey(alias)
@@ -25,11 +25,15 @@ export class ProjectAccess {
   async libraryKeyVisible(alias?:string){try{await this.assertLibraryKey(alias);return true}catch(error){if(error instanceof VaultLockedError)return false;throw error}}
   async isApplicationLocked(){const enabled=await(this.appEnabled ||=this.settings.getSetting<boolean>('app-lock-enabled').then(value=>value===true));return enabled&&!this.keys.isUnlocked('app')}
   async assertApp(){if(await this.isApplicationLocked())throw new VaultLockedError('app')}
+  // A desktop background endpoint can keep ordinary storage available with the
+  // UI locked. This does not unlock PIN/biometric keys or app administration.
+  private async storageLocked() { return await this.isApplicationLocked() && !await this.backgroundAccess?.() }
+  async assertStorage() { if (await this.storageLocked()) throw new VaultLockedError('app') }
   policies(){return this.cached ||= this.settings.getSetting<Policies>(POLICY).then(value=>value||{})}
   async folderScope(id?:string){return id?(await this.policies())[id]?.scope:null}
   async sessionScope(id:string){if(!id||id==='new')return null;await this.metadata.initialize();const meta=await this.metadata.getById(id);if(meta)return this.folderScope(meta.folderId);const record=await this.readValue('session:'+id) as {folderId?:string}|null;return this.folderScope(record?.folderId)}
-  async assertFolder(id?:string){await this.assertApp();const scope=await this.folderScope(id);if(scope&&!this.keys.isUnlocked(scope))throw new VaultLockedError(scope)}
-  async assertSession(id:string){await this.assertApp();const scope=await this.sessionScope(id);if(scope&&!this.keys.isUnlocked(scope))throw new VaultLockedError(scope)}
+  async assertFolder(id?:string){await this.assertStorage();const scope=await this.folderScope(id);if(scope&&!this.keys.isUnlocked(scope))throw new VaultLockedError(scope)}
+  async assertSession(id:string){await this.assertStorage();const scope=await this.sessionScope(id);if(scope&&!this.keys.isUnlocked(scope))throw new VaultLockedError(scope)}
   async setPolicy(folderId:string,mode:'none'|'app'|'pin',pin?:string){
     if(!folderId)throw new Error('Select a project');const previous=(await this.policies())[folderId];if(previous)await this.keys.key(previous.scope)
     let policy:Policy|undefined
@@ -38,7 +42,7 @@ export class ProjectAccess {
     if(policy)await this.library?.beforeProtect?.(folderId,policy.scope)
     const next={...await this.policies()};if(policy)next[folderId]=policy;else delete next[folderId];await this.settings.setSetting(POLICY,next);this.cached=undefined;this.keys.refresh()
   }
-  async redact(meta:SessionMetaRecord){const scope=await this.folderScope(meta.folderId);if(!await this.isApplicationLocked()&&(!scope||this.keys.isUnlocked(scope)))return meta
+  async redact(meta:SessionMetaRecord){const scope=await this.folderScope(meta.folderId);if(!await this.storageLocked()&&(!scope||this.keys.isUnlocked(scope)))return meta
     return {id:meta.id,name:ft('Protected chat'),folderId:meta.folderId,sortOrder:meta.sortOrder,createdAt:meta.createdAt,type:meta.type,starred:meta.starred,hidden:meta.hidden,archivedAt:meta.archivedAt} as SessionMetaRecord
   }
   protectMetadata():SessionMetaRepositoryPort {
@@ -70,8 +74,8 @@ export class ProjectAccess {
       if(method==='initialize')return original.bind(target)
       if(method==='iterateRows')return async function*(request:any){await access.assertSession(request.sessionId);for await(const row of original.call(target,request)){await access.assertSession(request.sessionId);yield row}}
       return async(...args:any[])=>{
-        if(method==='listSessionIds'){if(await access.isApplicationLocked())return [];const ids=await original.apply(target,args);const result:string[]=[];for(const id of ids){const scope=await access.sessionScope(id);if(!scope||access.keys.isUnlocked(scope))result.push(id)}return result}
-        if(method==='findMessagesByStatus'){if(await access.isApplicationLocked())return [];const refs=await original.apply(target,args);const result=[];for(const ref of refs){const scope=await access.sessionScope(ref.sessionId);if(!scope||access.keys.isUnlocked(scope))result.push(ref)}return result}
+        if(method==='listSessionIds'){if(await access.storageLocked())return [];const ids=await original.apply(target,args);const result:string[]=[];for(const id of ids){const scope=await access.sessionScope(id);if(!scope||access.keys.isUnlocked(scope))result.push(id)}return result}
+        if(method==='findMessagesByStatus'){if(await access.storageLocked())return [];const refs=await original.apply(target,args);const result=[];for(const ref of refs){const scope=await access.sessionScope(ref.sessionId);if(!scope||access.keys.isUnlocked(scope))result.push(ref)}return result}
         if(method==='disposeImportRows'){// Candidate identities are not published sessions; disposal only removes temporary state.
           return original.apply(target,args)
         }

@@ -2,6 +2,7 @@ import {sessionFiles} from '@/packages/session-resources/files'
 import {sha256} from '@noble/hashes/sha256'
 import {isRagInternal} from '@shared/session-rag-policy'
 import type {SessionResource} from '@shared/session-resources'
+import {veniceMediaExtension} from '@shared/providers/definitions/models/venice/catalog'
 import {listSessionResources,readSessionResource} from '@/packages/session-resources/service'
 import {vaultRuntimeFor} from '@/packages/vault/runtime'
 import platform from '@/platform'
@@ -13,6 +14,11 @@ const imageExtensions = new Map([
   ['image/gif', 'gif'], ['image/avif', 'avif'], ['image/bmp', 'bmp'],
 ])
 function downloadDetails(item: SessionResource, mime = item.mime) {
+  if (item.origin === 'media') {
+    const basename = item.path.split('/').at(-1) || item.recordId || item.id
+    const extension = veniceMediaExtension(mime)
+    return { mime, filename: extension ? basename.replace(/\.[^.]+$/, '') + '.' + extension : basename }
+  }
   const extension = item.origin === 'image' ? imageExtensions.get(mime) : undefined
   return { mime, filename: extension ? item.name.replace(/\.[^.]+$/, '.' + extension) : item.name }
 }

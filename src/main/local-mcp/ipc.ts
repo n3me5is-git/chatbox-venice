@@ -1,7 +1,7 @@
 import { app,ipcMain,type BrowserWindow,type IpcMainInvokeEvent,type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { LocalMCPRegistry } from './registry'
-import { localMCPAllowsDuringLock,LocalMCPRestoreSchema,LocalMCPStartSchema,LocalMCPStartWithTokenSchema,type LocalMCPRequest,type LocalMCPGrant } from '../../shared/local-mcp'
+import { localMCPAllowsDuringLock,localMCPBackgroundAllowed,LocalMCPRestoreSchema,LocalMCPStartSchema,LocalMCPStartWithTokenSchema,type LocalMCPRequest,type LocalMCPGrant } from '../../shared/local-mcp'
 
 export function registerLocalMCPIPC(window:()=>BrowserWindow|null){
   let owner:WebContents|undefined
@@ -18,7 +18,7 @@ export function registerLocalMCPIPC(window:()=>BrowserWindow|null){
     if(url.protocol!=='file:'&&!(process.env.NODE_ENV==='development'&&url.protocol==='http:'&&['127.0.0.1','localhost'].includes(url.hostname)))throw new Error('Untrusted local MCP caller')
   }
   async function invoke(grant:LocalMCPGrant,operation:LocalMCPRequest['operation'],signal:AbortSignal,params:Partial<LocalMCPRequest>={}){
-    if(suspended&&(!locked||!localMCPAllowsDuringLock(grant,operation,params.name)))throw Error('Unlock Chatbox to use this MCP operation')
+    if(suspended&&(!locked||!localMCPAllowsDuringLock(grant,operation,params.name,params.arguments)))throw Error('Unlock Chatbox to use this MCP operation')
     signal.throwIfAborted();const target=owner;if(!target||target.isDestroyed())throw new Error('The app is unavailable')
     const id=randomUUID()
     return new Promise<any>((resolve,reject)=>{
@@ -31,6 +31,7 @@ export function registerLocalMCPIPC(window:()=>BrowserWindow|null){
   const stop=async()=>{await registry.stopAll();releaseOwner();releaseOwner=()=>{};for(const item of pending.values())item.cancel();pending.clear();owner=undefined}
   ipcMain.handle('local-mcp:control',async(event,command:string,input:unknown)=>{
     assertApp(event)
+    if(command==='background-access')return suspended&&locked&&registry.list().some(localMCPBackgroundAllowed)
     if(command==='list')return registry.list()
     if(command==='status')return registry.state(typeof input==='string'?input:undefined)
     if(command==='list-shares')return registry.shares()

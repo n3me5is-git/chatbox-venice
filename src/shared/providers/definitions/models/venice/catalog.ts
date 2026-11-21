@@ -1,4 +1,13 @@
 import type { MediaCatalogItem } from './media'
+const mediaExtensions: Record<string, string> = {
+  'text/plain': 'txt', 'video/mp4': 'mp4', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a',
+  'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/flac': 'flac',
+  'audio/x-flac': 'flac', 'audio/ogg': 'ogg', 'audio/opus': 'opus', 'audio/aac': 'aac', 'audio/pcm': 'pcm',
+}
+export function veniceMediaExtension(mime?: string) {
+  const type = mime?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
+  return Object.hasOwn(mediaExtensions, type) ? mediaExtensions[type] : undefined
+}
 export const mediaTypes = { speech: 'tts', transcription: 'asr', video: 'video', music: 'music', 'sound-effects': 'music', 'voice-conversion': 'music' } as const
 export function readableName(id: string) {
   return id.replace(/^(?:tts|asr)[-_]/i, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase())

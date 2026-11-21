@@ -20,6 +20,7 @@ export function ApplicationMCPSettings(){
   const [accessToken,setAccessToken]=useState(newMCPAccessToken),[rememberToken,setRememberToken]=useState(false)
   const [profiles,setProfiles]=useState<LocalMCPProfile[]>([]),[editingId,setEditingId]=useState<string|null>(null)
   const [autoStart,setAutoStart]=useState(false),[keepWhileLocked,setKeepWhileLocked]=useState(false)
+  const [allowOperationsWhileLocked, setAllowOperationsWhileLocked] = useState(false)
   const [endpoints,setEndpoints]=useState<LocalMCPGrant[]>([]),[name,setName]=useState('Local agent'),[mode,setMode]=useState<typeof modes[number]>('router'),[port,setPort]=useState(0),[permissions,setPermissions]=useState<LocalMCPPermissions>({...defaultLocalMCPPermissions,models:true}),[privacy,setPrivacy]=useState<'auto'|'e2ee'|'tee'>('auto'),[manage,setManage]=useState(false),[conversations,setConversations]=useState(false),[automaticStudio,setAutomaticStudio]=useState(false),[externalTools,setExternalTools]=useState(false),[providers,setProviders]=useState<string[]>(['venice']),[allProviders,setAllProviders]=useState(false),[agents,setAgents]=useState<{id:string;title:string}[]>([]),[dedicatedIds,setDedicatedIds]=useState<string[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const available=platform.type==='desktop',invoke=(command:string,input?:unknown)=>window.electronAPI.invoke('local-mcp:control',command,input)
   const refresh=async()=>{setEndpoints((await invoke('list') as LocalMCPGrant[]).filter(endpoint=>endpoint.application));setProfiles((await readMCPProfiles()).filter(profile=>profile.application))}
@@ -29,7 +30,7 @@ export function ApplicationMCPSettings(){
   const change=(key:keyof LocalMCPPermissions,value:boolean)=>setPermissions(old=>({...old,[key]:value,...(!value&&(key==='readFiles'||key==='writeFiles')?{execute:false}:{}),...(!value&&key==='models'?{automaticModels:false}:{})}))
   const canUseVenice = privacy !== 'auto' || allProviders || providers.includes('venice')
   const resetEditing = () => {
-    setEditingId(null);setAutoStart(false);setKeepWhileLocked(false)
+    setEditingId(null);setAutoStart(false);setKeepWhileLocked(false);setAllowOperationsWhileLocked(false)
     setAccessToken(newMCPAccessToken());setRememberToken(false);setKnowledgeFilePaths(false);setVeniceSearch(false)
   }
   const edit = (profile: LocalMCPProfile) => run(async () => {
@@ -39,7 +40,7 @@ export function ApplicationMCPSettings(){
     setConversations(app.conversations);setAutomaticStudio(app.automaticStudio);setExternalTools(app.externalTools)
     setAllProviders(!app.providers);setProviders(app.providers||[]);setDedicatedIds(app.dedicatedIds)
     setKnowledgeCollectionIds(app.knowledgeCollectionIds||[]);setKnowledgeFilePaths(!!app.knowledgeFilePaths);setVeniceSearch(!!app.veniceSearch)
-    setAutoStart(mcpProfileStartsAutomatically(profile));setKeepWhileLocked(!!profile.keepWhileLocked)
+    setAutoStart(mcpProfileStartsAutomatically(profile));setKeepWhileLocked(!!profile.keepWhileLocked);setAllowOperationsWhileLocked(!!profile.allowOperationsWhileLocked)
     setRememberToken(mcpProfileRemembersToken(profile));setAccessToken(newMCPAccessToken())
     const saved = await readMCPProfileToken(profile)
     if (saved !== undefined) setAccessToken(saved)
@@ -51,7 +52,7 @@ export function ApplicationMCPSettings(){
     await cleanupInactiveMCPContexts()
     const shareKnowledge = mode !== 'router' && permissions.knowledge
     const application=LocalMCPApplicationSchema.parse({name,mode,manageChats:mode==='full'&&manage,conversations:mode!=='router'&&conversations,providers:privacy==='auto'?(allProviders?undefined:providers):['venice'],privacy,dedicatedIds:permissions.multiAgent?dedicatedIds:[],automaticStudio,externalTools,knowledgeCollectionIds:shareKnowledge?knowledgeCollectionIds:undefined,...(shareKnowledge&&knowledgeFilePaths?{knowledgeFilePaths:true}:{}),...(canUseVenice&&veniceSearch?{veniceSearch:true}:{})})
-    const config:LocalMCPStart={sessionId:'application',endpointId:editingId||crypto.randomUUID(),port,application,permissions:{...permissions,...(mode==='router'?{execute:false,search:false,forwardMCP:false,multiAgent:false,knowledge:false}: {})},...(keepWhileLocked?{keepWhileLocked:true}:{})}
+    const config:LocalMCPStart={sessionId:'application',endpointId:editingId||crypto.randomUUID(),port,application,permissions:{...permissions,...(mode==='router'?{execute:false,search:false,forwardMCP:false,multiAgent:false,knowledge:false}: {})},...(keepWhileLocked?{keepWhileLocked:true,...(allowOperationsWhileLocked?{allowOperationsWhileLocked:true}:{})}:{})}
     const endpoint=await invoke('start-with-token',{config,accessToken}) as LocalMCPGrant
     try{await saveMCPProfile(config,endpoint,{autoStart,rememberToken})}catch(error){await invoke('stop-endpoint',config.endpointId);throw error}
     startupErrors.delete(config.endpointId!)
@@ -66,7 +67,7 @@ export function ApplicationMCPSettings(){
       <Text fw={500}>{endpoint.application?.name||ft('Shared chat')} · {endpoint.application?ft(endpoint.application.mode==='router'?'Models and Studio only':endpoint.application.mode==='shadow'?'Shadow workspaces only':'Authorized app access'):ft('Single chat')}</Text><Text size="sm" style={{overflowWrap:'anywhere'}}>{endpoint.url}</Text>
       <MCPAccessToken value={endpoint.accessToken??endpoint.token}/>
       {profiles.some(profile=>profile.endpointId===endpoint.endpointId&&mcpProfileStartsAutomatically(profile))&&<Text size="xs">{ft('Starts automatically')}</Text>}
-      {endpoint.keepWhileLocked&&<Text size="xs">{ft('Stays connected while locked')}</Text>}
+      {endpoint.keepWhileLocked&&<Text size="xs">{ft(endpoint.allowOperationsWhileLocked ? 'Granted operations available while locked' : 'Stays connected while locked')}</Text>}
       <Group><Button size="xs" variant="default" onClick={()=>void run(async()=>{await navigator.clipboard.writeText(JSON.stringify(localMCPClientConfiguration(endpoint),null,2));setNotice('Copied')})}>{ft('Copy MCP client configuration')}</Button>
         <Button size="xs" color="red" loading={busy} onClick={()=>void run(async()=>{await disableMCPStartup(endpoint.endpointId!).finally(()=>invoke('stop-endpoint',endpoint.endpointId));const result=await revokeApplicationMCP(endpoint);if(result?.pending)setNotice('Some temporary workspaces still need cleanup. Unlock their storage and retry cleanup.')})}>{ft('Stop endpoint')}</Button></Group>
     </Stack>)}
@@ -96,7 +97,11 @@ export function ApplicationMCPSettings(){
     <NumberInput label={ft('Local MCP port (0 = automatic)')} value={port} min={0} max={65535} allowDecimal={false} onChange={value=>setPort(typeof value==='number'?value:0)}/>
     <MCPAccessToken value={accessToken} onChange={setAccessToken} remember={rememberToken} onRemember={setRememberToken} busy={busy}/>
     <Checkbox checked={autoStart} disabled={busy} label={ft('Start automatically with Chatbox')} description={ft('Reuses this port at startup. Manually stopping the endpoint turns off automatic startup.')} onChange={event=>setAutoStart(event.currentTarget.checked)}/>
-    <Checkbox checked={keepWhileLocked} disabled={busy} label={ft('Keep endpoint active while the app is locked')} description={ft('Model routers can list models and make preapproved text calls while locked. Chat, workspace and Studio operations require unlock.')} onChange={event=>setKeepWhileLocked(event.currentTarget.checked)}/>
+    <Checkbox checked={keepWhileLocked} disabled={busy} label={ft('Keep endpoint active while the app is locked')} description={ft('Model routers can read permitted text and Studio catalogs and make preapproved text calls while locked.')} onChange={event=>setKeepWhileLocked(event.currentTarget.checked)}/>
+    {keepWhileLocked && <Checkbox checked={allowOperationsWhileLocked} disabled={busy}
+      label={ft('Allow granted operations while locked')}
+      description={ft('This endpoint can use its granted tools and unprotected data behind the lock screen. Protected data and requests that need your approval still require unlock.')}
+      onChange={event => setAllowOperationsWhileLocked(event.currentTarget.checked)} />}
     <Group><Button size="xs" loading={busy} disabled={!name.trim()||!LocalMCPClientTokenSchema.safeParse(accessToken).success} onClick={()=>void start()}>{ft(editingId?'Save and start endpoint':'Start new endpoint')}</Button>{editingId&&<Button size="xs" variant="subtle" onClick={resetEditing}>{ft('Cancel profile editing')}</Button>}<Button size="xs" variant="default" loading={busy} onClick={()=>void run(async()=>{const result=await cleanupInactiveMCPContexts();setNotice(result.pending?'Some temporary workspaces still need cleanup. Unlock their storage and retry cleanup.':'Temporary workspace cleanup completed')})}>{ft('Clean up stopped endpoints')}</Button>{endpoints.length>0&&<Button size="xs" variant="subtle" color="red" onClick={()=>void run(async()=>{await disableMCPStartup('all').finally(()=>invoke('stop-all'));await Promise.all(endpoints.map(revokeApplicationMCP))})}>{ft('Stop all MCP endpoints')}</Button>}</Group>
   </Stack>
 }

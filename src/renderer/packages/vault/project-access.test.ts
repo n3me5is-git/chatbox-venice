@@ -4,14 +4,28 @@ import type { SessionMetaRecord } from '@shared/types'
 import { ProjectAccess } from './project-access'
 import { VaultLockedError } from './chunk-store'
 import type { VaultKeys } from './keys'
-function fixture(scan?:(folders:ReadonlySet<string>)=>Promise<Set<string>>){const settings=new Map<string,unknown>(),unlocked=new Set<string>(['app']),listeners=new Set<()=>void>();const metas=new Map<string,SessionMetaRecord>([['private',{id:'private',name:'Confidential project chat',folderId:'folder',createdAt:1,sortOrder:1,type:'chat',backgroundImage:{type:'storage-key',storageKey:'private-image'}}],['public',{id:'public',name:'Ordinary chat',createdAt:1,sortOrder:0,type:'chat'}]])
+function fixture(scan?:(folders:ReadonlySet<string>)=>Promise<Set<string>>, backgroundAccess?:()=>Promise<boolean>){const settings=new Map<string,unknown>(),unlocked=new Set<string>(['app']),listeners=new Set<()=>void>();const metas=new Map<string,SessionMetaRecord>([['private',{id:'private',name:'Confidential project chat',folderId:'folder',createdAt:1,sortOrder:1,type:'chat',backgroundImage:{type:'storage-key',storageKey:'private-image'}}],['public',{id:'public',name:'Ordinary chat',createdAt:1,sortOrder:0,type:'chat'}]])
  const metadata={initialize:async()=>{},getById:async(id:string)=>metas.get(id)||null,getAll:async()=>[...metas.values()],getPage:async()=>({items:[...metas.values()],total:2,nextCursor:null}),createMany:vi.fn(async()=>{}),update:vi.fn(async()=>{}),delete:vi.fn(async()=>{})} as unknown as SessionMetaRepositoryPort
  const keys={subscribe:(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener)}},key:async(scope:string)=>{if(!unlocked.has(scope))throw new VaultLockedError(scope);return {}},isUnlocked:(scope:string)=>unlocked.has(scope),status:async(scope:string)=>({configured:scope==='app',unlocked:unlocked.has(scope)}),configure:async(scope:string)=>{unlocked.add(scope)},refresh:()=>{for(const listener of listeners)listener()}} as unknown as VaultKeys
- const access=new ProjectAccess({getSetting:async<T>(key:string)=>(settings.get(key)??null) as T|null,setSetting:async(key,value)=>{settings.set(key,value)}},keys,metadata,async()=>null,scan?{scan}:undefined)
+ const access=new ProjectAccess({getSetting:async<T>(key:string)=>(settings.get(key)??null) as T|null,setSetting:async(key,value)=>{settings.set(key,value)}},keys,metadata,async()=>null,scan?{scan}:undefined,backgroundAccess)
  const backend={initialize:vi.fn(async()=>{}),readSnapshot:vi.fn(async(id:string)=>({id,text:'Payload'})),listSessionIds:async()=>['private','public'],findMessagesByStatus:async()=>[{sessionId:'private',messageId:'one'},{sessionId:'public',messageId:'two'}],stageRows:vi.fn(async()=>({publish:vi.fn(async()=>{}),dispose:vi.fn(async()=>{})})),iterateRows:async function*(){yield {number:1};yield {number:2}}} as unknown as SessionRowStorePort
  return {access,metadata,metas,unlocked,keys,backend,rows:access.protectRows(backend),guardedMeta:access.protectMetadata()}
 }
 describe('project access enforced below the UI',()=>{
+ it('allows ordinary storage for a live background endpoint without opening the app or project keys', async () => {
+   let active = true
+   const f = fixture(undefined, async () => active)
+   await f.access.settings.setSetting('app-lock-enabled', true)
+   await f.access.setPolicy('folder', 'app')
+   f.unlocked.clear()
+   expect(await f.access.isApplicationLocked()).toBe(true)
+   await expect(f.access.assertApp()).rejects.toBeInstanceOf(VaultLockedError)
+   await expect(f.rows.readSnapshot('public')).resolves.toMatchObject({ id: 'public' })
+   await expect(f.rows.readSnapshot('private')).rejects.toBeInstanceOf(VaultLockedError)
+   expect((await f.guardedMeta.getById('private'))?.name).toBe('Protected chat')
+   active = false
+   await expect(f.rows.readSnapshot('public')).rejects.toBeInstanceOf(VaultLockedError)
+ })
  it('rechecks a new conversation’s destination folder before publishing staged rows',async()=>{const f=fixture();await f.access.setPolicy('folder','app');const writer=await f.rows.stageRows({record:{id:'new-chat',folderId:'folder'},revision:1} as Parameters<SessionRowStorePort['stageRows']>[0],null);f.unlocked.clear();await expect(writer.publish()).rejects.toBeInstanceOf(VaultLockedError);await expect(writer.dispose()).resolves.toBeUndefined()})
  it('hides locked project attachments from library discovery without disabling unrelated public files',async()=>{const scan=vi.fn(async(folders:ReadonlySet<string>)=>{expect([...folders]).toEqual(['folder']);return new Set(['picture:private','pictureprivate'])});const f=fixture(scan);await f.access.setPolicy('folder','app');expect(await f.access.libraryKeyVisible('picture:private')).toBe(true);f.unlocked.clear();f.keys.refresh();expect(await f.access.libraryKeyVisible('picture:private')).toBe(false);expect(await f.access.libraryKeyVisible('pictureprivate')).toBe(false);expect(await f.access.libraryKeyVisible('picture:public')).toBe(true);expect(scan).toHaveBeenCalledTimes(1);f.unlocked.add('app');f.keys.refresh();expect(await f.access.libraryKeyVisible('picture:private')).toBe(true)})
  it('rechecks a reference scan that finishes after a project is locked and fails closed on unreadable metadata',async()=>{let release!:(keys:Set<string>)=>void;let calls=0;const f=fixture(async()=>{calls++;if(calls===1)return new Promise<Set<string>>(resolve=>{release=resolve});return new Set(['secret'])});await f.access.setPolicy('folder','app');f.unlocked.clear();f.keys.refresh();const pending=f.access.libraryKeyVisible('secret');await vi.waitFor(()=>expect(release).toBeTypeOf('function'));f.keys.refresh();release(new Set());expect(await pending).toBe(false);expect(calls).toBe(2);const broken=fixture(async()=>{throw new Error('Cannot scan')});await broken.access.setPolicy('folder','app');broken.unlocked.clear();broken.keys.refresh();await expect(broken.access.libraryKeyVisible('anything')).rejects.toThrow('Cannot scan')})

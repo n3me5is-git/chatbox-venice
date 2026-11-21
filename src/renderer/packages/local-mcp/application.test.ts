@@ -2,10 +2,10 @@ import {beforeEach,expect,it,vi} from 'vitest'
 import {tool} from 'ai'
 import {z} from 'zod'
 import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant} from '@shared/local-mcp'
-const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),count:0,call:vi.fn(),models:vi.fn(),dispose:vi.fn(),remove:vi.fn(),aliases:[] as string[],images:[] as any[],search:vi.fn()}))
+const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),appLocked:false,count:0,call:vi.fn(),models:vi.fn(),dispose:vi.fn(),remove:vi.fn(),aliases:[] as string[],images:[] as any[],search:vi.fn()}))
 vi.mock('@/platform',()=>({default:{type:'desktop',getImageGenerationStorage:()=>({initialize:async()=>{},getPage:async()=>({items:state.images,nextCursor:null})})}}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultChatModel:{provider:'openai',model:'configured'}})})}}))
-vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({db:{aliases:async()=>state.aliases,getSetting:async(key:string)=>state.settings.get(key),setSettingIfUnchanged:async(key:string,old:unknown,next:unknown)=>{if(state.settings.get(key)!==old)return false;state.settings.set(key,next);return true}},projects:{assertApp:async()=>{},assertSession:async(id:string)=>{if(state.locked.has(id))throw Error('Locked')}},assets:{remove:(key:string)=>state.remove(key)}})}))
+vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({db:{aliases:async()=>state.aliases,getSetting:async(key:string)=>state.settings.get(key),setSettingIfUnchanged:async(key:string,old:unknown,next:unknown)=>{if(state.settings.get(key)!==old)return false;state.settings.set(key,next);return true}},projects:{isApplicationLocked:async()=>state.appLocked,assertApp:async()=>{if(state.appLocked)throw Error('App locked')},assertStorage:async()=>{},assertSession:async(id:string)=>{if(state.locked.has(id))throw Error('Locked')}},assets:{remove:(key:string)=>state.remove(key)}})}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{repository:{meta:{getAllIncludingHidden:async()=>[...state.headers.values()]}},getSessionHeader:async(id:string)=>state.headers.has(id)?{header:state.headers.get(id)}:null,createSession:async(input:any)=>{const header={...input,id:'created-'+(++state.count)};state.headers.set(header.id,header);return header},updateSessionHeader:async(id:string,patch:any)=>state.headers.set(id,{...state.headers.get(id),...patch}),setSessionSystemPrompt:vi.fn(),deleteSession:vi.fn(async(id:string)=>state.headers.delete(id))}}}))
 vi.mock('./backend',()=>({localMCPTools:async()=>[{name:'app_model',inputSchema:{type:'object',properties:{provider:{type:'string'}},required:['provider'],additionalProperties:false}},{name:'session_file',inputSchema:{type:'object'}}],handleSessionLocalMCP:(...args:any[])=>state.call(...args)}))
 vi.mock('./knowledge',()=>({applicationKnowledgeTools:async()=>({knowledge_document:tool({inputSchema:z.object({collectionId:z.number(),fileId:z.number()}).strict(),execute:async()=>({text:'Scoped knowledge source'})})})}))
@@ -23,7 +23,7 @@ vi.mock('@/packages/multi-agent/runtime',()=>({disposeTemporaryAgentRoot:(id:str
 import {handleApplicationMCP} from './application'
 const grant=(mode:'full'|'shadow'|'router',token='test-token'):LocalMCPGrant=>({running:true,sessionId:'application',endpointId:crypto.randomUUID(),application:LocalMCPApplicationSchema.parse({name:mode,mode,manageChats:true,providers:['venice']}),url:'http://127.0.0.1:3000/mcp',token,startedAt:1,permissions:{...defaultLocalMCPPermissions,writeFiles:true,models:true,venice:true}})
 const call=(grant:LocalMCPGrant,name:string,args:Record<string,unknown>={})=>handleApplicationMCP({id:crypto.randomUUID(),operation:'call_tool',grant,name,arguments:args},new AbortController().signal)
-beforeEach(()=>{state.settings.clear();state.headers.clear();state.live=[];state.locked.clear();state.count=0;state.aliases=[];state.images=[];vi.clearAllMocks();state.dispose.mockResolvedValue([]);state.remove.mockImplementation(async(key:string)=>{state.aliases=state.aliases.filter(alias=>alias!==key)});state.call.mockResolvedValue({text:'Result'});vi.stubGlobal('window',{dispatchEvent:vi.fn(),electronAPI:{invoke:vi.fn(async(_channel,command,id)=>command==='list'?state.live:state.live.find(item=>item.endpointId===id)||{running:false})}})})
+beforeEach(()=>{state.settings.clear();state.headers.clear();state.live=[];state.locked.clear();state.appLocked=false;state.count=0;state.aliases=[];state.images=[];vi.clearAllMocks();state.dispose.mockResolvedValue([]);state.remove.mockImplementation(async(key:string)=>{state.aliases=state.aliases.filter(alias=>alias!==key)});state.call.mockResolvedValue({text:'Result'});vi.stubGlobal('window',{dispatchEvent:vi.fn(),electronAPI:{invoke:vi.fn(async(_channel,command,id)=>command==='list'?state.live:state.live.find(item=>item.endpointId===id)||{running:false})}})})
 it('confines shadows to their own contexts, rejects another endpoint and never lists locked names',async()=>{
   const a=grant('shadow','a'),b=grant('shadow','b');state.live=[a,b]
   state.headers.set('personal',{id:'personal',name:'Private business chat',settings:{}})
@@ -57,6 +57,20 @@ it('revocation is checked before returning app data and unknown parameters canno
   const g=grant('shadow');state.live=[g]
   await expect(call(g,'app_contexts',{action:'create',request_id:'a',settings:{apiKey:'no'}})).rejects.toThrow('arguments')
   state.live=[];await expect(call(g,'app_contexts',{action:'list'})).rejects.toThrow('revoked');expect(state.count).toBe(0)
+})
+it('keeps only already granted sessions available to an app-wide endpoint with background access', async () => {
+  const allowed = { ...grant('full'), keepWhileLocked: true, allowOperationsWhileLocked: true }
+  const baseline = { ...grant('full', 'other'), keepWhileLocked: true }
+  state.live = [allowed, baseline]
+  state.appLocked = true
+  state.headers.set('ordinary', { id: 'ordinary', name: 'Allowed document chat' })
+  state.headers.set('protected', { id: 'protected', name: 'Hidden protected project' })
+  state.locked.add('protected')
+  const result = await handleApplicationMCP({ id: 'list', operation: 'call_tool', name: 'app_contexts', arguments: { action: 'list' }, grant: allowed, locked: true }, new AbortController().signal)
+  expect(JSON.stringify(result)).toContain('Allowed document chat')
+  expect(JSON.stringify(result)).not.toContain('Hidden protected project')
+  await expect(call(baseline, 'app_contexts', { action: 'list' })).rejects.toThrow('App locked')
+  await expect(call(allowed, 'app_contexts', { action: 'get', sessionId: 'protected' })).rejects.toThrow('Locked')
 })
 
 it('refuses cleanup while a paid operation is running, then removes only its own temporary context',async()=>{

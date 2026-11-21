@@ -32,12 +32,21 @@ it('correlates app replies by an unpredictable request identity and forwards can
 })
 it('enforces restricted lock admission before renderer dispatch and resumes the kept endpoint', async () => {
   const f=fixture()
-  const config={...f.config,sessionId:'application',endpointId:crypto.randomUUID(),keepWhileLocked:true,permissions:{...defaultLocalMCPPermissions,models:true,automaticModels:true},application:LocalMCPApplicationSchema.parse({mode:'router',name:'Router'})}
+  const config={...f.config,sessionId:'application',endpointId:crypto.randomUUID(),keepWhileLocked:true,permissions:{...defaultLocalMCPPermissions,models:true,automaticModels:true,venice:true},application:LocalMCPApplicationSchema.parse({mode:'router',name:'Router'})}
   const grant=await f.invoke('local-mcp:control','start',config)
   await f.invoke('local-mcp:control','suspend',true)
   const signal=new AbortController().signal
   await expect(state.backend.readResource(grant,'chatbox-session://private/file',signal)).rejects.toThrow('Unlock Chatbox')
-  await expect(state.backend.callTool(grant,'venice_studio',{},'id',signal)).rejects.toThrow('Unlock Chatbox')
+  for (const action of ['generate', 'status', 'quote', 'wait', 'voices', 'cleanup_remote']) {
+    await expect(state.backend.callTool(grant,'venice_studio',{action},'id',signal)).rejects.toThrow('Unlock Chatbox')
+  }
+  for (const [name, action] of [['venice_studio', 'catalog'], ['venice_image', 'models'], ['venice_media', 'catalog']]) {
+    const response = state.backend.callTool(grant,name,{action},'id',signal)
+    const request = f.sender.send.mock.calls.at(-1)![1]
+    expect(request).toMatchObject({operation:'call_tool',name,arguments:{action},locked:true})
+    await f.invoke('local-mcp:reply',request.id,{result:['catalog']})
+    expect(await response).toEqual(['catalog'])
+  }
   await expect(f.invoke('local-mcp:control','start',f.config)).rejects.toThrow('Unlock Chatbox')
   const allowed=state.backend.callTool(grant,'app_model',{},'id',signal)
   const request=f.sender.send.mock.calls.at(-1)![1]
@@ -47,4 +56,23 @@ it('enforces restricted lock admission before renderer dispatch and resumes the 
   await f.invoke('local-mcp:control','resume')
   expect(await f.invoke('local-mcp:control','status',grant.endpointId)).toMatchObject({running:true,token:grant.token})
   await f.invoke('local-mcp:control','stop-all')
+})
+it('admits granted advanced calls only for opt-in endpoints and closes storage admission on revocation', async () => {
+  const f = fixture()
+  const config = { ...f.config, sessionId: 'application', endpointId: crypto.randomUUID(), keepWhileLocked: true,
+    allowOperationsWhileLocked: true, permissions: { ...defaultLocalMCPPermissions, venice: true },
+    application: LocalMCPApplicationSchema.parse({ mode: 'router', name: 'Background Studio', automaticStudio: true }) }
+  const grant = await f.invoke('local-mcp:control', 'start', config)
+  expect(await f.invoke('local-mcp:control', 'background-access')).toBe(false)
+  await f.invoke('local-mcp:control', 'suspend', true)
+  expect(await f.invoke('local-mcp:control', 'background-access')).toBe(true)
+  const signal = new AbortController().signal
+  await expect(state.backend.callTool(grant, 'app_conversation', { action: 'read' }, 'id', signal)).rejects.toThrow('Unlock Chatbox')
+  const response = state.backend.callTool(grant, 'venice_studio', { action: 'generate' }, 'id', signal)
+  const request = f.sender.send.mock.calls.at(-1)![1]
+  expect(request).toMatchObject({ name: 'venice_studio', locked: true, grant: { allowOperationsWhileLocked: true } })
+  await f.invoke('local-mcp:reply', request.id, { result: 'studio' })
+  expect(await response).toBe('studio')
+  await f.invoke('local-mcp:control', 'stop-endpoint', grant.endpointId)
+  expect(await f.invoke('local-mcp:control', 'background-access')).toBe(false)
 })

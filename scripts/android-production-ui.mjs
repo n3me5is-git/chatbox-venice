@@ -14,16 +14,53 @@ const adb=(...args)=>execFileSync('adb',args,{encoding:'utf8',timeout:30000}).tr
 assert.equal(adb('shell','getprop','ro.kernel.qemu'),'1','This destructive fixture is for disposable emulators only')
 adb('install','-r','android/app/build/outputs/apk/debug/app-debug.apk')
 adb('shell','pm','grant',app,'android.permission.POST_NOTIFICATIONS')
+adb('reverse', 'tcp:4176', 'tcp:4176')
 adb('shell','am','start','-n',app+'/.MainActivity')
 let socket,serial=0,pending=new Map(),cdp,evaluate,embeddingRequest,started,requestAt
 const fixtureRequests=[]
+const audioFixture = Buffer.alloc(2044)
+Buffer.from('52494646f407000057415645666d74201000000001000100401f0000803e00000200100064617461d0070000', 'hex').copy(audioFixture)
+let audioQueueRequest
 const fixtureModels = { data: [
   { id: 'fixture-embedding', type: 'embedding', model_spec: { name: 'Fixture embedding', privacy: 'private' } },
   { id: 'fixture-image', type: 'image', model_spec: { name: 'Fixture Image', privacy: 'private', uncensored: false, constraints: { supportsNegativePrompt: true } } },
   { id: 'fixture-image-edit', type: 'inpaint', model_spec: { name: 'Fixture Image Edit', privacy: 'private', uncensored: false, constraints: { maxInputImages: 1 } } },
   { id: 'fixture-multi-edit', type: 'inpaint', model_spec: { name: 'Fixture Multi Edit', privacy: 'anonymized', uncensored: false, constraints: { maxInputImages: 3 } } },
+  { id: 'seed-audio-1-0', type: 'music', model_spec: { name: 'Seed Audio 1.0', supports_reference_audios: true, max_reference_audios: 3, voices: ['Describe in prompt', 'Tim'] } },
 ] }
-const server=createServer(async(request,response)=>{fixtureRequests.push({method:request.method,path:request.url});response.setHeader('Access-Control-Allow-Origin','*');response.setHeader('Access-Control-Allow-Private-Network','true');response.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');response.setHeader('Access-Control-Allow-Headers',request.headers['access-control-request-headers']||'Authorization, Content-Type');if(request.method==='OPTIONS'){response.writeHead(204).end();return}let body='';for await(const chunk of request){body+=chunk;if(body.length>1024*1024){response.writeHead(413).end();return}}response.setHeader('Content-Type','application/json');if(request.url.includes('/embeddings')){embeddingRequest={response,body:JSON.parse(body)};requestAt=Date.now()}else response.end(JSON.stringify(fixtureModels))});await new Promise(resolve=>server.listen(4176,'127.0.0.1',resolve))
+const server = createServer(async (request, response) => {
+  fixtureRequests.push({ method: request.method, path: request.url })
+  response.setHeader('Access-Control-Allow-Origin', '*')
+  response.setHeader('Access-Control-Allow-Private-Network', 'true')
+  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  response.setHeader('Access-Control-Allow-Headers', request.headers['access-control-request-headers'] || 'Authorization, Content-Type')
+  if (request.method === 'OPTIONS') { response.writeHead(204).end(); return }
+  let body = ''
+  for await (const chunk of request) {
+    body += chunk
+    if (body.length > 1024 * 1024) { response.writeHead(413).end(); return }
+  }
+  const path = new URL(request.url, 'http://127.0.0.1').pathname
+  response.setHeader('Content-Type', 'application/json')
+  if (path.endsWith('/embeddings')) {
+    embeddingRequest = { response, body: JSON.parse(body) }
+    requestAt = Date.now()
+  } else if (path.endsWith('/api_keys/rate_limits')) {
+    response.end(JSON.stringify({ data: { balances: { USD: 0, DIEM: 1.25, BUNDLED_CREDITS: 5 } } }))
+  } else if (path.endsWith('/audio/queue')) {
+    audioQueueRequest = JSON.parse(body)
+    response.end(JSON.stringify({ model: 'seed-audio-1-0', queue_id: 'android-reference-job', status: 'QUEUED' }))
+  } else if (path.endsWith('/audio/retrieve')) {
+    response.setHeader('Content-Type', 'audio/wav')
+    response.end(audioFixture)
+  } else if (path.endsWith('/audio/complete')) {
+    response.end(JSON.stringify({ success: true }))
+  } else {
+    // Also exercise compatible gateways that return the unfiltered list for the TTS query.
+    response.end(JSON.stringify(fixtureModels))
+  }
+})
+await new Promise(resolve => server.listen(4176, '127.0.0.1', resolve))
 const report={device:'Android emulator API35',actualProductionApp:true,syntheticProvider:true,cloudModelCalls:0,fixtureRequests,networkErrors:[]},errors=[]
 async function wait(check,message,timeout=60000){const end=Date.now()+timeout;while(Date.now()<end){try{const value=await check();if(value)return value}catch{}await delay(150)}throw Error(message)}
 const snap=async name=>{if(evaluate)await evaluate(`document.visibilityState==='visible'?Promise.race([new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))),new Promise(resolve=>setTimeout(resolve,500))]):true`);await delay(150);await writeFile(output+'/'+name+'.png',execFileSync('adb',['exec-out','screencap','-p'],{timeout:30000}))}
@@ -51,7 +88,7 @@ try{
  await wait(()=>evaluate(`window.Capacitor.nativePromise('CapacitorSQLite','query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]}).then(rows=>JSON.parse(rows.values?.[0]?.value||'null')?.languageInited===true)`),'First-launch language initialization did not settle')
  await delay(1500)
  // Seed only this disposable app's real SQLite settings, never production source/test hooks.
- await evaluate(`(async()=>{const call=(method,args)=>window.Capacitor.nativePromise('CapacitorSQLite',method,args);const rows=await call('query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]});const settings={...${JSON.stringify(fixtureDefaults)},...JSON.parse(rows.values?.[0]?.value||'null')};Object.assign(settings,{language:'it-IT',languageInited:true,theme:0,defaultEmbeddingModel:{provider:'venice',model:'fixture-embedding'}});settings.providers={...settings.providers,venice:{apiKey:'SYNTHETIC-UI-FIXTURE',apiHost:'http://10.0.2.2:4176/api/v1',models:[{modelId:'fixture-embedding',type:'embedding'}],venice:{enabled:true,showOtherModels:true}}};await call('run',{database:'chatbox.db',statement:"INSERT OR REPLACE INTO key_value(key,value) VALUES ('settings',?)",values:[JSON.stringify(settings)]});})()`)
+ await evaluate(`(async()=>{const call=(method,args)=>window.Capacitor.nativePromise('CapacitorSQLite',method,args);const rows=await call('query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]});const settings={...${JSON.stringify(fixtureDefaults)},...JSON.parse(rows.values?.[0]?.value||'null')};Object.assign(settings,{language:'it-IT',languageInited:true,theme:0,defaultEmbeddingModel:{provider:'venice',model:'fixture-embedding'}});settings.providers={...settings.providers,venice:{apiKey:'SYNTHETIC-UI-FIXTURE',apiHost:'http://127.0.0.1:4176/api/v1',models:[{modelId:'fixture-embedding',type:'embedding'}],venice:{enabled:true,audioEnabled:true,showOtherModels:true}}};await call('run',{database:'chatbox.db',statement:"INSERT OR REPLACE INTO key_value(key,value) VALUES ('settings',?)",values:[JSON.stringify(settings)]});})()`)
  report.seededSettings=await evaluate(`(async()=>{const call=(method,args)=>window.Capacitor.nativePromise('CapacitorSQLite',method,args);const rows=await call('query',{database:'chatbox.db',statement:"SELECT value FROM key_value WHERE key='settings'",values:[]});return JSON.parse(rows.values?.[0]?.value||'null')})().then(s=>({language:s?.language,initialized:s?.languageInited,embedding:s?.defaultEmbeddingModel,syntheticProvider:s?.providers?.venice?.apiKey==='SYNTHETIC-UI-FIXTURE'}))`);assert.equal(report.seededSettings.language,'it-IT')
  socket.close();adb('shell','am','force-stop',app);adb('shell','am','start','-n',app+'/.MainActivity');await connect()
  await wait(()=>evaluate(`!!document.querySelector('.startup-error')||document.readyState==='complete'&&document.body.innerText.length>30`),'App did not restart')
@@ -135,5 +172,31 @@ try{
  }
  assert.ok(fixtureRequests.every(request=>!request.path.includes('/image/generate')&&!request.path.includes('/image/edit')), 'An image was generated during the Android UI test')
  report.imageReferencePicker = ['native image creator', 'Venice Studio']
+ await wait(() => evaluate('document.body.innerText.includes("1,25 DIEM") && document.body.innerText.includes("Crediti API inclusi: 5")'), 'Studio did not show the two distinct balances in Italian')
+ report.veniceBalances = true
+ await clickExpression('[...document.querySelectorAll("label")].find(e=>e.textContent.trim()==="Voce")')
+ await wait(() => evaluate('!!document.querySelector(\'input[type="file"][accept="audio/*"]\') || [...document.querySelectorAll("button")].some(e=>e.textContent.trim()==="Carica modelli")'), 'Voice composer did not open')
+ if (await evaluate('[...document.querySelectorAll("button")].some(e=>e.textContent.trim()==="Carica modelli")')) await click('Carica modelli')
+ const referenceInput = 'document.querySelector(\'input[type="file"][accept="audio/*"]\')'
+ await wait(() => evaluate('!!(' + referenceInput + ')'), 'Seed Audio reference input did not appear')
+ await clickExpression('(' + referenceInput + ').parentElement.querySelector("button")')
+ await wait(() => evaluate('document.body.innerText.includes("Da questo dispositivo") && document.body.innerText.includes("Dalla libreria locale")'), 'Android did not offer both audio upload sources')
+ adb('shell', 'input', 'keyevent', '4')
+ await wait(() => evaluate('!document.body.innerText.includes("Da questo dispositivo")'), 'Android Back did not close the audio chooser')
+ await evaluate(`(()=>{const transfer=new DataTransfer();transfer.items.add(new File([Uint8Array.from(atob(${JSON.stringify(audioFixture.toString('base64'))}), c=>c.charCodeAt(0))],'android-reference.wav',{type:'audio/wav'}));const input=${referenceInput};input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}))})()`)
+ await wait(() => evaluate('document.body.innerText.includes("android-reference.wav")'), 'The attached audio did not appear')
+ await clickExpression('document.querySelector("textarea")')
+ adb('shell', 'input', 'text', '@Audio1%sNative%sreference')
+ await wait(() => evaluate('document.querySelector("textarea").value.includes("@Audio1")'), 'Android did not enter the reference prompt')
+ await evaluate(`document.activeElement?.blur();window.Capacitor.nativePromise('Keyboard','hide',{}).catch(()=>{})`)
+ await snap('native-studio-audio-reference-it')
+ await click('Genera voce')
+ await wait(() => audioQueueRequest, 'The Android reference never reached the media service')
+ assert.equal(audioQueueRequest.model, 'seed-audio-1-0')
+ assert.match(audioQueueRequest.prompt, /@Audio1/)
+ assert.deepEqual(audioQueueRequest.reference_audio_urls, ['data:audio/wav;base64,' + audioFixture.toString('base64')])
+ assert.equal(audioQueueRequest.voice, undefined)
+ await wait(() => fixtureRequests.some(request => request.path.endsWith('/audio/complete')), 'The simulated reference generation did not finish')
+ report.audioReferenceGeneration = true
  report.passed=true
 }catch(error){report.passed=false;report.error=String(error);try{if(cdp)await snap('failure');if(evaluate)report.body=await evaluate('document.body.innerText');report.logcat=adb('logcat','-d','-t','300').slice(-30000)}catch{}throw error}finally{report.browserErrors=errors;await writeFile(output+'/report.json',JSON.stringify(report,null,2));socket?.close();if(embeddingRequest?.response&&!embeddingRequest.response.writableEnded)embeddingRequest.response.end('{}');server.close()}
