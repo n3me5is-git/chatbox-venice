@@ -15,7 +15,7 @@ const models=[{id:'private-secure',type:'text',model_spec:{name:'Private secure 
 let initialized:Promise<void>|undefined
 export async function seedLibrary(){
  const envelopes=new Map<string,string>(),vault=vaultRuntimeFor(platform as any,{databaseName:new URLSearchParams(location.search).has('screen')?'screen-library-'+crypto.randomUUID():'mobile-review-library',device:{capabilities:async()=>({encryption:true,biometric:false,name:'Simulated device key'}),protect:async value=>{const id=crypto.randomUUID();envelopes.set(id,value);return id},unprotect:async id=>{const value=envelopes.get(id);if(!value)throw Error('Missing simulated key');return value}}})
- Object.assign(vault,{projects:{assertApp:async()=>{},libraryKeyVisible:async()=>true,assertLibraryKey:async()=>{}},media:{get:async(id:string)=>id==='music-record'?{kind:'music'}:null}})
+ Object.assign(vault,{projects:{assertApp:async()=>{},assertStorage:async()=>{},isApplicationLocked:async()=>false,libraryKeyVisible:async()=>true,assertLibraryKey:async()=>{}},media:{get:async(id:string)=>id==='music-record'?{kind:'music'}:null}})
  await vault.keys.configure('app',{pin:'123456',biometric:false})
  const canvas=document.createElement('canvas');canvas.width=160;canvas.height=120;const context=canvas.getContext('2d')!;context.fillStyle='#ff9900';context.fillRect(0,0,160,120)
  await vault.assets.put(dataUrlBytes(canvas.toDataURL('image/png')),{name:'Local orange landscape',mime:'image/png',kind:'image'},'public','review-image')
