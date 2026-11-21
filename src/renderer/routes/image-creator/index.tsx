@@ -5,9 +5,7 @@ import { chooseUploadSource } from '@/components/local-library/UploadSource'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
 import { CreationUnlock } from '@/components/security/CreationUnlock'
 import { forkT as ft } from '@/i18n/fork'
-import { acceptsImageReferences, imageVariant } from '@shared/providers/definitions/models/venice/image-reference-model'
-import { useReferenceModelSelection } from '@/hooks/useReferenceModelSelection'
-import { ReferenceModelControl } from '@/components/venice/ReferenceModelControl'
+import { imageVariant } from '@shared/providers/definitions/models/venice/image-reference-model'
 import { VeniceImageEditor } from '@/components/venice/VeniceImageEditor'
 import { VeniceBalance } from '@/components/venice/VeniceBalance'
 import { ChatGPTAllowance } from '@/components/settings/provider/ChatGPTAllowance'
@@ -41,7 +39,6 @@ import {
   IconHistory,
   IconPhoto,
   IconPlus,
-  IconSparkles,
 } from '@tabler/icons-react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -49,7 +46,6 @@ import { useTranslation } from 'react-i18next'
 import { JK_PAGE_NAMES } from '@/analytics/jk-events'
 import { ChatboxWelcomeCard } from '@/components/common/ChatboxWelcomeCard'
 import errorNoticeClasses from '@/components/common/ErrorNotice.module.css'
-import { ImageModelSelect } from '@/components/ImageModelSelect'
 import { VeniceModelInfo } from '@/components/venice/VeniceModelInfo'
 import { VeniceModelBadges } from '@/components/venice/VeniceModelBadges'
 import { VeniceImageSettings, VeniceNegativePrompt } from '@/components/settings/provider/VeniceSettings'
@@ -84,7 +80,7 @@ import { EmptyState } from './-components/EmptyState'
 import { GeneratedImagesGallery } from './-components/GeneratedImagesGallery'
 import { HistoryPanel } from './-components/HistoryPanel'
 import { ImageGenerationErrorTips } from './-components/ImageGenerationErrorTips'
-import { MobileHistoryDrawer, MobileModelDrawer, MobileRatioDrawer } from './-components/MobileDrawers'
+import { MobileHistoryDrawer, MobileRatioDrawer } from './-components/MobileDrawers'
 import {
   getHistoryImageModelDisplayName as resolveHistoryImageModelDisplayName,
   getImageModelDisplayName as resolveImageModelDisplayName,
@@ -94,6 +90,9 @@ import {
   resolveImageModelSelection,
   resolveImageRatioSelection,
 } from './-components/model-selection'
+import { ImageComposerModelPicker } from './-components/ImageComposerModelPicker'
+import { ImageReferenceNotice } from './-components/ImageReferenceNotice'
+import { resolveReferenceSelection } from './-components/reference-selection'
 import { PromptDisplay } from './-components/PromptDisplay'
 import { ReferenceImagesPreview } from './-components/ReferenceImagesPreview'
 import { LoadingShimmer } from './-components/Shimmer'
@@ -112,10 +111,9 @@ export const Route = createFileRoute('/image-creator/')({
 interface InputToolbarProps {
   isSmallScreen: boolean
   modelGroups: ImageModelGroup[]
-  modelDisplayName: string
+  selection: { provider: string; model: string } | null
   selectedRatio: string
   ratioOptions: string[]
-  onModelDrawerOpen: () => void
   onRatioDrawerOpen: () => void
   onRatioSelect: (ratio: string) => void
   onModelSelect: (provider: string, model: string) => void
@@ -126,10 +124,9 @@ interface InputToolbarProps {
 function InputToolbar({
   isSmallScreen,
   modelGroups,
-  modelDisplayName,
+  selection,
   selectedRatio,
   ratioOptions,
-  onModelDrawerOpen,
   onRatioDrawerOpen,
   onRatioSelect,
   onModelSelect,
@@ -139,37 +136,15 @@ function InputToolbar({
   const { t } = useTranslation()
 
   return (
-    <Flex align="center" gap={0} className="shrink-0 w-full min-w-0" justify="space-between" style={{ overflowX: 'auto', overscrollBehaviorX: 'contain' }} aria-label={ft('Scrollable image tools')}>
-      {/* Left Group: Model, Ratio, Reference */}
-      <Flex align="center" gap={0} style={{ flexShrink: 0 }}>
-        {/* Model Select */}
-        {isSmallScreen ? (
-          <UnstyledButton
-            onClick={onModelDrawerOpen}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[var(--chatbox-background-tertiary)] transition-colors"
-          >
-            <IconSparkles size={16} className="text-[var(--chatbox-tint-secondary)]" />
-            <Text size="sm" className="text-[var(--chatbox-tint-secondary)] max-w-[120px] truncate">
-              {modelDisplayName}
-            </Text>
-            <IconChevronRight size={14} className="text-[var(--chatbox-tint-tertiary)] rotate-90" />
-          </UnstyledButton>
-        ) : (
-          <ImageModelSelect modelGroups={modelGroups} onSelect={onModelSelect}>
-            <UnstyledButton className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[var(--chatbox-background-tertiary)] transition-colors">
-              <IconSparkles size={16} className="text-[var(--chatbox-tint-secondary)]" />
-              <Text size="sm" className="text-[var(--chatbox-tint-secondary)] max-w-[120px] truncate">
-                {modelDisplayName}
-              </Text>
-              <IconChevronRight size={14} className="text-[var(--chatbox-tint-tertiary)] rotate-90" />
-            </UnstyledButton>
-          </ImageModelSelect>
-        )}
+    <Flex align="center" wrap="wrap" gap={4} w="100%" miw={0} justify="space-between" aria-label={ft('Image tools')}>
+      <Flex align="center" wrap="wrap" gap={0} miw={0}>
+        <ImageComposerModelPicker groups={modelGroups} selection={selection} onSelect={onModelSelect} />
 
         {/* Ratio Select */}
         {isSmallScreen ? (
           <UnstyledButton
             onClick={onRatioDrawerOpen}
+            mih={44}
             className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[var(--chatbox-background-tertiary)] transition-colors"
           >
             <IconAspectRatio size={16} className="text-[var(--chatbox-tint-secondary)]" />
@@ -204,6 +179,7 @@ function InputToolbar({
         {/* Reference Image Button */}
         <UnstyledButton
           onClick={onAddReference}
+          mih={44}
           className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[var(--chatbox-background-tertiary)] transition-colors"
         >
           <IconPhoto size={16} className="text-[var(--chatbox-tint-secondary)]" />
@@ -216,11 +192,7 @@ function InputToolbar({
       {/* Right Group: New Creation */}
       <Flex align="center" gap={4}>
         {/* New Creation Button */}
-        {isSmallScreen ? (
-          <ActionIcon variant="light" size="md" radius="lg" onClick={onNewCreation}>
-            <IconPlus size={18} />
-          </ActionIcon>
-        ) : (
+        {!isSmallScreen && (
           <Button
             variant="light"
             size="compact-md"
@@ -288,18 +260,21 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   const picture = useLastUsedModelStore((state) => state.picture)
   const [showHistory, setShowHistory] = useState(true)
   const [showMobileHistory, setShowMobileHistory] = useState(false)
-  const selection = resolveImageModelSelection(
-    imageModelGroups,
-    picture?.provider ?? ModelProviderEnum.ChatboxAI,
-    picture?.modelId ?? ''
-  )
+  const referenceSelection = useMemo(() => {
+    const preferredModel = referenceImages.length && picture && (!onlyVenice || picture.provider === ModelProviderEnum.Venice)
+      ? { provider: picture.provider, model: picture.modelId }
+      : resolveImageModelSelection(imageModelGroups, picture?.provider ?? ModelProviderEnum.ChatboxAI, picture?.modelId ?? '')
+    return resolveReferenceSelection(imageModelGroups, preferredModel, referenceImages.length)
+  }, [imageModelGroups, onlyVenice, picture, referenceImages.length])
+  const { selection, groups: selectableGroups, review } = referenceSelection
+  const [confirmedReview, setConfirmedReview] = useState<string>()
+  useEffect(() => { if (!review) setConfirmedReview(undefined) }, [review?.key])
+  const pendingReview = review?.key !== confirmedReview ? review : undefined
+  const canSubmitWithModel = !!selection && !referenceSelection.requiresReference && !pendingReview
   const selectedProvider = selection?.provider ?? ''
   const selectedModel = selection?.model ?? ''
   const [selectedRatio, setSelectedRatio] = useState<string>('auto')
-  const [showModelDrawer, setShowModelDrawer] = useState(false)
   const [showRatioDrawer, setShowRatioDrawer] = useState(false)
-  const [showReferenceModelPicker,setShowReferenceModelPicker]=useState(false)
-  const [automaticReferenceModel,setAutomaticReferenceModel]=useState(true)
 
   const selectedModelCapabilities = useMemo(
     () =>
@@ -314,10 +289,6 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   )
 
   const selectedOption = imageModelGroups.find(group => group.providerId === selectedProvider)?.models.find(model => model.modelId === selectedModel)
-  const selectAutomaticReferenceModel=useCallback((id:string)=>lastUsedModelStore.getState().setPictureModel(selectedProvider,id),[selectedProvider])
-  const referenceSelection=useReferenceModelSelection({models:selectedProvider==='venice'?imageModelGroups.find(group=>group.providerId==='venice')?.models||[]:[],selectedId:selectedModel,count:referenceImages.length,automatic:selectedProvider==='venice'&&automaticReferenceModel,onSelect:selectAutomaticReferenceModel})
-  const referenceCompatible=referenceImages.length===0||(selectedProvider==='venice'?referenceSelection.compatible:!selectedOption?.capabilities||acceptsImageReferences(selectedOption,referenceImages.length))
-  const referenceModelGroups=imageModelGroups.map(group=>({...group,models:group.models.filter(model=>!model.capabilities||acceptsImageReferences(model,referenceImages.length))})).filter(group=>group.models.length>0)
   const currentGeneratingId = useCurrentGeneratingId()
   const currentRecordId = useCurrentRecordId()
   const { data: currentRecordRaw } = useImageGenerationRecord(currentRecordId)
@@ -349,7 +320,6 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
 
   const handleModelSelect = useCallback(
     (provider: string, model: string) => {
-      setAutomaticReferenceModel(false)
       lastUsedModelStore.getState().setPictureModel(provider, model)
 
       const capabilities = imageModelGroups
@@ -358,11 +328,11 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
       const newRatioOptions = getImageModelRatioOptions(model, capabilities)
       setSelectedRatio((prev) => resolveImageRatioSelection(prev, newRatioOptions))
     },
-    [imageModelGroups,referenceImages.length]
+    [imageModelGroups]
   )
 
   const handleSubmit = useCallback(async () => {
-    if (!prompt.trim() || isCurrentlyGenerating || isImportingReferences || referenceImportError || !referenceCompatible) return
+    if (!prompt.trim() || isCurrentlyGenerating || isImportingReferences || referenceImportError || !canSubmitWithModel) return
     if (!selectedModel) {
       toastActions.add(t('Please select a model'))
       return
@@ -398,7 +368,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
       log.error('Failed to generate image:', error)
       toastActions.add(error instanceof Error?error.message:ft('Unable to generate image'))
     }
-  }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, isImportingReferences, referenceImportError, referenceCompatible, batchCount, t,saveProtected,vault])
+  }, [prompt, beginSubmission, selectedProvider, selectedModel, selectedRatio, isCurrentlyGenerating, isImportingReferences, referenceImportError, canSubmitWithModel, batchCount, t,saveProtected,vault])
 
   const handleQuickPromptSubmit = useCallback((quickPrompt:string)=>{if(isCurrentlyGenerating)return;setPrompt(quickPrompt);textareaRef.current?.focus()},[isCurrentlyGenerating])
 
@@ -431,6 +401,7 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
     void clearReferenceImages()
     imageGenerationStore.getState().setCurrentRecordId(null)
     setPrompt('')
+    setConfirmedReview(undefined)
     textareaRef.current?.focus()
   }, [clearReferenceImages])
 
@@ -454,30 +425,16 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
     [imageModelGroups, providers]
   )
 
-  const modelDisplayName = useMemo(() => {
-    if (!selectedModel) return t('No models available')
-    return getImageModelDisplayName({
-      provider: selectedProvider,
-      modelId: selectedModel,
-    })
-  }, [selectedProvider, selectedModel, getImageModelDisplayName, t])
-
   const getHistoryImageModelDisplayName = useCallback(
     (model: ImageGenerationModel) => resolveHistoryImageModelDisplayName(model, { imageModelGroups, providers }),
     [imageModelGroups, providers]
   )
 
   const headerRight = isSmallScreen ? (
-    <ActionIcon
-      variant="subtle"
-      color="gray"
-      size="md"
-      radius="lg"
-      onClick={() => setShowMobileHistory(true)}
-      className="controls"
-    >
-      <IconHistory size={20} />
-    </ActionIcon>
+    <Group gap={0} wrap="nowrap" className="controls">
+      <ActionIcon variant="subtle" color="gray" size={44} aria-label={t('New Creation')} onClick={handleNewCreation}><IconPlus size={20} /></ActionIcon>
+      <ActionIcon variant="subtle" color="gray" size={44} aria-label={t('History')} onClick={() => setShowMobileHistory(true)}><IconHistory size={20} /></ActionIcon>
+    </Group>
   ) : (
     <UnstyledButton
       onClick={() => setShowHistory(!showHistory)}
@@ -560,124 +517,134 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
           </ScrollArea>
 
           {/* Input Area */}
-          <Box py="xs" px="sm" style={{flexShrink:0,maxHeight:'42dvh',overflowY:'auto',overscrollBehavior:'contain',touchAction:'pan-y'}}>
-            <Stack gap="sm" maw={800} mx="auto">
-              {!currentRecord && welcomeCardMode !== 'none' && (
-                <ChatboxWelcomeCard mode={welcomeCardMode} pageName={JK_PAGE_NAMES.IMAGE_PAGE} />
-              )}
+          <Box px="sm" py="xs" style={{ flexShrink: 0 }}>
+            <Box style={{ maxHeight: isSmallScreen ? '42dvh' : '48dvh', overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
+              <Stack gap="sm" maw={800} mx="auto">
+                {!currentRecord && welcomeCardMode !== 'none' && (
+                  <ChatboxWelcomeCard mode={welcomeCardMode} pageName={JK_PAGE_NAMES.IMAGE_PAGE} />
+                )}
 
-              <ReferenceImagesPreview
-                images={referenceImages}
-                onCrop={key=>void cropReference(key).catch(error=>toastActions.add(String(error instanceof Error?error.message:error)))}
-                onRemove={handleRemoveReferenceImage}
-                onAddClick={uploadSource}
+                <ReferenceImagesPreview
+                  images={referenceImages}
+                  onCrop={key=>void cropReference(key).catch(error=>toastActions.add(String(error instanceof Error?error.message:error)))}
+                  onRemove={handleRemoveReferenceImage}
+                  onAddClick={uploadSource}
+                />
+                {isImportingReferences&&<Text size="xs" c="dimmed">{ft('Wait until the reference images have finished loading')}</Text>}
+                {referenceImportError&&<Group><Text size="xs" c="red">{ft(referenceImportError)}</Text><Button size="compact-xs" variant="subtle" onClick={()=>void clearReferenceImages()}>{ft('Clear selection')}</Button></Group>}
+                {pendingReview && <ImageReferenceNotice key={pendingReview.key} review={pendingReview} onConfirm={() => setConfirmedReview(pendingReview.key)} />}
+                {referenceImages.length > 0 && !selection && <Text size="sm" c="orange.8">{ft(selectableGroups.length ? 'Choose a model that accepts all attached images before generating.' : 'No available model can use all attached images. Remove an image or enable a compatible model.')}</Text>}
+                {referenceSelection.requiresReference && <Text size="sm" c="dimmed">{ft('Add a reference image to use this model.')}</Text>}
+                {selectedProvider==='venice'&&selectedOption&&referenceImages.length===0&&<Text size="xs" c="dimmed">{ft(imageVariant(selectedOption.vendorMetadata)||'Images')}{selectedOption.capabilities?.inputReferences?' · '+ft('Up to {{count}} reference images',{count:selectedOption.capabilities.inputReferences.max??1}):''}</Text>}
+                {selectedProvider===ModelProviderEnum.OpenAISubscription&&selectedOption?.capabilities?.inputReferences&&<Text size="xs" c="dimmed">{ft('Up to {{count}} local references; your account may apply additional limits.',{count:selectedOption.capabilities.inputReferences.max??1})}</Text>}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={event => {
+                    const files = Array.from(event.currentTarget.files ?? [])
+                    event.currentTarget.value = ''
+                    void handleImageUpload(files)
+                  }}
+                />
+
+                <Box
+                  className="rounded-lg bg-[var(--chatbox-background-secondary)] px-3 py-2"
+                  style={{ border: '1px solid var(--chatbox-border-primary)' }}
+                >
+                  <Stack gap="xs">
+                    {/* Input Row */}
+                    <Flex align="flex-end" gap={4}>
+                      <ImagePromptField
+                        ref={textareaRef}
+                        placeholder={t('Describe the image you want to create...') || ''}
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        onPaste={(e) => {
+                          const items = Array.from(e.clipboardData.items)
+                          const images = items
+                            .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+                            .map((item) => item.getAsFile())
+                            .filter((file): file is File => file !== null)
+                          if (images.length === 0) return
+
+                          if (!items.some((item) => item.kind === 'string' && item.type === 'text/plain')) {
+                            e.preventDefault()
+                          }
+                          handleImageUpload(images)
+                        }}
+                        minRows={2}
+                        maxRows={6}
+                        autosize
+                        size="sm"
+                        className="flex-1"
+                        styles={{
+                          root: { flex: 1 },
+                          wrapper: { flex: 1 },
+                          input: {
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            paddingLeft: 8,
+                            paddingRight: 8,
+                            '&:focus': { border: 'none', boxShadow: 'none' },
+                          },
+                        }}
+                      />
+
+                      {/* Send / Stop Button */}
+                      <ActionIcon
+                        size={36}
+                        aria-label={isCurrentlyGenerating ? t('Cancel') : ft('Generate image')}
+                        variant="filled"
+                        color={isCurrentlyGenerating ? 'dark' : 'chatbox-brand'}
+                        radius="xl"
+                        onClick={isCurrentlyGenerating ? cancelGeneration : handleSubmit}
+                        disabled={(!prompt.trim() || !selectedModel || isImportingReferences || !!referenceImportError || !canSubmitWithModel) && !isCurrentlyGenerating}
+                        className={`shrink-0 mb-1 ${(!prompt.trim() || !selectedModel) && !isCurrentlyGenerating ? SEND_BUTTON_BLOCKED_CLASS : ''}`}
+                        style={{ cursor: isCurrentlyGenerating ? 'pointer' : undefined }}
+                      >
+                        {isCurrentlyGenerating ? <Loader size={16} color="white" /> : <IconArrowUp size={16} />}
+                      </ActionIcon>
+                    </Flex>
+
+                    {selectedProvider === ModelProviderEnum.Venice && <VeniceBalance />}
+                    {selectedProvider === ModelProviderEnum.OpenAISubscription && <><ChatGPTAllowance compact /><Text size="xs" c="dimmed">{ft('ChatGPT Images lets the subscription backend choose the image model. Add a custom image model and select its endpoint to request a specific model ID.')}</Text></>}
+                    <Button size="xs" variant="subtle" onClick={()=>setImageSettingsOpen(true)}>{ft('Image settings')}</Button>
+                    {selectedProvider===ModelProviderEnum.Venice&&<VeniceNegativePrompt model={selectedOption}/>}
+                    <AdaptiveModal opened={imageSettingsOpen} onClose={()=>setImageSettingsOpen(false)} title={ft('Image settings')} size="lg"><Stack>{selectedProvider===ModelProviderEnum.Venice&&<VeniceImageSettings model={selectedOption}/>}
+
+                    {/* Toolbar Row */}
+                    <Checkbox label={ft('Save new creations as protected')} checked={saveProtected} onChange={event=>setSaveProtected(event.currentTarget.checked)}/>
+                    {saveProtected&&!vault.keys.isUnlocked('app')&&<ScopeUnlock keys={vault.keys}/>}
+                    <Group justify="space-between" align="end" wrap="wrap"><NumberInput label={ft('Images per request')} description={ft("Each image may incur a cost")} min={1} max={4} value={batchCount} onChange={value => setBatchCount(Math.min(4, Math.max(1, Number(value) || 1)))} w={170} />
+                    {selectedProvider === 'venice' && <><VeniceModelBadges metadata={selectedOption?.vendorMetadata} /><VeniceModelInfo model={selectedOption ? { id: selectedModel, type: String(selectedOption.vendorMetadata?.veniceType || 'image'), model_spec: selectedOption.vendorMetadata } : undefined} /></>}</Group>
+                    </Stack></AdaptiveModal>
+                    {selectedProvider==='venice'&&selectedOption&&<VeniceModelCost metadata={selectedOption.vendorMetadata} showLabel/>}
+                    {(onlyVenice||selectedProvider==='venice')&&venicePrivacyFilter!=='all'&&<Text size="xs" c="dimmed">{ft('Some models are hidden by your Venice Privacy Only filter.')}</Text>}
+                  </Stack>
+                </Box>
+
+                <Text className="disclaimer-safe-area" size="xs" c="dimmed" ta="center">
+                  {t('AI-generated images may not be accurate. Review output carefully.')}
+                </Text>
+              </Stack>
+            </Box>
+            <Box maw={800} mx="auto" pt={4}>
+              <InputToolbar
+                isSmallScreen={isSmallScreen}
+                modelGroups={selectableGroups}
+                selection={selection}
+                selectedRatio={selectedRatio}
+                ratioOptions={ratioOptions}
+                onRatioDrawerOpen={() => setShowRatioDrawer(true)}
+                onRatioSelect={setSelectedRatio}
+                onModelSelect={handleModelSelect}
+                onAddReference={uploadSource}
+                onNewCreation={handleNewCreation}
               />
-              {isImportingReferences&&<Text size="xs" c="dimmed">{ft('Wait until the reference images have finished loading')}</Text>}
-              {referenceImportError&&<Group><Text size="xs" c="red">{ft(referenceImportError)}</Text><Button size="compact-xs" variant="subtle" onClick={()=>void clearReferenceImages()}>{ft('Clear selection')}</Button></Group>}
-              <ReferenceModelControl model={selectedOption} count={referenceImages.length} compatible={referenceCompatible} privacyChange={referenceSelection.privacyChange} automatic={automaticReferenceModel} onAutomaticChange={selectedProvider==='venice'?setAutomaticReferenceModel:undefined} onChoose={()=>setShowReferenceModelPicker(true)} editing={selectedProvider===ModelProviderEnum.OpenAISubscription}/>
-              {selectedProvider==='venice'&&selectedOption&&referenceImages.length===0&&<Text size="xs" c="dimmed">{ft(imageVariant(selectedOption.vendorMetadata)||'Images')}{selectedOption.capabilities?.inputReferences?' · '+ft('Up to {{count}} reference images',{count:selectedOption.capabilities.inputReferences.max??1}):''}</Text>}
-              {selectedProvider===ModelProviderEnum.OpenAISubscription&&selectedOption?.capabilities?.inputReferences&&<Text size="xs" c="dimmed">{ft('Up to {{count}} local references; your account may apply additional limits.',{count:selectedOption.capabilities.inputReferences.max??1})}</Text>}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                style={{ display: 'none' }}
-                onChange={(e) => handleImageUpload(e.target.files)}
-              />
-
-              <Box
-                className="rounded-lg bg-[var(--chatbox-background-secondary)] px-3 py-2"
-                style={{ border: '1px solid var(--chatbox-border-primary)' }}
-              >
-                <Stack gap="xs">
-                  {/* Input Row */}
-                  <Flex align="flex-end" gap={4}>
-                    <ImagePromptField
-                      ref={textareaRef}
-                      placeholder={t('Describe the image you want to create...') || ''}
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      onPaste={(e) => {
-                        const items = Array.from(e.clipboardData.items)
-                        const images = items
-                          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-                          .map((item) => item.getAsFile())
-                          .filter((file): file is File => file !== null)
-                        if (images.length === 0) return
-
-                        if (!items.some((item) => item.kind === 'string' && item.type === 'text/plain')) {
-                          e.preventDefault()
-                        }
-                        handleImageUpload(images)
-                      }}
-                      minRows={2}
-                      maxRows={6}
-                      autosize
-                      size="sm"
-                      className="flex-1"
-                      styles={{
-                        root: { flex: 1 },
-                        wrapper: { flex: 1 },
-                        input: {
-                          border: 'none',
-                          backgroundColor: 'transparent',
-                          paddingLeft: 8,
-                          paddingRight: 8,
-                          '&:focus': { border: 'none', boxShadow: 'none' },
-                        },
-                      }}
-                    />
-
-                    {/* Send / Stop Button */}
-                    <ActionIcon
-                      size={32}
-                      variant="filled"
-                      color={isCurrentlyGenerating ? 'dark' : 'chatbox-brand'}
-                      radius="xl"
-                      onClick={isCurrentlyGenerating ? cancelGeneration : handleSubmit}
-                      disabled={(!prompt.trim() || !selectedModel || isImportingReferences || !!referenceImportError || !referenceCompatible) && !isCurrentlyGenerating}
-                      className={`shrink-0 mb-1 ${(!prompt.trim() || !selectedModel) && !isCurrentlyGenerating ? SEND_BUTTON_BLOCKED_CLASS : ''}`}
-                      style={{ cursor: isCurrentlyGenerating ? 'pointer' : undefined }}
-                    >
-                      {isCurrentlyGenerating ? <Loader size={16} color="white" /> : <IconArrowUp size={16} />}
-                    </ActionIcon>
-                  </Flex>
-
-                  {selectedProvider === ModelProviderEnum.Venice && <VeniceBalance />}
-                  {selectedProvider === ModelProviderEnum.OpenAISubscription && <><ChatGPTAllowance compact /><Text size="xs" c="dimmed">{ft('ChatGPT Images lets the subscription backend choose the image model. Add a custom image model and select its endpoint to request a specific model ID.')}</Text></>}
-                  <Button size="xs" variant="subtle" onClick={()=>setImageSettingsOpen(true)}>{ft('Image settings')}</Button>
-                  {selectedProvider===ModelProviderEnum.Venice&&<VeniceNegativePrompt model={selectedOption}/>}
-                  <AdaptiveModal opened={imageSettingsOpen} onClose={()=>setImageSettingsOpen(false)} title={ft('Image settings')} size="lg"><Stack>{selectedProvider===ModelProviderEnum.Venice&&<VeniceImageSettings model={selectedOption} showNegativePrompt={false}/>}
-
-                  {/* Toolbar Row */}
-                  <Checkbox label={ft('Save new creations as protected')} checked={saveProtected} onChange={event=>setSaveProtected(event.currentTarget.checked)}/>
-                  {saveProtected&&!vault.keys.isUnlocked('app')&&<ScopeUnlock keys={vault.keys}/>}
-                  <Group justify="space-between" align="end" wrap="wrap"><NumberInput label={ft('Images per request')} description={ft("Each image may incur a cost")} min={1} max={4} value={batchCount} onChange={value => setBatchCount(Math.min(4, Math.max(1, Number(value) || 1)))} w={170} />
-                  {selectedProvider === 'venice' && <><VeniceModelBadges metadata={selectedOption?.vendorMetadata} /><VeniceModelInfo model={selectedOption ? { id: selectedModel, type: String(selectedOption.vendorMetadata?.veniceType || 'image'), model_spec: selectedOption.vendorMetadata } : undefined} /></>}</Group>
-                  </Stack></AdaptiveModal>
-                  {selectedProvider==='venice'&&selectedOption&&<VeniceModelCost metadata={selectedOption.vendorMetadata} showLabel/>}
-                  {(onlyVenice||selectedProvider==='venice')&&venicePrivacyFilter!=='all'&&<Text size="xs" c="dimmed">{ft('Some models are hidden by your Venice Privacy Only filter.')}</Text>}
-                  <InputToolbar
-                    isSmallScreen={isSmallScreen}
-                    modelGroups={imageModelGroups}
-                    modelDisplayName={modelDisplayName}
-                    selectedRatio={selectedRatio}
-                    ratioOptions={ratioOptions}
-                    onModelDrawerOpen={() => setShowModelDrawer(true)}
-                    onRatioDrawerOpen={() => setShowRatioDrawer(true)}
-                    onRatioSelect={setSelectedRatio}
-                    onModelSelect={handleModelSelect}
-                    onAddReference={uploadSource}
-                    onNewCreation={handleNewCreation}
-                  />
-                </Stack>
-              </Box>
-
-              <Text className="disclaimer-safe-area" size="xs" c="dimmed" ta="center">
-                {t('AI-generated images may not be accurate. Review output carefully.')}
-              </Text>
-            </Stack>
+            </Box>
           </Box>
         </Flex>
 
@@ -701,7 +668,6 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
         )}
 
         {/* Mobile Drawers */}
-        <MobileModelDrawer open={showReferenceModelPicker} onOpenChange={setShowReferenceModelPicker} modelGroups={referenceModelGroups} selectedProvider={selectedProvider} selectedModel={selectedModel} onSelect={handleModelSelect}/>
         {isSmallScreen && (
           <>
             <MobileHistoryDrawer
@@ -717,15 +683,6 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
               onLoadMore={handleLoadMoreHistory}
               onNewCreation={handleNewCreation}
               onDelete={handleDelete}
-            />
-
-            <MobileModelDrawer
-              open={showModelDrawer}
-              onOpenChange={setShowModelDrawer}
-              modelGroups={imageModelGroups}
-              selectedProvider={selectedProvider}
-              selectedModel={selectedModel}
-              onSelect={handleModelSelect}
             />
 
             <MobileRatioDrawer

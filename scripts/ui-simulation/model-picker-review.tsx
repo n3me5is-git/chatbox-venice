@@ -1,4 +1,4 @@
-import { Button } from '@mantine/core'
+import { Button, Group, Stack } from '@mantine/core'
 import { useState } from 'react'
 import fixture from '../../test/fixtures/venice/catalog-2026-11-08.json'
 import type { MediaCatalogItem } from '../../src/shared/providers/definitions/models/venice/media'
@@ -12,7 +12,38 @@ import { ModelRow } from '../../src/renderer/components/ModelSelectorV2/ModelRow
 import { ReferenceModelControl } from '../../src/renderer/components/venice/ReferenceModelControl'
 import { useReferenceModelSelection } from '../../src/renderer/hooks/useReferenceModelSelection'
 import { acceptsImageReferences } from '../../src/shared/providers/definitions/models/venice/image-reference-model'
+import { ImageComposerModelPicker } from '../../src/renderer/routes/image-creator/-components/ImageComposerModelPicker'
+import { ImageReferenceNotice } from '../../src/renderer/routes/image-creator/-components/ImageReferenceNotice'
+import { resolveReferenceSelection } from '../../src/renderer/routes/image-creator/-components/reference-selection'
+import { NegativePromptField } from '../../src/renderer/components/venice/NegativePromptField'
 const referenceRows=[{modelId:'reference-choice',displayName:'Private source model',vendorMetadata:{veniceType:'image',privacy:'private',pricing:{generation:{usd:0.02}}},capabilities:{aspectRatio:null,inputReferences:null}},{modelId:'reference-choice-edit',displayName:'Anonymized reference editor',vendorMetadata:{veniceType:'inpaint',privacy:'anonymized',constraints:{maxInputImages:3},pricing:{inpaint:{usd:0.04}}},capabilities:{aspectRatio:null,inputReferences:{min:1,max:3}}}]
+const unifiedReferences = [{ providerId: 'venice', label: 'Venice', models: [
+  referenceRows[0],
+  { ...referenceRows[1], displayName: 'Private family variant', vendorMetadata: { veniceType: 'inpaint', privacy: 'private', constraints: { maxInputImages: 2 }, pricing: { inpaint: { usd: 0.02 } } }, capabilities: { aspectRatio: null, inputReferences: { min: 1, max: 2 } } },
+  ...Array.from({ length: 24 }, (_, index) => ({ ...referenceRows[1], modelId: `other-${index}-edit`, displayName: `Other compatible model ${index + 1}` })),
+] }]
+
+function UnifiedReferenceFixture() {
+  const [preferred, setPreferred] = useState({ provider: 'venice', model: 'reference-choice' })
+  const [count, setCount] = useState(0)
+  const [confirmed, setConfirmed] = useState<string>()
+  const [negative, setNegative] = useState('')
+  const { selection, groups, review, requiresReference } = resolveReferenceSelection(unifiedReferences, preferred, count)
+  const pending = review && review.key !== confirmed ? review : undefined
+  return <Stack p="sm" data-unified-reference-test>
+    <Group>
+      <Button onClick={() => { setCount(1); setPreferred({ provider: 'venice', model: 'reference-choice' }); setConfirmed(undefined) }}>Attach a fixture image</Button>
+      <Button onClick={() => setCount(3)}>Attach two more fixture images</Button>
+      <Button onClick={() => { setCount(0); setConfirmed(undefined) }}>Remove fixture images</Button>
+    </Group>
+    {pending && <ImageReferenceNotice review={pending} onConfirm={() => setConfirmed(pending.key)} />}
+    <Group wrap="wrap">
+      <ImageComposerModelPicker groups={groups} selection={selection} onSelect={(provider, model) => setPreferred({ provider, model })} />
+      <Button disabled={!selection || requiresReference || !!pending}>Generate fixture image</Button>
+    </Group>
+    {selection?.model === 'reference-choice' && <NegativePromptField value={negative} onChange={setNegative} />}
+  </Stack>
+}
 function ReferenceChoiceFixture(){
  const [id,setId]=useState('reference-choice'),[automatic,setAutomatic]=useState(true),[picker,setPicker]=useState(false)
  const selection=useReferenceModelSelection({models:referenceRows,selectedId:id,count:1,automatic,onSelect:setId})
@@ -39,6 +70,7 @@ export function ModelPickerReviewSimulation() {
   const [allOpen,setAllOpen]=useState(false)
   const [toolsRevision,setToolsRevision]=useState(0)
   const [referenceOpen,setReferenceOpen]=useState(false)
+  const [unifiedOpen, setUnifiedOpen] = useState(false)
   const pick = (provider: string, model: string) => { setSelected(model); (window as any).__longImageSelection = model;(window as any).__nativeImageSelection={provider,model} }
   ;(window as any).__pickerFixture = { imageIds: images.map(row => row.modelId), videoIds: videos.map(row => row.id),workflows:Object.fromEntries(['text','image','references','edit'].map(workflow=>[workflow,videos.filter(model=>videoWorkflows(model).includes(workflow as any)).map(model=>model.id)])) }
   return <>
@@ -52,6 +84,8 @@ export function ModelPickerReviewSimulation() {
     <Button m="sm" onClick={() => setStudio(true)}>Test long Studio model list</Button>
     <Button m="sm" onClick={()=>setAllOpen(true)}>Test all image providers</Button>
     <Button m="sm" onClick={()=>setReferenceOpen(true)}>Test explicit reference choice</Button>
+    <Button m="sm" onClick={() => setUnifiedOpen(open => !open)}>{unifiedOpen ? 'Close unified image composer' : 'Test unified image composer'}</Button>
+    {unifiedOpen && <UnifiedReferenceFixture />}
     <AdaptiveModal opened={referenceOpen} onClose={()=>setReferenceOpen(false)} title="Reference privacy choice" size="lg">{referenceOpen&&<ReferenceChoiceFixture/>}<Button onClick={()=>setReferenceOpen(false)}>Close reference choice</Button></AdaptiveModal>
     <ImageModelSelect modelGroups={groups} onSelect={pick}><span>Test desktop image model list</span></ImageModelSelect>
     <MobileModelDrawer open={imagesOpen} onOpenChange={setImagesOpen} modelGroups={groups} selectedModel={selected} selectedProvider="venice" onSelect={pick}/>

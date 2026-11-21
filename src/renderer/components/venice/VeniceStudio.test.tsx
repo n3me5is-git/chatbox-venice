@@ -46,7 +46,7 @@ describe('Venice Studio simulated user journeys', () => {
     service.catalog.mockResolvedValue(['wan-2.5-preview-text-to-video', 'seedance-2.5-text-to-video'].map((id, i) => ({ id, type: 'video', model_spec: { name: i ? 'Seedance test' : 'Wan test', constraints: { model_type: 'text-to-video', durations: ['5s'], aspect_ratios: ['16:9'] } } })))
     show(service)
     fireEvent.click(screen.getByRole('button', { name: 'Load models' }))
-    await waitFor(() => expect(screen.getByLabelText('Elements to avoid')).toBeTruthy())
+    fireEvent.click(await screen.findByRole('button', { name: 'Add negative prompt' }))
     fireEvent.change(screen.getByLabelText('Describe your video'), { target: { value: 'A calm mountain scene' } })
     fireEvent.change(screen.getByLabelText('Elements to avoid'), { target: { value: 'Jitter and blur' } })
     fireEvent.click(screen.getByRole('button', { name: 'Show cost' }))
@@ -103,6 +103,54 @@ describe('Venice Studio simulated user journeys', () => {
     await waitFor(()=>expect(service.start).toHaveBeenCalledWith(expect.objectContaining({prompt:'Strictly edit <Video 1>, change the sky to sunset',model:'seedance-2-5-reference-to-video-basic',options:expect.objectContaining({duration:'auto',aspect_ratio:'adaptive',omni_reference_task_type:'edit',reference_video_urls:[expect.stringContaining('data:video/mp4;base64,')]})})))
     expect(service.start.mock.calls).toEqual([[expect.objectContaining({options:expect.not.objectContaining({reference_video_total_duration:expect.anything()})})]])
     expect(view.container.querySelectorAll('input[type="file"]')).not.toHaveLength(0)
+  })
+
+  it('keeps start and end frames when switching models and filters out start-only models', async () => {
+    const service = setup()
+    service.testKind = 'video'
+    service.catalog.mockResolvedValue([
+      { id: 'clip-first', type: 'video', model_spec: { name: 'First and last', constraints: { model_type: 'image-to-video', supports_end_image: true } } },
+      { id: 'clip-second', type: 'video', model_spec: { name: 'Another first and last', constraints: { model_type: 'image-to-video', supports_end_image: true } } },
+      { id: 'clip-start', type: 'video', model_spec: { name: 'Start only', constraints: { model_type: 'image-to-video' } } },
+    ])
+    show(service)
+    fireEvent.click(screen.getByRole('button', { name: 'Load models' }))
+    const first = await screen.findByLabelText('Start image', { selector: 'input' })
+    fireEvent.change(first, { target: { files: [new File(['start'], 'start.png', { type: 'image/png' })] } })
+    fireEvent.change(screen.getByLabelText('End frame', { selector: 'input' }), { target: { files: [new File(['end'], 'end.png', { type: 'image/png' })] } })
+    fireEvent.click(screen.getByLabelText('Model', { selector: 'input' }))
+    expect(screen.queryByRole('option', { name: /Start only/ })).toBeNull()
+    fireEvent.click(screen.getByRole('option', { name: /Another first and last/ }))
+    expect(screen.getByText('start.png')).toBeTruthy()
+    expect(screen.getByText('end.png')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Describe your video'), { target: { value: 'Morph between the two frames' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create video' }))
+    await waitFor(() => expect(service.start).toHaveBeenCalledWith(expect.objectContaining({ model: 'clip-second', options: expect.objectContaining({
+      image_url: 'data:image/png;base64,c3RhcnQ=', end_image_url: 'data:image/png;base64,ZW5k',
+    }) })))
+  })
+
+  it('retains every uploaded reference when the initial model accepts fewer images', async () => {
+    const service = setup()
+    service.testKind = 'video'
+    service.catalog.mockResolvedValue([
+      { id: 'first-reference-to-video', type: 'video', model_spec: { name: 'Four references' } },
+      { id: 'seedance-2-0-reference-to-video-basic', type: 'video', model_spec: { name: 'Nine references' } },
+    ])
+    show(service)
+    fireEvent.click(screen.getByRole('button', { name: 'Load models' }))
+    const upload = await screen.findByLabelText('Reference images', { selector: 'input' })
+    const files = Array.from({ length: 5 }, (_, index) => new File(['image'], `image-${index}.png`, { type: 'image/png' }))
+    fireEvent.change(upload, { target: { files } })
+    expect(await screen.findByText('Choose a model that accepts all attached media.')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Describe your video'), { target: { value: 'Cut between all five references' } })
+    expect((screen.getByRole('button', { name: 'Create video' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByLabelText('Model', { selector: 'input' }))
+    expect(screen.queryByRole('option', { name: /Four references/ })).toBeNull()
+    fireEvent.click(screen.getByRole('option', { name: /Nine references/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create video' }))
+    await waitFor(() => expect(service.start).toHaveBeenCalledTimes(1))
+    expect(service.start.mock.calls[0][0].options.reference_image_urls).toHaveLength(files.length)
   })
   it('opens local history without network, and keeps technical settings collapsed', async () => {
     const service = setup(); show(service); await screen.findByText("Your first creation is waiting")
