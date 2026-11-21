@@ -57,7 +57,7 @@ export function lockedStudioCatalogTools(grant: LocalMCPGrant, signal: AbortSign
     venice_studio: tool({
       description: 'List Venice Studio models or read the parameters, pricing and usage of one model while Chatbox is locked.',
       inputSchema: z.object({ action: z.enum(['catalog', 'describe']), kind: z.enum(studioKinds).optional(), model: z.string().max(256).optional() }).strict(),
-      execute: input => {
+      execute: async input => {
         if (input.action === 'catalog') return catalog().list(input.kind, input.model)
         if (!input.kind || !input.model) throw Error('Provide kind and the exact model ID from the catalog')
         return catalog().describe(input.kind, input.model)
