@@ -3,6 +3,7 @@ import {failureReason,responseFailureReason} from './failure-reason'
 it('preserves the actual HTTP validation reason and nested field errors',async()=>{
  const response=new Response(JSON.stringify({detail:[{loc:['body','duration'],msg:'Choose 5 or 10 seconds'}]}),{status:422})
  expect(await responseFailureReason(response)).toBe('duration: Choose 5 or 10 seconds')
+ expect(await responseFailureReason(new Response(JSON.stringify({error:'Invalid body',details:{_errors:[],duration_seconds:{_errors:['Use 60–120 seconds']}}}),{status:400}))).toBe('Invalid body\nduration_seconds: Use 60–120 seconds')
  expect(failureReason('Venice /music/generate failed (HTTP 400): Invalid voice. No paid request was retried.')).toBe('Invalid voice')
  expect(failureReason('{"error":{"message":"Insufficient funds"}}')).toBe('Insufficient funds')
 })

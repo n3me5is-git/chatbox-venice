@@ -12,4 +12,12 @@ export const sharedChatStatus=(id:string)=>status(id)
 export const subscribeSharedChatStatus=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener)}}
 export const notifySharedChatStatus=()=>{for(const listener of listeners)listener()}
 export const isSharedChat=(sessionId:string)=>check(sessionId)
-export const routeSharedDecision:Router=(id,requester,input,local,encode,decode,signal)=>router?router(id,requester,input,local,encode,decode,signal):requester!=='owner'?Promise.resolve(decode(null)):local(signal||new AbortController().signal)
+export const routeSharedDecision:Router=async(id,requester,input,local,encode,decode,signal)=>{
+  const checkLocal = async (localSignal: AbortSignal) => {
+    const [{ installedVaultFor }, { default: platform }] = await Promise.all([import('@/packages/vault/runtime'), import('@/platform')])
+    if (await installedVaultFor(platform)?.projects?.isApplicationLocked()) throw Error(ft('Unlock Chatbox to respond to this request'))
+    localSignal.throwIfAborted()
+    return local(localSignal)
+  }
+  return router ? router(id,requester,input,checkLocal,encode,decode,signal) : requester!=='owner' ? decode(null) : checkLocal(signal||new AbortController().signal)
+}

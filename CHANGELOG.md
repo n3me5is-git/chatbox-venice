@@ -1,5 +1,12 @@
 # Changelog — Chatbox Venice
 
+## 1.57.1
+
+- Keep permitted Venice Studio catalogs and model details available through a locked desktop router.
+- Let app-wide MCP endpoints opt in to granted operations on unprotected data while the app is locked.
+- Describe Studio model inputs and pricing and validate generation requests before submitting them.
+- Validate music options against the exact model and report provider field errors. Accept uploaded audio references in Studio and through MCP for models that declare support.
+
 ## 1.57.0
 
 - Use one image model picker in Image Creator and Venice Studio, filtered by the number of attached references.

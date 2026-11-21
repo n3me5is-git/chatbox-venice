@@ -35,7 +35,7 @@ export class LocalMCPServer {
     try{await new Promise<void>((resolve,reject)=>{http.once('error',reject);http.listen(parsed.port,'127.0.0.1',()=>{http.off('error',reject);resolve()})})}
     catch(error){this.http=undefined;http.close();throw error}
     const address=http.address();if(!address||typeof address==='string')throw new Error('Local MCP address unavailable')
-    this.grant={running:true,sessionId:parsed.sessionId,...(parsed.endpointId?{endpointId:parsed.endpointId}:{}),...(parsed.application?{application:parsed.application}:{}),keepWhileLocked:parsed.keepWhileLocked,permissions:parsed.permissions,token,url:'http://127.0.0.1:'+address.port+'/mcp',startedAt}
+    this.grant={running:true,sessionId:parsed.sessionId,...(parsed.endpointId?{endpointId:parsed.endpointId}:{}),...(parsed.application?{application:parsed.application}:{}),keepWhileLocked:parsed.keepWhileLocked,allowOperationsWhileLocked:parsed.allowOperationsWhileLocked,permissions:parsed.permissions,token,url:'http://127.0.0.1:'+address.port+'/mcp',startedAt}
     this.accessToken = accessToken
     return this.state()
   }

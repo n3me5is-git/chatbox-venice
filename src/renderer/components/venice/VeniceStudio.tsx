@@ -16,11 +16,11 @@ import { VeniceModelInfo } from './VeniceModelInfo'
 import { VeniceRecorder } from './VeniceRecorder'
 import { speechSupportsStylePrompt, videoSupportsNegativePrompt } from '@shared/providers/definitions/models/venice/studio-capabilities'
 import { VeniceVoiceCloning, type VoiceService } from './VeniceVoiceCloning'
-import { acceptsVideoMedia, supportsMediaKind, musicDuration, musicOptions, videoInputs, videoWorkflows, videoWorkflowRequest, videoReferenceLimits, seedanceReferenceModel, type VideoWorkflow } from '@shared/providers/definitions/models/venice/media-capabilities'
+import { acceptsVideoMedia, audioQueueCapabilities, supportsMediaKind, musicDuration, musicOptions, videoInputs, videoWorkflows, videoWorkflowRequest, videoReferenceLimits, seedanceReferenceModel, type VideoWorkflow } from '@shared/providers/definitions/models/venice/media-capabilities'
 import { Accordion, Alert, Badge, Button, Checkbox, Code, Group, Loader, NumberInput, Paper, SegmentedControl, Select, ScrollArea, SimpleGrid, Slider, Stack, Text, Textarea, TextInput, ThemeIcon, Title } from '@mantine/core'
 import { IconMicrophone, IconMusic, IconPlayerPlay, IconRefresh, IconVideo, IconWaveSine } from '@tabler/icons-react'
 import { useEffect,useMemo,useRef, useState,useSyncExternalStore } from 'react'
-import { voiceFileDuration,validateVoiceDuration } from '@/packages/voice-file'
+import { audioReferenceURLs, voiceFileDuration,validateVoiceDuration } from '@/packages/voice-file'
 import { installedVaultFor } from '@/packages/vault/runtime'
 import { lockedMediaRecord } from '@/packages/vault/media-records'
 import { ScopeUnlock } from '@/components/security/ScopeUnlock'
@@ -59,6 +59,7 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
   const [duration, setDuration] = useState('5s'); const [seconds, setSeconds] = useState<number | string>(30)
   const [aspect, setAspect] = useState(''); const [resolution, setResolution] = useState(''); const [audio, setAudio] = useState(false)
   const [endImage, setEndImage] = useState<File | null>(null); const [referenceImages, setReferenceImages] = useState<File[]>([]); const [sourceVideo, setSourceVideo] = useState<File | null>(null); const [referenceVideos, setReferenceVideos] = useState<File[]>([]); const [referenceAudio, setReferenceAudio] = useState<File[]>([]); const [audioFile, setAudioFile] = useState<File | null>(null)
+  const [audioReferences, setAudioReferences] = useState<File[]>([])
   const [loop, setLoop] = useState(false); const [optimizer, setOptimizer] = useState(false)
   const [lyrics, setLyrics] = useState(''); const [instrumental, setInstrumental] = useState(false)
   const [negativePrompt, setNegativePrompt] = useState(''); const [stylePrompt, setStylePrompt] = useState('')
@@ -79,9 +80,13 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
     images: referenceImages.length, videos: referenceVideos.length, audio: referenceAudio.length,
   }
   const hasVideoMedia = kind === 'video' && Object.values(videoMedia).some(Boolean)
-  const compatible = hasVideoMedia ? workflowModels.filter(item => acceptsVideoMedia(item, videoWorkflow, videoMedia)) : workflowModels
+  const hasAudioReferences = audioReferences.length > 0
+  const compatible = workflowModels.filter(item => (!hasVideoMedia || acceptsVideoMedia(item, videoWorkflow, videoMedia))
+    && (!hasAudioReferences || item.type === 'music' && (audioQueueCapabilities(item).references?.max ?? 0) >= audioReferences.length))
   const selected = compatible.find(item => item.id === model)
   const unavailableVideoModel = kind === 'video' && !selected && (hasVideoMedia || videoWorkflow !== 'all' || catalog.some(item => item.id === model))
+  const unavailableModel = unavailableVideoModel || hasAudioReferences && !selected
+  const audioOptions = selected?.type === 'music' ? audioQueueCapabilities(selected) : undefined
   const videoSupport = videoInputs(selected); const music = musicDuration(selected); const spec = selected?.model_spec
   const referenceLimits=videoReferenceLimits(selected)
   const editingReferences=videoWorkflow==='edit'&&seedanceReferenceModel(selected)
@@ -114,13 +119,14 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
     return () => { live = false; unsubscribe() }
   }, [service,privacyRevision])
   useEffect(() => {
-    if (selected || hasVideoMedia) return
+    if (selected || hasVideoMedia || hasAudioReferences) return
     if (compatible.length) pickModel(compatible[0])
     else if (model) setModel('')
-  }, [catalog, kind, videoWorkflow, hasVideoMedia, options.privacyFilter, options.showOtherModels, options.mediaModelIds])
-  useEffect(() => setQuote(''), [kind, model, videoWorkflow, prompt, negativePrompt, stylePrompt, voice, format, speed, language, duration, seconds, lyrics, instrumental, extra, aspect, resolution, audio, image, endImage, referenceImages, sourceVideo, referenceVideos, referenceAudio, audioFile, loop, optimizer])
+  }, [catalog, kind, videoWorkflow, hasVideoMedia, hasAudioReferences, options.privacyFilter, options.showOtherModels, options.mediaModelIds])
+  useEffect(() => setQuote(''), [kind, model, videoWorkflow, prompt, negativePrompt, stylePrompt, voice, format, speed, language, duration, seconds, lyrics, instrumental, extra, aspect, resolution, audio, image, endImage, referenceImages, sourceVideo, referenceVideos, referenceAudio, audioFile, audioReferences, loop, optimizer])
   const run = async (work: () => Promise<unknown>) => { operation.current=new AbortController();setError(''); setBusy(true); try { await work() } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) } }
-  const speechOptions = () => selected?.type==='music' ? musicOptions(selected,{seconds:Number(seconds),instrumental:false,lyrics:'',voice,speed,language}) : ({ voice: voice || undefined, response_format: format === 'auto' ? undefined : format, speed,
+  const selectedVoice = hasAudioReferences ? undefined : voice
+  const speechOptions = () => selected?.type==='music' ? musicOptions(selected,{seconds:Number(seconds),instrumental:false,lyrics:'',voice:selectedVoice,speed,language}) : ({ voice: voice || undefined, response_format: format === 'auto' ? undefined : format, speed,
     ...(language !== 'auto' && !model.includes('kokoro') ? { language: /qwen|minimax/i.test(model) ? fullLanguages[language] : language } : {}),
     ...(speechSupportsStylePrompt(selected) && stylePrompt.trim() ? { prompt: stylePrompt.trim() } : {}) })
   const input = async (references = true) => {const signal=operation.current?.signal;const durationSeconds=kind==='voice-conversion'&&file?await voiceFileDuration(file,signal):undefined;if(durationSeconds!==undefined)validateVoiceDuration(durationSeconds,0,Number(spec?.max_source_audio_duration_seconds||300));const workflow=kind==='video'?videoWorkflowRequest(selected,videoWorkflow,prompt):{prompt,options:{}};
@@ -132,20 +138,23 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
     ...(kind==='voice-conversion'&&!references&&durationSeconds!==undefined?{duration_seconds:Math.ceil(durationSeconds)}:{}),
     ...(kind === 'speech' ? speechOptions() : {}), ...(kind === 'voice-conversion' ? { voice: voice || spec?.default_voice, ...(spec?.supports_background_noise_removal === true ? { remove_background_noise: instrumental } : {}) } : {}), ...(kind === 'transcription' && language !== 'auto' ? { language } : {}),
     ...(kind === 'video' ? { duration, ...(aspect ? { aspect_ratio: aspect } : {}), ...(resolution ? { resolution } : {}), ...(videoSupport.audio ? { audio } : {}), ...(references && videoSupport.start && image ? { image_url: await imageDataUrl(image) } : {}), ...(references && videoSupport.end && endImage ? { end_image_url: await imageDataUrl(endImage) } : {}), ...(references && videoSupport.references && referenceImages.length ? { reference_image_urls: await Promise.all(referenceImages.map(imageDataUrl)) } : {}), ...(videoSupport.video && !editingReferences && sourceVideo ? { video_url: await mediaFileDataUrl(sourceVideo, 'video') } : {}), ...(references && videoSupport.referenceVideos && referenceVideos.length ? { reference_video_urls: await Promise.all(referenceVideos.map(file => mediaFileDataUrl(file, 'video'))) } : {}), ...(references && videoSupport.referenceAudio && referenceAudio.length ? { reference_audio_urls: await Promise.all(referenceAudio.map(file => mediaFileDataUrl(file, 'audio'))) } : {}), ...(references && videoSupport.audioInput && audioFile ? { audio_url: await mediaFileDataUrl(audioFile, 'audio') } : {}) } : {}),
-    ...((kind === 'music' || kind === 'sound-effects') ? { ...musicOptions(selected, { seconds: Number(seconds), instrumental, lyrics, loop, optimizer, voice, speed, language }) } : {}),
+    ...((kind === 'music' || kind === 'sound-effects') ? musicOptions(selected, { seconds: Number(seconds), instrumental, lyrics, loop, optimizer, voice: selectedVoice, speed, language }) : {}),
     ...(kind==='video' && videoSupportsNegativePrompt(selected) && negativePrompt.trim() ? { negative_prompt: negativePrompt.trim() } : {}),
     ...parseExtraBody(extra), ...(kind==='video'?workflow.options:{}),
+    ...(references && hasAudioReferences && audioOptions?.references ? { reference_audio_urls: await audioReferenceURLs(audioReferences, audioOptions.references, signal) } : {}),
     ...(!references&&kind==='video'&&totalClipDuration>0?{reference_video_total_duration:totalClipDuration}:{}),
   } }}
   const missingVideoSource=kind==='video'&&!!selected&&((videoSupport.start&&!image)||(videoSupport.video&&!videoSupport.references&&!sourceVideo)||(videoSupport.references&&!referenceImages.length&&!referenceVideos.length)||(editingReferences&&referenceVideos.length!==1)||((spec?.constraints?.requires_end_image===true||/first-last|first-and-last|start-end|transition/.test(model))&&videoSupport.end&&!endImage));
-  const missingLyrics = (kind === 'music' || kind === 'sound-effects') && spec?.lyrics_required === true && !optimizer && (!lyrics.trim() || instrumental)
-  const ready = !unavailableVideoModel && !missingVideoSource && !missingLyrics && enabled && !!model && (!saveProtected||!!vault?.keys.isUnlocked('app')) && (['transcription','voice-conversion'].includes(kind) ? !!file : !!prompt.trim())
+  const lyricsRule = audioOptions?.lyrics
+  const lyricsRequired = !!lyricsRule?.minimum && !(optimizer && lyricsRule.optionalWithOptimizer || instrumental && lyricsRule.optionalWithInstrumental)
+  const missingLyrics = lyricsRequired && lyrics.trim().length < (lyricsRule?.minimum ?? 0)
+  const ready = !unavailableModel && !missingVideoSource && !missingLyrics && enabled && !!model && (!saveProtected||!!vault?.keys.isUnlocked('app')) && (['transcription','voice-conversion'].includes(kind) ? !!file : !!prompt.trim())
   const visibleMCP=useTemporaryMCPFilter()
   const visibleCreations=records.filter(record=>visibleMCP(record.sessionId)).filter(record=>record.kind===kind).filter(record=>librarySection==='protected'?!!record.protection:!record.protection).map(record=>record.protection&&!vault?.keys.isUnlocked(record.protection)?lockedMediaRecord(record):record)
   const KindIcon = icons[kind]
   return <Stack className="feature-panel" p={{ base: 'sm', sm: 'lg' }} maw={1000} mx="auto" style={{ width: '100%' }}>
     <Group justify="space-between" gap="sm"><Group gap="sm"><ThemeIcon size={44} radius="xl" variant="light"><KindIcon size={25} /></ThemeIcon><Stack gap={2}><Title order={2}>{ft("Create with Venice")}</Title><Text size="sm" c="dimmed">{ft("Voice, video, music and sound effects in one place.")}</Text></Stack></Group>{openSettings && <Button variant="subtle" size="xs" onClick={openSettings}>{ft("Settings")}</Button>}</Group>
-    {!hideTabs && <ScrollArea type="auto"><SegmentedControl aria-label={ft("Content type")} value={kind} data={Object.entries(names).map(([value, label]) => ({ value, label:ft(label) }))} onChange={value => { setKind(value as MediaKind); setModel(''); setExtra(''); setError(''); clearVideoMedia() }} /></ScrollArea>}
+    {!hideTabs && <ScrollArea type="auto"><SegmentedControl aria-label={ft("Content type")} value={kind} data={Object.entries(names).map(([value, label]) => ({ value, label:ft(label) }))} onChange={value => { setKind(value as MediaKind); setModel(''); setExtra(''); setError(''); clearVideoMedia(); setAudioReferences([]) }} /></ScrollArea>}
     {!enabled && <Alert color="yellow" title={ft("This feature is disabled")}>{ft("Enable it in Venice settings to get started. Saved content stays here.")}{openSettings && <Button mt="xs" size="xs" variant="light" onClick={openSettings}>{ft("Open settings")}</Button>}</Alert>}
     {error && <Alert color="red" role="alert" title={ft("Something went wrong")}>{ft(friendlyMediaError(error))}<GenerationFailureReason error={error}/></Alert>}
     <Paper withBorder radius="lg" p={{ base: 'md', sm: 'lg' }}><Stack gap="lg">
@@ -160,21 +169,29 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
         <Group><Button variant="default" onClick={clearVideoMedia}>{ft('Clear video attachments')}</Button></Group>
       </Stack>}
       {editingReferences&&<Text size="sm" c="dimmed">{ft('Seedance editing uses one source clip. The app adds the editing instruction to your prompt and keeps the source aspect ratio.')}{selected?.id.startsWith('seedance-2-5-')?' '+ft('The output duration matches the source clip.'):''}</Text>}
-      <Group align="end" wrap="wrap"><VeniceModelSelect label={ft("Model")} placeholder={catalog.length ? ft("Choose a model") : ft("Load available models")} models={compatible} value={unavailableVideoModel ? null : model || null} disabled={!compatible.length} style={{ flex: '1 1 200px', minWidth: 0 }} onChange={value => {
+      <Group align="end" wrap="wrap"><VeniceModelSelect label={ft("Model")} placeholder={catalog.length ? ft("Choose a model") : ft("Load available models")} models={compatible} value={unavailableModel ? null : model || null} disabled={!compatible.length} style={{ flex: '1 1 200px', minWidth: 0 }} onChange={value => {
         const option = compatible.find(item => item.id === value)
         if (option && option.id !== model) pickModel(option)
       }} />
         <Button leftSection={<IconRefresh size={16} />} variant="default" disabled={options.enabled === false || busy} onClick={() => void run(async () => setCatalog(await service.catalog()))}>{catalog.length ? ft("Refresh models") : ft("Load models")}</Button></Group>
       <Group justify="space-between"><VeniceModelBadges metadata={selected?.model_spec} /><VeniceModelInfo model={selected} /></Group>
       {selected&&<VeniceModelCost model={selected} showLabel comparison/>}
+      {hasAudioReferences && !selected && <Alert color="yellow">
+        <Text size="sm">{ft(compatible.length ? 'Choose a model that accepts all attached media.' : 'No enabled model accepts these audio references.')}</Text>
+        <Text size="sm" c="dimmed">{audioReferences.map(file => file.name).join(', ')}</Text>
+        <Button mt="xs" size="xs" variant="default" onClick={() => setAudioReferences([])}>{ft('Clear selection')}</Button>
+      </Alert>}
       {vault&&<><Checkbox label={ft('Save new creations as protected')} checked={saveProtected} onChange={event=>setSaveProtected(event.currentTarget.checked)}/>{saveProtected&&!vault.keys.isUnlocked('app')&&<ScopeUnlock keys={vault.keys}/>}</>}
       {selected?.model_spec?.description && <Text size="sm" c="dimmed">{selected.model_spec.description}</Text>}
       {['transcription','voice-conversion'].includes(kind) ? <><VeniceRecorder onRecorded={setFile} compatibleFormats={kind==='voice-conversion'&&Array.isArray(spec?.accepted_audio_formats)?spec.accepted_audio_formats.map(String):undefined}/><FileInput label={kind === 'voice-conversion' ? ft("Recording to convert") : ft("Upload audio or video")} description={kind === 'voice-conversion' ? ft("Up to 25 MB. Choose a format accepted by the selected model; no upload happens until you confirm conversion.") : ft("Up to 25 MB. The file is sent to Venice only when you select Transcribe.")} placeholder={ft("Choose a file from this device")} accept={kind === 'voice-conversion' ? (Array.isArray(spec?.accepted_audio_formats) ? spec.accepted_audio_formats.map(format=>'.'+format).join(',') : 'audio/*') : 'audio/*,video/*'} value={file} onChange={setFile} clearable /></>
         : <Textarea label={kind === 'speech' ? ft("Text to read") : kind === 'video' ? ft("Describe your video") : kind === 'sound-effects' ? ft("Describe the sound effect") : ft("Describe the music or sound")} placeholder={kind === 'speech' ? ft("Type or paste the text you want to hear…") : kind === 'video' ? ft("A walk by the sea, sunset light, slow movement…") : kind === 'sound-effects' ? ft("Rain on a window, distant thunder, no music…") : ft("Relaxing jazz with piano and double bass…")} value={prompt} onChange={e => setPrompt(e.currentTarget.value)} autosize minRows={4} maxRows={10} />}
+      {audioOptions?.references && <FileInput multiple clearable label={ft('Reference audio')} accept="audio/*"
+        description={ft('Up to {{count}} audio clips. Each clip can be up to 30 seconds and 10 MB. Mention them in order as @Audio1, @Audio2 and so on.', { count: audioOptions.references.max })}
+        value={audioReferences} onChange={setAudioReferences} />}
       {kind === 'speech' && <>
         {speechSupportsStylePrompt(selected) && <Textarea label={ft('Voice style instructions')} description={ft('Describe the tone, pace and emotion for the voice.')} placeholder={ft('For example: warm, calm and conversational.')} maxLength={500} value={stylePrompt} onChange={event => setStylePrompt(event.currentTarget.value)} autosize minRows={2} />}
         {selected && !!spec?.voice_cloning && <VeniceVoiceCloning service={service} model={selected} enabled={enabled} onChoose={setVoice}/>}
-        <SimpleGrid cols={{ base: 1, sm: 2 }}><Select comboboxProps={{withinPortal:false}} label={ft("Voice to use")} placeholder={model ? ft("Model default voice") : ft("Choose a model first")} description={voices.length ? ft("{{count}} voices available for this model",{count:voices.length}) : ft("If no voices are listed, the model default is used.")} searchable clearable value={voice || null} data={[...voices, ...(!voices.some(item => item.value === voice) && voice ? [{ value: voice, label: ft("Custom voice") }] : [])]} disabled={!model || !voices.length} onChange={value => setVoice(value || '')} />
+        <SimpleGrid cols={{ base: 1, sm: 2 }}>{!hasAudioReferences && <Select comboboxProps={{withinPortal:false}} label={ft("Voice to use")} placeholder={model ? ft("Model default voice") : ft("Choose a model first")} description={voices.length ? ft("{{count}} voices available for this model",{count:voices.length}) : ft("If no voices are listed, the model default is used.")} searchable clearable value={voice || null} data={[...voices, ...(!voices.some(item => item.value === voice) && voice ? [{ value: voice, label: ft("Custom voice") }] : [])]} disabled={!model || !voices.length} onChange={value => setVoice(value || '')} />}
           <Select comboboxProps={{withinPortal:false}} label={ft("Audio format")} disabled={selected?.type==='music'} allowDeselect={false} value={format} data={[{ value: 'auto', label: selected?.model_spec?.default_format ? ft("Recommended ({{format}})",{format:selected.model_spec.default_format.toUpperCase()}) : ft("Recommended by the model") }, ...formats.map(value => ({ value, label: value.toUpperCase() }))]} onChange={value => setFormat(value || 'auto')} /></SimpleGrid>
         {!model.includes('kokoro') && (selected?.type!=='music'||spec?.supports_language_code===true) && <Select comboboxProps={{withinPortal:false}} label={ft("Language")} value={language} allowDeselect={false} data={languages.map(item=>({...item,label:ft(item.label)}))} onChange={value => setLanguage(value || 'auto')} />}
         {(selected?.type!=='music'||spec?.supports_speed===true)&&<Stack gap={5}><Group justify="space-between"><Text size="sm" fw={500}>{ft("Reading speed")}</Text><Text size="sm" c="dimmed">{speed === 1 ? ft("Normal") : `${speed.toLocaleString(i18n.resolvedLanguage || i18n.language || 'en', { maximumFractionDigits: 2 })}×`}</Text></Group><Slider aria-label={ft("Reading speed")} value={speed} onChange={setSpeed} min={spec?.min_speed||0.25} max={spec?.max_speed||4} step={0.05} label={value => `${value.toFixed(2)}×`} /><Group justify="space-between"><Text size="xs" c="dimmed">{ft("Slower")}</Text><Text size="xs" c="dimmed">{ft("Faster")}</Text></Group></Stack>}
@@ -201,23 +218,23 @@ export function VeniceStudio({ service, options, openSettings, initialKind, hide
       {(kind === 'music' || kind === 'sound-effects') && <>
         {music.supported && (music.choices.length ? <Select comboboxProps={{withinPortal:false}} label={ft("Duration")} allowDeselect={false} value={String(seconds)} data={music.choices.map(value => ({ value: String(value), label: ft("{{count}} seconds",{count:value}) }))} onChange={value => setSeconds(Number(value))} /> : <NumberInput label={ft("Duration (seconds)")} min={music.min} max={music.max} value={seconds} onChange={setSeconds} />)}
         {spec?.supports_force_instrumental === true && <Checkbox label={ft("Instrumental only")} checked={instrumental} onChange={e => setInstrumental(e.currentTarget.checked)} />}
-        {spec?.supports_lyrics === true && !instrumental && <Textarea required={spec.lyrics_required && !optimizer} label={spec.lyrics_required ? ft("Lyrics (required)") : ft("Lyrics (optional)")} description={spec.lyrics_character_limit ? ft("Maximum {{count}} characters",{count:spec.lyrics_character_limit}) : undefined} value={lyrics} onChange={e => setLyrics(e.currentTarget.value)} disabled={optimizer || instrumental} autosize minRows={2} maxRows={5} />}
+        {spec?.supports_lyrics === true && !instrumental && <Textarea required={spec.lyrics_required && !optimizer} label={lyricsRequired ? ft("Lyrics (required)") : ft("Lyrics (optional)")} description={lyricsRequired ? ft('Minimum {{min}}, maximum {{max}} characters.', { min: lyricsRule?.minimum, max: lyricsRule?.maximum }) : spec.lyrics_character_limit ? ft('Maximum {{count}} characters', { count: spec.lyrics_character_limit }) : undefined} value={lyrics} onChange={e => setLyrics(e.currentTarget.value)} disabled={optimizer || instrumental} autosize minRows={2} maxRows={5} />}
         {spec?.supports_lyrics_optimizer === true && <Checkbox label={ft("Generate lyrics automatically")} checked={optimizer} onChange={e => { setOptimizer(e.currentTarget.checked); if (e.currentTarget.checked) setLyrics('') }} />}
         {spec?.supports_loop === true && <Checkbox label={ft("Create a seamless loop")} checked={loop} onChange={e => setLoop(e.currentTarget.checked)} />}
-        {!!voices.length && <Select comboboxProps={{withinPortal:false}} label={ft("Voice to use")} data={voices} value={voice || null} onChange={value => setVoice(value || '')} />}
+        {!hasAudioReferences && !!voices.length && <Select comboboxProps={{withinPortal:false}} label={ft("Voice to use")} data={voices} value={voice || null} onChange={value => setVoice(value || '')} />}
         {spec?.supports_language_code === true && <Select comboboxProps={{withinPortal:false}} label={ft("Language")} data={languages.map(item=>({...item,label:ft(item.label)}))} value={language} onChange={value => setLanguage(value || 'auto')} />}
         {spec?.supports_speed === true && <NumberInput label={ft("Speed")} min={spec.min_speed || 0.25} max={spec.max_speed || 4} step={0.05} value={speed} onChange={value => setSpeed(Number(value) || 1)} />}
-        {kind==='music'&&<Text size="xs" c="dimmed">{ft('Audio-reference remix is not exposed by the current Venice music API. Only supported inputs are shown.')}</Text>}<Text size="xs" c="dimmed">{ft("Only options declared by this model are shown. Settings reset when you change models.")}</Text>
+        <Text size="xs" c="dimmed">{ft("Only options declared by this model are shown. Settings reset when you change models.")}</Text>
       </>}
       <Accordion value={advanced} onChange={setAdvanced} variant="contained" radius="md"><Accordion.Item value="advanced"><Accordion.Control>{ft("Advanced options")}</Accordion.Control><Accordion.Panel><Stack gap="sm">
         <Text size="xs" c="dimmed">{ft("For custom configurations. All main features work without changing these fields.")}</Text>
-        {(kind !== 'video' || (!hasVideoMedia && videoWorkflow === 'all')) && <TextInput label={ft("Custom model ID")} value={model} onChange={e => { setModel(e.currentTarget.value); setVoice(''); setFormat('auto') }} />}
+        {(!hasAudioReferences && (kind !== 'video' || (!hasVideoMedia && videoWorkflow === 'all'))) && <TextInput label={ft("Custom model ID")} value={model} onChange={e => { setModel(e.currentTarget.value); setVoice(''); setFormat('auto') }} />}
         {kind === 'speech' && <TextInput label={ft("Custom voice ID")} value={voice} onChange={e => setVoice(e.currentTarget.value)} />}
         <Textarea label={ft("Extra parameters JSON (optional)")} description={ft("Extra parameters override the controls above.")} value={extra} onChange={e => setExtra(e.currentTarget.value)} autosize minRows={2} />
       </Stack></Accordion.Panel></Accordion.Item></Accordion>
       {quote && <Paper p="sm" radius="md" bg="var(--mantine-color-blue-light)"><Text role="status">{ft("Estimated cost from Venice:")}<strong>{quote}</strong></Text></Paper>}
       {missingVideoSource&&<Text size="sm" c="dimmed">{ft('Add the required source media before generating.')}</Text>}
-      <Group justify="space-between"><Text size="xs" c="dimmed" maw={480}>{ft("Content is sent to Venice and saved on this device. Generation may incur a cost.")}</Text><Group>{(['video', 'music', 'sound-effects','voice-conversion'].includes(kind)||kind==='speech'&&selected?.type==='music') && <Button variant="default" disabled={!enabled || !model || unavailableVideoModel || busy || kind==='voice-conversion'&&!file || (kind === 'video' && !duration)} onClick={() => void run(async () => setQuote(quoteLabel(await service.quote(await input(false)), i18n.resolvedLanguage || i18n.language || "en")))}>{ft("Show cost")}</Button>}<Button disabled={!ready || busy || (kind === 'video' && !duration)} loading={busy} onClick={() => void run(async () => { await service.start(await input()) })}>{ft(actions[kind])}</Button></Group></Group>
+      <Group justify="space-between"><Text size="xs" c="dimmed" maw={480}>{ft("Content is sent to Venice and saved on this device. Generation may incur a cost.")}</Text><Group>{(['video', 'music', 'sound-effects','voice-conversion'].includes(kind)||kind==='speech'&&selected?.type==='music') && <Button variant="default" disabled={!enabled || !model || unavailableModel || busy || kind==='voice-conversion'&&!file || (kind === 'video' && !duration)} onClick={() => void run(async () => setQuote(quoteLabel(await service.quote(await input(false)), i18n.resolvedLanguage || i18n.language || "en")))}>{ft("Show cost")}</Button>}<Button disabled={!ready || busy || (kind === 'video' && !duration)} loading={busy} onClick={() => void run(async () => { await service.start(await input()) })}>{ft(actions[kind])}</Button></Group></Group>
     </Stack></Paper>
     <Group justify="space-between" mt="sm"><Title order={3}>{ft("Your creations")}</Title><Badge variant="light">{ft("Saved on device")}</Badge></Group>
     {vault&&<SegmentedControl aria-label={ft('Creation history protection')} value={librarySection} onChange={value=>{setLibrarySection(value);setOpenRecordId(null);setVisibleRecords(20)}} data={[{value:'public',label:ft('Public')},{value:'protected',label:ft('Protected')}]}/>}

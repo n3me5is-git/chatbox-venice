@@ -1,4 +1,10 @@
 export const catalogItalian={
+  'No enabled model accepts these audio references.':'Nessun modello abilitato accetta questi riferimenti audio.',
+  'Up to {{count}} audio clips. Each clip can be up to 30 seconds and 10 MB. Mention them in order as @Audio1, @Audio2 and so on.':'Fino a {{count}} clip audio, ciascuna di massimo 30 secondi e 10 MB. Citala nel prompt come @Audio1, @Audio2 e così via.',
+  'Minimum {{min}}, maximum {{max}} characters.':'Minimo {{min}}, massimo {{max}} caratteri.',
+  'Use up to {{count}} audio references for this model.':'Usa fino a {{count}} riferimenti audio per questo modello.',
+  'Combined audio references must be at most 22 MB.':'I riferimenti audio non possono superare 22 MB complessivi.',
+  'Each audio reference must be an audio file up to 10 MB.':'Ogni riferimento deve essere un file audio di massimo 10 MB.',
   'Image tools':'Strumenti per immagini',
   'Generate image':'Genera immagine',
   'Confirm a compatible image model':'Conferma un modello immagine compatibile',

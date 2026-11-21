@@ -19,7 +19,7 @@ export class VaultRuntime {
   private ready:Promise<boolean>|undefined
   projects!:ProjectAccess
   media!:ProtectedMediaRecords
-  constructor(private readonly platform:Platform,options:{device?:DeviceProtector;databaseName?:string}={}){this.db=new VaultDatabase(options.databaseName);this.keys=new VaultKeys(this.db,options.device||deviceProtector());this.legacy={get:platform.getStoreBlob.bind(platform),set:platform.setStoreBlob.bind(platform),remove:platform.delStoreBlob.bind(platform),keys:platform.listStoreBlobKeys.bind(platform)};this.assets=new EncryptedChunkStore(this.legacy,this.db,async scope=>{await this.projects?.assertApp();return this.keys.key(scope)})}
+  constructor(private readonly platform:Platform,options:{device?:DeviceProtector;databaseName?:string}={}){this.db=new VaultDatabase(options.databaseName);this.keys=new VaultKeys(this.db,options.device||deviceProtector());this.legacy={get:platform.getStoreBlob.bind(platform),set:platform.setStoreBlob.bind(platform),remove:platform.delStoreBlob.bind(platform),keys:platform.listStoreBlobKeys.bind(platform)};this.assets=new EncryptedChunkStore(this.legacy,this.db,async scope=>{await this.projects?.assertStorage();return this.keys.key(scope)})}
   async find(alias:string){return await this.assets.header(alias)||(this.platform.type==='desktop'&&alias.includes(':')?this.db.byAlias(alias.replace(/:/g,'')):null)}
   available(){return this.ready ||= (async()=>{
     // Once data exists, losing the device key is an error, never a plaintext fallback.
@@ -65,26 +65,29 @@ export class VaultRuntime {
     const meta=platform.getSessionMetaStorage(),rows=platform.getSessionRowStore();this.projects=new ProjectAccess(this.db,this.keys,meta,getValue,{...projectLibrary(meta,rows,getValue),beforeProtect:async(folder,scope)=>{
       await projectLibrary(meta,rows,getValue).beforeProtect(folder,scope);await meta.initialize();const sessionIds=new Set((await meta.getAllIncludingHidden()).filter(record=>record.folderId===folder).map(record=>record.id))
       await this.protectSessionMedia(sessionIds,scope)
-    },beforeMove:async(id,folder)=>{const scope=await this.projects.folderScope(folder);if(scope)await this.protectSessionMedia(new Set([id]),scope)}})
+    },beforeMove:async(id,folder)=>{const scope=await this.projects.folderScope(folder);if(scope)await this.protectSessionMedia(new Set([id]),scope)}}, platform.type === 'desktop' ? async () => {
+      try { return await globalThis.window?.electronAPI?.invoke('local-mcp:control', 'background-access') === true }
+      catch { return false }
+    } : undefined)
     const guardedMeta=this.projects.protectMetadata(),guardedRows=this.projects.protectRows(rows);platform.getSessionMetaStorage=()=>guardedMeta;platform.getSessionRowStore=()=>guardedRows
     const sessionGuard=async(key:string)=>{if(key.startsWith('session:'))await this.projects.assertSession(key.slice(8))}
-    platform.getStoreValue=async key=>{if(key===mediaKey){await this.projects.assertApp();return this.media.read()}await sessionGuard(key);const result=await getValue(key);await sessionGuard(key);return result}
-    platform.setStoreValue=async(key,value)=>{if(key===mediaKey){await this.projects.assertApp();if(!Array.isArray(value))throw new Error('Invalid media records');return this.media.write(value)}await sessionGuard(key);await setValue(key,value);if(key.startsWith('session:'))this.projects.invalidateLibrary()}
+    platform.getStoreValue=async key=>{if(key===mediaKey){await this.projects.assertStorage();return this.media.read()}await sessionGuard(key);const result=await getValue(key);await sessionGuard(key);return result}
+    platform.setStoreValue=async(key,value)=>{if(key===mediaKey){await this.projects.assertStorage();if(!Array.isArray(value))throw new Error('Invalid media records');return this.media.write(value)}await sessionGuard(key);await setValue(key,value);if(key.startsWith('session:'))this.projects.invalidateLibrary()}
     platform.delStoreValue=async key=>{await sessionGuard(key);return removeValue(key)}
     platform.getAllStoreValues=async()=>{await this.projects.assertApp();const values=await getAll();await this.projects.assertApp();for(const key of Object.keys(values)){if(!key.startsWith('session:'))continue;const scope=await this.projects.sessionScope(key.slice(8));if(scope&&!this.keys.isUnlocked(scope))delete values[key]}return values}
     platform.setAllStoreValues=async values=>{for(const key of Object.keys(values))await sessionGuard(key);return setAll(values)}
     if(platform.delStoreValues){const original=platform.delStoreValues.bind(platform);platform.delStoreValues=async keys=>{for(const key of keys)await sessionGuard(key);return original(keys)}}
     if(platform.copyStoreValue){const original=platform.copyStoreValue.bind(platform);platform.copyStoreValue=async(source,destination)=>{await sessionGuard(source);await sessionGuard(destination);return original(source,destination)}}
     const images=platform.getImageGenerationStorage();const protectedImages=new ProtectedImageRecords(images,this);platform.getImageGenerationStorage=()=>protectedImages
-    platform.getStoreBlob=async alias=>{await this.projects.assertApp();const header=await this.find(alias);const value=header?await this.assets.dataUrl(`vault-asset-${header.id}`):await this.legacy.get(alias);await this.projects.assertApp();return value}
-    platform.setStoreBlob=async(alias,value)=>{await this.projects.assertApp();if(alias.startsWith('picture:')&&!value.startsWith('data:')&&/^[A-Za-z0-9+/=\r\n]+$/.test(value)){const mime=value.startsWith('/9j/')?'image/jpeg':value.startsWith('UklGR')?'image/webp':value.startsWith('R0lGOD')?'image/gif':'image/png';value=`data:${mime};base64,${value}`}const mime=/^data:((?:image|audio|video)\/[^;,]+);base64,/.exec(value)?.[1]
+    platform.getStoreBlob=async alias=>{await this.projects.assertStorage();const header=await this.find(alias);const value=header?await this.assets.dataUrl(`vault-asset-${header.id}`):await this.legacy.get(alias);await this.projects.assertStorage();return value}
+    platform.setStoreBlob=async(alias,value)=>{await this.projects.assertStorage();if(alias.startsWith('picture:')&&!value.startsWith('data:')&&/^[A-Za-z0-9+/=\r\n]+$/.test(value)){const mime=value.startsWith('/9j/')?'image/jpeg':value.startsWith('UklGR')?'image/webp':value.startsWith('R0lGOD')?'image/gif':'image/png';value=`data:${mime};base64,${value}`}const mime=/^data:((?:image|audio|video)\/[^;,]+);base64,/.exec(value)?.[1]
       if(!mime||!await this.available()){await this.legacy.set(alias,value);return}
       const previous=await this.find(alias);const recordId=/^picture:image-gen:([^:]+):/.exec(alias)?.[1];const record=recordId?await protectedImages.getById(recordId):null
       const info={...mimeInfo(mime),...(alias.startsWith('picture:image-creator-ref:')||alias.startsWith('pictureimage-creator-ref')?{hidden:true}:{}),...(alias.endsWith(':thumbnail')?{kind:'thumbnail' as const}:{}),...(record?{name:alias.endsWith(':unmasked')?'Unmasked provider result':record.prompt.slice(0,100)||'Saved image',prompt:record.prompt,model:record.model.modelId,sourceId:record.id}:{})}
       await this.assets.put(dataUrlBytes(value),info,previous?.scope||record?.protection||'public',alias)
       if(previous)await this.assets.remove(`vault-asset-${previous.id}`);await this.legacy.remove(alias)
     }
-    platform.delStoreBlob=async alias=>{await this.projects.assertApp();const header=await this.find(alias);if(header){if(header.scope!=='public'&&!this.keys.isUnlocked(header.scope))throw new VaultLockedError(header.scope);await this.assets.remove(`vault-asset-${header.id}`)}await this.legacy.remove(alias)}
+    platform.delStoreBlob=async alias=>{await this.projects.assertStorage();const header=await this.find(alias);if(header){if(header.scope!=='public'&&!this.keys.isUnlocked(header.scope))throw new VaultLockedError(header.scope);await this.assets.remove(`vault-asset-${header.id}`)}await this.legacy.remove(alias)}
     platform.listStoreBlobKeys=async()=>[...new Set([...(await this.legacy.keys()).filter(key=>!/^vault-v1-[a-f0-9-]{36}-chunk-\d+$/.test(key)),...await this.db.aliases()])]
   }
 }

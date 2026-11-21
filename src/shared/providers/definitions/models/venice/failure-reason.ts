@@ -1,8 +1,16 @@
 const clean=(text:string)=>text.replace(/(?:VENICE_INFERENCE_KEY_|Bearer\s+)[A-Za-z0-9_.-]+/gi,'[redacted]').trim().slice(0,8000)
+function fieldErrors(value: unknown, path: string[] = []): string[] {
+ if(!value || typeof value!=='object' || Array.isArray(value) || path.length > 5)return []
+ const entries=Object.entries(value as Record<string,unknown>).slice(0,20)
+ const own=entries.find(([key])=>key==='_errors')?.[1]
+ const errors=Array.isArray(own)?own.filter((error):error is string=>typeof error==='string').slice(0,6).map(error=>path.length?path.join('.')+': '+error:error):[]
+ for(const [key,entry] of entries){if(key==='_errors'||!/^[-\w]+$/.test(key))continue;for(const error of fieldErrors(entry,[...path,key])){errors.push(error);if(errors.length>=12)return errors}}
+ return errors
+}
 function detail(value:unknown):string{
  if(typeof value==='string')return value
  if(Array.isArray(value))return value.slice(0,12).map(detail).filter(Boolean).join('\n')
- if(value&&typeof value==='object'){const item=value as Record<string,unknown>,reason=detail(item.message)||detail(item.msg)||detail(item.detail)||detail(item.error)||detail(item.errors);const path=Array.isArray(item.loc)?item.loc.filter(part=>part!=='body').join('.'):'';return path&&reason?path+': '+reason:reason}
+ if(value&&typeof value==='object'){const item=value as Record<string,unknown>,reason=detail(item.message)||detail(item.msg)||detail(item.detail)||detail(item.error)||detail(item.errors);const path=Array.isArray(item.loc)?item.loc.filter(part=>part!=='body').join('.'):'';return [path&&reason?path+': '+reason:reason,...fieldErrors(item.details)].filter(Boolean).join('\n')}
  return ''
 }
 export function failureReason(error:string){

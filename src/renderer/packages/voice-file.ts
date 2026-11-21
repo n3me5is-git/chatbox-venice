@@ -16,3 +16,27 @@ export async function voiceFileDuration(file:File,signal?:AbortSignal){if(file.s
  try{return await new Promise<number>((resolve,reject)=>{let finished=false;const stop=()=>finish(new Error('Audio inspection canceled'));const timer=setTimeout(()=>finish(new Error('Unable to read the audio duration. Use a WAV or MP3 file.')),15000);const finish=(error?:Error)=>{if(finished)return;finished=true;clearTimeout(timer);signal?.removeEventListener('abort',stop);if(error)reject(error);else if(Number.isFinite(audio.duration)&&audio.duration>0)resolve(audio.duration);else reject(new Error('Unable to read the audio duration. Use a WAV or MP3 file.'))};signal?.addEventListener('abort',stop,{once:true});audio.onloadedmetadata=()=>finish();audio.onerror=()=>finish(new Error('This device cannot read this audio file. Use a WAV or MP3 file.'));if(signal?.aborted)stop();else audio.src=url})}finally{audio.removeAttribute('src');audio.load();URL.revokeObjectURL(url)}
 }
 export function validateVoiceDuration(seconds:number,minimum=0,maximum=300){if(!Number.isFinite(seconds)||seconds<=0||seconds<minimum||seconds>maximum)throw new Error(ft('Use a recording between {{min}} and {{max}} seconds',{min:minimum,max:maximum}))}
+
+export async function audioReferenceURLs(files: File[], limits: { max: number; maxBytes: number; combinedMaxBytes: number; maxSeconds: number }, signal?: AbortSignal) {
+  if (files.length > limits.max) throw Error(ft('Use up to {{count}} audio references for this model.', { count: limits.max }))
+  if (files.reduce((sum, file) => sum + file.size, 0) > limits.combinedMaxBytes) throw Error(ft('Combined audio references must be at most 22 MB.'))
+  const urls: string[] = []
+  for (const file of files) {
+    signal?.throwIfAborted()
+    if (!file.type.startsWith('audio/') || file.size > limits.maxBytes || !file.size) throw Error(ft('Each audio reference must be an audio file up to 10 MB.'))
+    validateVoiceDuration(await voiceFileDuration(file, signal), 0, limits.maxSeconds)
+    signal?.throwIfAborted()
+    urls.push(await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      const abort = () => reader.abort()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(new Error(ft('Unable to read the file')))
+      reader.onabort = () => reject(new DOMException('Audio inspection canceled', 'AbortError'))
+      reader.onloadend = () => signal?.removeEventListener('abort', abort)
+      signal?.addEventListener('abort', abort, { once: true })
+      reader.readAsDataURL(file)
+    }))
+  }
+  signal?.throwIfAborted()
+  return urls
+}

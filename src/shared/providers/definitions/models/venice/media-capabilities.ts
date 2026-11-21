@@ -83,9 +83,83 @@ export function videoWorkflowRequest(model:MediaCatalogItem|undefined,workflow:V
 }
 export function musicDuration(model?: MediaCatalogItem) {
   const s = model?.model_spec
-  return { supported: s?.min_duration !== undefined || s?.max_duration !== undefined || !!s?.duration_options?.length || !!s?.pricing?.durations,
+  return { supported: s?.min_duration !== undefined || s?.max_duration !== undefined || !!s?.duration_options?.length,
     min: s?.min_duration ?? 1, max: s?.max_duration ?? 600, default: s?.default_duration,
     choices: Array.isArray(s?.duration_options) ? s.duration_options : [] }
+}
+const audioFlags = {
+  force_instrumental: 'supports_force_instrumental',
+  lyrics_prompt: 'supports_lyrics',
+  lyrics_optimizer: 'supports_lyrics_optimizer',
+  loop: 'supports_loop',
+  speed: 'supports_speed',
+  language_code: 'supports_language_code',
+} as const
+export function audioQueueCapabilities(model: MediaCatalogItem) {
+  const spec = model.model_spec ?? {}
+  const minLyrics = /^(minimax-music-v25|minimax-music-v26)$/.test(model.id) ? 10 : model.id === 'minimax-music-v2' || spec.lyrics_required ? 1 : 0
+  const duration = musicDuration(model)
+  const references = spec.supports_reference_audios === true
+    ? { max: Math.min(8, Math.max(1, Number(spec.max_reference_audios) || 1)), maxSeconds: 30, maxBytes: 10 * 1024 * 1024, combinedMaxBytes: 22 * 1024 * 1024 }
+    : undefined
+  const voices = spec.voices ?? []
+  const supportedOptions = [...Object.entries(audioFlags).filter(([, flag]) => spec[flag] === true).map(([name]) => name),
+    ...(duration.supported ? ['duration_seconds'] : []), ...(voices.length || spec.supports_custom_voice_id === true ? ['voice'] : []),
+    ...(references ? ['reference_audio_urls'] : [])]
+  return { duration, references, voices, supportedOptions, lyrics: {
+    minimum: minLyrics, maximum: spec.lyrics_character_limit ?? 4096,
+    optionalWithInstrumental: minLyrics === 10 && spec.supports_force_instrumental === true,
+    optionalWithOptimizer: minLyrics > 0 && spec.supports_lyrics_optimizer === true && model.id !== 'minimax-music-v26',
+  } }
+}
+
+export function validateAudioQuote(model: MediaCatalogItem, body: Record<string, unknown>) {
+  const spec = model.model_spec ?? {}, duration = musicDuration(model)
+  if (body.duration_seconds !== undefined) {
+    const n = typeof body.duration_seconds === 'number' || typeof body.duration_seconds === 'string' ? Number(body.duration_seconds) : NaN
+    if (!duration.supported) throw Error(`Model ${model.id} does not support duration_seconds. Omit it to use the model default.`)
+    if (!Number.isSafeInteger(n) || n <= 0 || (duration.choices.length ? !duration.choices.includes(n) : n < duration.min || n > duration.max)) {
+      throw Error(`Invalid duration_seconds for ${model.id}. Choose ${duration.choices.length ? duration.choices.join(', ') : `${duration.min}–${duration.max}`} seconds.`)
+    }
+  }
+  if (body.character_count !== undefined && (!spec.pricing?.per_thousand_characters || typeof body.character_count !== 'number'
+    || !Number.isSafeInteger(body.character_count) || body.character_count < 1 || spec.prompt_character_limit && body.character_count > spec.prompt_character_limit)) {
+    throw Error(`Invalid character_count for ${model.id}. Only character-priced audio models accept it.`)
+  }
+}
+
+function validateQueuedAudio(model: MediaCatalogItem, body: Record<string, unknown>) {
+  const spec = model.model_spec ?? {}, caps = audioQueueCapabilities(model)
+  const unknown = Object.keys(body).filter(key => !['model', 'prompt', ...caps.supportedOptions].includes(key) && body[key] !== undefined)
+  if (unknown.length) throw Error(`Model ${model.id} does not support ${unknown.join(', ')}. Inspect the exact model in the Studio catalog.`)
+  validateAudioQuote(model, body)
+  for (const key of ['force_instrumental', 'lyrics_optimizer', 'loop']) {
+    if (body[key] !== undefined && typeof body[key] !== 'boolean') throw Error(`${key} must be true or false.`)
+  }
+  if (body.speed !== undefined && (typeof body.speed !== 'number' || !Number.isFinite(body.speed) || body.speed < (spec.min_speed ?? 0.25) || body.speed > (spec.max_speed ?? 4))) {
+    throw Error(`Use speed between ${spec.min_speed ?? 0.25} and ${spec.max_speed ?? 4}.`)
+  }
+  if (body.language_code !== undefined && (typeof body.language_code !== 'string' || !/^[a-z]{2}$/.test(body.language_code))) throw Error('language_code must be a two-letter ISO 639-1 code.')
+  if (body.voice !== undefined && (typeof body.voice !== 'string' || !body.voice.trim() || !caps.voices.includes(body.voice) && spec.supports_custom_voice_id !== true)) {
+    throw Error(`Choose a voice listed for ${model.id}.`)
+  }
+  if (body.lyrics_prompt !== undefined && typeof body.lyrics_prompt !== 'string') throw Error('lyrics_prompt must be plain text.')
+  const lyrics = typeof body.lyrics_prompt === 'string' ? body.lyrics_prompt.trim() : ''
+  if (lyrics && (body.lyrics_optimizer === true || body.force_instrumental === true)) throw Error('Choose one of lyrics_prompt, lyrics_optimizer or force_instrumental.')
+  if (lyrics.length > caps.lyrics.maximum) throw Error(`lyrics_prompt exceeds ${caps.lyrics.maximum} characters.`)
+  const lyricsWaived = caps.lyrics.optionalWithInstrumental && body.force_instrumental === true || caps.lyrics.optionalWithOptimizer && body.lyrics_optimizer === true
+  if (!lyricsWaived && lyrics.length < caps.lyrics.minimum) {
+    const alternatives = [caps.lyrics.optionalWithInstrumental && 'force_instrumental: true', caps.lyrics.optionalWithOptimizer && 'lyrics_optimizer: true'].filter(Boolean)
+    throw Error(`Model ${model.id} requires lyrics_prompt with at least ${caps.lyrics.minimum} characters${alternatives.length ? `, or ${alternatives.join(' or ')}` : ''}.`)
+  }
+  if (body.reference_audio_urls !== undefined) {
+    const refs = caps.references
+    if (!refs || !Array.isArray(body.reference_audio_urls) || body.reference_audio_urls.length < 1 || body.reference_audio_urls.length > refs.max
+      || body.reference_audio_urls.some(value => typeof value !== 'string' || !/^data:audio\/[\w.+-]+;base64,[A-Za-z0-9+/]+=*$/.test(value))) {
+      throw Error(`Use up to ${refs?.max ?? 0} base64 audio clips for reference_audio_urls; HTTP URLs are not accepted.`)
+    }
+    if (body.voice && body.voice !== 'Describe in prompt') throw Error('Reference audio cannot be combined with a preset voice.')
+  }
 }
 export function musicOptions(model: MediaCatalogItem | undefined, value: { seconds: number; instrumental: boolean; lyrics: string; loop?: boolean; optimizer?: boolean; voice?: string; speed?: number; language?: string }) {
   const s = model?.model_spec
@@ -105,16 +179,7 @@ export function validateMediaRequest(kind: MediaKind, body: Record<string, unkno
   if (kind === 'speech' && model?.type !== 'music' && body.prompt !== undefined && (typeof body.prompt !== 'string' || body.prompt.length > 500)) throw new Error('Voice style instructions must contain at most 500 characters.')
   if (kind === 'video' && body.negative_prompt !== undefined && (typeof body.negative_prompt !== 'string' || body.negative_prompt.length > Math.min(32000, Number(s.constraints?.prompt_character_limit) || 2500))) throw new Error('The negative prompt exceeds this model’s character limit.')
   if (!['transcription','voice-conversion'].includes(kind) && ((s.min_prompt_length && prompt.length < s.min_prompt_length) || (s.prompt_character_limit && prompt.length > s.prompt_character_limit))) throw new Error(`The prompt for this model must contain ${s.min_prompt_length || 1} to ${s.prompt_character_limit || '∞'} characters.`)
-  if (kind === 'music' || kind === 'sound-effects') {
-    for (const [key, flag] of [['force_instrumental', 'supports_force_instrumental'], ['lyrics_prompt', 'supports_lyrics'], ['lyrics_optimizer', 'supports_lyrics_optimizer'], ['loop', 'supports_loop'], ['speed', 'supports_speed'], ['language_code', 'supports_language_code']] as const) {
-      if (body[key] !== undefined && s[flag] !== true) throw new Error(`Model ${model.id} does not support ${key}. Open the model details.`)
-    }
-    const d = musicDuration(model)
-    if (body.duration_seconds !== undefined) { const n = Number(body.duration_seconds); if (!d.supported || !Number.isFinite(n) || n < d.min || n > d.max || (d.choices.length && !d.choices.includes(n))) throw new Error("This duration is not supported. Open the model details.") }
-    if (s.lyrics_required && !String(body.lyrics_prompt || '').trim() && body.lyrics_optimizer !== true) throw new Error("This model requires lyrics.")
-    if (s.lyrics_character_limit && String(body.lyrics_prompt || '').length > s.lyrics_character_limit) throw new Error(`Lyrics exceed ${s.lyrics_character_limit} characters.`)
-    if (body.lyrics_optimizer === true && body.lyrics_prompt) throw new Error("Choose either lyrics or automatic lyrics generation.")
-  }
+  if (kind === 'music' || kind === 'sound-effects' || kind === 'speech' && model.type === 'music') validateQueuedAudio(model, body)
   if (kind === 'video') {
     const c = s.constraints || {}; const inputs = videoInputs(model)
     const sourceMatched=seedanceReferenceModel(model)&&Array.isArray(body.reference_video_urls)&&body.reference_video_urls.length>0

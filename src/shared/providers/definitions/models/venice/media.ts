@@ -1,4 +1,4 @@
-import { mediaCategory, supportsMediaKind,validateMediaRequest } from './media-capabilities'
+import { mediaCategory, supportsMediaKind,validateAudioQuote,validateMediaRequest } from './media-capabilities'
 import { privacyAllowed, requireModelPrivacy } from './privacy'
 import { v4 as uuid } from 'uuid'
 import type { RequestAdapter } from '../../../../types/adapters'
@@ -105,9 +105,10 @@ export class VeniceMediaService {
     const cache = await this.store.readCatalog?.()
     return cache && Array.isArray(cache.items) && cache.origin === mediaOrigin(config.apiHost) && cache.credentialId === await this.credential(config) ? cache.items.filter(item => privacyAllowed(item.model_spec, config.options.privacyFilter)) : []
   }
-  async catalog(): Promise<MediaCatalogItem[]> {
+  async catalog({ signal, refreshCache = true }: { signal?: AbortSignal; refreshCache?: boolean } = {}): Promise<MediaCatalogItem[]> {
     const config = this.config()
-    const [all, tts] = await Promise.all(['/models?type=all', '/models?type=tts'].map(async path => (await this.api(config, path)).json()))
+    const [all, tts] = await Promise.all(['/models?type=all', '/models?type=tts'].map(async path => (await this.api(config, path, undefined, signal)).json()))
+    signal?.throwIfAborted()
     if (!Array.isArray(all.data) || !Array.isArray(tts.data)) throw new Error('Invalid Venice model catalog')
     const merged = new Map<string, MediaCatalogItem>()
     for (const item of [...all.data, ...tts.data.map((item: MediaCatalogItem) => ({ ...item, type: 'tts' }))] as MediaCatalogItem[]) {
@@ -116,7 +117,7 @@ export class VeniceMediaService {
       merged.set(item.type + ':' + item.id, { ...old, ...item, model_spec: { ...old?.model_spec, ...item.model_spec } })
     }
     const items = [...merged.values()].filter(item => privacyAllowed(item.model_spec, config.options.privacyFilter))
-    await this.store.writeCatalog?.({ origin: config.origin, credentialId: await this.credential(config), items }).catch(() => {})
+    if (refreshCache) await this.store.writeCatalog?.({ origin: config.origin, credentialId: await this.credential(config), items }).catch(() => {})
     return items
   }
   async quote(input: MediaInput) {
@@ -130,7 +131,11 @@ export class VeniceMediaService {
     const body: Record<string, unknown> = { model: merged.model }
     requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec, config.options.privacyFilter)
     for (const key of allowed) if (merged[key] !== undefined) body[key] = merged[key]
-    if ((input.kind === 'music' || input.kind === 'sound-effects' || input.kind==='speech') && body.character_count === undefined && (await this.cachedCatalog()).find(model => model.id === body.model)?.model_spec?.pricing?.per_thousand_characters) body.character_count = input.prompt.length
+    const known = (await this.cachedCatalog()).find(model => model.id === body.model)
+    if ((input.kind === 'music' || input.kind === 'sound-effects' || input.kind==='speech') && known) {
+      if (body.character_count === undefined && known.model_spec?.pricing?.per_thousand_characters) body.character_count = input.prompt.length
+      validateAudioQuote(known, body)
+    }
     return (await this.api(config, `${queuePath(input.kind)}/quote`, body,input.signal)).json()
   }
   async start(input: MediaInput): Promise<MediaRecord> {

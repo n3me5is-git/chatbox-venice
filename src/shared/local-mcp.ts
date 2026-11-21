@@ -2,7 +2,9 @@ import { z } from 'zod'
 export const LocalMCPPermissionsSchema=z.object({readFiles:z.boolean(),writeFiles:z.boolean(),execute:z.boolean(),models:z.boolean(),automaticModels:z.boolean(),venice:z.boolean(),search:z.boolean(),forwardMCP:z.boolean(),multiAgent:z.boolean().default(false),knowledge:z.boolean().optional()}).strict()
 export const LocalMCPApplicationSchema=z.object({mode:z.enum(['full','shadow','router']),name:z.string().trim().min(1).max(80),externalTools:z.boolean().default(false),automaticStudio:z.boolean().default(false),manageChats:z.boolean().default(false),conversations:z.boolean().default(false),providers:z.array(z.string().min(1).max(128)).max(100).optional(),privacy:z.enum(['auto','e2ee','tee']).default('auto'),dedicatedIds:z.array(z.string().min(1).max(100)).max(100).default([]),knowledgeCollectionIds:z.array(z.number().int().negative()).max(8).optional(),knowledgeFilePaths:z.boolean().optional(),veniceSearch:z.boolean().optional()}).strict()
 export type LocalMCPApplication=z.infer<typeof LocalMCPApplicationSchema>
-export const LocalMCPStartSchema=z.object({sessionId:z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),port:z.number().int().refine(port=>port===0||port>=1024&&port<=65535),permissions:LocalMCPPermissionsSchema,endpointId:z.string().uuid().optional(),application:LocalMCPApplicationSchema.optional(),keepWhileLocked:z.boolean().optional()}).strict()
+export const LocalMCPStartSchema=z.object({sessionId:z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),port:z.number().int().refine(port=>port===0||port>=1024&&port<=65535),permissions:LocalMCPPermissionsSchema,endpointId:z.string().uuid().optional(),application:LocalMCPApplicationSchema.optional(),keepWhileLocked:z.boolean().optional(),allowOperationsWhileLocked:z.boolean().optional()}).strict()
+  .refine(config => !config.allowOperationsWhileLocked || !!config.application && config.keepWhileLocked === true,
+    'Background operations require an app-wide endpoint kept active while locked')
 export type LocalMCPPermissions=z.infer<typeof LocalMCPPermissionsSchema>
 export type LocalMCPStart=z.infer<typeof LocalMCPStartSchema>
 export const LocalMCPAccessTokenSchema = z.string().max(256).regex(/^[A-Za-z0-9._~+/-]+=*$/)
@@ -15,17 +17,32 @@ export const LocalMCPRestoreSchema = LocalMCPStartWithTokenSchema.refine(({ conf
   Boolean(config.port && (!config.application || config.endpointId)),
 )
 export const defaultLocalMCPPermissions:LocalMCPPermissions={readFiles:true,writeFiles:false,execute:false,models:false,automaticModels:false,venice:false,search:false,forwardMCP:false,multiAgent:false}
-export type LocalMCPState={running:false}|{running:true;sessionId:string;url:string;token:string;accessToken?:string;permissions:LocalMCPPermissions;startedAt:number;endpointId?:string;application?:LocalMCPApplication;keepWhileLocked?:boolean}
+export type LocalMCPState={running:false}|{running:true;sessionId:string;url:string;token:string;accessToken?:string;permissions:LocalMCPPermissions;startedAt:number;endpointId?:string;application?:LocalMCPApplication;keepWhileLocked?:boolean;allowOperationsWhileLocked?:boolean}
 export type LocalMCPGrant=Extract<LocalMCPState,{running:true}>
 export type LocalMCPChatShare = { sessionId: string; port: number }
 export type LocalMCPRequest={id:string;operation:'list_tools'|'call_tool'|'list_resources'|'read_resource'|'cancel'|'revoke';grant:LocalMCPGrant;name?:string;arguments?:Record<string,unknown>;uri?:string;callId?:string;locked?:boolean}
 export const localMCPEndpointId = (endpoint: Pick<LocalMCPStart, 'application'|'endpointId'|'sessionId'>) => endpoint.application ? endpoint.endpointId : 'chat:' + endpoint.sessionId
+export const localMCPBackgroundAllowed = (endpoint: LocalMCPGrant) =>
+  !!endpoint.application && endpoint.keepWhileLocked === true && endpoint.allowOperationsWhileLocked === true
 
-export function localMCPAllowsDuringLock(grant: LocalMCPGrant, operation: LocalMCPRequest['operation'], name?: string) {
+export const localMCPLockedCatalogActions = {
+  venice_studio: ['catalog', 'describe'],
+  venice_image: ['models'],
+  venice_media: ['catalog'],
+} as const
+
+export function localMCPAllowsDuringLock(grant: LocalMCPGrant, operation: LocalMCPRequest['operation'], name?: string, args: Record<string, unknown> = {}) {
   if (!grant.keepWhileLocked) return false
   if (operation === 'list_tools' || operation === 'list_resources') return true
-  return operation === 'call_tool' && grant.application?.mode === 'router' && grant.permissions.models &&
-    (name === 'app_models' || name === 'app_model' && grant.permissions.automaticModels)
+  if (localMCPBackgroundAllowed(grant)) return operation === 'call_tool' && !!name && localMCPGrantAllows(grant, name, args)
+  if (operation !== 'call_tool' || grant.application?.mode !== 'router') return false
+  if (name === 'app_models' || name === 'app_model') {
+    return grant.permissions.models && (name === 'app_models' || grant.permissions.automaticModels)
+  }
+  const actions = name && Object.hasOwn(localMCPLockedCatalogActions, name)
+    ? localMCPLockedCatalogActions[name as keyof typeof localMCPLockedCatalogActions] : undefined
+  return !!actions && actions.some(action => action === args.action) && grant.permissions.venice &&
+    (!grant.application.providers || grant.application.providers.includes('venice'))
 }
 export type LocalMCPTool={name:string;description?:string;inputSchema:{type:'object';[key:string]:unknown}}
 export const localMCPVeniceSearchEngines = ['brave', 'google', 'exa'] as const
@@ -83,6 +100,6 @@ export function localMCPClientConfiguration(grant:LocalMCPGrant){
 /** Status/catalog/read requests must remain fresh when a client repeats its request ID. */
 export function localMCPObservation(name:string,args:Record<string,unknown>={}){
   if(['app_models','agent_catalog','agent_tree','agent_status','agent_wait','agent_result','agent_files'].includes(name))return true
-  const actions:Record<string,string[]>={session_file:['list','read','search','preview'],venice_image:['models','status'],venice_media:['catalog','list','quote','status','show','wait'],venice_studio:['catalog','quote','status','wait','voices']}
+  const actions:Record<string,string[]>={session_file:['list','read','search','preview'],venice_image:['models','status'],venice_media:['catalog','list','quote','status','show','wait'],venice_studio:['catalog','describe','validate','quote','status','wait','voices']}
   return actions[name]?.includes(String(args.action))===true
 }
