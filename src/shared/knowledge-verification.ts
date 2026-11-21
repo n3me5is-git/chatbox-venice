@@ -35,7 +35,7 @@ export type KnowledgeFollowUpPlan = { remaining: number; previousQueries: readon
 export type KnowledgeReviewRetriever = (query:string, sources:readonly KnowledgeCheckSource[], signal:AbortSignal)=>Promise<readonly KnowledgeCheckSource[]>
 export interface KnowledgeVerificationPort{check():Promise<void>;judge(answer:string,sources:readonly KnowledgeCheckSource[],signal:AbortSignal,followUp?:KnowledgeFollowUpPlan):Promise<unknown>;revise(answer:string,claims:readonly KnowledgeClaim[],sources:readonly KnowledgeCheckSource[],signal:AbortSignal):Promise<unknown>;retrieve?:KnowledgeReviewRetriever}
 export async function verifyKnowledgeAnswer(draft:string,input:readonly KnowledgeCheckSource[],settings:KnowledgeVerificationSettings,port:KnowledgeVerificationPort,signal:AbortSignal){
- signal.throwIfAborted();await port.check();const sources=input.map(source=>KnowledgeCheckSourceSchema.parse(source));if(sources.length>32||new Set(sources.map(source=>source.id)).size!==sources.length)throw Error('Invalid knowledge evidence ledger')
+ signal.throwIfAborted();await port.check();let sources=input.map(source=>KnowledgeCheckSourceSchema.parse(source));if(sources.length>32||new Set(sources.map(source=>source.id)).size!==sources.length)throw Error('Invalid knowledge evidence ledger')
  const draftHash=await knowledgeAnswerHash(draft),base={version:1 as const,id:crypto.randomUUID(),draftHash,created:Date.now(),model:settings.model,sources:sources.map(({content,...source})=>source),revised:false,calls:0,claims:[] as KnowledgeClaim[],coverage:0,coveragePolicy:'visible-text-v2' as const,omittedEvidence:0};let answer=draft;let failure:KnowledgeCheckReport['failure'];const failed=(stage:'judgment'|'revision',error:unknown)=>{const message=error instanceof z.ZodError?'Invalid structured response: '+error.issues.slice(0,4).map(issue=>issue.path.join('.')+' '+issue.code).join('; '):error instanceof Error?error.message:'Unknown verifier error';failure={stage,message:message.replace(/VENICE_INFERENCE_KEY_[A-Za-z0-9_-]+|Bearer\s+[^\s]+/gi,'[redacted]').slice(0,600)}}
  const followUp = {searches:0,evidenceAdded:0,interrupted:false}
  const finish=async(reason:KnowledgeCheckReport['reason'],status:KnowledgeCheckReport['status'])=>{const answerHash=await knowledgeAnswerHash(answer);signal.throwIfAborted();await port.check();return {answer,report:KnowledgeCheckReportSchema.parse({...base,reason,status,answerHash,...(failure?{failure}:{}),...(followUp.searches?{followUp}:{})})}}
@@ -62,7 +62,7 @@ export async function verifyKnowledgeAnswer(draft:string,input:readonly Knowledg
       previousQueries.some(previous => normalize(previous) === normalize(query))) break
   let remainingChars = 64000 - sources.reduce((sum, source) => sum + source.content.length, 0)
   if (remainingChars <= 0) break
-  const previousLength = sources.length
+  const previousSources = sources
   previousQueries.push(query)
   followUp.searches++
   try {
@@ -70,19 +70,21 @@ export async function verifyKnowledgeAnswer(draft:string,input:readonly Knowledg
    const retrieved = await port.retrieve(query,sources,signal)
    signal.throwIfAborted();await port.check()
    const ids = new Set(sources.map(source=>source.id)), urls = new Set(sources.map(source=>source.url))
+   const additional: KnowledgeCheckSource[] = []
    for (const raw of retrieved.slice(0,3)) {
     const parsed = KnowledgeCheckSourceSchema.safeParse(raw)
     if (!parsed.success || parsed.data.origin !== 'knowledge') continue
     const source = parsed.data
-    if (ids.has(source.id) || urls.has(source.url) || source.content.length > remainingChars || sources.length >= 32) continue
-    ids.add(source.id);urls.add(source.url);remainingChars -= source.content.length;sources.push(source)
+    if (ids.has(source.id) || urls.has(source.url) || source.content.length > remainingChars || sources.length + additional.length >= 32) continue
+    ids.add(source.id);urls.add(source.url);remainingChars -= source.content.length;additional.push(source)
    }
-   if (sources.length === previousLength) break
+   if (!additional.length) break
+   sources = [...sources,...additional]
    proposal = await judge(limit-followUp.searches)
-   followUp.evidenceAdded += sources.length-previousLength
+   followUp.evidenceAdded += additional.length
    base.sources=sources.map(({content,...source})=>source)
   } catch {
-   sources.length = previousLength
+   sources = previousSources
    signal.throwIfAborted();await port.check()
    followUp.interrupted=true
    break
