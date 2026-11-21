@@ -50,6 +50,10 @@ This is an MCP endpoint, not an OpenAI-compatible HTTP API server. Each port acc
 
 Router tools use an internal workspace without a sessionId. Full/shadow operations require an authorized sessionId from app_contexts. Router mode also retains the existing venice_image/venice_media adapters where enabled; venice_studio exposes the direct Studio paths without requiring the chat-tool toggle.
 
+### Additional evidence for source review
+
+The app-wide `knowledge_verify` tool accepts `followUpSearches` values 0, 1 and 2. Zero preserves single-pass evidence retrieval. A follow-up searches local indexes only in collections represented by the submitted receipts, adding up to three revision-checked passages per round. With manual model approval, the owner approves any additional passages before the verifier receives them. Use `report.followUp` for the number of searches attempted and passages admitted. The optional rewrite and its final check bring the ceiling to five model calls.
+
 ### Linked knowledge originals
 
 On a desktop app-wide endpoint, authorize the collections and enable **Share paths to original files in linked collections** to include a `localFile` object in `knowledge_document` and `knowledge_evidence` when the matching original still exists in the linked folder. Its `path` is the absolute desktop path, `relativePath` is relative to the collection folder, and `uri` is an encoded file URI. Resolve citation IDs through `knowledge_evidence` for the exact passage and page or line information where available.

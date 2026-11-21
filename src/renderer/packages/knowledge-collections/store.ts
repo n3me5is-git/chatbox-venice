@@ -174,7 +174,7 @@ export class KnowledgeCollections {
   private async ragPort(id:number,settings:RagSettings,signal:AbortSignal,load=this.dataReader(id),localOnly=false,queryEmbed?:RagEnginePort['embed'],track=false){const expected=JSON.stringify(settings),authority=localOnly?undefined:this.adapters.authority?.(settings),mountEpoch=this.adapters.directory?.epoch?.(id),ownerRevision=this.vault.keys.snapshot();const check=async()=>{signal.throwIfAborted();await this.assert(id);if(this.vault.keys.snapshot()!==ownerRevision||this.adapters.directory?.epoch?.(id)!==mountEpoch)throw Error('Collection access changed; repeat the operation');if(JSON.stringify((await load()).settings)!==expected||!localOnly&&this.adapters.authority?.(settings)!==authority)throw Error('RAG settings changed; start the operation again')};const port:RagEnginePort={
     report:track?event=>this.progress.report(id,event):undefined,
     sourceMaxBytes:KNOWLEDGE_BASE_MAX_FILE_SIZE,hashSource:knowledgeSourceHash,embeddingSpace:localOnly?undefined:await this.adapters.embeddingIdentity?.(settings),portableDescriptor:!localOnly&&this.adapters.embeddingDescriptor?this.adapters.embeddingDescriptor(settings) as Record<string,unknown>:undefined,portableSpace:!localOnly&&this.adapters.embeddingDescriptor?await ragHash(new TextEncoder().encode(canonicalCollectionJson(this.adapters.embeddingDescriptor(settings)))):undefined,check,list:async()=>(await load()).files.map(file=>({path:file.path,name:file.name,mime:file.mime,bytes:file.bytes})),read:async path=>{await check();const file=(await load()).files.find(file=>file.path===path);if(!file)throw Error('Knowledge document not found');return this.sourceFile(id,file)},revision:async path=>{await check();const file=(await load()).files.find(file=>file.path===path);return file?this.fileRevision(id,file):null},
-    get:async path=>{await check();const raw=await (await this.records(id)).get(prefix(id)+path);if(path===RAG_ROOT+'index.json')return this.directoryIndex(id,raw,settings);return raw},put:async(path,value)=>{await check();const entry=await this.assert(id);const save=async()=>(await this.records(id)).set(prefix(id)+path,value,entry.scope);if(path===RAG_ROOT+'index.json')await this.publish(id,save);else await save()},
+    get:async path=>{await check();const raw=await (await this.records(id)).get(prefix(id)+path);if(!localOnly&&path===RAG_ROOT+'index.json')return this.directoryIndex(id,raw,settings);return raw},put:async(path,value)=>{await check();const entry=await this.assert(id);const save=async()=>(await this.records(id)).set(prefix(id)+path,value,entry.scope);if(path===RAG_ROOT+'index.json')await this.publish(id,save);else await save()},
     // Only cache shards owned by this authorized job reach this callback. Cleanup must
     // survive cancellation/locking; it neither decrypts nor deletes source documents.
     remove:async path=>{if(!/^\.chatbox\/rag\/data\/[a-f0-9-]+\.json$/.test(path))throw Error('Invalid RAG index');await (await this.records(id)).remove(prefix(id)+path)},
@@ -211,6 +211,16 @@ export class KnowledgeCollections {
     }
     await port.check();return {...found,warnings}
   })}
+  async searchReviewPassages(id:number,query:string,signal:AbortSignal) {
+    return this.read(id,async()=>{
+      const data=await this.data(id)
+      const pipeline=await this.pipeline(id,data,signal,true)
+      const port=pipeline.vectorPort(await pipeline.state())
+      // Source review uses local lexical retrieval without an embedding or reranking call.
+      const result=await hybridRagSearch({...port,embed:async()=>{throw Error('Review retrieval is local only')}},query,data.settings,signal,6,true)
+      return result.matches
+    })
+  }
   /** A virtual union: no vectors or graph rows are copied into a central DB.
    * At most two collections execute concurrently; identical query embeddings are
    * shared only for this operation and their authenticated embedding-space key. */

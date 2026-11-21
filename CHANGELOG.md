@@ -1,5 +1,11 @@
 # Changelog — Chatbox Venice
 
+## 1.56.0
+
+- Let source review search cited knowledge collections for missing or conflicting evidence before correcting an answer.
+- Configure zero, one or two additional searches in the chat and through desktop MCP.
+- Show additional search activity and the number of new excerpts used.
+
 ## 1.55.0
 
 - Optionally share links to matching original files in connected knowledge collections through desktop MCP.

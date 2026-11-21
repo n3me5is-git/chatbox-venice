@@ -1,6 +1,6 @@
 import {beforeEach,expect,it,vi} from 'vitest'
 import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant} from '@shared/local-mcp'
-const state=vi.hoisted(()=>({authorize:vi.fn(),assert:vi.fn(),data:vi.fn(),readEvidence:vi.fn(),sourceRevision:vi.fn(),verify:vi.fn(),approve:vi.fn(),global:{} as any}))
+const state=vi.hoisted(()=>({authorize:vi.fn(),assert:vi.fn(),data:vi.fn(),readEvidence:vi.fn(),sourceRevision:vi.fn(),searchReviewPassages:vi.fn(),chunksForMatches:vi.fn(),citeChunks:vi.fn(),verify:vi.fn(),approve:vi.fn(),global:{} as any}))
 vi.mock('@/packages/knowledge-collections/service',()=>({knowledgeCollections:state}))
 vi.mock('@/packages/knowledge-collections/verify',()=>({checkKnowledgeAnswer:(...args:any[])=>state.verify(...args)}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>state.global})}}))
@@ -16,4 +16,26 @@ it('rejects cross-collection access, privacy mismatches and source changes durin
  const owner=grant(),tool=applicationKnowledgeVerifier(owner,new AbortController().signal,async()=>{});await expect(tool.execute!({...input,sources:[{...input.sources[0],collectionId:-2}]} as never,{} as never)).rejects.toThrow('permissions');expect(state.authorize).not.toHaveBeenCalled()
  owner.application!.privacy='e2ee';await expect(tool.execute!(input as never,{} as never)).rejects.toThrow('privacy');expect(state.verify).not.toHaveBeenCalled();owner.application!.privacy='auto'
  state.verify.mockImplementationOnce(async(_answer,_sources,_settings,_signal,check)=>{state.sourceRevision.mockResolvedValue('c'.repeat(64));await check();return {answer:'MUST NOT RETURN'}});await expect(tool.execute!(input as never,{} as never)).rejects.toThrow('changed during verification')
+})
+
+it('uses the requested follow-up budget and asks approval for new excerpts on a manual endpoint',async()=>{
+ const owner=grant(),signal=new AbortController().signal,newId='e'.repeat(64)
+ owner.application!.knowledgeCollectionIds=[-1,-2]
+ state.searchReviewPassages.mockResolvedValue([{id:'hit'}])
+ state.chunksForMatches.mockResolvedValue([{chunk:{id:'hit'},fileId:10,chunkIndex:1,text:'A new exception'}])
+ state.citeChunks.mockResolvedValue([{id:newId}])
+ state.readEvidence.mockImplementation(async(_collection,_file,id)=>({id,name:'policy',sourceHash:'b'.repeat(64),quote:id===newId?'A new exception':'Retention is 30 days.',before:'',after:'',stale:false}))
+ state.verify.mockImplementationOnce(async(answer,sources,settings,_signal,check,_security,_observe,retrieve)=>{
+  expect(settings.followUpSearches).toBe(2)
+  const fresh=await retrieve('retention exception',sources,signal)
+  await check()
+  return {answer,fresh}
+ })
+ const tool=applicationKnowledgeVerifier(owner,signal,async()=>{})
+ expect(await tool.execute!({...input,correctConflicts:true,followUpSearches:2} as never,{} as never)).toMatchObject({fresh:[{id:newId,content:'A new exception'}]})
+ expect(state.searchReviewPassages).toHaveBeenCalledOnce()
+ expect(state.searchReviewPassages).toHaveBeenCalledWith(-1,'retention exception',signal)
+ expect(state.approve).toHaveBeenCalledTimes(2)
+ expect(state.approve.mock.calls[0][1].maxOutputTokens).toBe(20480)
+ expect(state.approve.mock.calls[1][1].messages[1].content).toContain('A new exception')
 })
