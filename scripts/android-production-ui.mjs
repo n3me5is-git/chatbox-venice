@@ -93,6 +93,15 @@ try{
  const imageModelButton = 'document.querySelector(\'[aria-label="Modello immagine"]\')'
  const imageModelList = 'document.querySelector(\'[data-model-scroll="image"]\')'
  const chosenImageModel = () => evaluate('(' + imageModelButton + ')?.textContent.trim()')
+ const waitForVisible = async (expression, message) => {
+   let previous
+   await wait(async () => {
+     const box = await evaluate('(()=>{const e=' + expression + ';if(!e)return null;const {x,y,width,height,bottom}=e.getBoundingClientRect();return {x,y,width,height,visible:y>=0&&bottom<=innerHeight+1}})()')
+     const stable = box?.visible && box.height > 0 && previous && Math.abs(box.y - previous.y) < 0.5
+     previous = box
+     return stable
+   }, message)
+ }
  const addImage = async (red) => evaluate('(async()=>{const canvas=document.createElement("canvas");canvas.width=16;canvas.height=16;const ctx=canvas.getContext("2d");ctx.fillStyle="rgb("+'
    + red + '+",0,0)";ctx.fillRect(0,0,16,16);const png=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));const transfer=new DataTransfer();transfer.items.add(new File([png],"ref-"+'
    + red + '+".png",{type:"image/png"}));const input=document.querySelector(\'input[type="file"][accept="image/*"]\');input.files=transfer.files;input.dispatchEvent(new Event("change",{bubbles:true}));})()')
@@ -110,6 +119,7 @@ try{
    assert.equal(await evaluate('document.body.innerText.includes("Conferma un modello immagine compatibile")'), false)
    await addImage(200)
    await wait(() => evaluate('document.body.innerText.includes("Conferma un modello immagine compatibile")'), 'The Android composer did not request fallback confirmation')
+   await waitForVisible('[...document.querySelectorAll(\'[role="dialog"]\')].find(e=>e.textContent.includes("Conferma un modello immagine compatibile"))', 'Fallback confirmation did not fit in the Android viewport')
    await snap('native-image-' + label + '-confirmation')
    await click('OK')
    await wait(async () => await chosenImageModel() === 'Fixture Multi Edit', 'Fallback did not become the primary selection')
@@ -117,6 +127,7 @@ try{
    await wait(() => evaluate('(' + imageModelList + ')?.textContent.includes("Fixture Multi Edit")'), 'Filtered Android picker did not open')
    assert.equal(await evaluate('(' + imageModelList + ').textContent.includes("Fixture Image Edit")'), false, 'Android picker included a model that accepts only one attachment')
    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'Android composer overflowed horizontally')
+   await waitForVisible(imageModelList, 'Filtered image models did not fit in the Android viewport')
    await snap('native-image-' + label + '-filtered')
    adb('shell','input','keyevent','4')
    await wait(() => evaluate('!(' + imageModelList + ')'), 'Android Back did not close the model picker')

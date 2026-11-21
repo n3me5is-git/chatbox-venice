@@ -19,7 +19,7 @@ export function ImageReferenceNotice({ review, onConfirm }: {
     <Alert color="yellow" p="xs">
       <Button variant="subtle" size="compact-sm" onClick={() => setOpened(true)}>{ft('Review the selected model')}</Button>
     </Alert>
-    <AdaptiveModal opened={opened} onClose={() => setOpened(false)} title={ft('Confirm a compatible image model')} size="sm">
+    <AdaptiveModal opened={opened} onClose={() => setOpened(false)} title={ft('Confirm a compatible image model')} size="sm" centered>
       <Stack gap="sm">
         <Text size="sm">{ft('The previous model cannot use all attached images. Confirm this model or choose another in the model list.')}</Text>
         <Text fw={600} style={{ overflowWrap: 'anywhere' }}>{review.candidate.displayName}</Text>

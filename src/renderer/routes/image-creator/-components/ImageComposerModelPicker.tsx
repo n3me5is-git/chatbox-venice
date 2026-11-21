@@ -19,7 +19,7 @@ export function ImageComposerModelPicker({ groups, selection, onSelect }: {
   const [opened, setOpened] = useState(false)
   const model = groups.find(group => group.providerId === selection?.provider)?.models.find(option => option.modelId === selection?.model)
   const label = model?.displayName ?? ft('Choose a model')
-  const content = <Group component="span" wrap="nowrap" gap={4} px={8} mih={36} c="dimmed">
+  const content = <Group component="span" wrap="nowrap" gap={4} px={8} mih={mobile ? 44 : 36} c="dimmed">
     <IconSparkles size={16} />
     <Text component="span" size="sm" truncate maw={mobile ? 140 : 220} title={label}>{label}</Text>
     <IconChevronDown size={14} />

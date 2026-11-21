@@ -144,6 +144,7 @@ function InputToolbar({
         {isSmallScreen ? (
           <UnstyledButton
             onClick={onRatioDrawerOpen}
+            mih={44}
             className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[var(--chatbox-background-tertiary)] transition-colors"
           >
             <IconAspectRatio size={16} className="text-[var(--chatbox-tint-secondary)]" />
@@ -178,7 +179,7 @@ function InputToolbar({
         {/* Reference Image Button */}
         <UnstyledButton
           onClick={onAddReference}
-          mih={40}
+          mih={44}
           className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[var(--chatbox-background-tertiary)] transition-colors"
         >
           <IconPhoto size={16} className="text-[var(--chatbox-tint-secondary)]" />
@@ -191,11 +192,7 @@ function InputToolbar({
       {/* Right Group: New Creation */}
       <Flex align="center" gap={4}>
         {/* New Creation Button */}
-        {isSmallScreen ? (
-          <ActionIcon variant="light" size={40} radius="lg" aria-label={t('New Creation')} onClick={onNewCreation}>
-            <IconPlus size={18} />
-          </ActionIcon>
-        ) : (
+        {!isSmallScreen && (
           <Button
             variant="light"
             size="compact-md"
@@ -434,16 +431,10 @@ export function ImageCreatorPage({ onlyVenice = false, embedded = false }: { onl
   )
 
   const headerRight = isSmallScreen ? (
-    <ActionIcon
-      variant="subtle"
-      color="gray"
-      size="md"
-      radius="lg"
-      onClick={() => setShowMobileHistory(true)}
-      className="controls"
-    >
-      <IconHistory size={20} />
-    </ActionIcon>
+    <Group gap={0} wrap="nowrap" className="controls">
+      <ActionIcon variant="subtle" color="gray" size={44} aria-label={t('New Creation')} onClick={handleNewCreation}><IconPlus size={20} /></ActionIcon>
+      <ActionIcon variant="subtle" color="gray" size={44} aria-label={t('History')} onClick={() => setShowMobileHistory(true)}><IconHistory size={20} /></ActionIcon>
+    </Group>
   ) : (
     <UnstyledButton
       onClick={() => setShowHistory(!showHistory)}
