@@ -77,16 +77,44 @@ export async function listSessionResources(id:string,signal?:AbortSignal){
   const images=platform.getImageGenerationStorage();await images.initialize();let cursor:number|null=0
   do{
     signal?.throwIfAborted();const page=await images.getPage(cursor,100)
-    for(const record of page.items)if(record.source?.sessionId===id)for(const [n,key]of record.generatedImages.entries())items.push({id:'image:'+record.id+':'+key,path:'images/'+record.id+'/'+(n+1)+'.png',name:(n+1)+'.png',mime:'image/png',origin:'image',key,recordId:record.id,index:n,deliverable:true})
+    for(const record of page.items)if(record.source?.sessionId===id)items.push(...imageResources(record))
     cursor=page.nextCursor
   }while(cursor!==null&&items.length<4000)
   truncated ||= cursor!==null
-  for(const record of await veniceMediaService.list())if(record.sessionId===id&&record.blobKey)items.push({id:'media:'+record.id,path:'media/'+record.kind+'/'+record.id+'.'+(veniceMediaExtension(record.mime)||record.mime?.split('/')[1]||'bin'),name:record.prompt.slice(0,70)||record.model,mime:record.mime||'application/octet-stream',origin:'media',key:record.blobKey,recordId:record.id,deliverable:true})
+  for (const record of await veniceMediaService.list()) if (record.sessionId === id && record.blobKey) items.push(mediaResource(record))
   const removed=new Set(index.removed),seen=new Set<string>()
   const priority={file:5,image:4,media:4,artifact:3,workspace:2,attachment:1,message:0}
   const unique=items.sort((a,b)=>priority[b.origin]-priority[a.origin]).filter(item=>{if(removed.has(item.id)||item.key&&removed.has('key:'+item.key))return false;const key=item.key&&item.origin!=='file'?item.key:item.id;if(seen.has(key))return false;seen.add(key);return true})
   await assertSession(id)
   return {items:unique,truncated,directories:index.directories||[],options:{toolsEnabled:index.toolsEnabled!==false,pythonEnabled:!!index.pythonEnabled}}
+}
+
+function imageResources(record: { id: string; generatedImages: string[] }): SessionResource[] {
+  return record.generatedImages.map((key, index) => {
+    const name = `${index + 1}.png`
+    return { id: `image:${record.id}:${key}`, path: `images/${record.id}/${name}`, name, mime: 'image/png', origin: 'image', key, recordId: record.id, index, deliverable: true }
+  })
+}
+
+function mediaResource(record: Awaited<ReturnType<typeof veniceMediaService.list>>[number]): SessionResource {
+  const extension = veniceMediaExtension(record.mime) || record.mime?.split('/')[1] || 'bin'
+  return { id: `media:${record.id}`, path: `media/${record.kind}/${record.id}.${extension}`, name: record.prompt.slice(0, 70) || record.model,
+    mime: record.mime || 'application/octet-stream', origin: 'media', key: record.blobKey, recordId: record.id, deliverable: true }
+}
+
+export async function listGeneratedSessionResources(id: string, generationId: string, signal: AbortSignal) {
+  await assertSession(id)
+  signal.throwIfAborted()
+  const [image, records, index] = await Promise.all([
+    getImageGenerationService().getRecord(generationId), veniceMediaService.list(), sessionFiles.index(id),
+  ])
+  const items = image?.source?.sessionId === id ? imageResources(image) : []
+  const media = records.find(record => record.id === generationId && record.sessionId === id && record.blobKey)
+  if (media) items.push(mediaResource(media))
+  const removed = new Set(index.removed)
+  signal.throwIfAborted()
+  await assertSession(id)
+  return { items: items.filter(item => !removed.has(item.id) && !removed.has('key:' + item.key)), truncated: false }
 }
 export async function readSessionResource(id:string,item:SessionResource){
   await assertSession(id)

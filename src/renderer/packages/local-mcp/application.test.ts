@@ -7,10 +7,13 @@ vi.mock('@/platform',()=>({default:{type:'desktop',getImageGenerationStorage:()=
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultChatModel:{provider:'openai',model:'configured'}})})}}))
 vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({db:{aliases:async()=>state.aliases,getSetting:async(key:string)=>state.settings.get(key),setSettingIfUnchanged:async(key:string,old:unknown,next:unknown)=>{if(state.settings.get(key)!==old)return false;state.settings.set(key,next);return true}},projects:{isApplicationLocked:async()=>state.appLocked,assertApp:async()=>{if(state.appLocked)throw Error('App locked')},assertStorage:async()=>{},assertSession:async(id:string)=>{if(state.locked.has(id))throw Error('Locked')}},assets:{remove:(key:string)=>state.remove(key)}})}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{repository:{meta:{getAllIncludingHidden:async()=>[...state.headers.values()]}},getSessionHeader:async(id:string)=>state.headers.has(id)?{header:state.headers.get(id)}:null,createSession:async(input:any)=>{const header={...input,id:'created-'+(++state.count)};state.headers.set(header.id,header);return header},updateSessionHeader:async(id:string,patch:any)=>state.headers.set(id,{...state.headers.get(id),...patch}),setSessionSystemPrompt:vi.fn(),deleteSession:vi.fn(async(id:string)=>state.headers.delete(id))}}}))
-vi.mock('./backend',()=>({localMCPTools:async()=>[{name:'app_model',inputSchema:{type:'object',properties:{provider:{type:'string'}},required:['provider'],additionalProperties:false}},{name:'session_file',inputSchema:{type:'object'}}],handleSessionLocalMCP:(...args:any[])=>state.call(...args)}))
+vi.mock('./backend',()=>{
+ const describe = async () => [{name:'app_model',inputSchema:{type:'object',properties:{provider:{type:'string'}},required:['provider'],additionalProperties:false}},{name:'session_file',inputSchema:{type:'object'}}]
+ return {describeRouterTools:describe,localMCPTools:describe,handleSessionLocalMCP:(...args:any[])=>state.call(...args)}
+})
 vi.mock('./knowledge',()=>({applicationKnowledgeTools:async()=>({knowledge_document:tool({inputSchema:z.object({collectionId:z.number(),fileId:z.number()}).strict(),execute:async()=>({text:'Scoped knowledge source'})})})}))
 vi.mock('./conversation',()=>({applicationConversationTool:()=>tool({inputSchema:z.object({}),execute:async()=>({sent:true})})}))
-vi.mock('./studio',()=>({applicationStudioTool:()=>tool({inputSchema:z.object({}),execute:async()=>({studio:true})})}))
+vi.mock('./studio',()=>({applicationStudioTool:()=>tool({inputSchema:z.object({action:z.enum(['catalog','describe','generate'])}),execute:async()=>({studio:true})})}))
 vi.mock('./uploads',()=>({mcpUploadSchema:z.object({}),uploadMCPFile:vi.fn(),cleanupMCPUploads:vi.fn(async()=>{})}))
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{}}))
 vi.mock('@/packages/venice/service',()=>({veniceConfiguration:()=>({apiKey:'test-secret',options:{enabled:true}}),veniceMediaService:{list:async()=>[],removeVoice:vi.fn()}}))
@@ -52,6 +55,28 @@ it('router exposes only model/Studio/transfer tools, rejects a chat API and keep
   await expect(call(g,'app_model',{provider:'venice'})).rejects.toThrow('arguments')
   await call(g,'app_model',{provider:'venice',request_id:'paid'})
   expect(state.call).toHaveBeenCalledWith(expect.objectContaining({arguments:{provider:'venice'},grant:expect.objectContaining({sessionId:'created-1'})}),expect.any(AbortSignal))
+})
+it('keeps the full granted tool schema stable across lock, unlock and background approval', async () => {
+ const g = { ...grant('router'), keepWhileLocked: true }
+ state.live = [g]
+ const request = (locked: boolean) => handleApplicationMCP({ id: 'list', operation: 'list_tools', grant: g, locked }, new AbortController().signal)
+ const configured = await request(false) as any[]
+ expect(configured.find(member=>member.name==='venice_studio').inputSchema.properties.action.enum).toContain('generate')
+ state.appLocked = true
+ expect(await request(true)).toEqual(configured)
+ const callLocked = (action: string) => handleApplicationMCP({ id: 'studio', operation: 'call_tool', name: 'venice_studio', arguments: { action }, grant: g, locked: true }, new AbortController().signal)
+ await expect(callLocked('generate')).rejects.toThrow('Unlock Chatbox')
+ expect(await callLocked('catalog')).toEqual({ studio: true })
+ const elevated = { ...g, allowOperationsWhileLocked: true }
+ state.live = [elevated]
+ expect(await handleApplicationMCP({ id: 'list', operation: 'list_tools', grant: elevated, locked: true }, new AbortController().signal)).toEqual(configured)
+ expect(state.count).toBe(0)
+ state.appLocked = false
+ state.live = [g]
+ expect(await request(false)).toEqual(configured)
+ g.permissions.venice = false
+ expect(await request(false)).not.toEqual(expect.arrayContaining([expect.objectContaining({name:'venice_studio'})]))
+ await expect(call(g, 'venice_studio', { action: 'catalog' })).rejects.toThrow('permissions')
 })
 it('revocation is checked before returning app data and unknown parameters cannot smuggle credentials',async()=>{
   const g=grant('shadow');state.live=[g]

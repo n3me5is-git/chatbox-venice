@@ -130,7 +130,19 @@ async function toolsFor(grant:LocalMCPGrant){
   return tools
 }
 export async function localMCPTools(grant:LocalMCPGrant):Promise<LocalMCPTool[]>{
-  const tools=await toolsFor(grant),result:LocalMCPTool[]=[]
+  return describeTools(grant, await toolsFor(grant))
+}
+
+export async function describeRouterTools(grant: LocalMCPGrant): Promise<LocalMCPTool[]> {
+  const tools = await modelTools(grant)
+  if (grant.permissions.venice && (!grant.application?.providers || grant.application.providers.includes('venice'))) {
+    Object.assign(tools, veniceChatTools(grant.sessionId, 'external', 'owner', grant.sessionId, { discover: true }))
+  }
+  return describeTools(grant, tools)
+}
+
+async function describeTools(grant: LocalMCPGrant, tools: ToolSet): Promise<LocalMCPTool[]> {
+  const result:LocalMCPTool[]=[]
   for(const [name,member]of Object.entries(tools)){
     const schema=structuredClone(await asSchema(member.inputSchema).jsonSchema) as LocalMCPTool['inputSchema']
     if(name==='session_file'){
@@ -177,25 +189,17 @@ export async function handleLocalMCP(request:LocalMCPRequest,signal:AbortSignal)
     const { grant, operation, name } = request
     signal.throwIfAborted()
     if (!localMCPAllowsDuringLock(grant, operation, name, request.arguments)) throw Error('Unlock Chatbox to use this MCP operation')
-    if (localMCPBackgroundAllowed(grant)) return (await import('./application')).handleApplicationMCP(request, signal)
+    if (localMCPBackgroundAllowed(grant) || (grant.application?.mode === 'router' && (operation === 'list_tools' || name === 'venice_studio'))) {
+      return (await import('./application')).handleApplicationMCP(request, signal)
+    }
     if (operation === 'list_resources') return []
     const tools: ToolSet = grant.application?.mode === 'router' ? await modelTools(grant, true) : {}
     const studioCatalogs = Object.entries(localMCPLockedCatalogActions).filter(([toolName, actions]) =>
       localMCPAllowsDuringLock(grant, 'call_tool', toolName, { action: actions[0] }))
-    if (studioCatalogs.length && (operation === 'list_tools' || studioCatalogs.some(([toolName]) => toolName === name))) {
+    if (studioCatalogs.some(([toolName]) => toolName === name)) {
       Object.assign(tools, (await import('./studio')).lockedStudioCatalogTools(grant, signal))
     }
-    if (operation === 'list_tools') {
-      return Promise.all(Object.entries(tools).filter(([toolName]) => studioCatalogs.some(([catalogName]) => catalogName === toolName)
-        || localMCPAllowsDuringLock(grant, 'call_tool', toolName)).map(async ([toolName, member]) => {
-        const schema = structuredClone(await asSchema(member.inputSchema).jsonSchema) as LocalMCPTool['inputSchema']
-        if (toolName === 'app_model') {
-          schema.properties = { ...(schema.properties as object), request_id: {type:'string',minLength:1,maxLength:128} }
-          schema.required = [...((schema.required as string[]) || []), 'request_id']
-        }
-        return { name:toolName, description:typeof member.description==='string'?member.description:undefined, inputSchema:schema }
-      }))
-    }
+    if (operation === 'list_tools') return []
     const member = name ? tools[name] : undefined
     const {request_id, ...args} = request.arguments ?? {}
     const validated = member && await asSchema(member.inputSchema).validate?.(args)

@@ -4,7 +4,7 @@ import {validatedToolSchema} from '@shared/validated-tool-schema'
 import {applicationConversationTool} from './conversation'
 import {asSchema,tool,type ToolSet} from 'ai'
 import {z} from 'zod'
-import {LocalMCPApplicationSchema,isLocalMCPVeniceSearch,localMCPObservation,localMCPAllows,localMCPBackgroundAllowed,localMCPGrantAllows,type LocalMCPGrant,type LocalMCPRequest} from '@shared/local-mcp'
+import {LocalMCPApplicationSchema,isLocalMCPVeniceSearch,localMCPObservation,localMCPAllows,localMCPAllowsDuringLock,localMCPBackgroundAllowed,localMCPGrantAllows,type LocalMCPGrant,type LocalMCPRequest} from '@shared/local-mcp'
 import {SessionSettingsSchema,type SessionSettings} from '@shared/types'
 import {MultiAgentPolicySchema} from '@shared/multi-agent'
 import {rendererApplication} from '@/app/renderer-application'
@@ -13,7 +13,7 @@ import {sessionFiles} from '@/packages/session-resources/files'
 import {settingsStore} from '@/stores/settingsStore'
 import platform from '@/platform'
 import { isTemporaryChat, isUnavailableChat } from '@/packages/chat-retention/retention'
-import {handleSessionLocalMCP,localMCPTools} from './backend'
+import {describeRouterTools,handleSessionLocalMCP,localMCPTools} from './backend'
 import { clearMCPContextResults, clearMCPRequestCache, runMCPRequestOnce as unique } from './request-cache'
 
 import {temporaryMCPEntries as entries,mutateTemporaryMCPEntries as mutate,localMCPOwner as owner} from './temporary'
@@ -24,10 +24,10 @@ const creating=new Map<string,Promise<string>>()
 const vault=()=>vaultRuntimeFor(platform)
 const idSchema=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)
 const optionsSchema=z.object({provider:z.string().min(1).max(128).optional(),modelId:z.string().min(1).max(256).optional(),temperature:z.number().min(0).max(2).optional(),topP:z.number().min(0).max(1).optional(),maxTokens:z.number().int().min(1).max(128000).optional(),contextTokenLimit:z.number().int().min(1024).max(10000000).optional(),webBrowsing:z.boolean().optional(),veniceToolsEnabled:z.boolean().optional(),providerOptionsByModel:z.record(z.string(),z.unknown()).optional(),multiAgent:MultiAgentPolicySchema.optional()}).strict()
-async function live(grant:LocalMCPGrant,signal?:AbortSignal){
+async function live(grant:LocalMCPGrant,signal?:AbortSignal,lockSafe=false){
   signal?.throwIfAborted()
   if (localMCPBackgroundAllowed(grant)) await vault().projects.assertStorage()
-  else await vault().projects.assertApp()
+  else if (!lockSafe) await vault().projects.assertApp()
   const current=await window.electronAPI.invoke('local-mcp:control','status',grant.endpointId)
   if(!current.running||current.token!==grant.token||localMCPBackgroundAllowed(current)!==localMCPBackgroundAllowed(grant)||JSON.stringify(current.application)!==JSON.stringify(grant.application)||JSON.stringify(current.permissions)!==JSON.stringify(grant.permissions))throw Error('Local MCP access was revoked')
   signal?.throwIfAborted()
@@ -129,10 +129,10 @@ export async function cleanupInactiveMCPContexts(){
   for(const entry of await entries())if(!owners.has(entry.owner)&&!entry.rootId)try{await disposeContext(entry.id)}catch{failed.push(entry.id)}
   return {pending:failed.length}
 }
-function appTools(grant:LocalMCPGrant,signal:AbortSignal):ToolSet{
+function appTools(grant:LocalMCPGrant,signal:AbortSignal,locked=false):ToolSet{
   const app=LocalMCPApplicationSchema.parse(grant.application)
   return {
-    venice_studio:applicationStudioTool(grant,signal,async requested=>{const id=grant.application!.mode==='router'?await defaultContext(grant,signal):requested;if(!id)throw Error('A sessionId is required');await authorized(grant,id,signal);return id},id=>authorized(grant,id,signal),(id,input,work)=>unique(grant,id,input,work)),
+    venice_studio:applicationStudioTool(grant,signal,async requested=>{const id=grant.application!.mode==='router'?await defaultContext(grant,signal):requested;if(!id)throw Error('A sessionId is required');await authorized(grant,id,signal);return id},id=>authorized(grant,id,signal),(id,input,work)=>unique(grant,id,input,work),locked),
     app_upload:tool({description:'Upload a binary input into the authorized workspace in sequential chunks up to 256 KiB. Keep uploadId, path, MIME, totalBytes and full-file SHA-256 constant. Use final: true on the last chunk. Retrying the same chunk is safe; changed bytes are rejected. Router inputs stay in its temporary workspace. Files are encrypted locally; no OS path access.',inputSchema:mcpUploadSchema,execute:async input=>{const id=grant.application!.mode==='router'?await defaultContext(grant,signal):input.sessionId;if(!id)throw Error('A sessionId is required');await authorized(grant,id,signal);return uploadMCPFile(grant,id,input,signal)}}),
     app_conversation:applicationConversationTool(grant,signal,id=>authorized(grant,id,signal),(id,input,work)=>unique(grant,id,input,work)),
     app_contexts:tool({description:'List, create, inspect, configure or permanently delete authorized root chat workspaces. Shadow mode can access only this endpoint’s temporary workspaces and cannot retain them. No credentials, protected locked chats or raw child sandboxes. New workspaces have no implicit chat history, global system prompt, linked folder or knowledge collection.',inputSchema:z.object({action:z.enum(['list','create','get','configure','delete']),sessionId:idSchema.optional(),name:z.string().min(1).max(100).optional(),temporary:z.boolean().optional(),settings:optionsSchema.optional(),systemPrompt:z.string().max(64000).optional(),confirmDelete:z.boolean().optional(),offset:z.number().int().min(0).default(0),limit:z.number().int().min(1).max(100).default(50),request_id:z.string().min(1).max(128).optional()}).strict(),execute:async input=>{
@@ -171,7 +171,7 @@ function appTools(grant:LocalMCPGrant,signal:AbortSignal):ToolSet{
       const perform=()=>handleSessionLocalMCP({id:crypto.randomUUID(),operation:'call_tool',grant:bound(grant,input.sessionId),name:input.name,arguments:input.arguments,callId:'application:'+input.request_id},signal)
       return localMCPObservation(input.name,input.arguments)?perform():unique(grant,'call:'+input.request_id,input,perform)
     }}),
-    app_resources:tool({description:'List saved files and generations or read a bounded range of one authorized resource. Router mode uses its internal temporary workspace. Use filename and mime for the download. Fetch chunks until nextOffset is null, keep the version and verify the assembled SHA-256 before calling app_cleanup.',inputSchema:z.object({sessionId:idSchema.optional(),action:z.enum(['list','read']),resourceId:z.string().max(1024).optional(),version:z.string().max(128).optional(),offset:z.number().int().min(0).default(0),length:z.number().int().min(1).max(256*1024).default(256*1024)}).strict(),execute:async input=>{
+    app_resources:tool({description:'For a Studio job, list with {action:"list",generationId:"<id returned by Studio>"}. Read the chosen file with {action:"read",generationId:"<same id>",resourceId:"<items[].id>",offset:0}. Decode base64 as binary. Use filename and mime, pass version and nextOffset on each subsequent read, and verify SHA-256 before cleanup. A job ID by itself is not a resource ID. Router mode uses its own temporary workspace; other profiles require sessionId.',inputSchema:z.object({sessionId:idSchema.optional(),action:z.enum(['list','read']),resourceId:z.string().max(1024).optional(),generationId:z.string().min(1).max(256).optional(),version:z.string().max(128).optional(),offset:z.number().int().min(0).default(0),length:z.number().int().min(1).max(256*1024).default(256*1024)}).strict(),execute:async input=>{
       const id=app.mode==='router'?await defaultContext(grant,signal):input.sessionId
       if(!id)throw Error('A sessionId is required');await authorized(grant,id,signal,true)
       return (await import('./resource-transfer')).transferMCPResource(id,input,signal)
@@ -185,15 +185,22 @@ function appTools(grant:LocalMCPGrant,signal:AbortSignal):ToolSet{
   }
 }
 export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortSignal):Promise<unknown>{
-  const grant=request.grant;await live(grant,signal)
+  const grant=request.grant
+  const lockSafe = request.locked === true && grant.application?.mode === 'router' &&
+    (request.operation === 'list_tools' || request.operation === 'call_tool' && request.name === 'venice_studio')
+  if (request.locked && !localMCPAllowsDuringLock(grant,request.operation,request.name,request.arguments)) throw Error('Unlock Chatbox to use this MCP operation')
+  await live(grant,signal,lockSafe)
   if (request.locked && !await vault().projects.isApplicationLocked()) throw Error('Wait for Chatbox to finish locking and try again')
   if(request.operation==='list_resources')return [] // No automatic enumeration of app data.
   if(request.operation==='read_resource')throw Error('Use app_resources with an authorized context')
-  let definitions=appTools(grant,signal)
+  let definitions=appTools(grant,signal,request.locked)
   if(grant.permissions.knowledge&&grant.application?.mode!=='router'&&grant.application?.knowledgeCollectionIds?.length)Object.assign(definitions,await(await import('./knowledge')).applicationKnowledgeTools(grant,signal,()=>live(grant,signal)))
   if(grant.application!.mode==='router'){
-    const modelRoute=request.operation==='list_tools'&&(grant.permissions.models||grant.permissions.venice)||['app_models','app_model','venice_image','venice_media'].includes(request.name||'')
-    const id=modelRoute?await defaultContext(grant,signal):'',scoped=bound(grant,id),listed=modelRoute?await localMCPTools(scoped):[]
+    const listing = request.operation === 'list_tools'
+    const sessionTool = request.name && ['app_models','app_model','venice_image','venice_media'].includes(request.name) && localMCPGrantAllows(grant,request.name)
+    const id = sessionTool ? await defaultContext(grant,signal) : ''
+    const scoped = bound(grant,id)
+    const listed = listing ? await describeRouterTools(grant) : sessionTool ? await localMCPTools(scoped) : []
     definitions=Object.fromEntries(Object.entries(definitions).filter(([name])=>['app_resources','app_cleanup','app_upload','venice_studio'].includes(name)))
     for(const member of listed){
       if(!['app_model','app_models','venice_image','venice_media'].includes(member.name)||!localMCPAllows(grant.permissions,member.name))continue
@@ -226,6 +233,6 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
   const items=active.get(grant.token)||new Set<{id?:string;work:Promise<unknown>}>();active.set(grant.token,items)
   const pending=Promise.resolve().then(()=>member.execute!(validated.value,{toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}}))
   const operation={id:target,work:pending};if(!destructive)items.add(operation)
-  try{const result=await pending;await live(grant,signal);return result}finally{items.delete(operation);if(!items.size)active.delete(grant.token)}
+  try{const result=await pending;await live(grant,signal,lockSafe);return result}finally{items.delete(operation);if(!items.size)active.delete(grant.token)}
 
 }

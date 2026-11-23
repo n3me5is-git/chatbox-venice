@@ -26,8 +26,8 @@ import {privacyAllowed} from '@shared/providers/definitions/models/venice/privac
 import {quickModelPrice} from '@shared/providers/definitions/models/venice/pricing'
 const inFlight = new Map<string, Promise<unknown>>()
 const retryGate=new GenerationRetryGate()
-export function veniceChatTools(sessionId: string,turnId='external',requester='owner',decisionSessionId=sessionId,access:{forceApproval?:boolean}={}) {
-  syncSessionApprovalScope(sessionId)
+export function veniceChatTools(sessionId: string,turnId='external',requester='owner',decisionSessionId=sessionId,access:{forceApproval?:boolean;discover?:boolean}={}) {
+  if (!access.discover) syncSessionApprovalScope(sessionId)
   const authorizations = new WeakMap<ImageChoice, {scope: string; revision: number; automatic: boolean}>()
   const options = () => veniceConfiguration().options
   const retry=(failure:Parameters<typeof requestGenerationRetry>[0],signal?:AbortSignal)=>routeSharedDecision(decisionSessionId,requester,{kind:'confirm',title:'The previous generation failed',detail:failure.model+'\n'+failure.error+'\n'+ft('Retry starts a new paid generation. Approve to retry or reject to skip.')},signal=>requestGenerationRetry(failure,signal),value=>value,value=>value===true,signal)

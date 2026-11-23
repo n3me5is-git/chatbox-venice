@@ -1,5 +1,10 @@
 # Changelog — Chatbox Venice
 
+## 1.57.2
+
+- Keep the desktop MCP router tool schema stable across app lock and unlock. Report current Studio permissions in catalog results.
+- Return exact calls for checking generation status and downloading files by job ID.
+
 ## 1.57.1
 
 - Keep permitted Venice Studio catalogs and model details available through a locked desktop router.

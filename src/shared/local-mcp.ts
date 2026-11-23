@@ -80,10 +80,11 @@ export function localMCPGrantAllows(grant:LocalMCPGrant,name:string,args:Record<
   if(name==='app_conversation')return app.mode!=='router'&&app.conversations&&(args.action!=='send'||grant.permissions.models)
   if(name==='app_resources')return grant.permissions.readFiles
   if(name==='app_upload')return grant.permissions.writeFiles
-  if(name==='venice_studio')return grant.permissions.venice
+  if(name==='venice_studio'||name==='venice_image'||name==='venice_media')return grant.permissions.venice&&
+    (name==='venice_studio'||app.mode==='router')&&(!app.providers||app.providers.includes('venice'))
   if(name==='app_context_tools'||name==='app_call')return app.mode!=='router'
   if(name==='app_cleanup')return true
-  if(app.mode==='router')return ['app_models','app_model','venice_image','venice_media'].includes(name)&&localMCPAllows(grant.permissions,name,args)
+  if(app.mode==='router')return ['app_models','app_model'].includes(name)&&localMCPAllows(grant.permissions,name,args)
   return false
 }
 
