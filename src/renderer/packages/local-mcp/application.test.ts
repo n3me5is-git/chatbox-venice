@@ -97,7 +97,8 @@ it('keeps the same MCP client usable across lock with background Studio access a
    return running
  }
  const client = new Client({name:'studio-regression',version:'1.0'})
- const transport = (url:string) => new StreamableHTTPClientTransport(new URL(url), {requestInit:{headers:{Authorization:'Bearer fixture-router-token'}}})
+ const reconnected = new Client({name:'studio-regression',version:'1.0'})
+ const transport = (url:string) => new StreamableHTTPClientTransport(new URL(url), {requestInit:{headers:{Authorization:'Bearer fixture-router-token',Connection:'close'}}})
  try {
    const running = await start(config)
    await client.connect(transport(running.url))
@@ -110,10 +111,10 @@ it('keeps the same MCP client usable across lock with background Studio access a
    state.appLocked = false
    await client.close()
    const updated = await start({...config,port:Number(new URL(running.url).port),permissions:{...config.permissions,venice:false}})
-   await client.connect(transport(updated.url))
-   expect((await client.listTools()).tools.map(tool=>tool.name)).not.toContain('venice_studio')
+   await reconnected.connect(transport(updated.url))
+   expect((await reconnected.listTools()).tools.map(tool=>tool.name)).not.toContain('venice_studio')
  } finally {
-   await client.close()
+   await Promise.all([client.close(),reconnected.close()])
    await server.stop()
  }
 })
