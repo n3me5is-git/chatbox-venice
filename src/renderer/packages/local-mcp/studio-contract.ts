@@ -12,8 +12,14 @@ export const studioWorkflow = {
   discover: 'Call venice_studio with action catalog and the desired kind, then action describe with the exact kind and model ID.',
   attach: 'Upload local files with app_upload. Use its workspace paths in referencePaths, references or filePath as described by the model.',
   generate: 'Validate the proposed inputs, then use generate with a unique request_id. Paid requests may require owner approval.',
-  retrieve: 'Use the returned id and kind with wait or status. Once ready, list and download files with app_resources. Do not regenerate to retrieve an output.',
+  retrieve: 'Use the returned id and kind with wait or status. List files by generationId when ready, then read using items[].id as resourceId. Decode base64 as binary and reuse the returned version and nextOffset until nextOffset is null. Verify the full file SHA-256 before cleanup.',
   cleanup: 'Use app_cleanup to remove temporary local workspaces and results after retrieval. Use cleanup_remote for a supported queued job.',
+  calls: {
+    status: { tool: 'venice_studio', arguments: { action: 'status', kind: '<job.kind>', id: '<job.id>' } },
+    wait: { tool: 'venice_studio', arguments: { action: 'wait', kind: '<job.kind>', id: '<job.id>', timeout_seconds: 30 } },
+    listFiles: { tool: 'app_resources', arguments: { action: 'list', generationId: '<job.id>' } },
+    readFirstChunk: { tool: 'app_resources', arguments: { action: 'read', generationId: '<job.id>', resourceId: '<items[].id>', offset: 0 } },
+  },
 }
 
 export function describeStudioImage(model: ImageModelOption) {

@@ -3,7 +3,7 @@ import { tool } from 'ai'
 import { z } from 'zod'
 import type { LocalMCPGrant,LocalMCPRequest } from '@shared/local-mcp'
 import { defaultLocalMCPPermissions,sessionResourceURI,LocalMCPApplicationSchema } from '@shared/local-mcp'
-const state=vi.hoisted(()=>({settings:{} as any,session:{} as any,locked:false,chat:vi.fn(),approve:vi.fn(),execute:vi.fn(),read:vi.fn(),metadata:vi.fn(),agents:vi.fn()}))
+const state=vi.hoisted(()=>({settings:{} as any,session:{} as any,locked:false,chat:vi.fn(),approve:vi.fn(),execute:vi.fn(),read:vi.fn(),metadata:vi.fn(),agents:vi.fn(),application:vi.fn()}))
 vi.mock('@shared/defaults',()=>({SystemProviders:()=>[{id:'venice',name:'Venice'},{id:'openai',name:'OpenAI'}]}))
 vi.mock('@/adapters',()=>({createModel:vi.fn(async()=>({chat:state.chat}))}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{getSessionHeader:async()=>({id:'chat'})}}}))
@@ -18,8 +18,8 @@ vi.mock('@/packages/mcp/controller',()=>({mcpController:{servers:new Map(),getAv
 vi.mock('@/packages/model-calls/toolsets/web-search',()=>({buildWebSearchTools:()=>({web_search:{}}),parseLinkTool:{}}))
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('./model-approval',()=>({requestExternalModelApproval:(...args:any[])=>state.approve(...args)}))
+vi.mock('./application',()=>({handleApplicationMCP:state.application}))
 vi.mock('./studio', () => ({ lockedStudioCatalogTools: () => ({
-  venice_studio: tool({ inputSchema: z.object({ action: z.literal('catalog') }).strict(), execute: async () => ({ images: [], media: [] }) }),
   venice_image: tool({ inputSchema: z.object({ action: z.literal('models') }).strict(), execute: async () => [] }),
   venice_media: tool({ inputSchema: z.object({ action: z.literal('catalog') }).strict(), execute: async () => [] }),
 }) }))
@@ -52,13 +52,13 @@ it('keeps only allowed text router operations reachable while the app is locked'
   state.locked=true
   const router={...grant(),sessionId:'application',keepWhileLocked:true,application:LocalMCPApplicationSchema.parse({name:'Secure',mode:'router',privacy:'e2ee'})}
   const invoke=(operation:LocalMCPRequest['operation'],name?:string)=>handleLocalMCP(request(operation,{grant:router,locked:true,name}),signal())
-  expect(await invoke('list_tools')).toEqual([expect.objectContaining({name:'app_models'})])
+  await invoke('list_tools')
+  expect(state.application).toHaveBeenCalledWith(expect.objectContaining({operation:'list_tools',locked:true}),expect.any(AbortSignal))
   expect(await invoke('call_tool','app_models')).toEqual([expect.objectContaining({modelId:'secure'})])
   await expect(invoke('call_tool','app_model')).rejects.toThrow('Unlock Chatbox')
   await expect(invoke('call_tool','venice_studio')).rejects.toThrow('Unlock Chatbox')
   await expect(invoke('read_resource')).rejects.toThrow('Unlock Chatbox')
   router.permissions.automaticModels=true
-  expect(await invoke('list_tools')).toContainEqual(expect.objectContaining({name:'app_model',inputSchema:expect.objectContaining({required:expect.arrayContaining(['request_id'])})}))
   vi.stubGlobal('window',{electronAPI:{invoke:vi.fn(async()=>router)}})
   const call=()=>handleLocalMCP(request('call_tool',{grant:router,locked:true,name:'app_model',arguments:{request_id:'locked-model-once',provider:'venice',modelId:'secure',messages:[{role:'user',content:'Synthetic question'}]}}),signal())
   expect(await call()).toMatchObject({text:'Model response'})
@@ -72,13 +72,11 @@ it('exposes only catalog actions for Studio while locked, without accessing the 
     application: LocalMCPApplicationSchema.parse({ name: 'Studio', mode: 'router', providers: ['venice'] }) }
   router.permissions.venice = true
   const call = (name: string, args: Record<string, unknown>) => handleLocalMCP(request('call_tool', { grant: router, locked: true, name, arguments: args }), signal())
-  expect(await handleLocalMCP(request('list_tools', { grant: router, locked: true }), signal())).toEqual(expect.arrayContaining([
-    expect.objectContaining({ name: 'venice_studio', inputSchema: expect.objectContaining({ required: ['action'] }) }),
-  ]))
+  state.application.mockResolvedValueOnce({ images: [], media: [] })
   expect(await call('venice_studio', { action: 'catalog' })).toEqual({ images: [], media: [] })
+  expect(state.application).toHaveBeenCalledWith(expect.objectContaining({name:'venice_studio',locked:true}),expect.any(AbortSignal))
   expect(await call('venice_image', { action: 'models' })).toEqual([])
   expect(await call('venice_media', { action: 'catalog' })).toEqual([])
-  await expect(call('venice_studio', { action: 'catalog', sessionId: 'private' })).rejects.toThrow('Invalid MCP tool arguments')
   await expect(call('venice_studio', { action: 'generate' })).rejects.toThrow('Unlock Chatbox')
   await expect(call('app_resources', { action: 'list' })).rejects.toThrow('Unlock Chatbox')
   router.application.providers = ['openai']

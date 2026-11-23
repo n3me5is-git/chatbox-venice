@@ -1,16 +1,22 @@
 import {beforeEach,expect,it,vi} from 'vitest'
 import {tool} from 'ai'
 import {z} from 'zod'
-import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant} from '@shared/local-mcp'
+import {Client} from '@modelcontextprotocol/sdk/client/index.js'
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import {LocalMCPServer} from '../../../main/local-mcp/server'
+import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant,type LocalMCPTool} from '@shared/local-mcp'
 const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),appLocked:false,count:0,call:vi.fn(),models:vi.fn(),dispose:vi.fn(),remove:vi.fn(),aliases:[] as string[],images:[] as any[],search:vi.fn()}))
 vi.mock('@/platform',()=>({default:{type:'desktop',getImageGenerationStorage:()=>({initialize:async()=>{},getPage:async()=>({items:state.images,nextCursor:null})})}}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultChatModel:{provider:'openai',model:'configured'}})})}}))
 vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({db:{aliases:async()=>state.aliases,getSetting:async(key:string)=>state.settings.get(key),setSettingIfUnchanged:async(key:string,old:unknown,next:unknown)=>{if(state.settings.get(key)!==old)return false;state.settings.set(key,next);return true}},projects:{isApplicationLocked:async()=>state.appLocked,assertApp:async()=>{if(state.appLocked)throw Error('App locked')},assertStorage:async()=>{},assertSession:async(id:string)=>{if(state.locked.has(id))throw Error('Locked')}},assets:{remove:(key:string)=>state.remove(key)}})}))
 vi.mock('@/app/renderer-application',()=>({rendererApplication:{sessions:{repository:{meta:{getAllIncludingHidden:async()=>[...state.headers.values()]}},getSessionHeader:async(id:string)=>state.headers.has(id)?{header:state.headers.get(id)}:null,createSession:async(input:any)=>{const header={...input,id:'created-'+(++state.count)};state.headers.set(header.id,header);return header},updateSessionHeader:async(id:string,patch:any)=>state.headers.set(id,{...state.headers.get(id),...patch}),setSessionSystemPrompt:vi.fn(),deleteSession:vi.fn(async(id:string)=>state.headers.delete(id))}}}))
-vi.mock('./backend',()=>({localMCPTools:async()=>[{name:'app_model',inputSchema:{type:'object',properties:{provider:{type:'string'}},required:['provider'],additionalProperties:false}},{name:'session_file',inputSchema:{type:'object'}}],handleSessionLocalMCP:(...args:any[])=>state.call(...args)}))
+vi.mock('./backend',()=>{
+ const describe = async () => [{name:'app_model',inputSchema:{type:'object',properties:{provider:{type:'string'}},required:['provider'],additionalProperties:false}},{name:'session_file',inputSchema:{type:'object'}}]
+ return {describeRouterTools:describe,localMCPTools:describe,handleSessionLocalMCP:(...args:any[])=>state.call(...args)}
+})
 vi.mock('./knowledge',()=>({applicationKnowledgeTools:async()=>({knowledge_document:tool({inputSchema:z.object({collectionId:z.number(),fileId:z.number()}).strict(),execute:async()=>({text:'Scoped knowledge source'})})})}))
 vi.mock('./conversation',()=>({applicationConversationTool:()=>tool({inputSchema:z.object({}),execute:async()=>({sent:true})})}))
-vi.mock('./studio',()=>({applicationStudioTool:()=>tool({inputSchema:z.object({}),execute:async()=>({studio:true})})}))
+vi.mock('./studio',()=>({applicationStudioTool:()=>tool({inputSchema:z.object({action:z.enum(['catalog','describe','generate'])}),execute:async()=>({studio:true})})}))
 vi.mock('./uploads',()=>({mcpUploadSchema:z.object({}),uploadMCPFile:vi.fn(),cleanupMCPUploads:vi.fn(async()=>{})}))
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{}}))
 vi.mock('@/packages/venice/service',()=>({veniceConfiguration:()=>({apiKey:'test-secret',options:{enabled:true}}),veniceMediaService:{list:async()=>[],removeVoice:vi.fn()}}))
@@ -52,6 +58,65 @@ it('router exposes only model/Studio/transfer tools, rejects a chat API and keep
   await expect(call(g,'app_model',{provider:'venice'})).rejects.toThrow('arguments')
   await call(g,'app_model',{provider:'venice',request_id:'paid'})
   expect(state.call).toHaveBeenCalledWith(expect.objectContaining({arguments:{provider:'venice'},grant:expect.objectContaining({sessionId:'created-1'})}),expect.any(AbortSignal))
+})
+it('keeps the full granted tool schema stable across lock, unlock and background approval', async () => {
+ const g = { ...grant('router'), keepWhileLocked: true }
+ state.live = [g]
+ const request = (locked: boolean) => handleApplicationMCP({ id: 'list', operation: 'list_tools', grant: g, locked }, new AbortController().signal)
+ const configured = await request(false) as any[]
+ expect(configured.find(member=>member.name==='venice_studio').inputSchema.properties.action.enum).toContain('generate')
+ state.appLocked = true
+ expect(await request(true)).toEqual(configured)
+ const callLocked = (action: string) => handleApplicationMCP({ id: 'studio', operation: 'call_tool', name: 'venice_studio', arguments: { action }, grant: g, locked: true }, new AbortController().signal)
+ await expect(callLocked('generate')).rejects.toThrow('Unlock Chatbox')
+ expect(await callLocked('catalog')).toEqual({ studio: true })
+ const elevated = { ...g, allowOperationsWhileLocked: true }
+ state.live = [elevated]
+ expect(await handleApplicationMCP({ id: 'list', operation: 'list_tools', grant: elevated, locked: true }, new AbortController().signal)).toEqual(configured)
+ expect(state.count).toBe(0)
+ state.appLocked = false
+ state.live = [g]
+ expect(await request(false)).toEqual(configured)
+ g.permissions.venice = false
+ expect(await request(false)).not.toEqual(expect.arrayContaining([expect.objectContaining({name:'venice_studio'})]))
+ await expect(call(g, 'venice_studio', { action: 'catalog' })).rejects.toThrow('permissions')
+})
+it('keeps the same MCP client usable across lock with background Studio access and refreshes grants after restart', async () => {
+ const server = new LocalMCPServer({
+   listTools: async (grant,signal) => await handleApplicationMCP({id:'list',operation:'list_tools',grant,locked:state.appLocked},signal) as LocalMCPTool[],
+   callTool: (grant,name,args,callId,signal) => handleApplicationMCP({id:callId,operation:'call_tool',grant,name,arguments:args,locked:state.appLocked},signal),
+   listResources: async () => [], readResource: async () => ({contents:[]}),
+ })
+ const config = {sessionId:'application',port:0,keepWhileLocked:true,allowOperationsWhileLocked:true,endpointId:crypto.randomUUID(),
+   application:LocalMCPApplicationSchema.parse({name:'Locked Studio',mode:'router',automaticStudio:true}),
+   permissions:{...defaultLocalMCPPermissions,venice:true}}
+ const start = async (settings: typeof config) => {
+   const running = await server.start(settings,'fixture-router-token')
+   if (!running.running) throw Error('The fixture router did not start')
+   state.live = [running]
+   return running
+ }
+ const client = new Client({name:'studio-regression',version:'1.0'})
+ const reconnected = new Client({name:'studio-regression',version:'1.0'})
+ const transport = (url:string) => new StreamableHTTPClientTransport(new URL(url), {requestInit:{headers:{Authorization:'Bearer fixture-router-token',Connection:'close'}}})
+ try {
+   const running = await start(config)
+   await client.connect(transport(running.url))
+   const original = await client.listTools()
+   state.appLocked = true
+   expect(await client.listTools()).toEqual(original)
+   const generated = await client.callTool({name:'venice_studio',arguments:{action:'generate'}})
+   expect(generated.isError).not.toBe(true)
+   expect(generated.content).toEqual([{type:'text',text:'{"studio":true}'}])
+   state.appLocked = false
+   await client.close()
+   const updated = await start({...config,port:Number(new URL(running.url).port),permissions:{...config.permissions,venice:false}})
+   await reconnected.connect(transport(updated.url))
+   expect((await reconnected.listTools()).tools.map(tool=>tool.name)).not.toContain('venice_studio')
+ } finally {
+   await Promise.all([client.close(),reconnected.close()])
+   await server.stop()
+ }
 })
 it('revocation is checked before returning app data and unknown parameters cannot smuggle credentials',async()=>{
   const g=grant('shadow');state.live=[g]

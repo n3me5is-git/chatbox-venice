@@ -3,7 +3,7 @@ import {sha256} from '@noble/hashes/sha256'
 import {isRagInternal} from '@shared/session-rag-policy'
 import type {SessionResource} from '@shared/session-resources'
 import {veniceMediaExtension} from '@shared/providers/definitions/models/venice/catalog'
-import {listSessionResources,readSessionResource} from '@/packages/session-resources/service'
+import {listGeneratedSessionResources,listSessionResources,readSessionResource} from '@/packages/session-resources/service'
 import {vaultRuntimeFor} from '@/packages/vault/runtime'
 import platform from '@/platform'
 const hashes=new Map<string,string>()
@@ -22,20 +22,21 @@ function downloadDetails(item: SessionResource, mime = item.mime) {
   const extension = item.origin === 'image' ? imageExtensions.get(mime) : undefined
   return { mime, filename: extension ? item.name.replace(/\.[^.]+$/, '.' + extension) : item.name }
 }
-export async function transferMCPResource(id:string,input:{action:'list'|'read';resourceId?:string;offset:number;length:number;version?:string},signal:AbortSignal){
+export async function transferMCPResource(id:string,input:{action:'list'|'read';resourceId?:string;generationId?:string;offset:number;length:number;version?:string},signal:AbortSignal){
   const vault=vaultRuntimeFor(platform),assert=async()=>{signal.throwIfAborted();await vault.projects.assertSession(id)}
   await assert()
   if((await sessionFiles.index(id)).toolsEnabled===false)throw Error('Session workspace tools are disabled')
-  const result=await listSessionResources(id,signal),visible=result.items.filter(item=>!isRagInternal(item.path))
+  const result=input.generationId ? await listGeneratedSessionResources(id,input.generationId,signal) : await listSessionResources(id,signal)
+  const visible=result.items.filter(item=>!isRagInternal(item.path))
   if(input.action==='list'){
     const items = []
     for (const item of visible) {
       signal.throwIfAborted()
-      const { id, path, key, bytes, origin } = item
+      const { id, path, key, bytes, origin, recordId } = item
       const header = origin === 'image' && key ? await vault.assets.header(key) : null
       if (header) await vault.projects.assertLibraryKey(header.alias)
       const mime = header ? (await vault.assets.info(header)).mime : item.mime
-      items.push({ id, path, bytes, origin, ...downloadDetails(item, mime) })
+      items.push({ id, path, bytes, origin, recordId, ...downloadDetails(item, mime) })
     }
     await assert()
     return { items, truncated: result.truncated }

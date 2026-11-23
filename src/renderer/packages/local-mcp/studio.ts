@@ -1,6 +1,6 @@
 import {tool} from 'ai'
 import {z} from 'zod'
-import {localMCPObservation,type LocalMCPGrant} from '@shared/local-mcp'
+import {localMCPBackgroundAllowed,localMCPObservation,type LocalMCPGrant} from '@shared/local-mcp'
 import {ModelProviderEnum} from '@shared/types'
 import {assertImageToolOptions,assertMediaToolOptions} from '@shared/providers/definitions/models/venice/call-options'
 import {privacyAllowed} from '@shared/providers/definitions/models/venice/privacy'
@@ -54,15 +54,6 @@ export function lockedStudioCatalogTools(grant: LocalMCPGrant, signal: AbortSign
     return catalog()
   }
   return {
-    venice_studio: tool({
-      description: 'List Venice Studio models or read the parameters, pricing and usage of one model while Chatbox is locked.',
-      inputSchema: z.object({ action: z.enum(['catalog', 'describe']), kind: z.enum(studioKinds).optional(), model: z.string().max(256).optional() }).strict(),
-      execute: async input => {
-        if (input.action === 'catalog') return catalog().list(input.kind, input.model)
-        if (!input.kind || !input.model) throw Error('Provide kind and the exact model ID from the catalog')
-        return catalog().describe(input.kind, input.model)
-      },
-    }),
     venice_image: tool({
       description: 'List Venice image generation and editing models while Chatbox is locked.',
       inputSchema: z.object({ action: z.literal('models') }).strict(),
@@ -106,14 +97,23 @@ async function file(grant:LocalMCPGrant,id:string,path:string,signal:AbortSignal
   const {bytes}=await readSessionResource(id,item);try{return new File([Uint8Array.from(bytes)],item.name,{type:item.mime})}finally{bytes.fill(0)}
 }
 async function dataURL(input:File){const bytes=new Uint8Array(await input.arrayBuffer());try{let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));return 'data:'+input.type+';base64,'+btoa(text)}finally{bytes.fill(0)}}
-export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,context:(id?:string)=>Promise<string>,assert:(id:string)=>Promise<unknown>,unique:(id:string,input:unknown,work:()=>Promise<unknown>)=>Promise<unknown>){
-  return tool({description:'Use Venice Studio from this app-wide endpoint. Start with catalog (optional kind and model filters) and describe (exact kind and model) for compatible inputs, constraints, pricing and an example. Use validate with proposed generation inputs to check compatibility without starting or billing a generation. Check quote where supported, then generate and use wait/status plus app_resources for retrieval. Supports images with reference paths, all media kinds, transcription, voice conversion and cloning when the selected model/API supports them. Upload inputs with app_upload; references are workspace paths, not OS paths. Text E2EE does not encrypt these media APIs. Paid operations require request_id and app approval unless this endpoint has automatic Studio approval. Voice clones may expire remotely rather than support immediate remote deletion.',inputSchema:z.object({sessionId:z.string().optional(),action:z.enum(['catalog','describe','validate','quote','generate','status','wait','pause','resume','cleanup_remote','voices','clone_voice','remove_voice']),kind:z.enum(studioKinds).optional(),model:z.string().max(256).optional(),prompt:z.string().max(100000).default(''),options:z.record(z.string(),z.unknown()).default({}),count:z.number().int().min(1).max(4).default(1),aspectRatio:z.string().max(40).default('auto'),referencePaths:z.array(z.string().max(512)).max(16).default([]),references:references.optional(),filePath:z.string().max(512).optional(),id:z.string().max(256).optional(),timeout_seconds:z.number().int().min(0).max(45).default(30),request_id:z.string().min(1).max(128).optional()}).strict(),execute:async input=>{
+export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,context:(id?:string)=>Promise<string>,assert:(id:string)=>Promise<unknown>,unique:(id:string,input:unknown,work:()=>Promise<unknown>)=>Promise<unknown>,locked=false){
+  const background = localMCPBackgroundAllowed(grant)
+  const catalogOnly = locked && !background
+  const automaticApproval = grant.application?.automaticStudio === true
+  const access = {
+    appLocked: locked, backgroundOperationsAllowed: background, automaticApproval,
+    generationRequiresUnlock: locked && (!background || !automaticApproval),
+    downloadAllowed: grant.permissions.readFiles && !catalogOnly,
+  }
+  return tool({description:'Use Venice Studio from this app-wide endpoint. Use catalog, then describe with exact kind and model for supported parameters and concrete MCP calls. Use validate before generate; quote where supported. Generation returns id and kind. Check with {action:"wait",id,kind,timeout_seconds:30}. Once ready, list this job’s files with app_resources {action:"list",generationId:id}, then read using items[].id as resourceId. Upload references with app_upload and use workspace paths. Paid calls require a stable request_id and owner approval unless automatically approved. Without granted background operations, Chatbox must be unlocked for actions beyond catalog and describe. Studio media APIs are separate from text E2EE.',inputSchema:z.object({sessionId:z.string().optional(),action:z.enum(['catalog','describe','validate','quote','generate','status','wait','pause','resume','cleanup_remote','voices','clone_voice','remove_voice']),kind:z.enum(studioKinds).optional(),model:z.string().max(256).optional(),prompt:z.string().max(100000).default(''),options:z.record(z.string(),z.unknown()).default({}),count:z.number().int().min(1).max(4).default(1),aspectRatio:z.string().max(40).default('auto'),referencePaths:z.array(z.string().max(512)).max(16).default([]),references:references.optional(),filePath:z.string().max(512).optional(),id:z.string().max(256).optional().describe('Local Studio job ID returned by generate; used with kind for status or wait.'),timeout_seconds:z.number().int().min(0).max(45).default(30),request_id:z.string().min(1).max(128).optional()}).strict(),execute:async input=>{
     if(grant.application?.providers&&!grant.application.providers.includes('venice'))throw Error('Venice is not granted to this endpoint')
-    const { config, images, media, list, describe } = studioCatalog(grant, signal)
-    if (input.action === 'catalog') return list(input.kind, input.model)
+    if (catalogOnly && input.action !== 'catalog' && input.action !== 'describe') throw Error('Unlock Chatbox to use this MCP operation')
+    const { config, images, media, list, describe } = studioCatalog(grant, signal, catalogOnly)
+    if (input.action === 'catalog') return { ...await list(input.kind, input.model), access }
     if (input.action === 'describe') {
       if (!input.kind || !input.model) throw Error('Provide kind and the exact model ID from the catalog')
-      return describe(input.kind, input.model)
+      return { ...await describe(input.kind, input.model), access }
     }
     const id=await context(input.sessionId);await assert(id)
     const approve=async()=>{
@@ -123,7 +123,11 @@ export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,con
       await assert(id);const current=veniceConfiguration();if(current.apiKey!==config.apiKey||current.apiHost!==config.apiHost||JSON.stringify(current.options)!==JSON.stringify(config.options))throw Error('Venice configuration changed; review a new request')
     }
     const record=async()=>{const row=(await veniceMediaService.list()).find(row=>row.id===input.id&&row.sessionId===id);if(!row)throw Error('Generation is not in this workspace');return row}
-    const summary=(row:Awaited<ReturnType<typeof record>>)=>({id:row.id,kind:row.kind,model:row.model,status:row.status,text:row.text,error:row.error,localAvailable:!!row.blobKey,remoteCleaned:row.remoteCleaned})
+    const download = (generationId: string) => ({ tool: 'app_resources', arguments: {
+      action: 'list', generationId, ...(grant.application?.mode !== 'router' ? { sessionId: id } : {}),
+    } })
+    const summary=(row:Awaited<ReturnType<typeof record>>)=>({id:row.id,kind:row.kind,model:row.model,status:row.status,text:row.text,error:row.error,localAvailable:!!row.blobKey,remoteCleaned:row.remoteCleaned,
+      ...(grant.permissions.readFiles && row.blobKey ? { download: download(row.id) } : {})})
     if(input.action==='voices'){const owned=(await temporaryMCPEntries()).find(item=>item.id===id)?.voices||[];return (await veniceMediaService.listVoices(input.model)).filter(voice=>owned.includes(voice.id)).map(({id,model,name,expiresAt})=>({id,model,name,expiresAt}))}
     if(['generate','clone_voice','resume','remove_voice','cleanup_remote'].includes(input.action)&&!input.request_id)throw Error('Paid or destructive operations require a stable request_id')
     const work=async()=>{
@@ -226,6 +230,7 @@ export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,con
               id: row.id, kind: 'image', model: row.model.modelId, status: row.status,
               error: row.error, errorCode: row.errorCode, errorItemUuid: row.errorItemUuid,
               count: row.generatedImages.length,
+              ...(grant.permissions.readFiles && row.generatedImages.length ? { download: download(row.id) } : {}),
               ...(input.action === 'wait' ? { timedOut: running } : {}),
             }
           }
@@ -233,8 +238,13 @@ export function applicationStudioTool(grant:LocalMCPGrant,signal:AbortSignal,con
         }
       }
       const row=await record()
-      if(input.action==='wait')await veniceMediaService.waitFor(row.id,input.timeout_seconds*1000,signal)
-      else if(input.action==='pause')await veniceMediaService.pause(row.id)
+      if (input.action === 'wait') {
+        const { timedOut } = await veniceMediaService.waitFor(row.id,input.timeout_seconds*1000,signal)
+        await assert(id)
+        const current = await record()
+        return { ...summary(current), timedOut: timedOut && !['ready', 'error', 'paused'].includes(current.status) }
+      }
+      if(input.action==='pause')await veniceMediaService.pause(row.id)
       else if(input.action==='resume'){await approve();await veniceMediaService.resume(row.id)}
       else if(input.action==='cleanup_remote'){await approve();await veniceMediaService.cleanup(row.id)}
       await assert(id);return summary(await record())

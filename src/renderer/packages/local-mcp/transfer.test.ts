@@ -7,7 +7,8 @@ const state=vi.hoisted(()=>({vault:{} as any,settings:new Map<string,any>(),file
 vi.mock('@/platform',()=>({default:{type:'desktop'}}))
 vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>state.vault}))
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{index:async()=>({toolsEnabled:state.enabled}),list:async()=>state.files,adopt:async(_id:string,files:any[])=>{if(files.some(file=>state.files.some(old=>old.path===file.path)))throw Error('A file already exists');state.files.push(...files)}}}))
-vi.mock('@/packages/session-resources/service',()=>({listSessionResources:async()=>({items:state.files,truncated:false}),readSessionResource:vi.fn()}))
+vi.mock('@/packages/session-resources/service',()=>({listSessionResources:async()=>({items:state.files,truncated:false}),
+ listGeneratedSessionResources:async(_id:string,generationId:string)=>({items:state.files.filter(file=>file.recordId===generationId),truncated:false}),readSessionResource:vi.fn()}))
 import {uploadMCPFile,mcpUploadSchema,cleanupMCPUploads} from './uploads'
 import {transferMCPResource} from './resource-transfer'
 import {localMCPOwner} from './temporary'
@@ -72,10 +73,14 @@ it('gives a generated WebP its original MIME and filename without changing the s
 it('downloads generated Sonilo MPEG-4 audio with an M4A extension', async () => {
   const bytes = new Uint8Array([1, 2, 3])
   const key = await state.vault.assets.put((async function*(){ yield bytes.slice() })(), { name: 'Track', mime: 'audio/mp4', kind: 'audio' }, 'public')
-  state.files = [{ id: 'media:record', path: 'media/music/record.mp4', name: 'An ambient score', mime: 'audio/mp4', origin: 'media', key }]
+  state.files = [
+    { id: 'media:record', path: 'media/music/record.mp4', name: 'An ambient score', mime: 'audio/mp4', origin: 'media', key, recordId: 'record' },
+    { id: 'media:other', path: 'media/music/other.mp3', name: 'Unrelated result', mime: 'audio/mpeg', origin: 'media', recordId: 'other' },
+  ]
   const signal = new AbortController().signal
-  const listed = await transferMCPResource('workspace', { action: 'list', offset: 0, length: 1024 }, signal)
-  expect(listed).toMatchObject({ items: [{ filename: 'record.m4a', mime: 'audio/mp4' }] })
-  const downloaded = await transferMCPResource('workspace', { action: 'read', resourceId: 'media:record', offset: 0, length: 1024 }, signal)
+  const listed = await transferMCPResource('workspace', { action: 'list', generationId: 'record', offset: 0, length: 1024 }, signal)
+  expect(listed).toMatchObject({ items: [{ id:'media:record', recordId:'record', filename: 'record.m4a', mime: 'audio/mp4' }] })
+  const downloaded = await transferMCPResource('workspace', { action: 'read', generationId: 'record', resourceId: 'media:record', offset: 0, length: 1024 }, signal)
   expect(downloaded).toMatchObject({ filename: 'record.m4a', mime: 'audio/mp4', base64: base64(bytes) })
+  await expect(transferMCPResource('workspace', { action: 'read', generationId: 'record', resourceId: 'media:other', offset: 0, length: 1024 }, signal)).rejects.toThrow('unavailable')
 })

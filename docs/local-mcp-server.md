@@ -50,12 +50,15 @@ This is an MCP endpoint, not an OpenAI-compatible HTTP API server. Each port acc
 
 Router tools use an internal workspace without a sessionId. Full/shadow operations require an authorized sessionId from app_contexts. Router mode also retains the existing venice_image/venice_media adapters where enabled; venice_studio exposes the direct Studio paths without requiring the chat-tool toggle.
 
+The router reports the same tool schemas while Chatbox is locked and unlocked. Availability is checked at execution time. The `access` field in Studio `catalog` and `describe` reports the current lock state, background access, automatic Studio approval and permission to download. Permission changes take effect when you save and restart the endpoint. Reconnect clients that cache the previous tool list to refresh it after changing permissions or updating from a version that used catalog-only schemas during lock.
+
 ### Studio model contract
 
 1. Call **venice_studio** with action `catalog` and a `kind`. Optionally pass an exact `model` to narrow results.
 2. Use `describe` with that kind and model ID. It returns model metadata, pricing, accepted inputs, conditional requirements and an example you can validate.
 3. Supply the proposed generation arguments to `validate`. It checks the catalog and, for local references, workspace inputs. It does not submit a generation. Use `quote` for pricing when offered.
-4. Submit `generate` with a stable `request_id`. Keep the returned local `id` and `kind` for status or wait. Retrieve output using `app_resources` and clean up the workspace when appropriate.
+4. Submit `generate` with a stable `request_id`. Keep the returned local `id` and `kind`. Check the job with `venice_studio` and `{ "action": "wait", "kind": "sound-effects", "id": "JOB_ID", "timeout_seconds": 30 }`, substituting the actual kind. `status` accepts the same job ID and kind without waiting.
+5. When ready, follow the `download` call in the response. Use `app_resources` with `{ "action": "list", "generationId": "JOB_ID" }` to identify the output. For each file, call `app_resources` with `{ "action": "read", "generationId": "JOB_ID", "resourceId": "ITEM_ID", "offset": 0 }`, using `items[].id` for `ITEM_ID`. Full/shadow profiles also pass `sessionId`. Decode each `base64` chunk as binary and append in order. Use `nextOffset` and the same `version` until `nextOffset` is null. Verify SHA-256 before saving with `filename` or cleaning up the workspace.
 
 For queued music and sound effects, pass `duration_seconds` only if the selected model accepts it. Use either lyrics, automatic lyrics or instrumental mode as supported by that model. An uploaded audio reference belongs in `references.reference_audio_urls` only when the catalog declares audio references. These are workspace paths. Mention them in the prompt as `@Audio1`, `@Audio2` and so on. The [Venice audio queue reference](https://docs.venice.ai/api-reference/endpoint/audio/queue) lists the provider limits. A rejected provider request can still return a model-specific reason after local validation.
 

@@ -10,9 +10,9 @@ vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({projects:{assertS
 vi.mock('@/packages/venice/service',()=>({veniceMediaService:{list:async()=>state.media,remove:vi.fn()}}))
 vi.mock('@/packages/mobile-work-mode/CapacitorWorkspace',()=>({CapacitorWorkspace:class {}}))
 vi.mock('@/adapters/CurrentBlobStorage',()=>({currentBlobStorage:{get:state.blob,remove:state.remove}}))
-vi.mock('@/stores/imageGenerationActions',()=>({getImageGenerationService:()=>({deleteOutput:state.deleteImage})}))
+vi.mock('@/stores/imageGenerationActions',()=>({getImageGenerationService:()=>({deleteOutput:state.deleteImage,getRecord:async(id:string)=>state.images.find(record=>record.id===id)??null})}))
 vi.mock('./files',()=>({sessionFiles:{index:async()=>state.index,remove:async(_id:string,id:string,aliases:string[]=[])=>{state.index.removed.push(id,...aliases)}},resourcesChanged:vi.fn()}))
-import { listSessionResources,readSessionResource,removeSessionResource } from './service'
+import { listGeneratedSessionResources,listSessionResources,readSessionResource,removeSessionResource } from './service'
 
 const message=(id:string,contentParts:Message['contentParts']=[]):Message=>({id,role:'assistant',contentParts})
 async function prepare(session:Session){const fixture=rowChatFixture(()=>'',session);await fixture.prepare(session.id);state.rows=fixture.rows;return fixture.rows}
@@ -41,6 +41,19 @@ it('prefers the canonical generated image and tombstones all alternate chat refe
   expect(state.deleteImage).toHaveBeenCalledWith('generation','picture:generated')
   expect((await listSessionResources('chat')).items.map(item=>item.key)).toEqual(['picture:sibling'])
   await expect(readSessionResource('chat',{...image,origin:'attachment',id:'blob:picture:generated'})).rejects.toThrow('deleted')
+})
+it('finds one job without scanning the conversation or returning another session’s media', async () => {
+  state.images = [{ id: 'my-image', source: { sessionId: 'chat' }, generatedImages: ['picture:gone', 'picture:visible'] },
+    { id: 'foreign-image', source: { sessionId: 'other' }, generatedImages: ['picture:private'] }]
+  state.media = [{ id: 'own-audio', sessionId: 'chat', kind: 'sound-effects', blobKey: 'audio:saved', prompt: 'Rain', mime: 'audio/mp4' },
+    { id: 'foreign-audio', sessionId: 'other', kind: 'speech', blobKey: 'audio:private', prompt: 'Private', mime: 'audio/mpeg' }]
+  state.index.removed = ['key:picture:gone']
+  const signal = new AbortController().signal
+  expect(await listGeneratedSessionResources('chat', 'my-image', signal)).toMatchObject({items:[{key:'picture:visible',recordId:'my-image'}],truncated:false})
+  expect(await listGeneratedSessionResources('chat', 'own-audio', signal)).toMatchObject({items:[{key:'audio:saved',recordId:'own-audio',path:'media/sound-effects/own-audio.m4a'}]})
+  for (const id of ['foreign-image', 'foreign-audio', 'missing']) expect((await listGeneratedSessionResources('chat', id, signal)).items).toEqual([])
+  state.locked = true
+  await expect(listGeneratedSessionResources('chat','own-audio',signal)).rejects.toThrow('Locked project')
 })
 it('retries an interleaving row revision instead of hiding the explorer',async()=>{
   const rows=await prepare({id:'chat',name:'Chat',messages:[message('one',[{type:'image',storageKey:'picture:saved'}])]})
