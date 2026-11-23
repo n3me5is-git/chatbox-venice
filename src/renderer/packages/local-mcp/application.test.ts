@@ -1,7 +1,10 @@
 import {beforeEach,expect,it,vi} from 'vitest'
 import {tool} from 'ai'
 import {z} from 'zod'
-import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant} from '@shared/local-mcp'
+import {Client} from '@modelcontextprotocol/sdk/client/index.js'
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import {LocalMCPServer} from '../../../main/local-mcp/server'
+import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant,type LocalMCPTool} from '@shared/local-mcp'
 const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),appLocked:false,count:0,call:vi.fn(),models:vi.fn(),dispose:vi.fn(),remove:vi.fn(),aliases:[] as string[],images:[] as any[],search:vi.fn()}))
 vi.mock('@/platform',()=>({default:{type:'desktop',getImageGenerationStorage:()=>({initialize:async()=>{},getPage:async()=>({items:state.images,nextCursor:null})})}}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultChatModel:{provider:'openai',model:'configured'}})})}}))
@@ -77,6 +80,42 @@ it('keeps the full granted tool schema stable across lock, unlock and background
  g.permissions.venice = false
  expect(await request(false)).not.toEqual(expect.arrayContaining([expect.objectContaining({name:'venice_studio'})]))
  await expect(call(g, 'venice_studio', { action: 'catalog' })).rejects.toThrow('permissions')
+})
+it('keeps the same MCP client usable across lock with background Studio access and refreshes grants after restart', async () => {
+ const server = new LocalMCPServer({
+   listTools: async (grant,signal) => await handleApplicationMCP({id:'list',operation:'list_tools',grant,locked:state.appLocked},signal) as LocalMCPTool[],
+   callTool: (grant,name,args,callId,signal) => handleApplicationMCP({id:callId,operation:'call_tool',grant,name,arguments:args,locked:state.appLocked},signal),
+   listResources: async () => [], readResource: async () => ({contents:[]}),
+ })
+ const config = {sessionId:'application',port:0,keepWhileLocked:true,allowOperationsWhileLocked:true,endpointId:crypto.randomUUID(),
+   application:LocalMCPApplicationSchema.parse({name:'Locked Studio',mode:'router',automaticStudio:true}),
+   permissions:{...defaultLocalMCPPermissions,venice:true}}
+ const start = async (settings: typeof config) => {
+   const running = await server.start(settings,'fixture-router-token')
+   if (!running.running) throw Error('The fixture router did not start')
+   state.live = [running]
+   return running
+ }
+ const client = new Client({name:'studio-regression',version:'1.0'})
+ const transport = (url:string) => new StreamableHTTPClientTransport(new URL(url), {requestInit:{headers:{Authorization:'Bearer fixture-router-token'}}})
+ try {
+   const running = await start(config)
+   await client.connect(transport(running.url))
+   const original = await client.listTools()
+   state.appLocked = true
+   expect(await client.listTools()).toEqual(original)
+   const generated = await client.callTool({name:'venice_studio',arguments:{action:'generate'}})
+   expect(generated.isError).not.toBe(true)
+   expect(generated.content).toEqual([{type:'text',text:'{"studio":true}'}])
+   state.appLocked = false
+   await client.close()
+   const updated = await start({...config,port:Number(new URL(running.url).port),permissions:{...config.permissions,venice:false}})
+   await client.connect(transport(updated.url))
+   expect((await client.listTools()).tools.map(tool=>tool.name)).not.toContain('venice_studio')
+ } finally {
+   await client.close()
+   await server.stop()
+ }
 })
 it('revocation is checked before returning app data and unknown parameters cannot smuggle credentials',async()=>{
   const g=grant('shadow');state.live=[g]
