@@ -46,6 +46,26 @@ it('blocks cross-endpoint uploads, detects modified chunks and never publishes a
  await expect(uploadMCPFile(g,'workspace',{...input,final:true},signal)).rejects.toThrow('SHA-256');expect(state.files).toHaveLength(0)
  await cleanupMCPUploads(await localMCPOwner(g));expect(headers.size).toBe(0);expect(values.size).toBe(0)
 })
+it('collects abandoned upload staging without deleting a completed file or a recent upload', async () => {
+ const endpoint = grant(), owner = await localMCPOwner(endpoint)
+ const signal = new AbortController().signal
+ const payload = new Uint8Array([1,2,3])
+ const upload = (path:string, final:boolean) => uploadMCPFile(endpoint,'workspace',mcpUploadSchema.parse({
+   uploadId:crypto.randomUUID(),path,mime:'application/octet-stream',totalBytes:payload.length,sha256:hex(payload),index:0,base64:base64(payload),final,
+ }),signal)
+ const clock = vi.spyOn(Date,'now')
+ try {
+   clock.mockReturnValue(1_000)
+   await upload('published.bin',true)
+   await upload('abandoned.bin',false)
+   clock.mockReturnValue(10_000)
+   await upload('recent.bin',false)
+   expect(headers.size).toBe(3)
+   await cleanupMCPUploads(owner,'workspace',5_000)
+   expect(headers.size).toBe(2)
+   expect(state.files.map(file=>file.path)).toEqual(['published.bin'])
+ } finally { clock.mockRestore() }
+})
 it('honors a locked scope and the workspace switch before reading or uploading bytes',async()=>{
  const g=grant(),signal=new AbortController().signal,input=mcpUploadSchema.parse({uploadId:crypto.randomUUID(),path:'a.txt',mime:'text/plain',totalBytes:1,sha256:hex(new Uint8Array([1])),index:0,base64:'AQ==',final:true})
  state.enabled=false;await expect(uploadMCPFile(g,'workspace',input,signal)).rejects.toThrow('disabled');await expect(transferMCPResource('workspace',{action:'list',offset:0,length:10},signal)).rejects.toThrow('disabled')
