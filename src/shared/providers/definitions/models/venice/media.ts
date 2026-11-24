@@ -11,7 +11,7 @@ export type MediaRecord = {
   protection?:string;protectedRecord?:boolean;
   id: string; kind: MediaKind; model: string; prompt: string; createdAt: number; sessionId?: string;
   status: 'creating' | 'queued' | 'ready' | 'paused' | 'error'; queueId?: string; origin: string;
-  credentialId: string; blobKey?: string; mime?: string; text?: string; error?: string; remoteCleaned?: boolean;
+  credentialId: string; blobKey?: string; mime?: string; text?: string; error?: string; remoteCleaned?: boolean; cleanupOnly?: boolean;
 }
 export type MediaCatalogCache = { origin: string; credentialId: string; items: MediaCatalogItem[] }
 export type VoiceHandle = { id: string; model: string; name: string; origin: string; credentialId: string; createdAt: number; expiresAt: number }
@@ -222,6 +222,7 @@ export class VeniceMediaService {
   async resume(id: string) {
     if (this.active.has(id)) return
     const record = (await this.list()).find(item => item.id === id); if (!record?.queueId) throw new Error('No stored queue ID; an interrupted paid request must not be automatically repeated')
+    if (record.cleanupOnly) throw new Error('This temporary result has expired. Only remote cleanup can be retried.')
     const config = this.config(record.kind)
     requireModelPrivacy((await this.cachedCatalog()).find(model => model.id === record.model)?.model_spec, config.options.privacyFilter)
     if (config.origin !== record.origin || await this.credential(config) !== record.credentialId) throw new Error('Resume requires the original Venice endpoint and API key')
@@ -264,6 +265,17 @@ export class VeniceMediaService {
     if (remote) await this.cleanup(id)
     if (record.blobKey) await this.store.deleteBlob(record.blobKey)
     await this.mutate(records => records.filter(item => item.id !== id))
+  }
+  /** Expired MCP media may leave a remote cleanup receipt, but no local payload. */
+  async discardTemporary(id: string) {
+    this.active.get(id)?.abort()
+    const record = (await this.list()).find(item => item.id === id)
+    if (!record) return
+    if (!record.queueId || record.remoteCleaned) { await this.remove(id); return }
+    if (record.blobKey) await this.store.deleteBlob(record.blobKey)
+    await this.patch(id, { blobKey: undefined, text: undefined, prompt: '', error: undefined, status: 'paused', cleanupOnly: true })
+    await this.cleanup(id)
+    await this.remove(id)
   }
   async content(record: MediaRecord) { return record.blobKey ? this.store.getBlob(record.blobKey) : null }
   async listVoices(model?: string): Promise<VoiceHandle[]> {

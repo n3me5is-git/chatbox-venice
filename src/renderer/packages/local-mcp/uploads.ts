@@ -8,11 +8,11 @@ import {sessionFiles} from '@/packages/session-resources/files'
 import {localMCPOwner} from './temporary'
 const KEY='local-mcp:uploads:v1',vault=()=>vaultRuntimeFor(platform)
 const hex=(v:Uint8Array)=>Array.from(v,n=>n.toString(16).padStart(2,'0')).join('')
-type Upload={id:string;sessionId:string;owner:string;fingerprint:string;parts:{ref:string;hash:string;size:number}[];finalKey?:string;published?:boolean}
+type Upload={id:string;sessionId:string;owner:string;fingerprint:string;parts:{ref:string;hash:string;size:number}[];finalKey?:string;published?:boolean;updatedAt?:number}
 let tail:Promise<unknown>=Promise.resolve()
 export const mcpUploadSchema=z.object({sessionId:z.string().optional(),uploadId:z.string().uuid(),path:z.string().max(512),mime:z.string().regex(/^[a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+$/),totalBytes:z.number().int().min(1).max(128*1024*1024),sha256:z.string().regex(/^[a-f0-9]{64}$/),index:z.number().int().min(0).max(511),base64:z.string().max(350000).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/),final:z.boolean().default(false)}).strict()
 const rows=async()=>await vault().db.getSetting<Upload[]>(KEY)||[]
-async function save(row:Upload){for(let i=0;i<20;i++){const old=await vault().db.getSetting<Upload[]>(KEY);if(await vault().db.setSettingIfUnchanged(KEY,old,[...(old||[]).filter(x=>x.id!==row.id),row]))return}throw Error('Upload metadata changed')}
+async function save(row:Upload){row.updatedAt=Date.now();for(let i=0;i<20;i++){const old=await vault().db.getSetting<Upload[]>(KEY);if(await vault().db.setSettingIfUnchanged(KEY,old,[...(old||[]).filter(x=>x.id!==row.id),row]))return}throw Error('Upload metadata changed')}
 export async function uploadMCPFile(grant:LocalMCPGrant,id:string,input:z.infer<typeof mcpUploadSchema>,signal:AbortSignal){
   const work=tail.catch(()=>{}).then(async()=>{
     const access=async()=>{signal.throwIfAborted();await vault().projects.assertSession(id)};await access()
@@ -50,9 +50,11 @@ export async function uploadMCPFile(grant:LocalMCPGrant,id:string,input:z.infer<
     }finally{bytes.fill(0)}
   });tail=work;return work
 }
-export async function cleanupMCPUploads(owner:string,sessionId?:string){
+export async function cleanupMCPUploads(owner:string,sessionId?:string,incompleteBefore?:number){
   const work=tail.catch(()=>{}).then(async()=>{
-    const chosen=(await rows()).filter(x=>x.owner===owner&&(!sessionId||x.sessionId===sessionId))
+    const chosen=(await rows()).filter(x=>x.owner===owner&&(!sessionId||x.sessionId===sessionId)&&
+      (incompleteBefore===undefined||!x.published&&(x.updatedAt??0)<=incompleteBefore))
+    if (!chosen.length) return
     for(const row of chosen){for(const part of row.parts)await vault().assets.remove(part.ref);if(row.finalKey&&!row.published&&!(await sessionFiles.list(row.sessionId)).some(file=>file.key===row.finalKey))await vault().assets.remove(row.finalKey)}
     for(let i=0;i<20;i++){const old=await vault().db.getSetting<Upload[]>(KEY);if(await vault().db.setSettingIfUnchanged(KEY,old,(old||[]).filter(x=>!chosen.some(y=>y.id===x.id))))return}throw Error('Upload cleanup changed')
   });tail=work;return work

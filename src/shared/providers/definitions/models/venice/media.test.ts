@@ -17,6 +17,25 @@ function setup(handler: (path: string, body: unknown, signal?: AbortSignal) => P
 const services: VeniceMediaService[] = []
 afterEach(() => { services.forEach(service => service.pauseAll()); services.length = 0 })
 describe('Venice media lifecycle without live APIs', () => {
+  it('drops expired MCP media locally even when remote cleanup needs a retry', async () => {
+    let mayDeleteRemote = false
+    const s = setup(async path => {
+      expect(path).toBe('/audio/complete')
+      return mayDeleteRemote ? json({ success: true }) : new Response('Temporary failure', { status: 500 })
+    })
+    const credential = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s.config.apiKey))), v=>v.toString(16).padStart(2,'0')).join('')
+    await s.store.write([{id:'expired',kind:'sound-effects',model:'sonilo',status:'ready',prompt:'Private sound prompt',createdAt:0,
+      sessionId:'shadow',origin:mediaOrigin(),credentialId:credential,queueId:'queue',blobKey:'private-payload'}])
+    s.blobs.set('private-payload','Private data')
+    await expect(s.service.discardTemporary('expired')).rejects.toThrow('HTTP 500')
+    expect(s.blobs.has('private-payload')).toBe(false)
+    expect(await s.service.list()).toMatchObject([{prompt:'',queueId:'queue',cleanupOnly:true}])
+    await expect(s.service.resume('expired')).rejects.toThrow('expired')
+    mayDeleteRemote = true
+    await s.service.discardTemporary('expired')
+    expect(await s.service.list()).toEqual([])
+    expect(s.api).toHaveBeenCalledTimes(2)
+  })
   it('validates secure storage before making a paid request',async()=>{const s=setup();s.store.ensureStorage=async()=>{throw new Error('Device encryption unavailable')};await expect(s.service.start({kind:'speech',model:'tts',prompt:'hello'})).rejects.toThrow('encryption');expect(s.api).not.toHaveBeenCalled();expect(await s.service.list()).toEqual([])})
   it('stores new transcriptions as lazy file references when the encrypted streaming host is available',async()=>{const s=setup(async()=>json({text:'Private transcript'}));s.store.putStream=async(key,response,mime)=>{expect(mime).toBe('text/plain');expect(await response.text()).toBe('Private transcript');s.blobs.set(key,'stored encrypted content');return true};const record=await s.service.start({kind:'transcription',model:'asr',prompt:'',file:new File(['sound'],'audio.wav')});expect(record).toMatchObject({status:'ready',mime:'text/plain'});expect(record.blobKey).toBeTruthy();expect(record.text).toBeUndefined();expect(JSON.stringify(await s.service.list())).not.toContain('Private transcript');await s.service.remove(record.id);expect(s.blobs.size).toBe(0)})
 

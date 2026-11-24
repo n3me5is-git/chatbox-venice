@@ -6,6 +6,7 @@ import {veniceMediaExtension} from '@shared/providers/definitions/models/venice/
 import {listGeneratedSessionResources,listSessionResources,readSessionResource} from '@/packages/session-resources/service'
 import {vaultRuntimeFor} from '@/packages/vault/runtime'
 import platform from '@/platform'
+import type { GeneratedRange } from './retention'
 const hashes=new Map<string,string>()
 const hex=(value:Uint8Array)=>Array.from(value,n=>n.toString(16).padStart(2,'0')).join('')
 const base64=(value:Uint8Array)=>{let text='';for(let i=0;i<value.length;i+=8192)text+=String.fromCharCode(...value.subarray(i,i+8192));return btoa(text)}
@@ -22,7 +23,7 @@ function downloadDetails(item: SessionResource, mime = item.mime) {
   const extension = item.origin === 'image' ? imageExtensions.get(mime) : undefined
   return { mime, filename: extension ? item.name.replace(/\.[^.]+$/, '.' + extension) : item.name }
 }
-export async function transferMCPResource(id:string,input:{action:'list'|'read';resourceId?:string;generationId?:string;offset:number;length:number;version?:string},signal:AbortSignal){
+export async function transferMCPResource(id:string,input:{action:'list'|'read';resourceId?:string;generationId?:string;offset:number;length:number;version?:string},signal:AbortSignal,onRead?:(range:GeneratedRange)=>Promise<void>){
   const vault=vaultRuntimeFor(platform),assert=async()=>{signal.throwIfAborted();await vault.projects.assertSession(id)}
   await assert()
   if((await sessionFiles.index(id)).toolsEnabled===false)throw Error('Session workspace tools are disabled')
@@ -67,6 +68,13 @@ export async function transferMCPResource(id:string,input:{action:'list'|'read';
     const {bytes}=await readSessionResource(id,item)
     try{total=bytes.length;contentHash=hex(sha256(bytes));version=contentHash;if(input.version&&input.version!==version)throw Error('The resource changed; restart its transfer');if(input.offset>total)throw Error('Offset is outside the resource');range=bytes.slice(input.offset,input.offset+input.length)}finally{bytes.fill(0)}
   }
-  try{await assert();if(header){await vault.projects.assertLibraryKey(header.alias);if((await vault.assets.header(item.key!))?.id!==version)throw Error('The resource changed; restart its transfer')}return {resourceId:item.id,...downloadDetails(item,mime),offset:input.offset,bytes:range.length,total,version,sha256:contentHash,chunkSha256:hex(sha256(range)),base64:base64(range),nextOffset:input.offset+range.length<total?input.offset+range.length:null}}
+  try{
+    await assert()
+    if(header){await vault.projects.assertLibraryKey(header.alias);if((await vault.assets.header(item.key!))?.id!==version)throw Error('The resource changed; restart its transfer')}
+    if (onRead && item.recordId && (item.origin === 'media' || item.origin === 'image')) {
+      await onRead({kind:item.origin,generationId:item.recordId,resourceId:item.id,version,offset:input.offset,bytes:range.length,total})
+    }
+    return {resourceId:item.id,...downloadDetails(item,mime),offset:input.offset,bytes:range.length,total,version,sha256:contentHash,chunkSha256:hex(sha256(range)),base64:base64(range),nextOffset:input.offset+range.length<total?input.offset+range.length:null}
+  }
   finally{range.fill(0)}
 }
