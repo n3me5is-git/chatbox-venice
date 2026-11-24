@@ -1,8 +1,9 @@
 import type {LocalMCPGrant} from '@shared/local-mcp'
 import {vaultRuntimeFor} from '@/packages/vault/runtime'
 import platform from '@/platform'
+import type { MCPDelivery } from './retention'
 const MANIFEST='local-mcp:temporary-contexts:v1'
-export type TemporaryMCPEntry={id:string;owner:string;endpointId:string;createdAt:number;rootId?:string;voices?:string[];cleanupPending?:boolean;ownedAssets?:string[];imageIds?:string[]}
+export type TemporaryMCPEntry={id:string;owner:string;endpointId:string;createdAt:number;rootId?:string;voices?:string[];cleanupPending?:boolean;ownedAssets?:string[];imageIds?:string[];imageInputs?:Record<string,string[]>;deliveries?:MCPDelivery[]}
 export const localMCPOwner=async(grant:LocalMCPGrant)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(grant.token))),n=>n.toString(16).padStart(2,'0')).join('')
 export async function temporaryMCPEntries(){return await vaultRuntimeFor(platform).db.getSetting<TemporaryMCPEntry[]>(MANIFEST)||[]}
 let known:TemporaryMCPEntry[]=[]
@@ -18,5 +19,5 @@ export async function registerTemporaryMCPChild(rootId:string,id:string){const p
 export async function registerTemporaryMCPImage(record:{id:string;referenceImages:string[];source?:{sessionId?:string}},originalReferences:string[]){
   const id=record.source?.sessionId;if(!id||!known.some(item=>item.id===id))return
   const owned=record.referenceImages.filter((key,index)=>originalReferences[index]?.startsWith('data:image/')&&!key.startsWith('data:'))
-  await mutateTemporaryMCPEntries(items=>items.map(item=>item.id===id?{...item,imageIds:[...new Set([...(item.imageIds||[]),record.id])],ownedAssets:[...new Set([...(item.ownedAssets||[]),...owned])]}:item))
+  await mutateTemporaryMCPEntries(items=>items.map(item=>item.id===id?{...item,imageIds:[...new Set([...(item.imageIds||[]),record.id])],ownedAssets:[...new Set([...(item.ownedAssets||[]),...owned])],imageInputs:{...item.imageInputs,[record.id]:owned}}:item))
 }

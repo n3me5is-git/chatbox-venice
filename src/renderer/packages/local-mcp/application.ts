@@ -16,11 +16,13 @@ import { isTemporaryChat, isUnavailableChat } from '@/packages/chat-retention/re
 import {describeRouterTools,handleSessionLocalMCP,localMCPTools} from './backend'
 import { clearMCPContextResults, clearMCPRequestCache, runMCPRequestOnce as unique } from './request-cache'
 
-import {temporaryMCPEntries as entries,mutateTemporaryMCPEntries as mutate,localMCPOwner as owner} from './temporary'
+import {temporaryMCPEntries as entries,mutateTemporaryMCPEntries as mutate,localMCPOwner as owner,type TemporaryMCPEntry} from './temporary'
+import {clearMCPDownloadProgress,hasRecentMCPDownload,MCP_DOWNLOAD_GRACE,MCP_UNCLAIMED_OUTPUT_AGE,MCP_WORKSPACE_IDLE,MCP_WORKSPACE_MAX_AGE,observeGeneratedRange,type GeneratedRange} from './retention'
 const active=new Map<string,Set<{id?:string;work:Promise<unknown>}>>()
 const closing=new Set<string>()
 const disposing=new Map<string,Promise<void>>()
 const creating=new Map<string,Promise<string>>()
+const lastActivity = new Map<string, number>()
 const vault=()=>vaultRuntimeFor(platform)
 const idSchema=z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)
 const optionsSchema=z.object({provider:z.string().min(1).max(128).optional(),modelId:z.string().min(1).max(256).optional(),temperature:z.number().min(0).max(2).optional(),topP:z.number().min(0).max(1).optional(),maxTokens:z.number().int().min(1).max(128000).optional(),contextTokenLimit:z.number().int().min(1024).max(10000000).optional(),webBrowsing:z.boolean().optional(),veniceToolsEnabled:z.boolean().optional(),providerOptionsByModel:z.record(z.string(),z.unknown()).optional(),multiAgent:MultiAgentPolicySchema.optional()}).strict()
@@ -66,13 +68,20 @@ async function createContext(grant:LocalMCPGrant,input:{name?:string;settings?:z
   signal.throwIfAborted();await live(grant,signal);return header.id
 }
 async function defaultContext(grant:LocalMCPGrant,signal:AbortSignal){
-  const awaitOwner=await owner(grant),existing=(await entries()).find(item=>item.owner===awaitOwner&&!item.rootId)
+  const awaitOwner=await owner(grant),existing=(await entries()).find(item=>item.owner===awaitOwner&&!item.rootId&&!item.cleanupPending)
   if(existing)return existing.id
   let work=creating.get(grant.token)
   if(!work){work=createContext(grant,{},signal);creating.set(grant.token,work);void work.finally(()=>creating.delete(grant.token)).catch(()=>{})}
   return work
 }
 function bound(grant:LocalMCPGrant,id:string):LocalMCPGrant{return {...grant,sessionId:id}}
+async function removeTemporaryImageAssets(imageIds: ReadonlySet<string>) {
+  if (!imageIds.size) return
+  for (const alias of await vault().db.aliases()) {
+    const match = /^picture(?::)?image-gen(?::)?([a-f0-9-]{36})/.exec(alias)
+    if (match && imageIds.has(match[1])) await vault().assets.remove(alias)
+  }
+}
 async function disposeContextWork(id:string){
   if([...active.values()].some(items=>[...items].some(item=>item.id===id)))throw Error('Wait for active workspace operations before cleanup')
   closing.add(id)
@@ -88,7 +97,12 @@ async function disposeContextWork(id:string){
   for(const child of await disposeTemporaryAgentRoot(id))ids.add(child)
   const {sessionApprovals}=await import('@/packages/venice/session-approvals');for(const child of ids)sessionApprovals.clear(child)
   for(const voice of temporary?.voices||[])await veniceMediaService.removeVoice(voice)
-  for(const record of await veniceMediaService.list())if(record.sessionId&&ids.has(record.sessionId))await veniceMediaService.remove(record.id,!!record.queueId&&!record.remoteCleaned)
+  let remoteCleanupPending = false
+  for (const record of await veniceMediaService.list()) {
+    if (!record.sessionId || !ids.has(record.sessionId)) continue
+    try { await veniceMediaService.discardTemporary(record.id) }
+    catch { remoteCleanupPending = true }
+  }
   const images=platform.getImageGenerationStorage();await images.initialize();let cursor:number|null=0;const records:string[]=[]
   do{const page=await images.getPage(cursor,100);for(const record of page.items)if(record.source?.sessionId&&ids.has(record.source.sessionId))records.push(record.id);cursor=page.nextCursor}while(cursor!==null)
   const temporaryEntries=(await entries()).filter(item=>ids.has(item.id)),imageIds=new Set([...records,...temporaryEntries.flatMap(item=>item.imageIds||[])])
@@ -96,13 +110,13 @@ async function disposeContextWork(id:string){
   // The ordinary gallery conservatively retains unknown references while other
   // protected records are locked. These aliases belong to this temporary run,
   // including outputs written just before cancellation, so they can be removed.
-  for(const alias of await vault().db.aliases()){
-    const match=/^picture(?::)?image-gen(?::)?([a-f0-9-]{36})/.exec(alias)
-    if(match&&imageIds.has(match[1]))await vault().assets.remove(alias)
-  }
+  await removeTemporaryImageAssets(imageIds)
   for(const key of temporaryEntries.flatMap(item=>item.ownedAssets||[]))await vault().assets.remove(key)
   for(const child of [...ids].reverse())if(await rendererApplication.sessions.getSessionHeader(child))await rendererApplication.sessions.deleteSession(child)
   clearMCPContextResults(ids)
+  clearMCPDownloadProgress(ids)
+  for (const child of ids) lastActivity.delete(child)
+  if (remoteCleanupPending) throw Error('Temporary workspace deleted. Remote media cleanup will be retried.')
   await mutate(items=>items.filter(item=>!ids.has(item.id)))
   }finally{closing.delete(id)}
 }
@@ -128,6 +142,123 @@ export async function cleanupInactiveMCPContexts(){
   const owners=new Set(await Promise.all(active.map(owner))),failed:string[]=[]
   for(const entry of await entries())if(!owners.has(entry.owner)&&!entry.rootId)try{await disposeContext(entry.id)}catch{failed.push(entry.id)}
   return {pending:failed.length}
+}
+
+async function recordDelivery(id: string, range: GeneratedRange) {
+  if (!observeGeneratedRange(id, range)) return
+  await mutate(items => items.map(item => {
+    if (item.id !== id || item.deliveries?.some(delivery => delivery.resourceId === range.resourceId)) return item
+    const { kind, generationId, resourceId } = range
+    return { ...item, deliveries: [...(item.deliveries ?? []), { kind, generationId, resourceId, completedAt: Date.now() }] }
+  }))
+}
+
+function hasWorkspaceActivity(ids: ReadonlySet<string>, grant?: LocalMCPGrant) {
+  if (grant && creating.has(grant.token)) return true
+  return [...active.values()].some(operations => [...operations].some(operation =>
+    operation.id === undefined ? !!grant && active.get(grant.token) === operations : ids.has(operation.id)))
+}
+
+async function collectWorkspace(root: TemporaryMCPEntry, descendants: TemporaryMCPEntry[], now: number, grant?: LocalMCPGrant) {
+  const workspaces = [root, ...descendants]
+  const ids = new Set(workspaces.map(entry => entry.id))
+  if (hasWorkspaceActivity(ids, grant) || closing.has(root.id) || disposing.has(root.id)) return
+  const idle = now - Math.max(...workspaces.map(entry => lastActivity.get(entry.id) ?? entry.createdAt))
+  const expired = idle >= MCP_WORKSPACE_IDLE || (now - root.createdAt >= MCP_WORKSPACE_MAX_AGE && idle >= MCP_DOWNLOAD_GRACE)
+  if (!grant || root.cleanupPending) { await disposeContext(root.id); return }
+  if (grant.application?.mode === 'full') return
+  const delivered = workspaces.some(entry => entry.deliveries?.some(file => now - file.completedAt >= MCP_DOWNLOAD_GRACE))
+  const mayHaveAbandonedOutput = now - root.createdAt >= MCP_UNCLAIMED_OUTPUT_AGE
+  if (!expired && !delivered && !mayHaveAbandonedOutput) return
+
+  const { veniceMediaService } = await import('@/packages/venice/service')
+  const { getImageGenerationService } = await import('@/stores/imageGenerationActions')
+  const { multiAgentRuntime } = await import('@/packages/multi-agent/runtime')
+  const media = (await veniceMediaService.list()).filter(record => record.sessionId && ids.has(record.sessionId))
+  const images = getImageGenerationService()
+  const currentImage = images.getSnapshot().currentGeneratingId
+  const imageRunning = currentImage && workspaces.some(entry => entry.imageIds?.includes(currentImage))
+  const agentsRunning = [...multiAgentRuntime.runs.values()].some(run => run.rootId === root.id && ['queued', 'running', 'waiting'].includes(run.status))
+  if (hasWorkspaceActivity(ids, grant) || closing.has(root.id) || disposing.has(root.id)) return
+  if (expired && !imageRunning && !agentsRunning && !media.some(record => veniceMediaService.isActive(record.id))) {
+    await disposeContext(root.id)
+    return
+  }
+  if (agentsRunning) return
+
+  if (mayHaveAbandonedOutput) {
+    for (const entry of workspaces) await cleanupMCPUploads(entry.owner, entry.id, now - MCP_UNCLAIMED_OUTPUT_AGE).catch(() => {})
+  }
+  if (!delivered && !media.some(record => now - record.createdAt >= MCP_UNCLAIMED_OUTPUT_AGE) &&
+    !workspaces.some(entry => entry.imageIds?.length)) return
+  if (hasWorkspaceActivity(ids, grant) || closing.has(root.id) || disposing.has(root.id)) return
+
+  for (const id of ids) closing.add(id)
+  try {
+    const reclaimed = new Set<string>()
+    for (const entry of workspaces) {
+      const receipts = entry.deliveries?.filter(file => now - file.completedAt >= MCP_DOWNLOAD_GRACE) ?? []
+      const recent = new Set(entry.deliveries?.filter(file => now - file.completedAt < MCP_DOWNLOAD_GRACE).map(file => file.generationId))
+      const deliveredMedia = new Set(receipts.filter(file => file.kind === 'media').map(file => file.generationId))
+      for (const record of media.filter(record => record.sessionId === entry.id)) {
+        const id = record.id
+        if (recent.has(id) || hasRecentMCPDownload(entry.id, `media:${id}`, now) || veniceMediaService.isActive(id) ||
+          (!deliveredMedia.has(id) && now - record.createdAt < MCP_UNCLAIMED_OUTPUT_AGE)) continue
+        try {
+          await veniceMediaService.discardTemporary(id)
+          reclaimed.add(id)
+        } catch { /* Retry this exact delivery in the next sweep. */ }
+      }
+      for (const id of entry.imageIds ?? []) {
+        if (recent.has(id) || id === currentImage) continue
+        try {
+          const record = await images.getRecord(id)
+          if (record) {
+            const deliveredIds = new Set(receipts.filter(file => file.kind === 'image' && file.generationId === id).map(file => file.resourceId))
+            const allDelivered = record.generatedImages.length > 0 && record.generatedImages.every(key => deliveredIds.has(`image:${id}:${key}`))
+            if (record.source?.sessionId !== entry.id || (!allDelivered && now - record.createdAt < MCP_UNCLAIMED_OUTPUT_AGE) ||
+              record.generatedImages.some(key => hasRecentMCPDownload(entry.id, `image:${id}:${key}`, now))) continue
+            await images.deleteRecord(id)
+          }
+          await removeTemporaryImageAssets(new Set([id]))
+          for (const alias of entry.imageInputs?.[id] ?? []) await vault().assets.remove(alias)
+          reclaimed.add(id)
+        } catch { /* Retry this exact delivery in the next sweep. */ }
+      }
+    }
+    if (reclaimed.size) await mutate(items => items.map(entry => {
+      if (!ids.has(entry.id)) return entry
+      const inputs = Object.entries(entry.imageInputs ?? {})
+      const removedInputs = new Set(inputs.filter(([id]) => reclaimed.has(id)).flatMap(([, aliases]) => aliases))
+      return { ...entry,
+        deliveries: entry.deliveries?.filter(delivery => !reclaimed.has(delivery.generationId)),
+        imageIds: entry.imageIds?.filter(id => !reclaimed.has(id)),
+        imageInputs: Object.fromEntries(inputs.filter(([id]) => !reclaimed.has(id))),
+        ownedAssets: entry.ownedAssets?.filter(key => !removedInputs.has(key)),
+      }
+    }))
+  } finally {
+    for (const id of ids) closing.delete(id)
+  }
+}
+
+let sweep: Promise<void> | undefined
+export function collectTemporaryMCPContexts(now = Date.now()) {
+  if (!sweep) {
+    sweep = (async () => {
+      const current = await entries()
+      if (!current.length) return
+      const locked = await vault().projects.isApplicationLocked()
+      const running = await window.electronAPI.invoke('local-mcp:control','list') as LocalMCPGrant[]
+      const owners = new Map(await Promise.all(running.map(async grant => [await owner(grant), grant] as const)))
+      for (const root of current.filter(entry => !entry.rootId)) {
+        const grant = owners.get(root.owner)
+        if (locked && (!grant || !localMCPBackgroundAllowed(grant))) continue
+        await collectWorkspace(root, current.filter(entry => entry.rootId === root.id), now, grant).catch(() => {})
+      }
+    })().finally(() => { sweep = undefined })
+  }
+  return sweep
 }
 function appTools(grant:LocalMCPGrant,signal:AbortSignal,locked=false):ToolSet{
   const app=LocalMCPApplicationSchema.parse(grant.application)
@@ -174,7 +305,8 @@ function appTools(grant:LocalMCPGrant,signal:AbortSignal,locked=false):ToolSet{
     app_resources:tool({description:'For a Studio job, list with {action:"list",generationId:"<id returned by Studio>"}. Read the chosen file with {action:"read",generationId:"<same id>",resourceId:"<items[].id>",offset:0}. Decode base64 as binary. Use filename and mime, pass version and nextOffset on each subsequent read, and verify SHA-256 before cleanup. A job ID by itself is not a resource ID. Router mode uses its own temporary workspace; other profiles require sessionId.',inputSchema:z.object({sessionId:idSchema.optional(),action:z.enum(['list','read']),resourceId:z.string().max(1024).optional(),generationId:z.string().min(1).max(256).optional(),version:z.string().max(128).optional(),offset:z.number().int().min(0).default(0),length:z.number().int().min(1).max(256*1024).default(256*1024)}).strict(),execute:async input=>{
       const id=app.mode==='router'?await defaultContext(grant,signal):input.sessionId
       if(!id)throw Error('A sessionId is required');await authorized(grant,id,signal,true)
-      return (await import('./resource-transfer')).transferMCPResource(id,input,signal)
+      const ephemeral = app.mode !== 'full' && input.action === 'read'
+      return (await import('./resource-transfer')).transferMCPResource(id,input,signal,ephemeral ? range => recordDelivery(id,range).catch(() => {}) : undefined)
     }}),
     app_cleanup:tool({description:'Permanently delete this endpoint’s selected temporary workspace, generated media and worker descendants after retrieving the outputs. Omitting sessionId deletes all of this endpoint’s temporary workspaces. Existing user chats and other endpoints are never removed. A failed cleanup remains queued and can be retried.',inputSchema:z.object({sessionId:idSchema.optional()}).strict(),execute:async input=>{
       if(!input.sessionId&&[...(active.get(grant.token)||[])].some(item=>!item.id))throw Error('Wait for workspace creation before cleanup')
@@ -233,6 +365,9 @@ export async function handleApplicationMCP(request:LocalMCPRequest,signal:AbortS
   const items=active.get(grant.token)||new Set<{id?:string;work:Promise<unknown>}>();active.set(grant.token,items)
   const pending=Promise.resolve().then(()=>member.execute!(validated.value,{toolCallId:request.callId||request.id,messages:[],abortSignal:signal,context:{}}))
   const operation={id:target,work:pending};if(!destructive)items.add(operation)
-  try{const result=await pending;await live(grant,signal,lockSafe);return result}finally{items.delete(operation);if(!items.size)active.delete(grant.token)}
+  try{const result=await pending;await live(grant,signal,lockSafe);return result}finally{
+    if (target && grant.application?.mode !== 'full') lastActivity.set(target, Date.now())
+    items.delete(operation);if(!items.size)active.delete(grant.token)
+  }
 
 }

@@ -6,6 +6,7 @@ import { settingsStore } from '@/stores/settingsStore'
 import { rendererApplication } from '@/app/renderer-application'
 import { isApplicationLockPending } from '@/components/security/AppGate'
 import { localMCPChanged, restoreMCPProfiles, updateMCPProfiles } from '@/packages/local-mcp/profiles'
+import { MCP_SWEEP_INTERVAL } from '@/packages/local-mcp/retention'
 export default function LocalMCPHost(){
   useEffect(()=>{
     const ipc=window.electronAPI;if(platform.type!=='desktop'||!ipc?.onLocalMCPRequest)return
@@ -68,9 +69,12 @@ export default function LocalMCPHost(){
     // The app-wide host outlives route changes. Scoped keys are checked by the
     // workspace and collection tools and can change without revoking listeners.
     const unlock=vault.keys.subscribe(scope=>{if(scope===undefined||scope==='app')synchronize()})
+    const collector = setInterval(() => {
+      if (!isApplicationLockPending()) void import('@/packages/local-mcp/application').then(module => module.collectTemporaryMCPContexts()).catch(() => {})
+    }, MCP_SWEEP_INTERVAL)
     window.addEventListener('chatbox:privacy-lock',suspend)
     synchronize()
-    return()=>{unsubscribe();unlock();removeEvents();window.removeEventListener('chatbox:privacy-lock',suspend);cancelWork();void control('suspend',false).catch(()=>{})}
+    return()=>{clearInterval(collector);unsubscribe();unlock();removeEvents();window.removeEventListener('chatbox:privacy-lock',suspend);cancelWork();void control('suspend',false).catch(()=>{})}
   },[])
   return null
 }

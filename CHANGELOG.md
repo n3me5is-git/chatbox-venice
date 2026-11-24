@@ -1,5 +1,10 @@
 # Changelog — Chatbox Venice
 
+## 1.57.3
+
+- Automatically remove delivered Studio files, abandoned generations, incomplete uploads and inactive Router and Shadow workspaces.
+- Retry Venice queue cleanup without retaining expired local media payloads.
+
 ## 1.57.2
 
 - Keep the desktop MCP router tool schema stable across app lock and unlock. Report current Studio permissions in catalog results.

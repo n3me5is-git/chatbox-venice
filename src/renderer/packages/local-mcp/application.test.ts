@@ -5,7 +5,8 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js'
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {LocalMCPServer} from '../../../main/local-mcp/server'
 import {defaultLocalMCPPermissions,LocalMCPApplicationSchema,type LocalMCPGrant,type LocalMCPTool} from '@shared/local-mcp'
-const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),appLocked:false,count:0,call:vi.fn(),models:vi.fn(),dispose:vi.fn(),remove:vi.fn(),aliases:[] as string[],images:[] as any[],search:vi.fn()}))
+import { MCP_DOWNLOAD_GRACE, MCP_UNCLAIMED_OUTPUT_AGE, MCP_WORKSPACE_IDLE } from './retention'
+const state=vi.hoisted(()=>({settings:new Map<string,unknown>(),headers:new Map<string,any>(),live:[] as any[],locked:new Set<string>(),appLocked:false,count:0,call:vi.fn(),models:vi.fn(),dispose:vi.fn(),remove:vi.fn(),aliases:[] as string[],images:[] as any[],search:vi.fn(),media:[] as any[],isMediaActive:vi.fn(),discard:vi.fn(),transfer:vi.fn(),cleanupUploads:vi.fn()}))
 vi.mock('@/platform',()=>({default:{type:'desktop',getImageGenerationStorage:()=>({initialize:async()=>{},getPage:async()=>({items:state.images,nextCursor:null})})}}))
 vi.mock('@/stores/settingsStore',()=>({settingsStore:{getState:()=>({getSettings:()=>({defaultChatModel:{provider:'openai',model:'configured'}})})}}))
 vi.mock('@/packages/vault/runtime',()=>({vaultRuntimeFor:()=>({db:{aliases:async()=>state.aliases,getSetting:async(key:string)=>state.settings.get(key),setSettingIfUnchanged:async(key:string,old:unknown,next:unknown)=>{if(state.settings.get(key)!==old)return false;state.settings.set(key,next);return true}},projects:{isApplicationLocked:async()=>state.appLocked,assertApp:async()=>{if(state.appLocked)throw Error('App locked')},assertStorage:async()=>{},assertSession:async(id:string)=>{if(state.locked.has(id))throw Error('Locked')}},assets:{remove:(key:string)=>state.remove(key)}})}))
@@ -17,19 +18,26 @@ vi.mock('./backend',()=>{
 vi.mock('./knowledge',()=>({applicationKnowledgeTools:async()=>({knowledge_document:tool({inputSchema:z.object({collectionId:z.number(),fileId:z.number()}).strict(),execute:async()=>({text:'Scoped knowledge source'})})})}))
 vi.mock('./conversation',()=>({applicationConversationTool:()=>tool({inputSchema:z.object({}),execute:async()=>({sent:true})})}))
 vi.mock('./studio',()=>({applicationStudioTool:()=>tool({inputSchema:z.object({action:z.enum(['catalog','describe','generate'])}),execute:async()=>({studio:true})})}))
-vi.mock('./uploads',()=>({mcpUploadSchema:z.object({}),uploadMCPFile:vi.fn(),cleanupMCPUploads:vi.fn(async()=>{})}))
+vi.mock('./uploads',()=>({mcpUploadSchema:z.object({}),uploadMCPFile:vi.fn(),cleanupMCPUploads:state.cleanupUploads}))
+vi.mock('./resource-transfer',()=>({transferMCPResource:state.transfer}))
 vi.mock('@/packages/session-resources/files',()=>({sessionFiles:{}}))
-vi.mock('@/packages/venice/service',()=>({veniceConfiguration:()=>({apiKey:'test-secret',options:{enabled:true}}),veniceMediaService:{list:async()=>[],removeVoice:vi.fn()}}))
+vi.mock('@/packages/venice/service',()=>({veniceConfiguration:()=>({apiKey:'test-secret',options:{enabled:true}}),veniceMediaService:{list:async()=>state.media,removeVoice:vi.fn(),isActive:state.isMediaActive,discardTemporary:state.discard}}))
 vi.mock('@/packages/web-search/venice',()=>({VeniceSearch:class {
   constructor(_key:string,_host:string|undefined,private readonly engine:string){}
   search(query:string,signal:AbortSignal){return state.search(this.engine,query,signal)}
 }}))
-vi.mock('@/stores/imageGenerationActions',()=>({getImageGenerationService:()=>({deleteRecord:vi.fn()})}))
+vi.mock('@/stores/imageGenerationActions',()=>({getImageGenerationService:()=>({getSnapshot:()=>({currentGeneratingId:null}),getRecord:async(id:string)=>state.images.find(row=>row.id===id),deleteRecord:vi.fn(async(id:string)=>{state.images=state.images.filter(row=>row.id!==id)})})}))
 vi.mock('@/packages/multi-agent/runtime',()=>({disposeTemporaryAgentRoot:(id:string)=>state.dispose(id),revokeExternalAgents:vi.fn(),multiAgentRuntime:{stopRoot:vi.fn(),runs:new Map()}}))
-import {handleApplicationMCP} from './application'
+import {collectTemporaryMCPContexts,handleApplicationMCP} from './application'
 const grant=(mode:'full'|'shadow'|'router',token='test-token'):LocalMCPGrant=>({running:true,sessionId:'application',endpointId:crypto.randomUUID(),application:LocalMCPApplicationSchema.parse({name:mode,mode,manageChats:true,providers:['venice']}),url:'http://127.0.0.1:3000/mcp',token,startedAt:1,permissions:{...defaultLocalMCPPermissions,writeFiles:true,models:true,venice:true}})
 const call=(grant:LocalMCPGrant,name:string,args:Record<string,unknown>={})=>handleApplicationMCP({id:crypto.randomUUID(),operation:'call_tool',grant,name,arguments:args},new AbortController().signal)
 beforeEach(()=>{state.settings.clear();state.headers.clear();state.live=[];state.locked.clear();state.appLocked=false;state.count=0;state.aliases=[];state.images=[];vi.clearAllMocks();state.dispose.mockResolvedValue([]);state.remove.mockImplementation(async(key:string)=>{state.aliases=state.aliases.filter(alias=>alias!==key)});state.call.mockResolvedValue({text:'Result'});vi.stubGlobal('window',{dispatchEvent:vi.fn(),electronAPI:{invoke:vi.fn(async(_channel,command,id)=>command==='list'?state.live:state.live.find(item=>item.endpointId===id)||{running:false})}})})
+beforeEach(() => {
+ state.media = []
+ state.isMediaActive.mockReturnValue(false)
+ state.cleanupUploads.mockResolvedValue(undefined)
+ state.discard.mockImplementation(async(id:string)=>{ state.media = state.media.filter(row=>row.id!==id) })
+})
 it('confines shadows to their own contexts, rejects another endpoint and never lists locked names',async()=>{
   const a=grant('shadow','a'),b=grant('shadow','b');state.live=[a,b]
   state.headers.set('personal',{id:'personal',name:'Private business chat',settings:{}})
@@ -205,6 +213,80 @@ it('keeps a partially stopped context pending, blocks new paid work and allows c
  await expect(call(g,'app_cleanup',{sessionId})).rejects.toThrow('Still stopping')
  await expect(call(g,'app_call',{sessionId,name:'app_model',arguments:{provider:'venice'},request_id:'must-not-pay'})).rejects.toThrow('awaiting cleanup')
  expect(state.call).not.toHaveBeenCalled();expect(await call(g,'app_cleanup',{sessionId})).toMatchObject({deleted:1})
+})
+
+it.each(['router','shadow'] as const)('collects delivered media in %s while retaining incomplete downloads and ordinary chats', async mode => {
+ const endpoint = grant(mode)
+ state.live = [endpoint]
+ if (mode==='router') await call(endpoint,'app_model',{provider:'venice',request_id:'gc-download'})
+ else await call(endpoint,'app_contexts',{action:'create',request_id:'gc-download'})
+ const sessionId = [...state.headers.keys()][0]
+ state.headers.set('personal',{id:'personal',name:'Personal chat'})
+ state.media = ['bell','incomplete','sibling'].map(id=>({id,sessionId,createdAt:Date.now()}))
+ state.media.push({id:'personal-audio',sessionId:'personal',createdAt:0})
+ state.transfer.mockImplementation(async(_id,input,_signal,note)=>{
+   const id = String(input.resourceId).slice('media:'.length)
+   await note({kind:'media',generationId:id,resourceId:input.resourceId,version:'same',offset:input.offset,bytes:2,total:4})
+   return {nextOffset:input.offset===2?null:2}
+ })
+ const read = (resourceId:string,offset:number) => call(endpoint,'app_resources',{...(mode==='shadow'?{sessionId}:{}),action:'read',resourceId,offset})
+ await read('media:bell',2)
+ await read('media:incomplete',2)
+ await read('media:bell',0)
+ await collectTemporaryMCPContexts(Date.now())
+ expect(state.discard).not.toHaveBeenCalled()
+ await collectTemporaryMCPContexts(Date.now()+MCP_DOWNLOAD_GRACE)
+ expect(state.discard.mock.calls).toEqual([['bell']])
+ expect(state.headers.has(sessionId)).toBe(true)
+ expect(state.headers.has('personal')).toBe(true)
+ expect(state.media.map(row=>row.id)).toEqual(['incomplete','sibling','personal-audio'])
+})
+
+it('retains an image batch until all outputs have been served and collects only owned references', async () => {
+ const endpoint = grant('shadow')
+ state.live = [endpoint]
+ const {sessionId} = await call(endpoint,'app_contexts',{action:'create',request_id:'gc-image-batch'}) as {sessionId:string}
+ const id = crypto.randomUUID()
+ const first = `picture:image-gen:${id}:1`, second = `picture:image-gen:${id}:2`, borrowed = 'library:borrowed', fresh = 'picture:owned-input'
+ state.images = [{id,source:{sessionId},status:'done',createdAt:Date.now(),generatedImages:[first,second],referenceImages:[borrowed,fresh]}]
+ state.aliases = [first,second,borrowed,fresh]
+ const {registerTemporaryMCPImage} = await import('./temporary')
+ await registerTemporaryMCPImage(state.images[0],[borrowed,'data:image/png;base64,AQID'])
+ state.transfer.mockImplementation(async(_id,input,_signal,note)=>{
+   await note({kind:'image',generationId:id,resourceId:input.resourceId,version:'one',offset:0,bytes:3,total:3})
+   return {nextOffset:null}
+ })
+ const read = (key:string) => call(endpoint,'app_resources',{sessionId,action:'read',resourceId:`image:${id}:${key}`})
+ await read(first)
+ await collectTemporaryMCPContexts(Date.now()+MCP_DOWNLOAD_GRACE)
+ expect(state.images).toHaveLength(1)
+ expect(state.remove).not.toHaveBeenCalled()
+ await read(second)
+ await collectTemporaryMCPContexts(Date.now()+MCP_DOWNLOAD_GRACE)
+ expect(state.images).toHaveLength(0)
+ expect(state.aliases).toEqual([borrowed])
+})
+
+it('collects expired router/shadow workspaces and jobs while preserving actively generating media', async () => {
+ const {
+   temporaryMCPEntries, mutateTemporaryMCPEntries,
+ } = await import('./temporary')
+ const shadow = {...grant('shadow','shadow-gc'),keepWhileLocked:true,allowOperationsWhileLocked:true}
+ state.live = [shadow]
+ const {sessionId} = await call(shadow,'app_contexts',{action:'create',request_id:'gc-workspace'}) as any
+ const now = Date.now()
+ state.media = [{id:'active',sessionId,createdAt:now},{id:'abandoned',sessionId,createdAt:now-MCP_UNCLAIMED_OUTPUT_AGE-1}]
+ state.isMediaActive.mockImplementation((id:string)=>id==='active')
+ await mutateTemporaryMCPEntries(rows=>rows.map(row=>row.id===sessionId?{...row,createdAt:now-MCP_UNCLAIMED_OUTPUT_AGE-1}:row))
+ state.appLocked = true
+ await collectTemporaryMCPContexts(now+MCP_WORKSPACE_IDLE)
+ expect(state.discard.mock.calls).toEqual([['abandoned']])
+ expect(state.headers.has(sessionId)).toBe(true)
+ state.isMediaActive.mockReturnValue(false)
+ await collectTemporaryMCPContexts(now+MCP_WORKSPACE_IDLE)
+ expect(state.discard).toHaveBeenLastCalledWith('active')
+ expect(state.headers.has(sessionId)).toBe(false)
+ expect(await temporaryMCPEntries()).toEqual([])
 })
 
 it('routes explicitly granted knowledge without creating a workspace or granting other app data',async()=>{
