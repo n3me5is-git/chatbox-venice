@@ -80,7 +80,7 @@ Router and Shadow results stay hidden from ordinary chat lists, Studio history a
 
 Unclaimed generations and incomplete uploads expire after an hour. Unused workspaces expire after 30 minutes of inactivity and are also eligible for cleanup after 24 hours, once current work and the retry window have ended. Active generations and agents can finish before expiry is applied. Clients may still call `app_cleanup` after saving the files to close a temporary workspace immediately. These rules apply to Router and Shadow workspaces. Authorized persistent chats keep their data.
 
-Endpoint stop and app startup also attempt temporary cleanup. If the provider is temporarily unavailable, the app drops expired local audio or video bytes and keeps the minimal encrypted receipt needed to retry remote deletion. Protected storage that the app cannot open is retried after unlock. If the app is force-quit, the remaining cleanup runs at the next launch.
+Endpoint stop and app startup also attempt temporary cleanup. If the provider is temporarily unavailable, the app drops expired local audio or video bytes and keeps the queue metadata needed to retry remote deletion. Protected storage that the app cannot open is retried after unlock. If the app is force-quit, the remaining cleanup runs at the next launch.
 
 Queue cleanup uses the original Venice endpoint/key and its existing completion API. Local cleanup does not promise secure erasure from SSD backups or deletion unsupported by the provider. In particular, cloned voices currently expire according to Venice retention; removing their local handles is not immediate remote voice deletion. No automatic retry starts another paid generation.
 
